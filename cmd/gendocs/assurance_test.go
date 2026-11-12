@@ -48,8 +48,8 @@ func TestStage49175CadenceFlagsOverdueAndNeverDone(t *testing.T) {
 		os.MkdirAll(filepath.Dir(p), 0o755)
 		os.WriteFile(p, []byte(body), 0o644)
 	}
-	write("docs/security/threat_model.md", "---\nlast_verified: 2026-01-01\n---\n")
-	write("docs/security/risk_register.md", "---\nlast_verified: 2026-10-01\n---\n")
+	write("docs/security/threat-model.md", "---\nlast_verified: 2026-01-01\n---\n")
+	write("docs/security/risk-register.md", "---\nlast_verified: 2026-10-01\n---\n")
 	write("docs/security/assessment-register.md", "| 2026-10-20 | internal-review | monthly access review | owner | live | 2027-04-18 |\n")
 	asOf := evidenceAsOf(root, "2026-10-26")
 	days := func(d string) int {

@@ -18,8 +18,8 @@ superseded_by: none
 # Version-pinned verification matrix
 
 **Stage 49.10.1** — established 2026-09-13. Companion to
-[threat_model.md](threat_model.md) (what this system protects) and
-[risk_register.md](risk_register.md) (where a gap below already has an open
+[threat-model.md](threat-model.md) (what this system protects) and
+[risk-register.md](risk-register.md) (where a gap below already has an open
 row). Feeds [vulnerability-disclosure-lifecycle.md](vulnerability-disclosure-lifecycle.md)
 §49.15.2's severity scoring and is the "adopted... standards" this document set
 promises for **49.16.2**'s control crosswalk.
@@ -47,7 +47,7 @@ promises for **49.16.2**'s control crosswalk.
 | **NIST SP 800-218 (Secure Software Development Framework)** | Already this project's adopted secure-development framework — see `docs/security/secure-development-lifecycle.md` (Stage 48, `SEC-SDLC-001`) and [secure-development-lifecycle.md](secure-development-lifecycle.md) (Stage 49.9), not re-adopted here. | Reused, not duplicated — 49.10.1 asks for a secure-development framework and this project already has one. |
 | **CIS Benchmarks** | CIS Ubuntu Linux Benchmark (production confirmed live 2026-09-13: **Ubuntu 22.04.5 LTS**) and CIS PostgreSQL Benchmark (production confirmed live: **PostgreSQL 14.24**) | Matches the actual deployed OS/DB versions exactly, checked by SSH against the production droplet rather than assumed from an older note. **Exact CIS benchmark document edition/revision number is not pinned yet** — recorded honestly: confirming that number against `cisecurity.org` and downloading the actual control list is real, separate follow-up work, not done in this pass. |
 
-**Exclusion, with rationale and owner, as 49.10.1 requires:** no mobile (OWASP MASVS) or cloud-infrastructure (CIS cloud provider benchmarks) standard is adopted — this system is D1/D2 single-box-hosted per [threat_model.md](threat_model.md) §1.1, with no mobile app and no cloud-managed infrastructure beyond a single droplet. Owner: security-owner; revisit if a deployment configuration outside D1/D2 is ever supported.
+**Exclusion, with rationale and owner, as 49.10.1 requires:** no mobile (OWASP MASVS) or cloud-infrastructure (CIS cloud provider benchmarks) standard is adopted — this system is D1/D2 single-box-hosted per [threat-model.md](threat-model.md) §1.1, with no mobile app and no cloud-managed infrastructure beyond a single droplet. Owner: security-owner; revisit if a deployment configuration outside D1/D2 is ever supported.
 
 ## 2. ASVS 5.0 chapter map
 
@@ -69,7 +69,7 @@ Mapped at chapter granularity, honestly, not at the ~350-requirement granularity
 | V12 | Secure Communication | **Built (at the deployment layer)** | Caddy terminates TLS with on-demand per-tenant issuance (Stage 44); `TRUST_PROXY`/`TRUSTED_PROXY_CIDRS` now matches Caddy's `trusted_proxies` exactly as of the SB-012 fix applied 2026-09-13 (this document's own sibling fix). |
 | V13 | Configuration | **Built** | `engines/security_baseline.go`'s SB-* startup validator is exactly this chapter's subject — refuses a production boot on a known-insecure baseline, which is precisely how SB-012 was caught. |
 | V14 | Data Protection | **Built** | `engines/data_classification.go` (Stage 49.6.1) + `engines/sensitive_fields.go` (47.1.3) classification registry; `engines/privacy_rights.go` (49.6.8) for the Customer access/export/erasure lifecycle — all cited in [README.md](README.md). |
-| V15 | Secure Coding and Architecture | **Built** | This repository's own `CLAUDE.md` First/Second/Third principles, [threat_model.md](threat_model.md), [secure-development-lifecycle.md](secure-development-lifecycle.md), `.github/CODEOWNERS`. |
+| V15 | Secure Coding and Architecture | **Built** | This repository's own `CLAUDE.md` First/Second/Third principles, [threat-model.md](threat-model.md), [secure-development-lifecycle.md](secure-development-lifecycle.md), `.github/CODEOWNERS`. |
 | V16 | Security Logging and Error Handling | **Built** | `engines/audit_evidence.go` (signed events + checkpoints, Stage 47.7) and `engines/audit_archive.go` (47.7.6); `TestBaselineFindingsNeverEchoConfiguredValues` (cited in [README.md](README.md)) for the "never leak the value" rule this chapter asks for. |
 | V17 | WebRTC | **Not applicable** | This system has no real-time media/peer-connection feature anywhere in its architecture. Owner: security-owner; revisit only if a WebRTC-based feature is ever proposed. |
 
@@ -98,5 +98,5 @@ Mapped at chapter granularity, honestly, not at the ~350-requirement granularity
 
 It is not an ASVS Level 1/2/3 conformance claim, not a penetration-test substitute, and not a certification. It is the version-pinned baseline
 [49.16.2](../micro_checklist.md)'s control crosswalk cites, and the thing
-[risk_register.md](risk_register.md) rows should reference by chapter/CWE ID
+[risk-register.md](risk-register.md) rows should reference by chapter/CWE ID
 going forward instead of inventing ad hoc framework language per row.

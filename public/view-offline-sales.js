@@ -34,15 +34,15 @@ export async function renderOfflineSalesView(container) {
       <div class="page-section-bar">
         ${txnPageTitle({ screen: SCREEN, title: 'Offline Sales', page: '<span id="ofs-page-title"></span>', count: '', landing: 'list' })}
         <span class="page-section-actions txn-landing-only">
-          <select id="ofs-status" class="form-input" aria-label="Status" style="width: 150px;">
+          <select id="ofs-status" class="form-input s-0a9e77" aria-label="Status">
             ${['Pending', 'Validated', 'Rejected', ''].map(s => `<option value="${s}"${s === ofsStatus ? ' selected' : ''}>${s || 'All'}</option>`).join('')}
           </select>
         </span>
       </div>
       <div data-pane="list">
-        <div class="table-panel" style="overflow-x: auto;">
+        <div class="table-panel s-987eb2">
           <table>
-            <thead><tr><th>Received</th><th>Sold</th><th>Cart</th><th>Store</th><th>Cashier</th><th style="text-align: right;">Total</th><th>Lines matched</th><th>Status</th></tr></thead>
+            <thead><tr><th>Received</th><th>Sold</th><th>Cart</th><th>Store</th><th>Cashier</th><th class="s-30489c">Total</th><th>Lines matched</th><th>Status</th></tr></thead>
             <tbody id="ofs-rows"><tr><td colspan="8" class="text-muted">Loading…</td></tr></tbody>
           </table>
         </div>
@@ -76,10 +76,10 @@ async function loadOfflineSales() {
   ofsRows = ((await res.json()) || {}).sales || [];
   const count = document.querySelector(`#${SCREEN} .txn-count`);
   if (count) count.textContent = ofsRows.length;
-  body.innerHTML = ofsRows.length ? ofsRows.map(s => `<tr data-ofs="${esc(s.id)}" style="cursor: pointer;">
-      <td style="white-space: nowrap;">${esc(when(s.received_at))}</td><td style="white-space: nowrap;">${esc(when(s.sold_at))}</td>
+  body.innerHTML = ofsRows.length ? ofsRows.map(s => `<tr data-ofs="${esc(s.id)}" class="s-74fa97">
+      <td class="s-1cd2ee">${esc(when(s.received_at))}</td><td class="s-1cd2ee">${esc(when(s.sold_at))}</td>
       <td>${esc(s.cart_number)}</td><td>${esc(s.location)}</td><td>${esc(s.cashier)}</td>
-      <td style="text-align: right;">${esc(money(s.total))}</td>
+      <td class="s-30489c">${esc(money(s.total))}</td>
       <td>${s.lines_matched}/${s.lines_total}</td><td>${statusBadge(s.status)}</td></tr>`).join('')
     : `<tr><td colspan="8" class="text-muted">No ${ofsStatus ? ofsStatus.toLowerCase() + ' ' : ''}offline sales.</td></tr>`;
 }
@@ -100,9 +100,9 @@ function renderSale(s) {
   if (title) title.textContent = s.cart_number;
   const lines = s.lines || [];
   const allMatch = lines.length > 0 && lines.every(l => l.match);
-  const fact = (label, value) => value ? `<div><div class="text-muted" style="font-size: 12px;">${label}</div><div>${value}</div></div>` : '';
+  const fact = (label, value) => value ? `<div><div class="text-muted s-11fcdc">${label}</div><div>${value}</div></div>` : '';
   el.innerHTML = `
-    <div class="table-panel" style="padding: 16px; margin-bottom: 16px; min-height: 0; display: grid; align-content: start; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;">
+    <div class="table-panel s-d4fd04">
       ${fact('Status', statusBadge(s.status))}
       ${fact('Store', esc(s.location))}
       ${fact('Cashier', esc(s.cashier))}
@@ -115,19 +115,19 @@ function renderSale(s) {
       ${fact('Decided', esc(when(s.decided_at)))}
       ${fact('Reason', esc(s.reject_reason))}
     </div>
-    <div class="table-panel" style="overflow-x: auto; margin-bottom: 16px;">
+    <div class="table-panel s-6075cf">
       <table>
-        <thead><tr><th>Item</th><th style="text-align: right;">Qty</th><th>ERP barcode</th><th>Scanned</th><th>Match</th></tr></thead>
+        <thead><tr><th>Item</th><th class="s-30489c">Qty</th><th>ERP barcode</th><th>Scanned</th><th>Match</th></tr></thead>
         <tbody>${lines.map(l => `<tr>
-          <td>${esc(l.sku)}${l.name ? `<div class="text-muted" style="font-size: 12px;">${esc(l.name)}</div>` : ''}</td>
-          <td style="text-align: right;">${esc(l.qty)}</td>
+          <td>${esc(l.sku)}${l.name ? `<div class="text-muted s-11fcdc">${esc(l.name)}</div>` : ''}</td>
+          <td class="s-30489c">${esc(l.qty)}</td>
           <td>${(l.erp_barcodes || []).length ? esc(l.erp_barcodes.join(' · ')) : '<span class="text-muted">None</span>'}</td>
           <td>${l.scanned ? esc(l.scanned) : '<span class="text-muted">Not scanned</span>'}</td>
           <td>${l.match ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-danger">No</span>'}</td></tr>`).join('')}</tbody>
       </table>
     </div>
-    <div id="ofs-error" class="hidden" role="alert" style="color: var(--danger-color, #b3261e); margin-bottom: 12px;"></div>
-    ${s.status === 'Pending' ? `<div style="display: flex; gap: 8px;">
+    <div id="ofs-error" class="hidden s-b9cceb" role="alert"></div>
+    ${s.status === 'Pending' ? `<div class="s-b9b7b5">
       <button type="button" class="btn btn-primary" data-ofs-do="validate"${allMatch ? '' : ' disabled style="opacity: .5; cursor: not-allowed;" title="Every line must be scanned with its own barcode"'}>Validate</button>
       <button type="button" class="btn btn-outline" data-ofs-do="reject">Reject</button>
     </div>` : ''}`;

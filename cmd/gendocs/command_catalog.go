@@ -42,18 +42,21 @@ type commandFamily struct {
 // whose pattern matches. Only mutating methods are commands.
 var commandFamilies = []commandFamily{
 	{"Export", regexp.MustCompile(`/export|/pim/feeds/\{id\}/run`)},
-	{"Credential / config change", regexp.MustCompile(`credentials|/admin/settings$|/admin/tenant/package|/admin/security/|/shopify/\{channel\}/settings`)},
+	{"Credential / config change", regexp.MustCompile(`credentials|/admin/settings$|/admin/tenant/package|/admin/security/|/shopify/\{channel\}/settings|/admin/ai-access/clients`)},
 	{"Loyalty", regexp.MustCompile(`loyalty`)},
 	{"Tender", regexp.MustCompile(`/pos/payment/`)},
 	{"Quote / discount / override", regexp.MustCompile(`/pos/(quote|offers/preview|price-override)|/rfq/`)},
 	{"Return / refund / exchange", regexp.MustCompile(`/returns|/refunds|/return$|purchase-returns|/pos/exchange`)},
 	{"Sale", regexp.MustCompile(`^POST /api/v1/(checkout$|pos/(held-bills|bills|offline-sales|advances|gift-card/issue|session))`)},
 	{"Allocation / pick / ship", regexp.MustCompile(`/wms/(wave|pick-scan|short-pick|pack-scan|pack-complete|transfer/pack|bin-replenishment)|/oms/shipping-packages|/logistics/manifest|/couriers/\{provider\}/pickup|/dispatch$`)},
-	{"Adjustment / count", regexp.MustCompile(`/inventory/adjustments|/cycle-count|/physical-inventory|/store-app/counts`)},
-	{"Vendor / payment", regexp.MustCompile(`/vendor-invoice/|/payment-proposal|/vendor-credit-note`)},
-	{"Journal / period", regexp.MustCompile(`/finance/(journal-voucher|periods|period-reopen)`)},
+	{"Adjustment / count", regexp.MustCompile(`/inventory/adjustments|/cycle-count|/physical-inventory|/store-app/counts|/store-app/inspections/|/stock-age-inspections`)},
+	{"Vendor / payment", regexp.MustCompile(`/vendor-invoice/|/payment-proposal|/vendor-credit-note|/procurement/expense-bills`)},
+	{"Journal / period", regexp.MustCompile(`/finance/(journal-voucher|periods|period-reopen|gstr1-filed|set-off/)`)},
 	{"Payroll", regexp.MustCompile(`payroll`)},
 	{"Master merge", regexp.MustCompile(`/merge`)},
+	{"Staged import", regexp.MustCompile(`/import-batches`)},
+	{"Channel listing", regexp.MustCompile(`/marketplace/channels/\{channel\}/listings/`)},
+	{"Assistant order", regexp.MustCompile(`/submit-assistant-draft`)},
 }
 
 var mutatingMethod = regexp.MustCompile(`^(POST|PUT|PATCH|DELETE) `)
@@ -287,12 +290,22 @@ var commandNotes = map[string]commandNote{
 		Inputs: "adjustment postings, close stamp", Preconditions: "a reconciled count", Invariants: "closing posts the variance once; a closed count cannot reopen"},
 	"POST /api/v1/wms/physical-inventory/cancel": {
 		Inputs: "cancel stamp", Preconditions: "an open count", Invariants: "a cancelled count posts nothing"},
+	"POST /api/v1/store-app/inspections/result": {
+		Inputs: "result lines, readings, karat and weight, lot status", Preconditions: "a pending lot at the user's own store", Invariants: "lines total the lot; blank is Fail; passed units move from QC hold to available once"},
+	"POST /api/v1/store-app/inspections/dispose": {
+		Inputs: "Scrap or Release, reason code or note, the lot's held units", Preconditions: "a failed lot of the user's own store with units still in QC hold", Invariants: "held units leave QC hold once; a scrap is a stock adjustment with its journal; a failure puts them back"},
+	"POST /api/v1/stock-age-inspections": {
+		Inputs: "outcome, job-work reference or scrap lines", Preconditions: "an open age inspection", Invariants: "decided once; scrap posts only through the stock adjustment"},
 	"POST /api/v1/store-app/counts": {
 		Inputs: "count stamp, store from the session", Preconditions: "the user's own store", Invariants: "a store count is a record, not a posting; it posts only through the adjustment"},
 
 	// --- Vendor / payment ----------------------------------------------------
 	"POST /api/v1/procurement/vendor-invoice/match": {
 		Inputs: "match result, MismatchHold status", Preconditions: "a vendor invoice and its GRN / PO", Invariants: "a bill matches one GRN; a second bill for the same goods is held, not paid"},
+	"POST /api/v1/procurement/expense-bills": {
+		Inputs: "vendor, bill number, lines by expense account with GST and cost centre", Preconditions: "bills without a PO switched on; the vendor on file; approval where a rule matches", Invariants: "one balanced journal per cost centre; blocked GST goes to cost, only eligible GST is input credit; the same vendor and number is one bill"},
+	"POST /api/v1/procurement/expense-bills/{id}/link-po": {
+		Inputs: "the PO to tie the bill to", Preconditions: "a bill without a PO and a PO of the same vendor", Invariants: "the books do not change"},
 	"POST /api/v1/procurement/vendor-invoice/pay": {
 		Inputs: "payment number, GL posting (payable vs bank), paid amount on the bill", Preconditions: "a matched, unpaid bill; approval where a rule matches; the vendor's bank not changed since (vendor_bank_then_paid detection)", Invariants: "paid never exceeds the invoice; a bill is paid once; posted money is frozen after"},
 	"POST /api/v1/procurement/vendor-invoice/pay-with-tds": {
@@ -325,6 +338,16 @@ var commandNotes = map[string]commandNote{
 		Inputs: "request stamp", Preconditions: "a closed period; reason", Invariants: "a reopen needs a second person (period_reopened detection)"},
 	"POST /api/v1/finance/period-reopen/{request}/apply": {
 		Inputs: "reopen stamp", Preconditions: "an approved request; approver is not the requester", Invariants: "reopening is recorded; the period closes again through the same tasks"},
+	"POST /api/v1/finance/periods/{id}/hold": {
+		Inputs: "hold stamp", Preconditions: "an Open period; finance role", Invariants: "an On Hold period refuses sales postings dated in it; it still closes"},
+	"POST /api/v1/finance/periods/{id}/release": {
+		Inputs: "release stamp", Preconditions: "an On Hold period; finance role", Invariants: "the period goes back to Open"},
+	"POST /api/v1/finance/gstr1-filed/{month}": {
+		Inputs: "month", Preconditions: "a month that has ended; finance role", Invariants: "with finance.lock_after_gstr1 on, the month's sales postings are refused"},
+	"POST /api/v1/finance/gstr1-filed/{month}/unmark": {
+		Inputs: "month, reason", Preconditions: "a marked month; admin; reason", Invariants: "the unmark is audited with who, when and why"},
+	"POST /api/v1/finance/set-off/{id}/reverse": {
+		Inputs: "reversal date", Preconditions: "a posted set-off dated on or before the reversal; finance role", Invariants: "mirror postings restore both balances; a set-off reverses once"},
 
 	// --- Payroll -------------------------------------------------------------
 	"POST /api/v1/hr/run-payroll": {
@@ -335,6 +358,22 @@ var commandNotes = map[string]commandNote{
 		Inputs: "survivor id, re-pointed documents, merge record", Preconditions: "two customers; the survivor named", Invariants: "every document of the merged customer points at the survivor; balances and points are added, not lost"},
 	"POST /api/v1/crm/merges": {
 		Inputs: "merge request record", Preconditions: "two customers", Invariants: "a merge is applied once per request"},
+
+	// --- Staged import (47.13.1) -------------------------------------------
+	"POST /api/v1/import-batches": {
+		Inputs: "file bytes, its SHA-256, the encoding found, the rules version; who uploaded and when", Preconditions: "create / update on the record type; a plain-text file under 5 MB", Invariants: "nothing is written to the record type; the same file for the same type returns the batch already made", Idempotency: "the same file is the same batch"},
+	"POST /api/v1/import-batches/{id}/validate": {
+		Inputs: "each row re-transformed from its raw cells under today's rules; the key, the match and the verdict computed by the server", Preconditions: "the batch is not yet out for approval", Invariants: "validation is the import core's own dry run; nothing is written to the record type", Idempotency: "a repeat recomputes the same verdicts"},
+	"POST /api/v1/import-batches/{id}/preview": {
+		Inputs: "counts, totals and changed fields computed from the staged rows and the stored records", Preconditions: "checked under today's rules", Invariants: "nothing is written to the record type"},
+	"POST /api/v1/import-batches/{id}/approve": {
+		Inputs: "the approver comes from the client's approval rule for ImportBatch", Preconditions: "previewed under today's rules with at least one valid row", Invariants: "with a rule the maker cannot decide their own batch (self-approval setting); with none the batch is approved here", Idempotency: "asking again for a batch sent or approved changes nothing"},
+	"POST /api/v1/import-batches/{id}/commit": {
+		Inputs: "rows written by the import core; each row marked Committed in the same transaction as its record", Preconditions: "the batch is Approved and checked under today's rules; no other commit holds the lease", Invariants: "a row is written once - a repeat or a resume takes only the rows still Valid; created + updated = rows committed", Idempotency: "a committed batch returns its recorded result"},
+	"POST /api/v1/import-batches/{id}/reconcile": {
+		Inputs: "counts and column totals recomputed from the staged rows and the records", Preconditions: "the batch is committed", Invariants: "a batch is Reconciled only if rows, totals and records tie out; otherwise the differences are listed", Idempotency: "a repeat recomputes the same record"},
+	"POST /api/v1/import-batches/{id}/discard": {
+		Inputs: "the staged rows removed; the batch kept as Expired", Preconditions: "not approved and not committed", Invariants: "a committed or approved batch is never discarded"},
 
 	// --- Credential / config change ------------------------------------------
 	"PUT /api/v1/admin/settings": {
@@ -352,6 +391,10 @@ var commandNotes = map[string]commandNote{
 	"POST /api/v1/integrations/credentials/active": {
 		Inputs: "the connector kind, its code and on / off; who and when stamped", Preconditions: "an administrator; a saved credential for that connector",
 		Invariants: "a switched-off credential is refused before any call out; saving it again switches it back on"},
+	"POST /api/v1/admin/ai-access/clients": {
+		Inputs: "client name, the one user it acts as, ai scopes; the secret shown once", Preconditions: "an administrator; the ai_access module on; an active user", Invariants: "scopes are only ai:read and ai:draft; the client always acts with that user rights"},
+	"POST /api/v1/orders/{id}/submit-assistant-draft": {
+		Inputs: "the draft order id; the signed-in person", Preconditions: "an open draft made by an assistant, in a store the person may use", Invariants: "the order is made through the ordinary create path; the draft is closed and linked to it"},
 	"POST /api/v1/admin/api-credentials/{id}/rotate": {
 		Inputs: "new secret shown once", Preconditions: "an existing credential", Invariants: "the old secret stops working"},
 	"PUT /api/v1/admin/api-credentials/{id}/limits": {
@@ -366,6 +409,30 @@ var commandNotes = map[string]commandNote{
 	"POST /api/v1/admin/security/sessions/end": {
 		Inputs: "the session id, a reason and the admin's own password; who ended it and when", Preconditions: "an administrator; a stored privileged session",
 		Invariants: "that one token is refused at its next request; the user's other sessions carry on"},
+	"POST /api/v1/admin/security/export": {
+		Inputs: "the destination address, a signing secret (stored encrypted, never returned), on / off and the admin's own password; who and when", Preconditions: "an administrator; not a sandbox client; an https address that resolves only to public addresses",
+		Invariants: "off by default; the secret is never read back; first turning on starts at the newest event so history is not sent in one go"},
+	"POST /api/v1/admin/security/export/backfill": {
+		Inputs: "a start date and the admin's own password; who and when", Preconditions: "an administrator; the export turned on; no history send already running; a start date not in the future and within the allowed days back, with no more events than the cap",
+		Invariants: "rewinds the export to the first event on or after that date and sends it again in order; no audit row is changed"},
+	"POST /api/v1/admin/security/access-reviews": {
+		Inputs: "a user, Confirmed or Revoked and a note (required to revoke); who decided and when", Preconditions: "an HR / admin user; a user of this client who is not the platform support user",
+		Invariants: "every decision is a new review row; revoking sets the user Inactive at once; never your own access, a Super Admin's or the last active admin's"},
+	"POST /api/v1/admin/security/export/test": {
+		Inputs: "none; one synthetic event is sent", Preconditions: "an administrator; a saved address and secret; outside calls allowed for this client",
+		Invariants: "carries no audit data and does not move the export cursor; the attempt is audited"},
+	"POST /api/v1/admin/security/notify/matrix": {
+		Inputs: "the matrix rows and a note on what changed; who and when", Preconditions: "an administrator; 1 to 60 valid rows",
+		Invariants: "always a new version, never an edit; decisions already opened keep the version they used"},
+	"POST /api/v1/admin/security/notify/incidents": {
+		Inputs: "an incident name, when it was noticed and the matrix rows to decide", Preconditions: "an administrator; a discovery time within a year and not in the future",
+		Invariants: "one decision per row, each fixed to the matrix version of that moment with its assessment and target time; the system never concludes that anyone must be told"},
+	"POST /api/v1/admin/security/notify/decide": {
+		Inputs: "notify / do not notify / pending, a reason, an evidence reference and a named approver", Preconditions: "an administrator; an open decision; the approver is an active user other than the decider",
+		Invariants: "moves the decision to Awaiting approval and never closes it; a closed decision cannot be changed"},
+	"POST /api/v1/admin/security/notify/review": {
+		Inputs: "approve or send back, with a note", Preconditions: "an administrator who is the named approver and not the person who decided",
+		Invariants: "approving closes the decision for good; sending back reopens it with the note"},
 	"POST /api/v1/admin/security/sign-out-all": {
 		Inputs: "session revocation stamp", Preconditions: "an administrator", Invariants: "every session of the client is dead after"},
 	"POST /api/v1/admin/security/sign-out-user": {
@@ -379,6 +446,12 @@ var commandNotes = map[string]commandNote{
 		Inputs: "settings stamp", Preconditions: "a channel of this client", Invariants: "sync settings change only through this route"},
 	"POST /api/v1/marketplace/channels/{channel}/credentials": {
 		Inputs: "the secret stored encrypted, write-only", Preconditions: "a channel of this client", Invariants: "a stored secret is never returned"},
+	"POST /api/v1/marketplace/channels/{channel}/listings/pull": {
+		Inputs: "the channel's listings read through its connector", Preconditions: "an administrator; a channel that can list", Invariants: "a pull never links a listing or changes a stock switch; listings not seen are marked Gone, not deleted"},
+	"POST /api/v1/marketplace/channels/{channel}/listings/link": {
+		Inputs: "listing refs to link", Preconditions: "an administrator; the plan is made again at commit", Invariants: "a conflict row is never linked; one ERP item links to one listing per channel", Idempotency: "linking a linked listing changes nothing"},
+	"POST /api/v1/marketplace/channels/{channel}/listings/stock-sync": {
+		Inputs: "listing ref, on or off", Preconditions: "an administrator; a pulled listing", Invariants: "off means the stock push leaves that item out", Idempotency: "same value is idempotent"},
 	"POST /api/v1/marketplace/couriers/{provider}/credentials": {
 		Inputs: "the secret stored encrypted, write-only", Preconditions: "a provider the ERP knows", Invariants: "a stored secret is never returned"},
 	"POST /api/v1/pim/channels/{code}/credentials": {

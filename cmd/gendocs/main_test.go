@@ -32,7 +32,7 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 	if err := docgen.Write(out, files); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"docs/guides/ERROR_CODES.md", "docs/kb/reference/report-catalog.md", "docs/api/generated/public-v1.json"} {
+	for _, name := range []string{"docs/guides/error-codes.md", "docs/kb/reference/report-catalog.md", "docs/api/generated/public-v1.json"} {
 		if _, err := os.Stat(filepath.Join(out, filepath.FromSlash(name))); err != nil {
 			t.Fatal(err)
 		}

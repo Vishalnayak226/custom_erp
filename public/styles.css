@@ -1,19 +1,6 @@
 /* Custom ERP Stylesheet */
 
-/* Stage 40.4: the Google Fonts @import that used to sit here has been
-   removed, and it was the single most expensive thing on the critical path.
-   A CSS @import is discovered only after styles.css itself has downloaded and
-   started parsing, so it cost three chained round trips before first paint -
-   styles.css, then fonts.googleapis.com's CSS, then the woff2 from
-   fonts.gstatic.com - each one blocking, each one to a third party.
-
-   The replacement is the platform's own UI font, which is what a premium
-   native app actually uses: San Francisco on Apple devices, Segoe UI
-   on Windows, Roboto on Android. Zero bytes, zero requests, no FOUT, and
-   text renders in the first paint instead of after it. It also let the
-   Content-Security-Policy drop its two Google Fonts exceptions
-   (internal/server/middleware.go), so the app now loads no third-party
-   resource of any kind. */
+/* Stage 40.4: the platform UI font replaces the Google Fonts @import: no third-party request, no FOUT. */
 
 :root {
   --logo-light-display: block; /* Stage 120: logo copy per theme */
@@ -25,7 +12,7 @@
   --panel-bg: #ffffff;
   --surface-subtle: #f1f5f9;
   --text-main: #0f172a;
-  --text-muted: #64748b;
+  --text-muted: #5f6f85;
   --border-color: #e2e8f0;
   --border-hover: #cbd5e1;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
@@ -77,20 +64,7 @@
   --success-soft-bg: #d1fae5;
 }
 
-/* Dark theme tokens (Stage 28.2). The token block above is the single source
-   of color for the whole app, so re-theming is purely a matter of overriding
-   these variables - no component rule changes. Applied when the user explicitly
-   picks Dark (:root[data-theme="dark"]) OR leaves it on System and the OS
-   prefers dark. An explicit Light choice ([data-theme="light"]) always wins over
-   the OS preference. The two blocks below hold the same values (one for the
-   explicit choice, one for the System-follows-OS case) - kept in sync by hand.
-
-   RULE (Stage 28.5, after a batch of unreadable-in-dark text was found in the
-   confirm dialog, badges and <pre> blocks): no rule below these blocks may use
-   a literal color for text, background or border. Always add/reuse a token
-   here and reference it with var(). The only sanctioned exceptions are the
-   print-only .receipt / .sticker-label rules (always ink-on-paper) and
-   translucent rgba() scrims/glows, which read correctly on either theme. */
+/* Dark theme tokens (Stage 28.2): the token block above is the single source of colour; this overrides it for explicit Dark and for System + OS dark (the two blocks are kept in sync by hand; explicit Light wins). RULE (28.5): no rule below may use a literal colour for text, background or border; use a token. Exceptions: print-only .receipt / .sticker-label and translucent rgba() scrims. */
 :root[data-theme="dark"] {
   --logo-light-display: none;
   --logo-dark-display: block;
@@ -1443,20 +1417,7 @@ tr:hover td {
   flex: 0 0 auto;
 }
 
-/* The generic document form (openDynamicModal in app.js - every master and
-   document create/edit screen) is the one dialog with an unbounded field
-   count: Item alone renders ~20. A single column made it taller than any
-   screen. This lays it out on an intrinsic grid instead - one column when
-   there's room for one, two or three when there's room for more - so the
-   number of columns follows the available width rather than a breakpoint
-   list. minmax(min(240px,100%),1fr) is the whole responsive story: 100%
-   keeps a single column from overflowing a very narrow/heavily-zoomed
-   viewport, 240px is the narrowest a labelled input stays usable at.
-
-   The widening is opt-in per form (openDynamicModal sets .modal-container-wide
-   above 4 fields): a 3-field master in a 920px dialog would be two-thirds empty
-   row, and at 520px the 240px minimum yields one column on its own, so small
-   masters keep exactly the dialog they have today. */
+/* The generic document form (openDynamicModal): an intrinsic grid, minmax(min(240px,100%),1fr), so columns follow width. Opt-in per form (.modal-container-wide above 4 fields); small masters keep their dialog. */
 #dynamic-modal .modal-container.modal-container-wide {
   max-width: min(920px, 100%);
 }
@@ -2846,36 +2807,7 @@ input.form-input.num {
   box-shadow: 0 0 0 3px var(--danger-soft-bg) !important;
 }
 
-/* ===========================================================================
-   Motion system (Stage 40.5)
-
-   The complaint was precise: transitions "felt like a cheap flick". That is
-   what a linear or ease-in-out curve at a middling duration reads as - the
-   movement starts and stops abruptly and spends its time in the middle, which
-   is the one part the eye does not need to see.
-
-   Premium motion on Apple's platforms is the opposite shape: it leaves
-   immediately, covers most of the distance in the first third, and settles.
-   That is a decelerating curve with a slight overshoot, which is what
-   --ease-out already encodes (cubic-bezier(0.22, 1, 0.36, 1)) and what the
-   two curves below extend.
-
-   Four rules everything here follows:
-
-     1. Animate only `transform` and `opacity`. Both are composited on the GPU,
-        so they never trigger layout or paint - which is the actual difference
-        between 60fps and a stutter, far more than duration.
-     2. Distances are small. 6-10px of travel reads as physical; 30px reads as
-        a slide transition in a presentation.
-     3. Interaction feedback is faster than layout movement. A press must
-        answer inside ~100ms or it feels laggy; a panel appearing can take
-        250ms and feel deliberate.
-     4. Nothing moves that the user did not cause.
-
-   The existing @media (prefers-reduced-motion: reduce) block at the end of
-   this file already neutralises every duration here, so none of it fights an
-   accessibility setting.
-   =========================================================================== */
+/* Motion system (Stage 40.5): decelerating curves (--ease-out and the two below), animate only transform and opacity, 6-10px travel, press feedback under ~100ms, nothing moves unprompted. prefers-reduced-motion at the end of this file neutralises it. */
 
 :root {
   /* Decelerate hard, settle soft. The workhorse for anything entering. */
@@ -3040,22 +2972,7 @@ td.num {
   word-break: break-all;
 }
 
-/* ===========================================================================
-   Setup guidance (Stage 41)
-
-   Two surfaces, deliberately different in weight:
-
-   .setup-hint   - the line under a picker. Quiet by default and, when the
-                   target list has records, only present while the field is
-                   focused. It is guidance, not an alarm; a form with eight
-                   pickers must not read as eight warnings.
-   .setup-banner - the block at the top of a screen whose prerequisites are
-                   missing. This one IS an alarm, because the user cannot use
-                   the screen at all, so it takes the warning tint.
-
-   Both use only semantic tokens, per the no-literal-colors rule above the
-   dark-theme block, so they re-theme with everything else.
-   =========================================================================== */
+/* Setup guidance (Stage 41): .setup-hint is the quiet line under a picker (shown on focus when the list has records); .setup-banner is the warning-tinted block on a screen whose prerequisites are missing. Semantic tokens only. */
 .setup-hint {
   margin-top: 6px;
   font-size: 12px;
@@ -3112,22 +3029,7 @@ td.num {
   color: var(--primary-hover);
 }
 
-/* Stage 47.0.5: a strip so nobody mistakes a SIMULATED (external side
-   effects off) instance for a real one; closable since Stage 64.5 (x button,
-   remembered per message) -
-   fixed to the viewport rather than the sidebar layout so it appears
-   identically regardless of which view is on screen. body.env-banner-active
-   (set by fetchAndRenderEnvironmentBanner in app.js) gets a JS-computed
-   padding-top matching the banner's real height (not a hardcoded value) so
-   the banner never overlaps the sidebar/topbar in either state below.
-
-   BLD-037: the message grew a second clause (the 3PL/WMS single-owner-per-
-   warehouse notice) after this was built single-line/ellipsis-only with the
-   rest reachable only via the `title` hover tooltip - on a touch device
-   (no hover) or a support screenshot, most of the text was simply
-   unreadable. The .env-banner-text/.env-banner-toggle split below keeps the
-   default compact (one line, ellipsis) but makes the full text a genuine
-   tap/keyboard target, not a hover-only escape hatch. */
+/* Stage 47.0.5: strip marking a SIMULATED instance; closable (Stage 64.5), fixed to the viewport. body.env-banner-active gets a JS-computed padding-top (fetchAndRenderEnvironmentBanner). BLD-037: .env-banner-text/.env-banner-toggle keep one line by default and make the full text a tap/keyboard target. */
 #environment-banner {
   position: fixed;
   top: 0;
@@ -3284,40 +3186,7 @@ body.rf-shell #view-root {
 }
 
 
-/* ===========================================================================
-   Stage 47.6.3 / 47.6.4 - operator-width responsiveness and WCAG 2.2 AA
-   ===========================================================================
-
-   Written as ONE layer rather than six screen patches, deliberately. The
-   item names POS, RF receiving, putaway, wave/pick, sort/stage/load and
-   return - but every one of those is built from the same vocabulary
-   (.table-panel, <table>, .form-input, .btn, .action-btn), so fixing the
-   vocabulary fixes all six AND every screen added later. Patching six
-   screens would fix six screens.
-
-   What was actually wrong at 390px, measured against the markup rather than
-   assumed:
-
-     1. .sidebar is a hard 270px with no collapsed state anywhere in this
-        stylesheet. On a 390px device it took 69% of the viewport and left
-        120px for the application - which is what "a desktop page squeezed
-        into 390px" means concretely (audit A-06/A-39).
-     2. `table { width: 100% }` with .table-panel `overflow: visible` means a
-        table wider than its container pushes the PAGE sideways. Columns then
-        sit off-screen with no scrollbar attached to anything an operator can
-        reach - the "hidden horizontal overflow" the item names.
-     3. Focus rings existed on ~8 components out of the whole application, so
-        keyboard and scanner-driven navigation was invisible on the rest
-        (WCAG 2.2 SC 2.4.7).
-
-   The desktop rendering is deliberately untouched: every rule below either
-   sits inside a max-width media query, or is a focus/target-size rule that
-   adds to what is there. In particular .table-panel keeps `overflow: visible`
-   at desktop width, because the sticky-<th> behaviour documented at the
-   `table` rule above depends on the panel NOT being a scroll ancestor. The
-   scroll container is introduced only below the breakpoint, where sticky
-   headers matter far less than being able to reach column six.
-   -------------------------------------------------------------------------- */
+/* Stage 47.6.3 / 47.6.4: operator-width responsiveness and WCAG 2.2 AA, one layer over the shared vocabulary (.table-panel, table, .form-input, .btn, .action-btn). Desktop is untouched: rules sit in max-width queries or only add focus/target-size. .table-panel stays overflow: visible at desktop so sticky <th> works; it scrolls only below the breakpoint. */
 
 /* --- WCAG 2.2 SC 2.4.7 Focus Visible, applied once, globally -------------- */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
@@ -3476,21 +3345,7 @@ body.rf-shell #view-root {
   .page-header { margin-bottom: 8px; }
 }
 
-/* Release identity in the bottom-right corner of the profile chip, on the
-   role line under the chevron. Absolutely positioned inside .account-menu so
-   it takes no row or column of its own - the chip keeps its height and the
-   sidebar its width (user QA, 2026-10-17: the old row under the chip wasted
-   space).
-
-   The line itself is the bare version number and nothing else. It is a real
-   <button> (it opens the popup below) styled back down to plain text, so it
-   keeps keyboard focus and touch activation without looking like a control.
-
-   10px rather than the 11px of the role line above, so it recedes a step
-   further into the chrome. The colour deliberately stays on --text-muted and
-   is NOT lightened: #64748b on white is 4.76:1, already close to the 4.5:1
-   floor WCAG AA sets for body text at any size, so one step lighter would
-   fail. "Quieter" is bought with size here, never with contrast. */
+/* Release identity: the bare version in the bottom-right of the profile chip, absolutely positioned (no row of its own). A real <button> styled as text, 10px; stays on --text-muted (lighter fails WCAG AA 4.5:1). */
 .app-version {
   position: absolute;
   right: 8px;
@@ -3580,3 +3435,57 @@ input[type="date"][data-date-picker="1"] {
   background-size: 16px 16px;
 }
 input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { display: none; }
+
+/* 49.4.3: classes that replace inline style attributes in the cold core (generated by hash of the declarations). */
+.s-02213e.s-02213e.s-02213e { font-size: 13px; color: var(--warning-strong); margin: 0 0 12px; }
+.s-0dcb5a.s-0dcb5a.s-0dcb5a { flex: 1; justify-content: center; }
+.s-0e284a.s-0e284a.s-0e284a { font-size: 20px; font-weight: 600; }
+.s-16949d.s-16949d.s-16949d { margin-bottom: 8px; }
+.s-177edc.s-177edc.s-177edc { width: 100%; justify-content: center; margin-top: 8px; }
+.s-17d019.s-17d019.s-17d019 { font-size: 13px; color: var(--text-muted); margin: 0; }
+.s-192902.s-192902.s-192902 { display: flex; flex-wrap: wrap; gap: 8px; }
+.s-1e0e35.s-1e0e35.s-1e0e35 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+.s-290877.s-290877.s-290877 { display: flex; gap: 8px; margin-bottom: 12px; }
+.s-29b798.s-29b798.s-29b798 { margin-bottom: 16px; }
+.s-2c00de.s-2c00de.s-2c00de { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+.s-32bdf9.s-32bdf9.s-32bdf9 { display:flex; gap:8px; align-items:center; margin:0 0 12px; font-size:13px; }
+.s-4c0544.s-4c0544.s-4c0544 { margin-top: 16px; }
+.s-50435f.s-50435f.s-50435f { margin-bottom: 0; }
+.s-5beb8f.s-5beb8f.s-5beb8f { margin-bottom: 12px; }
+.s-6928c9.s-6928c9.s-6928c9 { font-weight:600; margin-bottom:8px; }
+.s-7ac255.s-7ac255.s-7ac255 { padding-left:16px; margin-top:4px; }
+.s-7cc88f.s-7cc88f.s-7cc88f { margin-right: 6px; }
+.s-88ff60.s-88ff60.s-88ff60 { display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border-radius: 8px; font-size: 13px; }
+.s-89dbb6.s-89dbb6.s-89dbb6 { display: flex; flex-direction: column; gap: 16px; }
+.s-8a77e5.s-8a77e5.s-8a77e5 { margin-top:8px; }
+.s-8cdcd8.s-8cdcd8.s-8cdcd8 { margin-left: 6px; }
+.s-8e87bc.s-8e87bc.s-8e87bc { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.s-96ad60.s-96ad60.s-96ad60 { margin-top:4px; }
+.s-97ed11.s-97ed11.s-97ed11 { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+.s-c0a222.s-c0a222.s-c0a222 { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; cursor: pointer; }
+.s-c80544.s-c80544.s-c80544 { font-size: 13px; color: var(--text-muted); margin: 0 0 12px; }
+.s-ca8dfa.s-ca8dfa.s-ca8dfa { display: flex; align-items: center; gap: 8px; }
+.s-d25a61.s-d25a61.s-d25a61 { width: 100%; margin-top: 12px; }
+.s-d55493.s-d55493.s-d55493 { font-weight:600; margin-top:12px; color:#ff4757; }
+.s-e1e267.s-e1e267.s-e1e267 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.s-ecdd89.s-ecdd89.s-ecdd89 { font-size: 14px; line-height: 1.6; }
+.s-ef59b6.s-ef59b6.s-ef59b6 { font-weight:600; margin-top:12px; }
+.s-f20693.s-f20693.s-f20693 { font-weight:600; margin-top:4px; }
+.s-f8ff87.s-f8ff87.s-f8ff87 { width: 100%; justify-content: center; }
+
+@media (max-width: 820px) {
+  .table-panel .s-192902.s-192902.s-192902,
+  .table-panel .s-290877.s-290877.s-290877,
+  .table-panel .s-32bdf9.s-32bdf9.s-32bdf9,
+  .table-panel .s-89dbb6.s-89dbb6.s-89dbb6,
+  .table-panel .s-97ed11.s-97ed11.s-97ed11,
+  .table-panel .s-c0a222.s-c0a222.s-c0a222,
+  .table-panel .s-ca8dfa.s-ca8dfa.s-ca8dfa { flex-wrap: wrap; }
+}
+
+@media (max-width: 400px) {
+  .table-panel .s-177edc.s-177edc.s-177edc,
+  .table-panel .s-97ed11.s-97ed11.s-97ed11,
+  .table-panel .s-d25a61.s-d25a61.s-d25a61,
+  .table-panel .s-f8ff87.s-f8ff87.s-f8ff87 { max-width: 100% !important; }
+}

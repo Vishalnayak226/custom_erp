@@ -1529,7 +1529,11 @@ func handleCRMOpportunities(w http.ResponseWriter, r *http.Request) {
 				crmFail(w, r, err)
 				return
 			}
-			crmOK(w, map[string]interface{}{"quotation": d, "lines": lines, "status": status})
+			out := map[string]interface{}{"quotation": d, "lines": lines, "status": status}
+			if m := engines.CRMQuotationMargins(tenantID, role, lines); m != nil { // 148.26: cost roles only
+				out["margins"] = m
+			}
+			crmOK(w, out)
 			return
 		}
 		if !crmMethod(w, r, http.MethodPost) || !crmAllow(w, r, "SalesQuotation", "create") {

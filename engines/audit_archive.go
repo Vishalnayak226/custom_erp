@@ -13,11 +13,13 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -253,7 +255,7 @@ type retentionPolicy struct {
 // Rules 2014, Rule 3(5) keeps the audit trail for at least eight years - 2,922
 // days with their two leap days. It holds at three points: the database refuses
 // a delete_after_days below it (audit_retention_policy_delete_floor, in
-// db/migrations_stage47_16_4c_audit_retention_floor.sql); currentRetentionPolicy
+// db/migrations/migrations_stage47_16_4c_audit_retention_floor.sql); currentRetentionPolicy
 // reads an older, smaller value as the floor; and retentionDelete never deletes
 // an audit row, checkpoint or archive younger than it (withAuditLogFloor).
 const AuditLogMinRetentionDays = 2922
@@ -690,6 +692,9 @@ func RunAuditArchive(tenantID string, allowLargeWindows bool) (*AuditArchiveRunR
 	return out, nil
 }
 
+// writeArchiveFile is a variable so a test can stand in a disk that fills up (49.10.5).
+var writeArchiveFile = os.WriteFile
+
 func writeArchiveWindow(tenantID, schema string, cand archiveCandidate, rows []AuditArchiveRow, dir string) (string, error) {
 	manifest := AuditArchiveManifest{
 		TenantSchema: schema, CheckpointID: cand.id, FromSeq: cand.fromSeq, ToSeq: cand.toSeq,
@@ -718,7 +723,14 @@ func writeArchiveWindow(tenantID, schema string, cand archiveCandidate, rows []A
 	fileName := fmt.Sprintf("audit_archive_%s_%d-%d_%s.json.gz.enc",
 		schema, cand.fromSeq, cand.toSeq, time.Now().UTC().Format("20060102T150405Z"))
 	filePath := filepath.Join(dir, fileName)
-	if err := os.WriteFile(filePath, encrypted, 0600); err != nil {
+	if err := writeArchiveFile(filePath, encrypted, 0600); err != nil {
+		// 49.10.5: a short write leaves a partial file that must not stay (the
+		// next run would trip over it); nothing was recorded or deleted yet.
+		os.Remove(filePath)
+		if errors.Is(err, syscall.ENOSPC) {
+			log.Printf("[AUDIT-ARCHIVE] disk full writing %s: %v", filePath, err)
+			return "", fmt.Errorf("the server's disk is full - the audit archive was not written and no audit rows were deleted (%w)", syscall.ENOSPC)
+		}
 		return "", fmt.Errorf("cannot write archive file: %w", err)
 	}
 

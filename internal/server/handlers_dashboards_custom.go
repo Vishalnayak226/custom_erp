@@ -202,7 +202,7 @@ func handleDashboardExport(w http.ResponseWriter, r *http.Request) {
 		name = "dashboard"
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s %s.xlsx"`, name, engines.BusinessToday()))
+	w.Header().Set("Content-Disposition", attachmentDisposition(name+" "+engines.BusinessToday()+".xlsx"))
 	_, _ = w.Write(book)
 }
 

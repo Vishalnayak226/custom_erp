@@ -1,0 +1,14 @@
+/* The public catalog share page (pim-catalog-share.html). External so a strict style-src needs no inline block. */
+  body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
+  .share-wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  .share-header { margin-bottom: 24px; }
+  .share-header h1 { margin: 0 0 4px; font-size: 24px; }
+  .share-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .share-card { border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; background: var(--surface-subtle); }
+  .share-card-thumb { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; margin-bottom: 10px; }
+  .share-card h3 { margin: 0 0 4px; font-size: 15px; }
+  .share-card .code { color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+  .share-card .desc { font-size: 13px; color: var(--text-main); margin: 0 0 6px; }
+  .share-card .category { font-size: 12px; color: var(--text-muted); }
+  .share-state { text-align: center; padding: 64px 20px; color: var(--text-muted); }
+  .share-count { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; }

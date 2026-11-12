@@ -50,6 +50,9 @@ type InventoryAdjustmentLine struct {
 	BatchNo    string   `json:"batch_no,omitempty"`
 	Serials    []string `json:"serials,omitempty"`
 	Condition  string   `json:"condition,omitempty"`
+	// Pool (Stage 148.33) is set only by the engine: AdjustmentPoolQCHold takes the
+	// units out of quarantine rather than free stock. Never read from a request.
+	Pool string `json:"-"`
 }
 
 type InventoryAdjustmentInput struct {
@@ -61,6 +64,8 @@ type InventoryAdjustmentInput struct {
 	LossClass string `json:"loss_class,omitempty"`
 	// ReversalOf (Stage 130.14) is the posted adjustment this one reverses.
 	ReversalOf string `json:"-"`
+	// InspectionLot (Stage 148.33) is the failed lot this write-off closes when it posts.
+	InspectionLot string `json:"-"`
 }
 
 // AdjustmentConditionDamaged is the one condition an adjustment line moves
@@ -137,6 +142,10 @@ func buildInventoryAdjustment(tenantID string, in InventoryAdjustmentInput) (*bu
 			if dmg := damagedStock(schema, sku, location); dmg < l.Qty {
 				return nil, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("line %d: only %d of %s are Damaged at %s to move back", n, dmg, sku, location)}
 			}
+		case l.Pool == AdjustmentPoolQCHold:
+			if held := quarantinedStock(schema, sku, location); l.Qty >= 0 || held+l.Qty < 0 {
+				return nil, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("line %d: only %d of %s are held at %s to write off", n, held, sku, location)}
+			}
 		case l.Qty < 0:
 			if free := freeStock(schema, sku, location); free+l.Qty < 0 {
 				return nil, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("line %d: only %d of %s are free at %s to take off", n, free, sku, location)}
@@ -175,6 +184,9 @@ func buildInventoryAdjustment(tenantID string, in InventoryAdjustmentInput) (*bu
 		}
 		if condition != "" {
 			line["condition"] = condition
+		}
+		if l.Pool == AdjustmentPoolQCHold {
+			line["pool"] = AdjustmentPoolQCHold
 		}
 		out.Lines = append(out.Lines, line)
 	}
@@ -240,6 +252,9 @@ func CreateInventoryAdjustment(tenantID string, in InventoryAdjustmentInput, use
 	if in.ReversalOf != "" {
 		data["reversal_of"] = in.ReversalOf
 	}
+	if in.InspectionLot != "" {
+		data["inspection_lot_id"] = in.InspectionLot
+	}
 	issueNumberInto(data, tenantID, InventoryAdjustmentDoctype, id, "", location)
 	encoded, err := json.Marshal(data)
 	if err != nil {
@@ -284,7 +299,7 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 	// period) and the GL commit together or not at all. Before this the GL
 	// was booked after the commit and a failure left stock moved with its
 	// value unbooked (gl_error).
-	_, err = RunEconomicCommand(tenantID, EconomicCommand{Command: "inventory.adjustment.post", Doctype: InventoryAdjustmentDoctype, DocID: id},
+	result, err := RunEconomicCommand(tenantID, EconomicCommand{Command: "inventory.adjustment.post", Doctype: InventoryAdjustmentDoctype, DocID: id},
 		func(tx *sql.Tx, schema string, data map[string]interface{}) (map[string]interface{}, error) {
 			var status string
 			if err := tx.QueryRow(fmt.Sprintf(`SELECT status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), InventoryAdjustmentDoctype, id).Scan(&status); err != nil {
@@ -305,8 +320,8 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 			}
 			moves := make([]interface{}, 0, len(lines))
 			for _, l := range lines {
-				if strField(l, "condition") != "" {
-					continue // a condition move, below - still owned, on hand unchanged
+				if strField(l, "condition") != "" || strField(l, "pool") == AdjustmentPoolQCHold {
+					continue // a condition move or a quarantine write-off, below
 				}
 				m := map[string]interface{}{"sku": strField(l, "sku"), "qty": numFromInterface(l["qty"])}
 				if b := strField(l, "batch_no"); b != "" {
@@ -319,6 +334,14 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 				return nil, err
 			}
 			if err := WriteStockLedgerLinesTx(tx, schema, location, InventoryAdjustmentDoctype, number, userID, "", posted); err != nil {
+				return nil, err
+			}
+			// Stage 148.28: a scrapped return leaves quarantine, not sellable stock.
+			if err := applyQuarantineScrapTx(tx, schema, location, number, userID, lines); err != nil {
+				return nil, err
+			}
+			// Stage 148.33: a failed lot's write-off closes the lot in the same transaction.
+			if err := closeScrappedLotTx(tx, schema, id, userID, data); err != nil {
 				return nil, err
 			}
 			// Stage 130.14: condition moves, bins and serial numbers.
@@ -354,7 +377,11 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 		_ = mergeDocData(schema, InventoryAdjustmentDoctype, id, map[string]interface{}{"post_error": err.Error()})
 		return err
 	}
-	LogAuditEvent(tenantID, userID, "POST_INVENTORY_ADJUSTMENT", "SUCCESS", fmt.Sprintf("%s posted at %s", number, location))
+	// Stage 49.5.2: a repeat call moved nothing, so it records nothing - the
+	// audit trail must not say the adjustment was posted twice.
+	if posted, _ := result["posted"].(bool); posted {
+		LogAuditEvent(tenantID, userID, "POST_INVENTORY_ADJUSTMENT", "SUCCESS", fmt.Sprintf("%s posted at %s", number, location))
+	}
 	return nil
 }
 

@@ -3,7 +3,7 @@ package engines
 import "testing"
 
 func TestSanitizeCSVCell(t *testing.T) {
-	for _, input := range []string{"=1+1", "+1+1", "-1+2", "@SUM(A1:A2)", "  =1+1"} {
+	for _, input := range []string{"=1+1", "+1+1", "-1+2", "@SUM(A1:A2)", "  =1+1", "\n=1+1", "\r\n=1+1"} {
 		if got := sanitizeCSVCell(input); got != "'"+input {
 			t.Errorf("sanitizeCSVCell(%q) = %q", input, got)
 		}

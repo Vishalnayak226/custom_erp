@@ -46,13 +46,13 @@ Read from source and the schema on 2026-10-28. "Floor" means the 180-day minimum
 
 ## 2. Six-hour reporting workflow
 
-The clock starts when anyone first **notices** the incident - a detection in Activity Log → Security, a customer report, a provider notice. Who files depends on whose system it is: the client reports incidents in its own business (its users, its devices, its data); the platform operator reports incidents in the hosted service (the server, the database, the release). A cross-client incident is the operator's to file and every affected client's to know. Both need a point of contact registered with CERT-In beforehand - **open, see §3**.
+The clock starts when anyone first **notices** the incident - a detection in Settings → Monitoring → Security Events, a customer report, a provider notice. Who files depends on whose system it is: the client reports incidents in its own business (its users, its devices, its data); the platform operator reports incidents in the hosted service (the server, the database, the release). A cross-client incident is the operator's to file and every affected client's to know. Both need a point of contact registered with CERT-In beforehand - **open, see §3**.
 
 | Hour | Do | Where |
 |---|---|---|
 | 0 | Note the time noticed (UTC). Classify: is it one of CERT-In's reportable types (table below)? If unsure, treat it as reportable. | incident record (runbook §7.12) |
-| 0-1 | Contain - runbook §7.1-§7.10 for the class. Take the **evidence pack** for the window: Activity Log → Security → Evidence pack (signed manifest; collecting it changes nothing and is itself audited). | runbook §7.11 step 1 |
-| 1-5 | Gather what the report form asks: affected systems, time noticed, symptoms, indicators (addresses, accounts, keys), actions taken. **Trace a request** joins the audit, error and job rows by correlation id. | Activity Log → Security |
+| 0-1 | Contain - runbook §7.1-§7.10 for the class. Take the **evidence pack** for the window: Settings → Monitoring → Security Events → Evidence pack (signed manifest; collecting it changes nothing and is itself audited). | runbook §7.11 step 1 |
+| 1-5 | Gather what the report form asks: affected systems, time noticed, symptoms, indicators (addresses, accounts, keys), actions taken. **Trace a request** joins the audit, error and job rows by correlation id. | Settings → Monitoring → Security Events |
 | by 6 | File with CERT-In (incident@cert-in.org.in, or the form at cert-in.org.in) with what is known; say what is still being established. Record the filing time and reference in the incident record. | incident record |
 | after | Answer CERT-In's follow-up; the 180-day logs and the pack are the evidence. Keep a copy of the pack off the ERP host. | runbook §7.12 |
 
@@ -73,6 +73,6 @@ A personal-data breach may also need a separate notice under the DPDP Act (to th
 
 1. **Host logs below 180 days.** The web access log keeps Caddy's default 90 days; the journal is capped at 100 MB; rotated `auth.log` files are deleted. Proposed: add `roll_keep_for 4320h` to the `log` block in `deploy/Caddyfile` (size is still capped by `roll_size`/`roll_keep`), size the journal for 180 days of `erp.service` output and keep rotated `auth.log` for 180 days in `deploy/server_cleanup.sh` - a disk decision for the operator, to be checked on the host after the next deploy.
 2. **Time synchronisation.** No deploy step points the host at NIC/NPL time. Proposed: `/etc/systemd/timesyncd.conf.d/erp-ntp.conf` with `NTP=samay1.nic.in samay2.nic.in time.nplindia.org`, installed by a deploy script, and a host check that `timedatectl show -p NTPSynchronized` is `yes`.
-3. **Sign-in rows without the client address.** Closed by Stage 49.11.2: every audit row written for a request - sign-in rows included - carries the client address and a short device summary, kept 180 days and then cleared (`audit_logs.source_ip` / `device`, registered in `engines/personal_data_register.go`).
+3. **Sign-in rows without the client address.** Closed by Stage 49.11.2: every audit row written for a request - sign-in rows included - carries the client address and a short device summary, kept 180 days and then cleared (`audit_logs.source_ip` / `device`, registered in `engines/personal_data_register.go`) Stage 47.16.3 adds the PIN sign-in row and the user's own *last sign-in address* (`users.last_sign_in_ip`, also cleared after 180 days), both taken through the trusted-proxy rule, so a spoofed `X-Forwarded-For` is not recorded..
 4. **CERT-In point of contact** for the operator and each client, and the alternates in incident runbook §2.
 5. **DPDP breach notice** workflow (above).

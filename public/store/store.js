@@ -189,6 +189,9 @@
   });
 
   function signOut(message) {
+    // 162.15: end the session on the server too (bearer: a refused token does not loop back here).
+    const tok = ls.get('erp_token');
+    if (tok) api('/api/v1/auth/logout', { method: 'POST', bearer: tok }).catch(() => {});
     ['erp_token', 'erp_username', 'erp_role', LAST_ACTIVE, PIN_IDLE_KEY].forEach(k => ls.del(k));
     state.profile = null;
     state.stores = null;
@@ -441,13 +444,14 @@
     { route: 'basket', label: 'Basket for the till', icon: 'basket' },
     { route: 'labels', label: 'Labels', icon: 'label' },
     { route: 'low-stock', label: 'Low stock', icon: 'low' },
+    { route: 'inspect', label: 'Inspect', icon: 'check', later: true },
   ];
 
   async function renderHome() {
     setBar('Store', false);
     main.innerHTML = `
       <div class="tiles">${TILES.filter(t => !t.show || t.show()).map(t => `
-        <a class="tile" href="#/${t.route}">${ICON[t.icon] || ''}<span>${esc(t.label)}</span>${t.badge ? '<span class="badge" id="appr-badge" hidden></span>' : ''}</a>`).join('')}
+        <a class="tile" href="#/${t.route}"${t.later ? ' style="display:none" data-later="1"' : ''}>${ICON[t.icon] || ''}<span>${esc(t.label)}</span>${t.badge ? '<span class="badge" id="appr-badge" hidden></span>' : ''}</a>`).join('')}
       </div>
       <div class="links">
         <a class="link" href="#/settings">Settings</a>
@@ -466,6 +470,17 @@
         badge.hidden = false;
       }
     } catch (_) { /* the tile still opens the list, which shows the error */ }
+    try { // 148.33: the Inspect tile shows only while inspection by rule is on
+      const r = await api('/api/v1/store-app/inspections');
+      const tile = main.querySelector('[data-later]');
+      if (tile) { tile.style.display = ''; if ((r.lots || []).length) tile.insertAdjacentHTML('beforeend', `<span class="badge">${r.lots.length}</span>`); }
+    } catch (_) { /* off or unreachable: no tile */ }
+    // 148.30: a salesman's own earnings tile - only when the module is on and the login is a salesman.
+    try {
+      const e = await api('/api/v1/store-app/earnings');
+      const tiles = main.querySelector('.tiles');
+      if (e.linked && tiles && routeName() === 'home') tiles.insertAdjacentHTML('beforeend', `<a class="tile" href="#/earnings">${ICON.today}<span>My earnings</span></a>`);
+    } catch (_) { /* module off or not a salesman: no tile */ }
   }
 
   // ---------- approvals ----------
@@ -1081,9 +1096,11 @@
   // ---------- feature modules ----------
   const MODULES = {
     today: 'store-today.js', 'low-stock': 'store-today.js',
+    earnings: 'store-earnings.js',
     receive: 'store-stock.js', count: 'store-stock.js', labels: 'store-stock.js', ask: 'store-stock.js',
     basket: 'store-floor.js', order: 'store-floor.js',
     customer: 'store-crm.js', tasks: 'store-crm.js',
+    inspect: 'store-inspect.js',
   };
   const loadedModules = {};
   const loadModule = (file) => loadedModules[file] || (loadedModules[file] = import(`./${file}?v=2`).catch((e) => { delete loadedModules[file]; throw e; }));

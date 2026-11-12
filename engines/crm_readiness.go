@@ -120,6 +120,7 @@ func TestCRMSender(ctx context.Context, tenantID, senderID, to string) (*CRMSend
 		return &CRMSenderTest{OK: true, Detail: "the mock sender answers without calling anyone"}, nil
 	}
 	if sb, _ := IsSandboxSchema(schema); sb {
+		noteSandboxSuppressed(schema, s.Provider)
 		return &CRMSenderTest{Detail: "a sandbox client does not call real providers"}, nil
 	}
 	if ok, reason := OutsideCallsAllowed(schema); !ok {

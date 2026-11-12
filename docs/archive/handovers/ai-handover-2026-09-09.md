@@ -29,7 +29,7 @@ Setup map, port directory, command recipes, and build history for the next AI ag
 | [cmd/server/main.go](../../../cmd/server/main.go) | Real entrypoint — thin launcher for `internal/server.Run()`. Build via `./cmd/server`, not the repo root. |
 | [internal/server/](../../../internal/server/) | API router, tenant resolution, panic recovery. Split by domain into `routes.go`, `middleware.go`, `handlers_*.go` (see `README.md`). |
 | [db/db.go](../../../db/db.go) | Connection pool + tenant schema switching |
-| [db/migration.sql](../../../db/migration.sql) | Tables, Chart of Accounts, users, defaults |
+| [db/migration.sql](../../../db/migrations/migration.sql) | Tables, Chart of Accounts, users, defaults |
 | [engines/numbering.go](../../../engines/numbering.go) | Sequence numbering |
 | [engines/labels.go](../../../engines/labels.go) | Translation CRUD |
 | [engines/logs.go](../../../engines/logs.go) | Audit trail + panic recovery logger |

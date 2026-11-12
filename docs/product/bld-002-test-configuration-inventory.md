@@ -49,12 +49,12 @@ anywhere in the docs tree.
 - **Only India has real tax-compliance logic.** `engines/gst.go` implements CGST/SGST/IGST/HSN
   (`CalculateGST`, `ComputeGSTForLines`). No VAT or other-country tax engine exists.
 - **Phone/locale support is generic across 54 countries** (`engines/phone.go:137-192`,
-  `phoneCountryRules`; confirmed in `docs/guides/ADMIN_GUIDE.md:163`). `DefaultPhoneCountry = "IN"`.
+  `phoneCountryRules`; confirmed in `docs/guides/admin-guide.md:163`). `DefaultPhoneCountry = "IN"`.
 - Tenant home country is a per-tenant setting (`SettingKeyDefaultCountry`,
   `engines/settings_definitions.go:446,457-474`), populated from the same 54-country table.
 - **Currency is generic ISO-4217** (`engines/currency.go:15`), multi-currency documents and FX
   exist (`engines/currency_documents.go`, `currency_fx.go`); reporting currency defaults to INR
-  but is tenant-configurable (`docs/guides/ADMIN_GUIDE.md:287`).
+  but is tenant-configurable (`docs/guides/admin-guide.md:287`).
 - **Reading:** a non-India reference customer is technically possible (generic phone/currency),
   but would run with NO tax-compliance engine at all (GST is India-only) — any non-India
   candidate needs an explicit decision on whether "no tax engine" is acceptable for that
@@ -109,7 +109,7 @@ definition needs to say which one(s) it means:
 
 | Taxonomy | Count | What it gates | Source |
 |---|---|---|---|
-| Entitlement modules (`public.modules`) | 20 | Machine-enforced `module_key` package gate | `docs/product/erp-maturity-roadmap-2026-09-16.md:35-36`; assembled across `db/migration.sql`, `migrations_stage14a_modules.sql`, `stage18_core_module_fix.sql`, `stage27_product_packaging.sql`, `stage37_9_quality_maintenance.sql`, `stage38_4_webhook_subscriptions.sql` |
+| Entitlement modules (`public.modules`) | 20 | Machine-enforced `module_key` package gate | `docs/product/erp-maturity-roadmap-2026-09-16.md:35-36`; assembled across `db/migrations/migration.sql`, `migrations_stage14a_modules.sql`, `stage18_core_module_fix.sql`, `stage27_product_packaging.sql`, `stage37_9_quality_maintenance.sql`, `stage38_4_webhook_subscriptions.sql` |
 | Doctype-metadata module labels | 18 | Role-template `AccessLevel` grants | `engines/role_templates.go:300-304` (`knownModules`) |
 | Product-capability groups | 14 | Business capability register / maturity claims | `docs/product/capability-register.json`, `docs/generated/capability-catalog.md:16-33` — all currently "Preview" or "Experimental," none "Production"/"Certified" |
 

@@ -23,39 +23,39 @@ async function renderAssetsView(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-code">Asset Number</label>
-        <input type="text" id="asset-code" class="form-input" style="width: 150px;">
+        <input type="text" id="asset-code" class="form-input s-0a9e77">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-category">Category</label>
-        <input type="text" id="asset-category" class="form-input" style="width: 130px;" list="asset-category-list" autocomplete="off">
+        <input type="text" id="asset-category" class="form-input s-27652d" list="asset-category-list" autocomplete="off">
         <datalist id="asset-category-list">${[...new Set(assets.map(a => a.category).filter(Boolean))].sort().map(c => `<option value="${escapeHTMLText(c)}">`).join('')}</datalist>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-cost">Cost</label>
-        <input type="number" id="asset-cost" class="form-input" style="width: 110px;">
+        <input type="number" id="asset-cost" class="form-input s-148b84">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-useful-life">Useful Life (yrs)</label>
-        <input type="number" id="asset-useful-life" class="form-input" style="width: 100px;">
+        <input type="number" id="asset-useful-life" class="form-input s-da190a">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-location">Location</label>
-        <input type="text" id="asset-location" class="form-input" style="width: 110px;">
+        <input type="text" id="asset-location" class="form-input s-148b84">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-custodian">Custodian</label>
-        <input type="text" id="asset-custodian" class="form-input" style="width: 130px;">
+        <input type="text" id="asset-custodian" class="form-input s-27652d">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asset-acquisition-date">Acquisition Date</label>
         <input type="date" id="asset-acquisition-date" class="form-input">
       </div>
       <button class="btn btn-primary" id="asset-create-btn">Create</button>
     </div>
-    <div id="asset-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="asset-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const listPanel = document.createElement('div');
@@ -71,16 +71,16 @@ async function renderAssetsView(container) {
       <tbody>
   `;
   html += assets.length === 0
-    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No assets yet. Click <b>+ New Asset</b> to add your first fixed asset, then <b>Capitalise</b> it here.</td></tr>`
+    ? `<tr><td colspan="9" class="s-306094">No assets yet. Click <b>+ New Asset</b> to add your first fixed asset, then <b>Capitalise</b> it here.</td></tr>`
     : assets.map(a => `
         <tr>
-          <td style="font-family: monospace;">${escapeHTMLText(a.code || a.id)}${a.source_grn ? `<div style="font-family: inherit; font-size: 12px; color: var(--text-muted);">${escapeHTMLText(a.item_code || '')} from GRN ${escapeHTMLText(a.source_grn)}</div>` : ''}</td>
+          <td class="s-355794">${escapeHTMLText(a.code || a.id)}${a.source_grn ? `<div class="s-623b5e">${escapeHTMLText(a.item_code || '')} from GRN ${escapeHTMLText(a.source_grn)}</div>` : ''}</td>
           <td>${escapeHTMLText(a.category || '')}</td>
           <td>${escapeHTMLText(a.location || '')}</td>
           <td>${escapeHTMLText(a.custodian || '')}</td>
           <td>${assetMoney(a.cost)}</td>
           <td>${assetMoney(a.accumulated_depreciation)}${a.status === 'Capitalised' && Number(a.calculated_depreciation) - Number(a.accumulated_depreciation) > 0.004
-            ? `<div style="font-size: 12px; color: var(--warning-color, #b45309);">${assetMoney(a.calculated_depreciation - a.accumulated_depreciation)} due, not posted</div>` : ''}</td>
+            ? `<div class="s-7bbe3a">${assetMoney(a.calculated_depreciation - a.accumulated_depreciation)} due, not posted</div>` : ''}</td>
           <td>${assetMoney(a.net_block)}</td>
           <td><span class="badge ${a.status === 'Capitalised' ? 'badge-success' : a.status === 'Disposed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(a.status)}</span></td>
           <td>${renderAssetActions(a)} <button class="action-btn" data-asset-action="details" data-asset-id="${escapeHTMLText(a.id)}">Details</button></td>
@@ -193,7 +193,7 @@ async function capitalizeAsset(assetId, usefulLifeYears, asset = {}) {
   }
   // Stage 55.16: what capitalising will post, before it is posted.
   const cost = Number(asset.cost) || 0;
-  const fmt = v => Number(v).toLocaleString('en-IN');
+  const fmt = v => formatNumber(v);
   if (cost > 0 && !await showCustomConfirm(
     `Capitalise ${asset.code || assetId}?\n\nPosts: Dr 1400 Fixed Assets ${fmt(cost)} / Cr 2100 GRN Suspense ${fmt(cost)}.\nDepreciation: straight line, ${assetMoney(Math.floor(cost * 100 / Math.round(life * 12)) / 100)} a month for ${Math.round(life * 12)} months from the month of ${asset.capitalisation_date || 'today'} - posted monthly, Dr 5310 Depreciation Expense / Cr 1410 Accumulated Depreciation.`,
     'Capitalise asset')) return;
@@ -222,13 +222,13 @@ function openAssetActionPanel(title, bodyHTML, onConfirm) {
   panel.className = 'table-panel';
   panel.style.cssText = 'padding: 20px 24px; margin-bottom: 24px;';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">${escapeHTMLText(title)}</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <h2 class="s-fcb488">${escapeHTMLText(title)}</h2>
+    <div class="s-608a43">
       ${bodyHTML}
       <button class="btn btn-primary" id="asset-action-confirm" type="button">Confirm</button>
       <button class="btn btn-outline" id="asset-action-cancel" type="button">Cancel</button>
     </div>
-    <div id="asset-action-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="asset-action-error" class="login-error hidden s-4bb900"></div>
   `;
   // Stage 69: on the register page, above the list (the create form is its
   // own page now).
@@ -250,13 +250,13 @@ function assetActionError(message) {
 
 async function promptTransferAsset(assetId) {
   const panel = openAssetActionPanel(`Transfer asset ${assetId}`, `
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="asset-transfer-location">New Location<span class="required">*</span></label>
-      <input type="text" id="asset-transfer-location" class="form-input" style="width: 220px;" autocomplete="off" placeholder="Search by name">
+      <input type="text" id="asset-transfer-location" class="form-input s-30080b" autocomplete="off" placeholder="Search by name">
     </div>
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="asset-transfer-custodian">New Custodian</label>
-      <input type="text" id="asset-transfer-custodian" class="form-input" style="width: 220px;" autocomplete="off" placeholder="Optional - who is responsible">
+      <input type="text" id="asset-transfer-custodian" class="form-input s-30080b" autocomplete="off" placeholder="Optional - who is responsible">
     </div>
   `, async () => {
     const newLocation = document.getElementById('asset-transfer-location').value.trim();
@@ -286,23 +286,23 @@ function assetDisposalPreviewURL(assetId, proceeds, receivedInto) {
 
 async function promptDisposeAsset(assetId, asset = {}) {
   const panel = openAssetActionPanel(`Dispose of asset ${assetId}`, `
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="asset-dispose-type">How is it leaving?<span class="required">*</span></label>
-      <select id="asset-dispose-type" class="form-input" style="width: 200px;">
+      <select id="asset-dispose-type" class="form-input s-0fff9b">
         <option value="Sale">Sold</option>
         <option value="Scrap" selected>Scrapped</option>
         <option value="WriteOff">Written off (lost, stolen)</option>
       </select>
     </div>
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="asset-dispose-proceeds">Proceeds</label>
-      <input type="number" id="asset-dispose-proceeds" class="form-input" style="width: 140px;" min="0" step="0.01" value="0">
+      <input type="number" id="asset-dispose-proceeds" class="form-input s-21b277" min="0" step="0.01" value="0">
     </div>
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="asset-dispose-into">Received into</label>
-      <select id="asset-dispose-into" class="form-input" style="width: 220px;"><option value="1100">1100 Cash/Bank Account</option></select>
+      <select id="asset-dispose-into" class="form-input s-30080b"><option value="1100">1100 Cash/Bank Account</option></select>
     </div>
-    <div id="asset-dispose-preview" style="flex-basis: 100%; font-size: 13px;">Working out the book value...</div>
+    <div id="asset-dispose-preview" class="s-450373">Working out the book value...</div>
   `, async () => {
     const disposalType = document.getElementById('asset-dispose-type').value;
     const proceedsRaw = document.getElementById('asset-dispose-proceeds').value;
@@ -363,7 +363,7 @@ function assetGainLossText(v) {
 }
 
 function assetMoney(v) {
-  return Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatMoney(v || 0);
 }
 
 // Super Admin, an Accountant, or a role named Finance Head - the server's
@@ -414,12 +414,12 @@ async function toggleAssetLifecycle(assetId) {
     return;
   }
   const lc = await res.json();
-  const fmt = v => Number(v || 0).toLocaleString('en-IN');
+  const fmt = v => formatNumber(v || 0);
   const a = lc.asset;
   const acq = lc.acquisition || {};
   const dep = lc.depreciation || {};
   cell.innerHTML = `
-    <div style="padding:8px 0;display:grid;gap:12px">
+    <div class="s-914395">
       <div><b>Source:</b> ${escapeHTMLText(acq.source || '')}${acq.item_code ? ` (item ${escapeHTMLText(acq.item_code)})` : ''}
         ${acq.acquisition_date ? ` &middot; acquired ${escapeHTMLText(acq.acquisition_date)}` : ''}
         &middot; cost ${fmt(a.cost)} &middot; useful life ${a.useful_life_years || 'not set'} yr
@@ -428,7 +428,7 @@ async function toggleAssetLifecycle(assetId) {
         ${acq.disposal_proceeds != null ? ` on ${escapeHTMLText(acq.disposal_date || '')}: proceeds ${assetMoney(acq.disposal_proceeds)} into ${escapeHTMLText(acq.disposal_received_into || '')}, book value ${assetMoney(acq.disposal_book_value)}, ${escapeHTMLText(assetGainLossText(acq.disposal_gain_loss))}` : ''}</div>
       ${lc.schedule.length ? `<table><thead><tr><th>Year</th><th>From</th><th>To</th><th>Opening</th><th>Depreciation</th><th>Posted</th><th>To come</th><th>Closing</th></tr></thead><tbody>
         ${lc.schedule.map(s => `<tr style="${s.current ? 'font-weight:700' : ''}"><td>${s.year}${s.current ? ' (now)' : ''}</td><td>${escapeHTMLText(s.from)}</td><td>${escapeHTMLText(s.to)}</td><td>${assetMoney(s.opening)}</td><td>${assetMoney(s.depreciation)}</td><td>${assetMoney(s.posted)}${s.months_posted ? ` (${s.months_posted} of ${s.months} mo)` : ''}</td><td>${assetMoney(s.to_come)}</td><td>${assetMoney(s.closing)}</td></tr>`).join('')}
-        </tbody></table>` : '<div style="color:var(--text-muted)">No schedule until a useful life is set.</div>'}
+        </tbody></table>` : '<div class="s-5872de">No schedule until a useful life is set.</div>'}
       ${dep.total_months ? `<div><b>Depreciation:</b> ${assetMoney(dep.monthly_amount)} a month for ${dep.total_months} months &middot; ${dep.months_posted} month(s) posted, ${assetMoney(dep.posted)}${a.status === 'Capitalised' ? ` &middot; ${dep.months_due} month(s) ended so far, ${assetMoney(dep.due)} due` : ''}</div>` : ''}
       ${(dep.postings || []).length ? `<details><summary>Depreciation posted (${dep.postings.length} month${dep.postings.length === 1 ? '' : 's'})</summary>
         <table><thead><tr><th>Month</th><th>Dr 5310 / Cr 1410</th><th>Dated</th><th>Posted by</th></tr></thead><tbody>
@@ -438,8 +438,8 @@ async function toggleAssetLifecycle(assetId) {
       ${lc.gl_postings.length ? `<table><thead><tr><th>When</th><th>Event</th><th>Account</th><th>Debit</th><th>Credit</th><th>Posted by</th></tr></thead><tbody>
         ${lc.gl_postings.map(p => `<tr><td>${escapeHTMLText(p.posted_at)}</td><td>${escapeHTMLText(p.event)}</td><td>${escapeHTMLText(p.account_code)}</td><td>${p.debit ? fmt(p.debit) : ''}</td><td>${p.credit ? fmt(p.credit) : ''}</td><td>${escapeHTMLText(p.posted_by)}</td></tr>`).join('')}
         </tbody></table>` : ''}
-      ${lc.transfers.length ? `<div><b>Transfers:</b><ul style="margin:4px 0 0 18px">${lc.transfers.map(t => `<li>${escapeHTMLText(t.at)} by ${escapeHTMLText(t.by)} - ${escapeHTMLText(t.detail)}</li>`).join('')}</ul></div>` : ''}
-      ${lc.gaps.map(g => `<div style="color:var(--warning-color, #b45309)">${escapeHTMLText(g)}</div>`).join('')}
+      ${lc.transfers.length ? `<div><b>Transfers:</b><ul class="s-e5bd97">${lc.transfers.map(t => `<li>${escapeHTMLText(t.at)} by ${escapeHTMLText(t.by)} - ${escapeHTMLText(t.detail)}</li>`).join('')}</ul></div>` : ''}
+      ${lc.gaps.map(g => `<div class="s-b25180">${escapeHTMLText(g)}</div>`).join('')}
     </div>`;
   row.classList.remove('hidden');
 }

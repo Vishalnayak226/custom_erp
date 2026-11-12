@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply pending db/*.sql migrations.
+# Apply pending db/migrations/*.sql migrations.
 #
 # Stage 30.2.2: this used to be a psql loop - the Linux port of promote.ps1's
 # own psql loop - which meant separate implementations of "which migrations are

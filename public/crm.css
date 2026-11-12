@@ -4,10 +4,6 @@
    scrolls inside its panel instead of widening the whole workspace. */
 .crm-root { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .crm-page-header { margin-bottom: 0; }
-.crm-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
-.crm-tab { background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 10px; color: var(--text-muted); cursor: pointer; font: inherit; }
-.crm-tab:hover { color: var(--text-main); border-color: var(--border-color); }
-.crm-tab.active { color: var(--primary-color); border-color: var(--primary-color); background: var(--primary-light); font-weight: 600; }
 .crm-panel { padding: 16px 20px; }
 .crm-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .crm-title { font-size: 18px; margin: 0; }
@@ -18,10 +14,6 @@
 .crm-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .crm-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .crm-root .table-wrapper { overflow-x: auto; }
-.crm-table { width: 100%; border-collapse: collapse; }
-.crm-table th, .crm-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
-.crm-table th.num, .crm-table td.num { text-align: right; font-family: var(--font-numeric); }
-.crm-table .form-input { min-width: 0; }
 .crm-empty { padding: 12px 0; }
 .crm-small { font-size: 12px; }
 .crm-sub { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }

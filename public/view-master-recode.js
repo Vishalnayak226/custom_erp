@@ -45,28 +45,28 @@ export async function renderMasterRecodePanel(host, doctype, label) {
     const backup = plan.backup || { ok: true };
     const lengths = [3, 4, 5, 6, 7, 8].map(d => `<option value="${d}" ${d === plan.length ? 'selected' : ''}>${d}</option>`).join('');
     panel.innerHTML = `
-      <div style="font-weight: 600; margin-bottom: 8px;">${n} ${esc(label)} record${n === 1 ? ' is' : 's are'} still on an old long code</div>
+      <div class="s-13dc58">${n} ${esc(label)} record${n === 1 ? ' is' : 's are'} still on an old long code</div>
       ${plan.configured
-        ? `<div class="txn-hint" style="margin-bottom: 8px;">${esc(label)} codes are <b>${esc(plan.prefix)}</b> and ${plan.length} digits.</div>`
-        : `<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
-            <span class="form-label" style="margin: 0;">${esc(label)} code format (asked once)<span class="required">*</span></span>
-            <label style="display: flex; gap: 6px; align-items: center;">Prefix
-              <input class="form-input" name="mr-prefix" maxlength="6" style="width: 90px; text-transform: uppercase;" value="${esc(plan.prefix)}"></label>
-            <label style="display: flex; gap: 6px; align-items: center;">Digits
-              <select class="form-select" name="mr-length" style="width: 80px;">${lengths}</select></label>
+        ? `<div class="txn-hint s-16949d">${esc(label)} codes are <b>${esc(plan.prefix)}</b> and ${plan.length} digits.</div>`
+        : `<div class="s-1262ae">
+            <span class="form-label s-2a0ca8">${esc(label)} code format (asked once)<span class="required">*</span></span>
+            <label class="s-2dab17">Prefix
+              <input class="form-input s-6f5e12" name="mr-prefix" maxlength="6" value="${esc(plan.prefix)}"></label>
+            <label class="s-2dab17">Digits
+              <select class="form-select s-dabaad" name="mr-length">${lengths}</select></label>
             <button type="button" class="btn btn-outline" data-mr-preview>Show the new codes</button>
           </div>`}
       <table>
         <thead><tr><th>Name</th><th>Old code</th><th>New code</th></tr></thead>
-        <tbody>${plan.rows.map(r => `<tr><td>${esc(r.name)}</td><td style="color: var(--text-muted);">${esc(r.old)}</td><td style="font-weight: 600;">${esc(r.new)}</td></tr>`).join('')}</tbody>
+        <tbody>${plan.rows.map(r => `<tr><td>${esc(r.name)}</td><td class="s-d59bb5">${esc(r.old)}</td><td class="s-21a1be">${esc(r.new)}</td></tr>`).join('')}</tbody>
       </table>
-      <div class="txn-hint" style="margin: 8px 0 8px;">${plan.references
+      <div class="txn-hint s-40af51">${plan.references
         ? `${plan.references} other record${plan.references === 1 ? ' points' : 's point'} at these codes.`
         : ''} All updated in one step; codes cannot change again.
         <button type="button" class="btn btn-ghost btn-sm" data-mr-detail>Show what changes</button></div>
       <div data-mr-touches></div>
-      ${plan.warning ? `<div style="margin: 8px 0; padding: 10px 12px; border-radius: 6px; background: var(--warning-soft-bg); color: var(--warning-strong);">${esc(plan.warning)}
-        <label style="display: flex; gap: 6px; align-items: center; margin-top: 6px;"><input type="checkbox" data-mr-ack> I will reprint the stickers and update the channel listings</label></div>` : ''}
+      ${plan.warning ? `<div class="s-53cad6">${esc(plan.warning)}
+        <label class="s-77cce6"><input type="checkbox" data-mr-ack> I will reprint the stickers and update the channel listings</label></div>` : ''}
       ${backup.required || !backup.ok ? `<div class="txn-hint" style="margin: 8px 0;${backup.ok ? '' : ' padding: 10px 12px; border-radius: 6px; background: var(--danger-soft-bg); color: var(--danger-strong);'}">${esc(backup.note || '')}</div>` : ''}
       <button type="button" class="btn btn-primary" data-mr-apply ${backup.ok ? '' : 'disabled'}>Renumber ${n} record${n === 1 ? '' : 's'}</button>`;
 
@@ -86,7 +86,7 @@ export async function renderMasterRecodePanel(host, doctype, label) {
       if (!full) return;
       const touches = full.touches || [];
       panel.querySelector('[data-mr-touches]').innerHTML = `
-        <table style="margin-bottom: 8px;">
+        <table class="s-16949d">
           <thead><tr><th>Table</th><th>Column</th><th class="num">Rows</th></tr></thead>
           <tbody>${touches.map(t => `<tr><td>${esc(t.table)}</td><td>${esc(t.column)}</td><td class="num">${esc(t.rows)}</td></tr>`).join('')}</tbody>
         </table>`;

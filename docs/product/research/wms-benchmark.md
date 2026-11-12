@@ -60,7 +60,7 @@ Inventory accuracy, dock-to-stock time, order cycle time, pick/pack accuracy, ta
 
 ## 7. SOP topics (blueprint §21)
 
-Receiving, Putaway, Picking, Packing, Shipping, Returns, Cycle-count, Adjustment, Barcode-reprint, Outage, Integration-failure, and Security SOPs. Cross-check against `docs/guides/ADMIN_SOP.md`/`USER_SOP.md` before writing new ones — some of this may already be covered there; this pass didn't re-audit those files line by line.
+Receiving, Putaway, Picking, Packing, Shipping, Returns, Cycle-count, Adjustment, Barcode-reprint, Outage, Integration-failure, and Security SOPs. Cross-check against `docs/guides/admin-sop.md`/`user-sop.md` before writing new ones — some of this may already be covered there; this pass didn't re-audit those files line by line.
 
 ## 8. Critical UAT scenarios (blueprint §19.2) — concrete test cases for Stage 26.5/26.3.4
 

@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 	// tests drive sweeps themselves. TestStage134SchedulerLeader elects.
 	schedulerElection = false
 	// 139.2: the reports the product registers, before any test adds a
-	// throwaway one (report_numbers_stage139_test.go).
+	// throwaway one (report_numbers_test.go).
 	startupReportIDs = append([]string(nil), reportRegistryOrder...)
 	dir, err := os.MkdirTemp("", "erp_pim_dam_test_media_store")
 	if err == nil {

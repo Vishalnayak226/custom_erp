@@ -141,6 +141,9 @@ type TransferReceiptRequest struct {
 	KeepOpen   bool                  `json:"keep_open"`
 	ReceiptKey string                `json:"receipt_key,omitempty"`
 	StockTo    string                `json:"stock_to,omitempty"` // 106.5: where good stock lands
+	// approvedHold (74.1.1) is the approved TransferLossHold this receipt is
+	// replaying; only the engine sets it, never a caller's JSON.
+	approvedHold string
 }
 
 // TransferReturnLine is one line sent back to the source.
@@ -158,6 +161,10 @@ type TransferMovementResult struct {
 	EventNo         int                   `json:"event_no"`
 	Replayed        bool                  `json:"replayed,omitempty"`
 	Balance         []transferLineBalance `json:"balance"`
+	// PendingApproval (74.1.1): a High-severity reason held the receipt; nothing
+	// has moved. ApprovalID is the TransferLossHold that waits.
+	PendingApproval bool   `json:"pending_approval,omitempty"`
+	ApprovalID      string `json:"approval_id,omitempty"`
 }
 
 type transferEventLine struct {
@@ -397,6 +404,7 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 	}
 	reasonForSku := map[string][2]string{} // sku -> {reason_code, free-text reason}
 	var eventLines []transferEventLine
+	hold := &transferLossHold{} // 74.1.1: units written off under a High-severity code
 
 	for _, line := range req.Lines {
 		line.Sku = strings.TrimSpace(line.Sku)
@@ -424,6 +432,11 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 		if line.DamagedQty+line.LostQty+line.ExcessQty > 0 || len(line.DamagedSerials)+len(line.LostSerials) > 0 {
 			if err := requireTransferReason(tenantID, line.ReasonCode, TransferDiscrepancyReasonCategory, fmt.Sprintf("the damaged / lost / excess quantity of %s", line.Sku)); err != nil {
 				return nil, err
+			}
+			// 74.1.1: damaged or lost units under a High-severity code need approval.
+			if lossy := max(line.DamagedQty+line.LostQty, len(line.DamagedSerials)+len(line.LostSerials)); lossy > 0 &&
+				reasonSeverityOf(tenantID, line.ReasonCode, TransferDiscrepancyReasonCategory) == ReasonSeverityHigh {
+				hold.add(line.Sku, line.ReasonCode, lossy)
 			}
 		}
 		p := postingFor(line.Sku)
@@ -528,10 +541,17 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 			reason := reasonForSku[bal.Sku]
 			// Stage 148.11: a shortfall within the item's under % closes without
 			// a reason (read now); blank = a reason is needed, as before.
+			withinTolerance := false
 			if strings.TrimSpace(reason[0]) == "" && strings.TrimSpace(reason[1]) == "" {
 				if under, _ := transferTolerance(tenantID, bal.Sku); under != nil && float64(open) <= float64(bal.Dispatched)*(*under)/100+1e-9 {
 					reason[1] = "Within tolerance"
+					withinTolerance = true
 				}
+			}
+			// Stage 74.1.1: where the client requires reason codes, the old
+			// single-call receive's free text is not enough for a shortfall.
+			if !withinTolerance && strings.TrimSpace(reason[0]) == "" && ReasonCodesRequired(tenantID) {
+				return nil, requireTransferReason(tenantID, "", TransferDiscrepancyReasonCategory, fmt.Sprintf("the shortfall of %s", bal.Sku))
 			}
 			if strings.TrimSpace(reason[0]) == "" && strings.TrimSpace(reason[1]) == "" {
 				return nil, &ValidationError{Code: "TRN-0259", Message: fmt.Sprintf("received quantity for SKU %s (%d) does not match dispatched quantity (%d) - a shortage/damage reason is required", bal.Sku, bal.Received, bal.Dispatched)}
@@ -539,6 +559,10 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 			if reason[0] != "" {
 				if err := requireTransferReason(tenantID, reason[0], TransferDiscrepancyReasonCategory, fmt.Sprintf("the shortfall of %s", bal.Sku)); err != nil {
 					return nil, err
+				}
+				// 74.1.1: a shortfall closed as lost under a High-severity code needs approval.
+				if reasonSeverityOf(tenantID, reason[0], TransferDiscrepancyReasonCategory) == ReasonSeverityHigh {
+					hold.add(bal.Sku, reason[0], open)
 				}
 			}
 			p := postingFor(bal.Sku)
@@ -567,6 +591,12 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 	}
 	if len(eventLines) == 0 {
 		return nil, fmt.Errorf("nothing to receive - enter at least one quantity")
+	}
+	// 74.1.1: nothing above wrote anything, so a held receipt just lets go of
+	// the lock and waits for its approval; an approved one (approvedHold) posts.
+	if len(hold.units) > 0 && req.approvedHold == "" {
+		tx.Rollback()
+		return holdTransferReceipt(tenantID, transferOrderID, userID, req, hold, data, status)
 	}
 
 	for sku, p := range postings {

@@ -27,3 +27,10 @@ button:disabled { opacity: .6; cursor: default; }
 .scale button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
 .ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
 textarea { width: 100%; font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+/* Vendor PO page (vendor.html). */
+main.wide{max-width:760px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{padding:6px;border-top:1px solid var(--line);text-align:left;vertical-align:middle}
+.tbl input{width:100%;min-width:5rem;font:inherit;padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+.scroll{overflow-x:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}

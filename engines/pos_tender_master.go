@@ -10,7 +10,7 @@ import (
 )
 
 // Stage 85.E2 / 85.E3 / 85.E5 (77.5, 77.6, 77.10): the till's tenders and
-// salesmen from the client's own masters (db/migrations_stage85_5_*), the
+// salesmen from the client's own masters (db/migrations/migrations_stage85_5_*), the
 // tender-wise sales figures and the per-tender close.
 
 // TenderDef is one way a store takes money.

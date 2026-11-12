@@ -60,7 +60,13 @@ async function renderReportsView(container) {
   container.appendChild(panel);
 
   if (currentReportTab === 'exec-dashboard') {
-    await renderExecDashboard(panel);
+    // 162.5: the shell paints first; the layouts, catalog and tile reads start after it, off the critical path.
+    panel.innerHTML = '<p class="s-de2e81">Loading dashboard&hellip;</p>';
+    requestAnimationFrame(() => setTimeout(async () => {
+      if (!panel.isConnected) return;
+      try { await renderExecDashboard(panel); }
+      catch (e) { if (panel.isConnected) panel.innerHTML = '<p class="s-de2e81">The dashboard could not load. Refresh to try again.</p>'; }
+    }, 0));
   } else if (currentReportTab === 'dashboards') {
     const open = sessionStorage.getItem('erp_open_dashboard') || '';
     sessionStorage.removeItem('erp_open_dashboard');
@@ -130,7 +136,7 @@ async function loadDashboardLayouts() {
 }
 
 async function renderExecDashboard(panel) {
-  panel.innerHTML = `<p style="padding:16px; color:var(--text-muted);">Loading dashboard&hellip;</p>`;
+  panel.innerHTML = `<p class="s-de2e81">Loading dashboard&hellip;</p>`;
   await loadDashboardLayouts();
   if (dashboardCurrentTiles === null) {
     dashboardCurrentTiles = defaultDashboardTiles();
@@ -174,8 +180,8 @@ async function renderExecDashboardBody(panel) {
     const trendValues = days.map(d => (amountsUsable ? totalsByDay[d] : countsByDay[d]));
     const trendLabel = amountsUsable ? 'Sales Total (last 7 days)' : 'Orders (last 7 days) — amounts restricted for your role';
     trendHtml = `
-      <div style="padding: 20px; border-top: 1px solid var(--border-color);">
-        <h3 style="margin: 0 0 12px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">${trendLabel}</h3>
+      <div class="s-7fdfed">
+        <h3 class="s-cb8b0d">${trendLabel}</h3>
         <div id="exec-dashboard-trend" data-days='${JSON.stringify(days)}' data-values='${JSON.stringify(trendValues)}'></div>
       </div>`;
   }
@@ -188,14 +194,14 @@ async function renderExecDashboardBody(panel) {
   ).join('');
 
   panel.innerHTML = `
-    <div style="padding: 16px 16px 0; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px;">
-      <select id="dashboard-layout-picker" class="form-input" style="width:auto;">
+    <div class="s-b7cc9b">
+      <select id="dashboard-layout-picker" aria-label="Dashboard layout" class="form-input s-30e741">
         <option value="">Default</option>
         ${layoutOptions}
       </select>
       <button id="dashboard-save-btn" class="btn btn-outline btn-sm">Save as&hellip;</button>
       <button id="dashboard-delete-btn" class="btn btn-outline btn-sm" ${dashboardSelectedLayoutId ? '' : 'disabled'}>Delete Layout</button>
-      <select id="dashboard-add-tile-picker" class="form-input" style="width:auto;">
+      <select id="dashboard-add-tile-picker" aria-label="Add a tile" class="form-input s-30e741">
         <option value="">+ Add tile&hellip;</option>
         ${addTileOptions}
       </select>
@@ -222,7 +228,7 @@ async function renderExecDashboardBody(panel) {
     card.innerHTML = `
       <span class="stat-label">${escapeHTMLText(t.title || t.report_id)}</span>
       <span class="stat-val" style="color:${value > 0 ? '#dc2626' : '#10b981'};">${value}</span>
-      <span data-remove-tile="${i}" title="Remove tile" style="position:absolute; top:4px; right:8px; color:var(--text-muted); font-size:14px; line-height:1;">&times;</span>
+      <span data-remove-tile="${i}" title="Remove tile" class="s-596941">&times;</span>
     `;
     makeClickable(card, (e) => {
       if (e.target.closest('[data-remove-tile]')) return;
@@ -308,7 +314,7 @@ function renderExecDashboardTrendChart(container, labels, values) {
 
 // Inventory (Stage 21 QA fix): "Inventory" routed to a view name the router
 // had no case for, always falling through to the "Module Setup Pending"
-// mock screen - despite USER_GUIDE.md §5 explicitly documenting a working
+// mock screen - despite user-guide.md §5 explicitly documenting a working
 // search-by-item stock screen.
 // Stage 145: the screen reads /api/v1/inventory/stock now (stockOnHandHTML).
 let inventorySearchQuery = '';
@@ -355,7 +361,7 @@ async function saveStockColumnPrefs(prefs) {
 }
 
 function stockOnHandHTML(rows, cols, showTasks, searched) {
-  const quantity = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '—';
+  const quantity = value => Number.isFinite(Number(value)) ? formatNumber(value) : '—';
   const span = cols.length + (showTasks ? 1 : 0);
   // Every cell but Store opts out of the link sweep, which would turn a code
   // back into the item's long name.
@@ -434,12 +440,12 @@ async function renderInventoryView(container) {
     <div class="table-controls">
       <div class="search-box">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" id="inventory-search-input" placeholder="Search design, barcode, item...">
+        <input type="text" id="inventory-search-input" aria-label="Search stock" placeholder="Search design, barcode, item...">
       </div>
       <div class="stock-cols"><button type="button" class="btn btn-outline btn-sm" aria-haspopup="dialog" aria-expanded="false">Columns</button></div>
     </div>
     <div class="table-wrapper" id="inventory-table-wrapper"></div>
-    <div class="table-controls" id="inventory-pager" style="justify-content: flex-end; gap: 8px;"></div>
+    <div class="table-controls s-4578ea" id="inventory-pager"></div>
   `;
   container.appendChild(panel);
   panel.querySelector('#inventory-table-wrapper').addEventListener('click', event => {
@@ -476,7 +482,7 @@ async function renderInventoryView(container) {
     sweepLinkNames(wrapper);
     const pager = document.getElementById('inventory-pager');
     pager.innerHTML = total > rows.length || offset > 0
-      ? `<span class="text-muted" style="font-size: 13px;">${(offset + 1).toLocaleString()}-${(offset + rows.length).toLocaleString()} of ${total.toLocaleString()}</span>
+      ? `<span class="text-muted s-a54188">${formatNumber(offset + 1)}-${formatNumber(offset + rows.length)} of ${formatNumber(total)}</span>
          <button type="button" class="btn btn-outline btn-sm" data-page="-1" ${offset === 0 ? 'disabled' : ''}>Previous</button>
          <button type="button" class="btn btn-outline btn-sm" data-page="1" ${offset + rows.length >= total ? 'disabled' : ''}>Next</button>`
       : '';
@@ -555,7 +561,7 @@ async function renderPayablesAgeingReport(panel) {
           <tr>
             <td>${b.bucket}</td>
             <td>${b.count}</td>
-            <td>${b.amount.toLocaleString()}</td>
+            <td>${formatNumber(b.amount)}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -575,7 +581,7 @@ async function renderReceivablesAgeingReport(panel) {
           <tr>
             <td>${b.bucket}</td>
             <td>${b.count}</td>
-            <td>${b.amount.toLocaleString()}</td>
+            <td>${formatNumber(b.amount)}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -591,18 +597,18 @@ async function renderGSTReturnSummaryReport(panel) {
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   const today = localISODate(now);
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-153627">
+      <div class="form-group s-50435f">
         <label class="form-label" for="gst-start-date">From</label>
         <input type="date" id="gst-start-date" class="form-input" value="${monthStart}">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="gst-end-date">To</label>
         <input type="date" id="gst-end-date" class="form-input" value="${today}">
       </div>
       <button class="btn btn-primary" id="gst-summary-btn">Run</button>
     </div>
-    <div id="gst-summary-result" style="padding: 0 16px 16px;"></div>
+    <div id="gst-summary-result" class="s-644e5e"></div>
   `;
   const runReport = async () => {
     const startDate = document.getElementById('gst-start-date').value;
@@ -622,21 +628,21 @@ async function renderGSTReturnSummaryReport(panel) {
     const nonTaxable = s.non_taxable_value || 0;
     const nonTaxableRow = nonTaxable === 0 ? '' : `
       <div class="dashboard-stats-row">
-        <div class="stat-card"><span class="stat-label">Exempt Value</span><span class="stat-val">${(s.exempt_value || 0).toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Nil-Rated Value</span><span class="stat-val">${(s.nil_rated_value || 0).toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Zero-Rated Value</span><span class="stat-val">${(s.zero_rated_value || 0).toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Total Non-Taxable</span><span class="stat-val">${nonTaxable.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Exempt Value</span><span class="stat-val">${formatNumber(s.exempt_value)}</span></div>
+        <div class="stat-card"><span class="stat-label">Nil-Rated Value</span><span class="stat-val">${formatNumber(s.nil_rated_value)}</span></div>
+        <div class="stat-card"><span class="stat-label">Zero-Rated Value</span><span class="stat-val">${formatNumber(s.zero_rated_value)}</span></div>
+        <div class="stat-card"><span class="stat-label">Total Non-Taxable</span><span class="stat-val">${formatNumber(nonTaxable)}</span></div>
       </div>
     `;
     resultEl.innerHTML = `
       <div class="dashboard-stats-row">
-        <div class="stat-card"><span class="stat-label">Taxable Value</span><span class="stat-val">${s.taxable_value.toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Output CGST</span><span class="stat-val">${s.output_cgst.toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Output SGST</span><span class="stat-val">${s.output_sgst.toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Output IGST</span><span class="stat-val">${s.output_igst.toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Total Tax Liability</span><span class="stat-val">${s.total_tax_liability.toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Input Tax Credit</span><span class="stat-val">${(s.input_tax_credit || 0).toLocaleString()}</span></div>
-        <div class="stat-card"><span class="stat-label">Net GST Payable</span><span class="stat-val">${(s.net_tax_payable ?? s.total_tax_liability).toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Taxable Value</span><span class="stat-val">${formatNumber(s.taxable_value)}</span></div>
+        <div class="stat-card"><span class="stat-label">Output CGST</span><span class="stat-val">${formatNumber(s.output_cgst)}</span></div>
+        <div class="stat-card"><span class="stat-label">Output SGST</span><span class="stat-val">${formatNumber(s.output_sgst)}</span></div>
+        <div class="stat-card"><span class="stat-label">Output IGST</span><span class="stat-val">${formatNumber(s.output_igst)}</span></div>
+        <div class="stat-card"><span class="stat-label">Total Tax Liability</span><span class="stat-val">${formatNumber(s.total_tax_liability)}</span></div>
+        <div class="stat-card"><span class="stat-label">Input Tax Credit</span><span class="stat-val">${formatNumber(s.input_tax_credit)}</span></div>
+        <div class="stat-card"><span class="stat-label">Net GST Payable</span><span class="stat-val">${formatNumber(s.net_tax_payable ?? s.total_tax_liability)}</span></div>
         <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-val">${s.transaction_count}</span></div>
       </div>
       ${nonTaxableRow}
@@ -662,7 +668,7 @@ async function renderReportCatalogPanel(panel) {
   const res = await apiFetch('/api/v1/reports/catalog');
   if (!res) return;
   if (!res.ok) {
-    panel.innerHTML = `<p class="login-error" style="padding:16px;">Failed to load report catalog.</p>`;
+    panel.innerHTML = `<p class="login-error s-287f77">Failed to load report catalog.</p>`;
     return;
   }
   reportCatalogDefs = await res.json();
@@ -680,12 +686,12 @@ async function renderReportCatalogPanel(panel) {
   // is searchable, so "who owes us" finds Receivables Ageing.
   const optionFor = d => `<option value="${escapeHTMLText(d.id)}" ${d.id === reportCatalogSelectedId ? 'selected' : ''} title="${escapeHTMLText(d.question || '')}">${d.number ? `${escapeHTMLText(d.number)} · ` : ''}${escapeHTMLText(d.label)}${d.question ? ` - ${escapeHTMLText(d.question)}` : ''}</option>`;
   panel.innerHTML = `
-    <div style="padding: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+    <div class="s-c7c7bb">
+      <div class="form-group s-7ee7ac">
         <label class="form-label" for="rc-report-search">Find a report</label>
         <input id="rc-report-search" class="form-input" type="search" placeholder="e.g. who owes us, stock value" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0; min-width: 260px;">
+      <div class="form-group s-686bb2">
         <label class="form-label" for="rc-report-select">Report</label>
         <select id="rc-report-select" class="form-select">
           ${Object.keys(byCategory).sort().map(cat => `
@@ -695,12 +701,12 @@ async function renderReportCatalogPanel(panel) {
           `).join('')}
         </select>
       </div>
-      <div id="rc-params" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;"></div>
-      <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
+      <div id="rc-params" class="s-608a43"></div>
+      <div class="form-group s-e4412e">
         <label class="form-label" for="rc-saved-filter">Saved Filter</label>
         <select id="rc-saved-filter" class="form-select"><option value="">— none —</option></select>
       </div>
-      <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
+      <div class="form-group s-e4412e">
         <label class="form-label" for="rc-column-profile">Column Profile</label>
         <select id="rc-column-profile" class="form-select"><option value="">— Default columns —</option></select>
       </div>
@@ -709,13 +715,13 @@ async function renderReportCatalogPanel(panel) {
       <button class="btn btn-outline" id="rc-save-filter-btn">Save Filter</button>
       <button class="btn btn-outline" id="rc-export-btn">Export in Background</button>
     </div>
-    <div id="rc-columns-panel" class="hidden" style="padding: 12px 16px 0;"></div>
-    <div id="rc-export-status" style="padding: 0 16px;"></div>
-    <div id="rc-run-summary" style="padding: 12px 16px 0; color: var(--text-muted); font-size: 13px;"></div>
-    <div id="rc-control-totals" style="padding: 0 16px;"></div>
-    <div id="rc-results" style="padding: 16px;"></div>
-    <details id="rc-recent-runs" style="padding: 0 16px 8px;"><summary>Recent runs</summary><div id="rc-recent-runs-body"></div></details>
-    <details id="rc-my-exports" style="padding: 0 16px 16px;"><summary>My exports</summary><div id="rc-my-exports-body"></div></details>
+    <div id="rc-columns-panel" class="hidden s-fdeaf5"></div>
+    <div id="rc-export-status" class="s-4c7b78"></div>
+    <div id="rc-run-summary" class="s-498446"></div>
+    <div id="rc-control-totals" class="s-4c7b78"></div>
+    <div id="rc-results" class="s-c74152"></div>
+    <details id="rc-recent-runs" class="s-1c1b91"><summary>Recent runs</summary><div id="rc-recent-runs-body"></div></details>
+    <details id="rc-my-exports" class="s-644e5e"><summary>My exports</summary><div id="rc-my-exports-body"></div></details>
   `;
   document.getElementById('rc-report-search').addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
@@ -828,17 +834,17 @@ function renderReportColumnsPanel() {
   const canUniversal = role === 'Super Admin' || role === 'HR/Admin' || role === 'Admin' || role === 'Store Manager';
   const smallBtn = 'padding:2px 8px; font-size:12px;';
   const rows = reportCatalogColumnState.map((c, i) => `
-    <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+    <div class="s-8eb9c7">
       <input type="checkbox" data-col-key="${cfgEsc(c.key)}" ${c.visible ? 'checked' : ''}>
-      <span style="flex:1;">${cfgEsc(c.label)}</span>
+      <span class="s-97445a">${cfgEsc(c.label)}</span>
       <button class="btn btn-outline rc-col-up" data-idx="${i}" style="${smallBtn}" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
       <button class="btn btn-outline rc-col-down" data-idx="${i}" style="${smallBtn}" ${i === reportCatalogColumnState.length - 1 ? 'disabled' : ''}>&darr;</button>
     </div>`).join('');
   panel.innerHTML = `
-    <div style="padding:14px; border:1px solid var(--border-color); border-radius:8px; background:var(--panel-bg); max-width:460px;">
-      <div style="font-weight:600; margin-bottom:6px;">Show, hide, and reorder columns</div>
-      ${rows || '<p class="page-subtitle" style="margin:0;">This report has no columns.</p>'}
-      <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+    <div class="s-d2d902">
+      <div class="s-a618cb">Show, hide, and reorder columns</div>
+      ${rows || '<p class="page-subtitle s-116966">This report has no columns.</p>'}
+      <div class="s-132391">
         <button class="btn btn-primary" id="rc-col-apply" style="${smallBtn}">Apply</button>
         <button class="btn btn-outline" id="rc-col-save" style="${smallBtn}">Save as Profile&hellip;</button>
         <button class="btn btn-outline" id="rc-col-reset" style="${smallBtn}">Reset to default</button>
@@ -960,18 +966,18 @@ function renderReportCatalogParams() {
     if (p.type === 'select' && p.options) {
       const opts = p.options.split(',').map(o => o.trim()).filter(Boolean);
       const any = /\(optional\)/i.test(p.label) ? '<option value="">Any</option>' : '';
-      return `<select id="rc-param-${p.key}" class="form-select" data-param-key="${p.key}" style="width: 180px;">${any}${opts.map(o =>
+      return `<select id="rc-param-${p.key}" class="form-select s-f9de92" data-param-key="${p.key}">${any}${opts.map(o =>
         `<option value="${escapeHTMLText(o)}">${escapeHTMLText(o)}</option>`).join('')}</select>`;
     }
     // 140.12.27: a segment is chosen from the list, a record by typeahead.
     if (p.type === 'segment') {
-      return `<select id="rc-param-${p.key}" class="form-select" data-param-key="${p.key}" data-param-segment style="width: 220px;"><option value="">Choose a segment</option></select>`;
+      return `<select id="rc-param-${p.key}" class="form-select s-30080b" data-param-key="${p.key}" data-param-segment><option value="">Choose a segment</option></select>`;
     }
-    return `<input type="${p.type === 'date' ? 'date' : 'text'}" id="rc-param-${p.key}" class="form-input"
-             data-param-key="${p.key}" ${p.required ? 'required' : ''} ${p.type === 'link' && p.options ? `data-param-link="${escapeHTMLText(p.options)}"` : ''} style="width: 160px;">`;
+    return `<input type="${p.type === 'date' ? 'date' : 'text'}" id="rc-param-${p.key}" class="form-input s-56cae7"
+             data-param-key="${p.key}" ${p.required ? 'required' : ''} ${p.type === 'link' && p.options ? `data-param-link="${escapeHTMLText(p.options)}"` : ''}>`;
   };
   container.innerHTML = (def.params || []).map(p => `
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="rc-param-${p.key}">${p.label}</label>
       ${control(p)}
     </div>
@@ -1013,7 +1019,7 @@ function renderReportRunSummary(def, params, result) {
   const labelOf = k => ((def.params || []).find(p => p.key === k) || {}).label || k;
   const filters = Object.entries(params).map(([k, v]) => `${labelOf(k)}: ${v}`).join(' · ') || 'no filters';
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  el.textContent = `${def.number ? `${def.number} ` : ''}${def.label} - ${filters} - ${result.paging ? result.paging.total : (result.rows || []).length} row(s) - run ${new Date().toLocaleString('en-IN')} (${tz}) - amounts in INR`;
+  el.textContent = `${def.number ? `${def.number} ` : ''}${def.label} - ${filters} - ${result.paging ? result.paging.total : (result.rows || []).length} row(s) - run ${formatDateTime(new Date())} (${tz}) - amounts in INR`;
 }
 
 // Stage 73.2.19: detail = summary = ledger, with its cut-off.
@@ -1021,7 +1027,7 @@ function renderReportControlTotals(ct) {
   const el = document.getElementById('rc-control-totals');
   if (!el) return;
   if (!ct) { el.innerHTML = ''; return; }
-  const money = v => (v === null || v === undefined) ? '-' : Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = v => (v === null || v === undefined) ? '-' : formatMoney(v);
   const amounts = ct.amounts_hidden ? '<span>Amounts restricted for your role.</span>' : `
       <span>Detail (rows) <b>${money(ct.detail_total)}</b></span>
       <span>Summary <b>${money(ct.summary_total)}</b></span>
@@ -1030,12 +1036,12 @@ function renderReportControlTotals(ct) {
       ${ct.summary_vs_ledger ? `<span>Summary - ledger <b>${money(ct.summary_vs_ledger)}</b></span>` : ''}`;
   el.innerHTML = `
     <div class="table-panel" style="padding:12px 16px;margin-top:12px;border-left:4px solid ${ct.tied ? 'var(--success-color, #10b981)' : 'var(--warning-color, #f59e0b)'}">
-      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+      <div class="s-ccd221">
         <span class="badge ${ct.tied ? 'badge-success' : 'badge-warning'}">${ct.tied ? 'Control totals tie' : 'Control totals do not tie'}</span>
         ${amounts}
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:6px">${escapeHTMLText(ct.basis || '')}${ct.basis ? ' · ' : ''}${escapeHTMLText(ct.cut_off || '')}</div>
-      ${(ct.notes || []).map(n => `<div style="font-size:12px;margin-top:4px">${escapeHTMLText(n)}</div>`).join('')}
+      <div class="s-bda799">${escapeHTMLText(ct.basis || '')}${ct.basis ? ' · ' : ''}${escapeHTMLText(ct.cut_off || '')}</div>
+      ${(ct.notes || []).map(n => `<div class="s-dde55e">${escapeHTMLText(n)}</div>`).join('')}
     </div>`;
 }
 
@@ -1048,7 +1054,7 @@ async function renderMyReportExports() {
   if (!res) return;
   if (!res.ok) { body.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load your exports.'))}</p>`; return; }
   const { jobs } = await res.json();
-  body.innerHTML = jobs.length === 0 ? '<p style="color:var(--text-muted)">You have not exported a report yet.</p>' : `
+  body.innerHTML = jobs.length === 0 ? '<p class="s-5872de">You have not exported a report yet.</p>' : `
     <table><thead><tr><th>Report</th><th>Filters</th><th>Requested</th><th>Status</th><th></th></tr></thead><tbody>
     ${jobs.map(j => `<tr><td>${escapeHTMLText(j.report_label || j.report_id)}</td>
       <td><small>${escapeHTMLText(Object.entries(j.params || {}).map(([k, v]) => `${k}=${v}`).join(', ') || '-')}</small></td>
@@ -1078,13 +1084,13 @@ async function renderRecentReportRuns() {
   const body = document.getElementById('rc-recent-runs-body');
   const def = currentReportCatalogDef();
   if (!body || !def) return;
-  body.innerHTML = '<p style="color:var(--text-muted)">Loading...</p>';
+  body.innerHTML = '<p class="s-5872de">Loading...</p>';
   const res = await apiFetch(`/api/v1/reports/runs/${encodeURIComponent(def.id)}`);
   if (!res) return;
   if (!res.ok) { body.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load recent runs.'))}</p>`; return; }
   const { runs } = await res.json();
   if (def.id !== reportCatalogSelectedId) return; // the selection moved on while this loaded
-  body.innerHTML = runs.length === 0 ? `<p style="color:var(--text-muted)">No runs of ${escapeHTMLText(def.label)} yet.</p>` : `
+  body.innerHTML = runs.length === 0 ? `<p class="s-5872de">No runs of ${escapeHTMLText(def.label)} yet.</p>` : `
     <table><thead><tr><th>Run by</th><th>When</th><th>Took</th><th>Rows</th></tr></thead><tbody>
     ${runs.map(r => `<tr><td>${escapeHTMLText(r.run_by || 'Schedule')}</td><td>${escapeHTMLText(reportCellText(r.run_at))}</td>
       <td>${escapeHTMLText(formatRunDuration(r.duration_ms))}</td><td>${escapeHTMLText(String(r.row_count))}</td></tr>`).join('')}
@@ -1097,28 +1103,28 @@ async function renderRecentReportRuns() {
 // Digest), so this list links there instead of carrying a form of its own.
 function scheduleDateText(ymd) {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? new Date(`${ymd}T00:00:00`) : null;
-  return d && !isNaN(d) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (ymd || '');
+  return d && !isNaN(d) ? formatDateTime(d, true) : (ymd || '');
 }
 
 function scheduleNextRunHTML(s) {
-  if (s.status !== 'Active') return '<span style="color:var(--text-muted)">Paused</span>';
-  if (!s.next_run) return '<span style="color:var(--text-muted)">Not set</span>';
-  if (s.due) return `Due now<br><small style="color:var(--text-muted)">goes out at the next hourly check, then ${escapeHTMLText(scheduleDateText(s.following_run))}</small>`;
-  return `<span style="white-space:nowrap">${escapeHTMLText(scheduleDateText(s.next_run))}</span>`;
+  if (s.status !== 'Active') return '<span class="s-5872de">Paused</span>';
+  if (!s.next_run) return '<span class="s-5872de">Not set</span>';
+  if (s.due) return `Due now<br><small class="s-5872de">goes out at the next hourly check, then ${escapeHTMLText(scheduleDateText(s.following_run))}</small>`;
+  return `<span class="s-86abda">${escapeHTMLText(scheduleDateText(s.next_run))}</span>`;
 }
 
 function scheduleResultHTML(s) {
   if (s.last_result === 'ok') return `<span class="badge badge-success">Delivered</span>${s.last_rows !== undefined ? `<br><small>${escapeHTMLText(String(s.last_rows))} row${s.last_rows === 1 ? '' : 's'}</small>` : ''}`;
   if (s.last_result === 'running') return '<span class="badge badge-secondary">Running</span>';
   if (s.last_result === 'error') return `<span class="badge badge-danger">Failed</span><br><small>${escapeHTMLText(s.last_error || '')}</small>`;
-  return '<span style="color:var(--text-muted)">Not run yet</span>';
+  return '<span class="s-5872de">Not run yet</span>';
 }
 
 function scheduleRecipientsHTML(s) {
   const parts = [];
   if (s.recipient_count > 0) parts.push(`${s.recipient_count} email${s.recipient_count === 1 ? '' : 's'}<br><small>${escapeHTMLText(s.recipients.join(', '))}</small>`);
   if (s.webhook_host) parts.push(`<small>Webhook: ${escapeHTMLText(s.webhook_host)}</small>`);
-  return parts.length ? parts.join('<br>') : '<span style="color:var(--text-muted)">None set</span>';
+  return parts.length ? parts.join('<br>') : '<span class="s-5872de">None set</span>';
 }
 
 async function renderReportSchedulesPanel(panel) {
@@ -1126,29 +1132,29 @@ async function renderReportSchedulesPanel(panel) {
   panel.id = 'rs-panel';
   const res = await apiFetch('/api/v1/reports/schedules');
   if (!res) return;
-  if (!res.ok) { panel.innerHTML = `<p class="login-error" style="padding:16px;">${escapeHTMLText(await getErrorMessage(res, 'Could not load schedules.'))}</p>`; return; }
+  if (!res.ok) { panel.innerHTML = `<p class="login-error s-287f77">${escapeHTMLText(await getErrorMessage(res, 'Could not load schedules.'))}</p>`; return; }
   const { schedules } = await res.json();
   const setupLinks = [['ScheduledReport', 'Set up a scheduled report'], ['DashboardDigest', 'Set up a dashboard digest']]
     .filter(([doctype]) => typeof canCreateDoctype === 'function' && canCreateDoctype(doctype))
     .map(([doctype, label]) => `<button class="btn btn-outline btn-sm" data-sched-setup="${doctype}">${label}</button>`).join('');
   const empty = 'No scheduled reports or digests yet.';
   panel.innerHTML = `
-    <div style="padding: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border-color);">
+    <div class="s-d3dab6">
       ${setupLinks}<button class="btn btn-outline btn-sm" data-sched-refresh="1">Refresh</button>
     </div>
-    <div style="padding: 16px; overflow-x: auto;">
-    ${schedules.length === 0 ? `<p style="color:var(--text-muted)">${empty}</p>` : `
+    <div class="s-ccc455">
+    ${schedules.length === 0 ? `<p class="s-5872de">${empty}</p>` : `
       <table><thead><tr><th>Schedule</th><th>Owner</th><th>Frequency</th><th>Next run</th><th>Last run</th><th>Result</th><th>Recipients</th><th>Status</th><th></th></tr></thead><tbody>
       ${schedules.map(s => `<tr>
         <td><b>${escapeHTMLText(s.target_label || s.target || '-')}</b><br><small>${s.kind === 'digest' ? 'Dashboard digest' : 'Report'}${s.run_as_role ? ` · runs as ${escapeHTMLText(s.run_as_role)}` : ''}</small></td>
         <td>${escapeHTMLText(s.owner)}</td>
         <td>${escapeHTMLText(s.frequency)}</td>
         <td>${scheduleNextRunHTML(s)}</td>
-        <td>${s.last_run_at ? escapeHTMLText(reportCellText(s.last_run_at)) : '<span style="color:var(--text-muted)">Never</span>'}</td>
+        <td>${s.last_run_at ? escapeHTMLText(reportCellText(s.last_run_at)) : '<span class="s-5872de">Never</span>'}</td>
         <td>${scheduleResultHTML(s)}</td>
         <td>${scheduleRecipientsHTML(s)}</td>
         <td><span class="badge ${s.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(s.status)}</span></td>
-        <td style="white-space:nowrap">
+        <td class="s-86abda">
           <button class="action-btn" data-sched-action="${s.status === 'Active' ? 'pause' : 'resume'}" data-sched-kind="${escapeHTMLText(s.kind)}" data-sched-id="${escapeHTMLText(s.id)}">${s.status === 'Active' ? 'Pause' : 'Resume'}</button>
           <button class="action-btn" data-sched-action="run" data-sched-kind="${escapeHTMLText(s.kind)}" data-sched-id="${escapeHTMLText(s.id)}" data-sched-label="${escapeHTMLText(s.target_label || s.target || '')}">Run now</button>
         </td></tr>`).join('')}
@@ -1193,7 +1199,7 @@ async function runReportCatalogReport() {
     }
   }
   reportParamMemory[def.id] = { ...params };
-  resultsEl.innerHTML = '<p style="color:var(--text-muted)">Running...</p>';
+  resultsEl.innerHTML = '<p class="s-5872de">Running...</p>';
   renderReportControlTotals(null);
   const result = await fetchReportCatalogPage(def, params, 0, resultsEl);
   if (!result) return;
@@ -1243,7 +1249,7 @@ function reportCellText(val) {
   if (val === null || val === undefined) return '';
   if (typeof val === 'string' && REPORT_TIMESTAMP_RE.test(val)) {
     const d = new Date(val);
-    if (!isNaN(d)) return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    if (!isNaN(d)) return formatDateTime(d);
   }
   return val;
 }
@@ -1276,7 +1282,7 @@ function renderReportCatalogResultTable(container, result, params) {
   if (canDismiss) html += `<th>Exception</th>`;
   html += `</tr></thead><tbody>`;
   if (rows.length === 0) {
-    html += `<tr><td colspan="${columns.length + extraCols}" style="text-align:center; color:var(--text-muted);">No rows matched.</td></tr>`;
+    html += `<tr><td colspan="${columns.length + extraCols}" class="s-306094">No rows matched.</td></tr>`;
   }
   rows.forEach((row, idx) => {
     html += `<tr>`;
@@ -1289,7 +1295,7 @@ function renderReportCatalogResultTable(container, result, params) {
       html += c.type === 'doclink' && row[c.key + '_doctype']
         ? `<td${keepCode}><a class="doc-link" href="#/setup/${encodeURIComponent(row[c.key + '_doctype'])}?q=${encodeURIComponent(String(row[c.key + '_id'] || row[c.key]))}">${escapeHTMLText(reportCellText(row[c.key]))}</a></td>`
         : c.type === 'image'
-        ? `<td>${row[c.key] ? `<img class="rc-thumb" data-rc-media="${escapeHTMLText(row[c.key])}" alt="" width="40" height="40" style="object-fit:cover;border-radius:4px;">` : ''}</td>`
+        ? `<td>${row[c.key] ? `<img class="rc-thumb s-561c2c" data-rc-media="${escapeHTMLText(row[c.key])}" alt="" width="40" height="40">` : ''}</td>`
         : `<td${keepCode}>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
     });
     if (result.has_drill_down) {
@@ -1330,9 +1336,9 @@ function renderReportCatalogResultTable(container, result, params) {
   }
   html += `</table>`;
   if (manyPages) {
-    const count = (n) => Number(n).toLocaleString('en-IN');
+    const count = (n) => formatNumber(n);
     const last = paging.offset + rows.length;
-    html += `<div style="display:flex;gap:10px;align-items:center;margin:10px 0 0;font-size:13px;" class="text-muted"><button type="button" class="btn btn-outline" data-rc-page="${Math.max(0, paging.offset - paging.limit)}" ${paging.offset > 0 ? '' : 'disabled'}>Previous</button><span>${rows.length ? `${count(paging.offset + 1)}-${count(last)}` : '0'} of ${count(paging.total)}</span><button type="button" class="btn btn-outline" data-rc-page="${paging.offset + paging.limit}" ${last < paging.total ? '' : 'disabled'}>Next</button></div>`;
+    html += `<div class="text-muted s-c7bd98"><button type="button" class="btn btn-outline" data-rc-page="${Math.max(0, paging.offset - paging.limit)}" ${paging.offset > 0 ? '' : 'disabled'}>Previous</button><span>${rows.length ? `${count(paging.offset + 1)}-${count(last)}` : '0'} of ${count(paging.total)}</span><button type="button" class="btn btn-outline" data-rc-page="${paging.offset + paging.limit}" ${last < paging.total ? '' : 'disabled'}>Next</button></div>`;
   }
   container.innerHTML = html;
   loadReportThumbnails(container);
@@ -1410,9 +1416,9 @@ async function runReportCatalogDrillDown(reportId, rowKey, rowIdx) {
   // Stage 55.20: says which row and filters the lines belong to, with
   // readable headings and dates.
   const scope = Object.entries(params).map(([k, v]) => `${k} ${v}`).join(', ');
-  let inner = `<div style="padding:8px 0;"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${drillRows.length} line(s) behind "${escapeHTMLText(rowKey)}"${scope ? ` - same filters (${escapeHTMLText(scope)})` : ''}</div><table style="width:100%;"><thead><tr>${keys.map(k => `<th>${escapeHTMLText(k.replace(/_/g, ' '))}</th>`).join('')}</tr></thead><tbody>`;
+  let inner = `<div class="s-d8c022"><div class="s-c7d929">${drillRows.length} line(s) behind "${escapeHTMLText(rowKey)}"${scope ? ` - same filters (${escapeHTMLText(scope)})` : ''}</div><table class="s-046678"><thead><tr>${keys.map(k => `<th>${escapeHTMLText(k.replace(/_/g, ' '))}</th>`).join('')}</tr></thead><tbody>`;
   inner += drillRows.length === 0
-    ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows for this figure.</td></tr>`
+    ? `<tr><td colspan="${keys.length || 1}" class="s-306094">No underlying rows for this figure.</td></tr>`
     : drillRows.map(r => `<tr>${keys.map(k => `<td>${escapeHTMLText(reportCellText(r[k] === null || r[k] === undefined ? '' : r[k]))}</td>`).join('')}</tr>`).join('');
   inner += `</tbody></table></div>`;
   targetRow.classList.remove('hidden');

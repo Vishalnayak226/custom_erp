@@ -87,29 +87,29 @@ async function renderManufacturingOrdersTab(container) {
   bomFormPanel.style.padding = '24px';
   bomFormPanel.style.marginBottom = '24px';
   bomFormPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">New BOM</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-79bd22">New BOM</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bom-code">BOM Code</label>
-        <input type="text" id="bom-code" class="form-input" style="width: 140px;">
+        <input type="text" id="bom-code" class="form-input s-21b277">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bom-parent-item">Parent Item (Finished Good SKU)</label>
-        <input type="text" id="bom-parent-item" class="form-input" style="width: 180px;">
+        <input type="text" id="bom-parent-item" class="form-input s-f9de92">
       </div>
     </div>
-    <div class="form-group" style="margin: 16px 0 0;">
+    <div class="form-group s-41a73c">
       <label class="form-label">Components - what one finished unit uses</label>
-      <div style="overflow-x: auto;"><table>
+      <div class="s-987eb2"><table>
         <thead><tr><th>Item</th><th class="num">Qty per finished unit</th><th class="num">Expected scrap %</th><th></th></tr></thead>
         <tbody id="bom-lines"></tbody>
       </table></div>
-      <div style="display: flex; gap: 12px; margin-top: 12px;">
+      <div class="s-ca5a7e">
         <button type="button" class="btn btn-secondary" id="bom-add-line">+ Add component</button>
         <button class="btn btn-primary" id="bom-create-btn">Create BOM</button>
       </div>
     </div>
-    <div id="bom-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="bom-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const orderFormPanel = document.createElement('div');
@@ -117,28 +117,28 @@ async function renderManufacturingOrdersTab(container) {
   orderFormPanel.style.padding = '24px';
   orderFormPanel.style.marginBottom = '24px';
   orderFormPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Production Order</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <h2 class="s-bfc163">New Production Order</h2>
+    <div class="s-608a43">
       ${autoNumberField('Order Number', 'PRO', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="po-mfg-bom">BOM</label>
-        <select id="po-mfg-bom" class="form-input" style="width: 200px;">
+        <select id="po-mfg-bom" class="form-input s-0fff9b">
           <option value="">Select a BOM</option>
           ${boms.map(b => `<option value="${b.code || b.id}">${b.code || b.id} (${b.parent_item || ''})</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="po-mfg-qty">Quantity</label>
-        <input type="number" id="po-mfg-qty" class="form-input" style="width: 100px;">
+        <input type="number" id="po-mfg-qty" class="form-input s-da190a">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="po-mfg-location">Location</label>
-        <input type="text" id="po-mfg-location" class="form-input" style="width: 110px;">
+        <input type="text" id="po-mfg-location" class="form-input s-148b84">
       </div>
       <button class="btn btn-primary" id="po-mfg-create-btn">Create Order</button>
     </div>
-    <div id="po-mfg-materials" style="margin-top: 16px;"></div>
-    <div id="po-mfg-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="po-mfg-materials" class="s-4c0544"></div>
+    <div id="po-mfg-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const listPanel = document.createElement('div');
@@ -152,15 +152,15 @@ async function renderManufacturingOrdersTab(container) {
   const bomOutput = Object.fromEntries(boms.map(b => [b.code || b.id, b.parent_item || '']));
   mfgBomOutput = bomOutput;
   html += orders.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No production orders yet.</td></tr>`
+    ? `<tr><td colspan="7" class="s-306094">No production orders yet.</td></tr>`
     : orders.map(o => `
         <tr>
-          <td style="font-family: monospace;">${escapeHTMLText(o.code || o.id)}</td>
-          <td>${escapeHTMLText(o.bom_id || '')}${bomOutput[o.bom_id] ? `<div style="font-size: 11px; color: var(--text-muted);">makes ${escapeHTMLText(bomOutput[o.bom_id])}</div>` : ''}</td>
+          <td class="s-355794">${escapeHTMLText(o.code || o.id)}</td>
+          <td>${escapeHTMLText(o.bom_id || '')}${bomOutput[o.bom_id] ? `<div class="s-428d6b">makes ${escapeHTMLText(bomOutput[o.bom_id])}</div>` : ''}</td>
           <td class="num">${Number(o.completed_qty || 0)} / ${o.quantity ?? ''}</td>
           <td>${escapeHTMLText(o.location || '')}</td>
           <td><span class="badge ${o.status === 'Completed' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(o.status)}</span></td>
-          <td style="font-size: 12px;">${productionNextStep(o)}</td>
+          <td class="s-11fcdc">${productionNextStep(o)}</td>
           <td>${renderProductionOrderActions(o)}</td>
         </tr>
         <tr class="hidden" id="mfg-mat-${escapeHTMLText(o.id)}"><td colspan="7"></td></tr>
@@ -192,9 +192,9 @@ function addBOMLine() {
   if (!body) return;
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td><input type="text" class="form-input bom-line-sku" style="min-width: 220px;" aria-label="Component item"></td>
-    <td class="num"><input type="number" class="form-input bom-line-qty" min="0" step="any" style="width: 110px;" aria-label="Quantity per finished unit"></td>
-    <td class="num"><input type="number" class="form-input bom-line-scrap" min="0" step="any" style="width: 90px;" placeholder="0" aria-label="Expected scrap percent"></td>
+    <td><input type="text" class="form-input bom-line-sku s-aa4bbf" aria-label="Component item"></td>
+    <td class="num"><input type="number" class="form-input bom-line-qty s-148b84" min="0" step="any" aria-label="Quantity per finished unit"></td>
+    <td class="num"><input type="number" class="form-input bom-line-scrap s-34deaa" min="0" step="any" placeholder="0" aria-label="Expected scrap percent"></td>
     <td><button type="button" class="action-btn" aria-label="Remove component">Remove</button></td>`;
   body.appendChild(tr);
   attachLinkTypeahead(tr.querySelector('.bom-line-sku'), 'Item');
@@ -208,15 +208,15 @@ function renderMaterialPlan(plan) {
   const n = v => Number(v) === Math.round(Number(v)) ? String(Number(v)) : Number(v).toFixed(3);
   const lines = plan.lines || [];
   const head = plan.short_lines > 0
-    ? `<div class="login-error" style="margin-bottom: 8px;">${plan.short_lines} component(s) short at ${escapeHTMLText(plan.location)} - Issue Material will be refused until the stock arrives (transfer it in or receive a purchase).</div>`
-    : `<div style="color: var(--success, #15803d); margin-bottom: 8px;">All components are available at ${escapeHTMLText(plan.location)} for ${n(plan.qty)} unit(s).</div>`;
-  return head + `<div style="overflow-x: auto;"><table>
+    ? `<div class="login-error s-16949d">${plan.short_lines} component(s) short at ${escapeHTMLText(plan.location)} - Issue Material will be refused until the stock arrives (transfer it in or receive a purchase).</div>`
+    : `<div class="s-16dc4b">All components are available at ${escapeHTMLText(plan.location)} for ${n(plan.qty)} unit(s).</div>`;
+  return head + `<div class="s-987eb2"><table>
     <thead><tr><th>Component</th><th class="num">Per unit</th><th class="num">Required</th><th class="num">Available</th><th class="num">Short</th><th>Taken</th></tr></thead>
     <tbody>${lines.map(l => `<tr>
-      <td>${escapeHTMLText(l.name || l.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}</div></td>
+      <td>${escapeHTMLText(l.name || l.sku)}<div class="s-428d6b">${escapeHTMLText(l.sku)}</div></td>
       <td class="num">${n(l.per_unit)}</td><td class="num">${n(l.required)}</td><td class="num">${n(l.available)}</td>
-      <td class="num">${l.short > 0 ? `<b style="color: var(--danger, #b91c1c);">${n(l.short)}</b>` : ''}</td>
-      <td style="font-size: 12px;">${l.backflush ? 'as output is reported (backflush)' : 'at Issue Material'}</td></tr>`).join('')}</tbody></table></div>`;
+      <td class="num">${l.short > 0 ? `<b class="s-cd6621">${n(l.short)}</b>` : ''}</td>
+      <td class="s-11fcdc">${l.backflush ? 'as output is reported (backflush)' : 'at Issue Material'}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function refreshNewOrderMaterials() {
@@ -454,18 +454,18 @@ async function renderMRPSuggestionsTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mrp-location">Location</label>
-        <input type="text" id="mrp-location" class="form-input" style="width: 140px;">
+        <input type="text" id="mrp-location" class="form-input s-21b277">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mrp-lead-time">Lead Time (Days)</label>
-        <input type="number" id="mrp-lead-time" class="form-input" style="width: 100px;" value="7">
+        <input type="number" id="mrp-lead-time" class="form-input s-da190a" value="7">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mrp-safety-stock">Safety Stock</label>
-        <input type="number" id="mrp-safety-stock" class="form-input" style="width: 100px;" value="0">
+        <input type="number" id="mrp-safety-stock" class="form-input s-da190a" value="0">
       </div>
       <button class="btn btn-primary" id="mrp-run-btn">Get Suggestions</button>
     </div>
@@ -484,7 +484,7 @@ async function runMRPSuggestions() {
   const location = document.getElementById('mrp-location').value.trim();
   const resultsEl = document.getElementById('mrp-results');
   if (!location) {
-    resultsEl.innerHTML = `<div class="login-error" style="margin-top: 8px;">Location is required.</div>`;
+    resultsEl.innerHTML = `<div class="login-error s-0d69e4">Location is required.</div>`;
     return;
   }
   const leadTime = document.getElementById('mrp-lead-time').value || '7';
@@ -501,7 +501,7 @@ async function runMRPSuggestions() {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   if (suggestions.length === 0) {
-    panel.innerHTML = `<div style="padding: 24px; text-align:center; color:var(--text-muted);">No manufactured items are below their reorder point at this location.</div>`;
+    panel.innerHTML = `<div class="s-8fd68f">No manufactured items are below their reorder point at this location.</div>`;
   } else {
     let html = `
       <table>
@@ -514,7 +514,7 @@ async function runMRPSuggestions() {
         <td>${s.available}</td>
         <td>${s.reorder_point}</td>
         <td>${s.suggested_production_qty}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(s.bom_id || '-')}</td>
+        <td class="s-355794">${escapeHTMLText(s.bom_id || '-')}</td>
         <td>${(s.raw_material_shortfalls || []).length === 0 ? 'None' :
           s.raw_material_shortfalls.map(r => `${escapeHTMLText(r.sku)}: need ${r.shortfall_qty.toFixed ? r.shortfall_qty.toFixed(2) : r.shortfall_qty} more`).join('<br>')}</td>
       </tr>
@@ -534,7 +534,7 @@ async function renderProductionScheduleTab(container) {
   panel.className = 'table-panel';
   panel.style.padding = '16px';
   panel.innerHTML = `
-    <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:12px;">
+    <div class="s-403c94">
       <button class="btn btn-outline" id="mfg-schedule-refresh">Refresh</button>
     </div>
     <div id="mfg-schedule-results"></div>
@@ -547,7 +547,7 @@ async function renderProductionScheduleTab(container) {
 async function loadProductionSchedule() {
   const resultsEl = document.getElementById('mfg-schedule-results');
   if (!resultsEl) return;
-  resultsEl.innerHTML = `<div class="text-muted" style="padding:16px;">Loading...</div>`;
+  resultsEl.innerHTML = `<div class="text-muted s-287f77">Loading...</div>`;
   const res = await apiFetch('/api/v1/manufacturing/production-schedule');
   if (!res) return;
   if (!res.ok) {
@@ -556,7 +556,7 @@ async function loadProductionSchedule() {
   }
   const entries = await res.json();
   if (!entries || entries.length === 0) {
-    resultsEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted);">No open, routed production orders to schedule.</div>`;
+    resultsEl.innerHTML = `<div class="s-84fb5d">No open, routed production orders to schedule.</div>`;
     return;
   }
   let html = `

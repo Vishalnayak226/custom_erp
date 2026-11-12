@@ -52,7 +52,7 @@ func TestMigrationOrdering(t *testing.T) {
 			t.Fatalf("migrationFileNames: %v", err)
 		}
 		if len(names) < 10 {
-			t.Fatalf("expected the db/*.sql files to be embedded, got %d", len(names))
+			t.Fatalf("expected the db/migrations/*.sql files to be embedded, got %d", len(names))
 		}
 		if compareMigrationNames("migrations_stage17_soft_delete.sql", "migrations_stage17_soft_delete.sql") != 0 {
 			t.Fatalf("a name must compare equal to itself")

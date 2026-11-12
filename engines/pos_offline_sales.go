@@ -426,7 +426,11 @@ func DecideOfflineSale(ctx context.Context, tenantID string, d OfflineSaleDecisi
 		}
 		postedOn = " on " + day
 		if closedDay != "" {
-			postedOn += fmt.Sprintf(" (rung up %s, in a closed period)", closedDay)
+			reason := "in a closed period"
+			if offlineSaleTooOld(schema, closedDay, BusinessToday()) {
+				reason = "older than the back-dating limit"
+			}
+			postedOn += fmt.Sprintf(" (rung up %s, %s)", closedDay, reason)
 		}
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.pos_offline_sales SET status = $2, decided_by = $3, decided_at = NOW(), bill_number = $4,
@@ -459,7 +463,7 @@ func offlineSalePostingDay(tx *sql.Tx, schema string, soldAt *time.Time) (day, c
 		WHERE status = 'Closed' AND $1::date BETWEEN start_date AND end_date)`, schema), tillDay).Scan(&closed); err != nil {
 		return "", "", err
 	}
-	if closed {
+	if closed || offlineSaleTooOld(schema, tillDay, today) {
 		return today, tillDay, nil
 	}
 	return tillDay, "", nil

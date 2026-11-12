@@ -2,7 +2,7 @@
 title: Error code reference (part 2)
 section: Troubleshooting
 order: 21
-summary: Error codes for Inventory to Purchase Return, continued from the error code reference.
+summary: Error codes for HR & Payroll to Procurement / RFQ, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,12 +20,16 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **292** codes, from
-Inventory to Purchase Return.
+lists every area and explains how to read a code. It holds **279** codes, from
+HR & Payroll to Procurement / RFQ.
 
 ## Contents
 
-- [Inventory](#inventory) - 14 codes
+- [HR & Payroll](#hr-payroll) - 2 codes
+- [HR / Payroll](#hr-payroll) - 15 codes
+- [Integration / API](#integration-api) - 14 codes
+- [Integrations](#integrations) - 1 codes
+- [Inventory](#inventory) - 23 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
 - [Item Master](#item-master) - 2 codes
 - [Manufacturing / Production](#manufacturing-production) - 16 codes
@@ -35,17 +39,67 @@ Inventory to Purchase Return.
 - [Observability / Incident](#observability-incident) - 3 codes
 - [Omnichannel / OMS](#omnichannel-oms) - 5 codes
 - [Order Management](#order-management) - 10 codes
-- [PIM](#pim) - 23 codes
+- [PIM](#pim) - 27 codes
 - [PIM / Product Publishing](#pim-product-publishing) - 8 codes
 - [POS / Billing](#pos-billing) - 42 codes
 - [POS / Offline & Cash Drawer](#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch-bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
 - [Planning](#planning) - 1 codes
+- [Procurement](#procurement) - 1 codes
 - [Procurement / RFQ](#procurement-rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 52 codes
-- [Purchase Requisition](#purchase-requisition) - 6 codes
-- [Purchase Return](#purchase-return) - 1 codes
+
+## HR & Payroll
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `HRPAYR-1322` | Payslip deductions are more than its gross pay | This payslip's deductions are more than its gross pay. | Check the salary structure, the loan EMI and the statutory rates, then run payroll for the period again. | Medium | 422 |
+| `HRPAYR-1323` | Payroll run again for a period whose payslip is already posted | This employee's payslip for the period is already posted. | Open the posted payslip; a correction is made as an adjustment in the next period. | Medium | 422 |
+
+## HR / Payroll
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `HR-0267` | Inactive employee login blocked | Employee is inactive. ERP access is blocked. Please contact HR/Admin. | Contact HR/Admin. | High | 409 |
+| `HR-0268` | Attendance device/location mismatch | Attendance location does not match assigned work location. Manager review is required. | Submit regularization request. | Medium | 200 |
+| `HR-0269` | Shift not assigned | Shift is not assigned for this employee/date. Please configure shift before attendance. | Assign shift and retry. | High | 422 |
+| `HR-0531` | Onboarding or offboarding checklist not found | That onboarding or offboarding checklist was not found. | Refresh HR -> Onboarding/Offboarding and open the checklist again. | Low | 404 |
+| `HR-0532` | Checklist steps are not a readable step list | This checklist's steps are not in a form the step list can read. | Open the checklist and choose "Use as steps" to turn the text into one step per line. | Low | 422 |
+| `HR-0533` | Checklist step does not exist | That step is not on this checklist. | Refresh the checklist - someone may have changed its steps - and tick the step again. | Low | 422 |
+| `HR-0600` | Incentive changed since the payslip was made | The incentive changed since this payslip was made. | Run payroll for the employee again, then post. | Medium | 422 |
+| `HRPAYR-0149` | Employee code duplicate | Employee code already exists. Please use a unique employee code. | Correct HR details. | Medium | 409 |
+| `HRPAYR-0150` | Attendance missing | Attendance is missing for one or more days. Please regularize before payroll. | Correct HR details. | Medium | 422 |
+| `HRPAYR-0151` | Leave balance insufficient | Insufficient leave balance for this leave request. | Correct HR details. | Medium | 422 |
+| `HRPAYR-0152` | Leave overlap | Leave request overlaps with an existing leave entry. | Correct HR details. | Medium | 422 |
+| `HRPAYR-0153` | Payroll period locked | Payroll period is locked. Changes are not allowed. | Correct HR details. | Medium | 409 |
+| `HRPAYR-0154` | Salary component missing | Salary component configuration is missing for this employee. | Correct HR details. | Medium | 422 |
+| `HRPAYR-0155` | Bank details missing | Employee bank details are required for salary payment. | Correct HR details. | Medium | 422 |
+| `HRPAYR-0156` | Exit date before joining date | Exit date cannot be earlier than joining date. | Correct HR details. | Medium | 422 |
+
+## Integration / API
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `INT-0218` | Outbox event stuck | Integration event is pending longer than expected. Please review the queue. | Retry or move to dead-letter queue. | High | 200 |
+| `INT-0219` | Retry limit reached | Integration retry limit reached. Please review the failed payload and take action. | Review payload, fix root cause, and retry. | High | 422 |
+| `INT-0220` | Webhook signature invalid | Webhook verification failed. The request was rejected. | Check webhook secret and source platform. | Critical | 422 |
+| `INT-0221` | Webhook timestamp expired | Webhook request expired and was rejected. | Ask source system to resend current event. | High | 422 |
+| `INT-0222` | Duplicate idempotency key | This request was already processed. Duplicate action was ignored. | No action needed unless data is incorrect. | Medium | 200 |
+| `INT-0223` | Credential decryption failed | Connector credentials could not be read. Please re-enter credentials. | Re-save credentials or rotate key correctly. | Critical | 503 |
+| `INTEGR-0167` | Integration timeout | External service did not respond in time. Please retry. | Correct details or retry. Contact admin if repeated. | High | 503 |
+| `INTEGR-0168` | Integration authentication failed | External service authentication failed. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 401 |
+| `INTEGR-0169` | Invalid API response | Invalid response received from external service. Please retry or contact support. | Correct details or retry. Contact admin if repeated. | High | 422 |
+| `INTEGR-4718` | Courier booking not confirmed - the courier may already have it and cannot be asked | This courier booking is not confirmed - the courier may already have it. | Find the reference below on the courier's portal, then enter its AWB, or mark it not booked to try again. | High | 409 |
+| `INTEGR-4719` | Courier booked again for a fulfillment task that already has a live booking | This parcel is already booked with a courier. | Use the booking it has, or cancel that booking before booking again. | Medium | 409 |
+| `INTEGR-4720` | Courier pickup or cancellation not confirmed - the courier may already have done it and cannot be asked | This courier pickup or cancellation is not confirmed - the courier may already have done it. | Check the booking on the courier's portal, then resolve it here as done or not done to try again. | High | 409 |
+| `INTEGR-4800` | Listings pulled from a channel whose connector cannot read its listings | This channel cannot send its product list to the ERP. | Link its SKUs one by one on the SKU mapping list. | Medium | 422 |
+| `INTEGR-4801` | Stock switch set for a listing that has not been pulled | That listing is not on the list. | Pull the channel's listings first. | Medium | 422 |
+
+## Integrations
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CONN-0994` | Shopify channel set-up incomplete or not valid | The Shopify connection is not ready for this. | Open the channel's Shopify page: save the shop address (yourstore.myshopify.com), the admin API token and the webhook secret, test the connection, and map each Shopify location to a store. | Medium | 422 |
 
 ## Inventory
 
@@ -55,6 +109,15 @@ Inventory to Purchase Return.
 | `INVENT-1313` | Stock adjustment cannot be reversed (not posted, already reversed, itself a reversal, or no reason) | This adjustment can't be reversed. | Only a posted adjustment that is not a reversal and not already reversed can be reversed, with a reason. | Low | 422 |
 | `INVENT-1314` | Material issue / return refused (no store, department or purpose; non-stock or backflush item; not approved; short stock; more back than issued) | This material request can't go ahead. | Name the store, department and purpose; issue stock items only (not backflushed ones); issue once approved; return no more than was issued. | Medium | 422 |
 | `INVENT-1318` | Delivery challan refused (no store, purpose or party; non-stock item; no return date; short stock; not approved; more back than out; serial not out; write-off with no approver) | This delivery challan can't go ahead. | Name the store, purpose, party and return date; send stock items only; dispatch once approved; take back no more than is out, by the serials that went. | Medium | 422 |
+| `INVENT-1325` | Piece hold placed while the setting is off | Holding a piece for a customer is switched off. | Ask an administrator to switch it on in Settings. | Low | 422 |
+| `INVENT-1326` | Held piece sold, picked or allocated for someone else | This piece is held for another customer. | Pick another piece, or release the hold first. | Medium | 422 |
+| `INVENT-1327` | Piece or customer cannot be held | This piece cannot be held. | Pick a customer and a piece that is in stock and not taken by an order or transfer. | Low | 422 |
+| `INVENT-1328` | Piece already held | This piece is already held. | Release the hold first. | Low | 409 |
+| `INVENT-1329` | Hold ends in the past | The hold must end today or later. | Pick a later day, or leave it empty. | Low | 422 |
+| `INVENT-1330` | Release of a piece that is not held | This piece is not held. | Refresh the list. | Low | 422 |
+| `INVENT-1400` | Purchase unit without its factor, or a factor without a unit (148.35) | Enter the purchase unit and how many stock units are in one. | Fill both boxes, or clear both. | Medium | 422 |
+| `INVENT-1401` | Stock unit changed after the item has moved (148.35) | This item has stock movements, so its stock unit cannot change. | Keep the stock unit; make a new item if the unit really changed. | Medium | 422 |
+| `INVENT-1402` | Purchase unit is the stock unit (148.35) | The purchase unit is the stock unit. | Leave the purchase unit blank, or use a different unit. | Medium | 422 |
 | `PURCHA-5040` | Correct attributes on something that is not a batch or serial, or one that does not exist | That batch or serial was not found. | Pick a batch or serial from the list. | Medium | 422 |
 | `PURCHA-5041` | Correct a batch or serial attribute without a reason | Say why the attributes are being corrected. | Type the reason, for example hallmark re-test. | Medium | 422 |
 | `PURCHA-5042` | Correct an attribute that is not an item field, or a weight that is not a number | That value cannot be saved. | Use the fields shown and numbers that are not negative. | Medium | 422 |
@@ -259,6 +322,10 @@ Inventory to Purchase Return.
 | `PIM-0980` | Attribute value that does not fit its attribute's type | That value does not fit this attribute. | Use Yes or No, pick from the attribute's list, or give a web address starting http:// or https://, as the attribute's type asks. | Medium | 422 |
 | `PIM-0981` | Product related to itself | A product cannot be related to itself. | Choose a different related item. | Low | 422 |
 | `PIM-0982` | Same product relation entered twice | This relation already exists. | Keep the existing relation, or choose another type or item. | Low | 422 |
+| `PIM-1000` | Product sheet without an id column | The sheet needs an id column. | Add a column named id holding each item code, then upload again. | Medium | 422 |
+| `PIM-9150` | Attribute stewardship request that is incomplete or names an unknown attribute, user or channel | This stewardship entry is not complete. | Fix the field named, then save the request again. | Medium | 422 |
+| `PIM-9151` | Attribute value written from a source other than the attribute's system of record | This value comes from another system. | Write it from the system of record named, or ask for the stewardship entry to change. | Medium | 422 |
+| `PIM-9152` | Image order for a channel that names an unknown channel or an image not on the item | This image order cannot be saved. | Choose a channel and only images of this item. | Medium | 422 |
 
 ## PIM / Product Publishing
 
@@ -359,6 +426,12 @@ Inventory to Purchase Return.
 |---|---|---|---|---|---|
 | `PLAN-0557` | Supply proposal cannot be generated, approved or rejected as asked | These proposals cannot be processed as asked. | Choose open proposals of one location, the action and what it needs (vendor, source location, an item with a BOM), and a reason to reject. | Medium | 422 |
 
+## Procurement
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PURCHA-5100` | Save a PO routing rule whose approver or escalation role does not exist | That is not a role here. | Pick a role from the list. | Medium | 422 |
+
 ## Procurement / RFQ
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -369,78 +442,4 @@ Inventory to Purchase Return.
 | `PROCUR-0081` | Quotation cycle exceeded | Maximum quotation revision cycle has been reached. Further revision is not allowed. | Correct transaction or send for approval. | High | 422 |
 | `RFQ-0250` | Budget code missing | Budget code is required before requisition submission. | Select budget/cost center. | High | 422 |
 | `RFQ-0251` | PR already converted | This requisition is already converted to RFQ/PO. Further changes are not allowed. | Create amendment/change request. | High | 409 |
-
-## Purchase Order
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `PO-0252` | PO amendment blocked after full GRN | PO cannot be amended after full receipt. Create an adjustment or return process. | Use approved adjustment/return process. | High | 409 |
-| `PURCHA-0082` | PO approval pending | PO cannot be released until approval is completed. | Correct transaction or send for approval. | High | 422 |
-| `PURCHA-0083` | PO amount exceeds approval limit | PO amount exceeds your approval limit. Please send it for higher approval. | Correct transaction or send for approval. | High | 403 |
-| `PURCHA-0084` | PO closed | This PO is closed. No further changes are allowed. | Correct transaction or send for approval. | High | 409 |
-| `PURCHA-0085` | PO amendment reason missing | Please enter amendment reason before changing the PO. | Correct transaction or send for approval. | High | 422 |
-| `PURCHA-0086` | PO amendment approval pending | PO amendment cannot be released until approval is completed. | Correct transaction or send for approval. | High | 422 |
-| `PURCHA-0087` | PO quantity exceeded in GRN | Received quantity cannot exceed open PO quantity unless excess receipt is approved. | Correct transaction or send for approval. | High | 422 |
-| `PURCHA-0088` | GRN item not in PO | This item is not part of the selected PO. Please verify the item. | Correct transaction or send for approval. | High | 422 |
-| `PURCHA-0179` | PO released | PO released successfully. | No action required. | Low | 200 |
-| `PURCHA-0320` | Deleting a purchase order that goods have been received against | This purchase order cannot be deleted - goods have already been received against it. | Cancel the goods receipt first (or return the goods with a Purchase Return); the purchase order can then be deleted. | Medium | 422 |
-| `PURCHA-0487` | Short-close without a valid reason code | Choose why the rest of this order is being closed. | Pick an active reason code of category Cancellation (Masters > Reason Codes). | Medium | 422 |
-| `PURCHA-0488` | Short-close not possible in the PO's state | This purchase order cannot be short-closed now. | Only an Approved order with units still open can be short-closed. | Medium | 422 |
-| `PURCHA-0489` | Receipt or amendment on a closed (short-closed) PO | This purchase order is closed. | Raise a new purchase order for anything still needed. | High | 422 |
-| `PURCHA-0490` | A PO line without a purchase price or quantity (Stage 127.7) | Every line of a purchase order needs its purchase price and quantity. | Enter the purchase price (and quantity) on each line named, then save again. | Medium | 422 |
-| `PURCHA-0621` | Sending a cancelled (e.g. auto-cancelled) purchase order to the vendor | This purchase order is cancelled. | Raise a new purchase order for anything still needed. | Medium | 422 |
-| `PURCHA-1308` | Typed date further back or ahead than the client's day limit (vendor invoice date, PO expected delivery) | That date is outside the allowed window. | Check the date against the bill. An administrator can enter a date outside the window (Configuration > Procurement & GRN sets it). | Medium | 422 |
-| `PURCHA-1316` | PO sent for approval without its commercial terms, or after its quote's validity | This purchase order can't go for approval yet. | Fill in the payment term, delivery terms, expected delivery date and who pays the freight; renew or correct an expired quote date. | Medium | 422 |
-| `PURCHA-4961` | Purchase order for a vendor with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This vendor has no state, so the GST split can't be worked out. | Open the vendor, choose its State (or enter its GSTIN) and save, then save the purchase order again. | Medium | 422 |
-| `PURCHA-4965` | Purchase order billed to a store with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This store has no state, so the GST split can't be worked out. | Open the store, choose its State (or enter the GSTIN on its legal entity) and save, then save the purchase order again. | Medium | 422 |
-| `PURCHA-4966` | Goods receipt started from a gate entry that is unknown, already used or cancelled | This gate entry can't start a goods receipt. | Pick an open gate entry, or leave the gate entry blank. | Medium | 422 |
-| `PURCHA-4967` | Goods receipt for a different vendor than its gate entry | The vendor does not match the gate entry. | Use the vendor on the gate entry, or pick the right gate entry. | Medium | 422 |
-| `PURCHA-4968` | Vendor invoice dated before its purchase order (warning on save) | This invoice is dated before its purchase order. | Check the invoice date and the PO; the invoice is listed in Vendor invoices dated before their PO. | Low | 200 |
-| `PURCHA-4970` | Vendor agreement with qty breaks that overlap | These qty breaks overlap. | Change the Qty from / Qty to so each quantity falls in one break. | Medium | 422 |
-| `PURCHA-4971` | Vendor agreement with a gap between qty breaks | There is a gap between these qty breaks. | Start the next break right after the previous one ends. | Medium | 422 |
-| `PURCHA-4972` | Vendor agreement row with no item, design or category | This row needs an item, design or category. | Pick what the row applies to, or leave a sales price list without a vendor. | Medium | 422 |
-| `PURCHA-4973` | Vendor agreement or PO line discount outside 0 to 100, or a negative amount | This discount is not allowed. | Enter a percent from 0 to 100, or an amount that is not negative. | Medium | 422 |
-| `PURCHA-4974` | Vendor agreement buy N get M with a missing or negative number, or a pack that is not a whole number | Buy, Get and Pack of need whole numbers above zero. | Fill both Buy and Get, or neither. | Medium | 422 |
-| `PURCHA-4975` | Order discount over 100 percent, negative, or above the order value | This order discount is not allowed. | Enter a percent from 0 to 100, or an amount that is less than the order value. | Medium | 422 |
-| `PURCHA-4980` | Charge row or rule with an unknown or inactive charge code | That charge code cannot be used. | Pick an active charge code. | Medium | 422 |
-| `PURCHA-4981` | Charge row or rule with a selling-only code | That charge code is for selling only. | Pick a code used for buying. | Medium | 422 |
-| `PURCHA-4982` | Charge row with no amount, or naming a SKU not on the document | This charge row is not valid. | Enter an amount above nought and SKUs on this document. | Medium | 422 |
-| `PURCHA-4983` | Transfer charge on a code paid to the vendor | A transfer charge must go to a third party. | Pick a code paid to a third party. | Medium | 422 |
-| `PURCHA-4984` | Charge rule rate not valid | This rule's rate is not allowed. | A percent is above 0 and up to 100; other methods are above 0. | Medium | 422 |
-| `PURCHA-4985` | Receipt on a stopped PO line | This line is stopped; nothing more can be received on it. | Ask the buyer to reopen it, or receive it on its own. | Medium | 422 |
-| `PURCHA-4986` | Part delivery of a full-delivery-only PO line | This line must be delivered in full. | Receive the whole line, or ask the buyer to clear full delivery only. | Medium | 422 |
-| `PURCHA-4987` | PO line control values not valid | The line control values are not valid. | Keep percentages between 0 and 100 and instalments adding up to the line quantity. | Medium | 422 |
-| `PURCHA-4988` | Stop or close of a PO line without a reason or nothing open | A reason is needed, or nothing is open on this line. | Pick a Cancellation reason code on a line that still has quantity open. | Low | 422 |
-| `PURCHA-4989` | Cancel transfer lines without a reason or after dispatch | Lines can only be cancelled before dispatch, with a reason. | Pick a Cancellation reason code; after dispatch use Return to source. | Medium | 422 |
-| `PURCHA-4990` | Transfer excess beyond the item over-delivery tolerance | More arrived than the item's over-delivery tolerance allows. | Receive up to the tolerance, or ask for the item's tolerance to be changed. | Medium | 422 |
-| `PURCHA-4991` | Vendor challan no. already used this year (warning) | This vendor challan no. was already used this year. | Check the challan no.; the earlier receipt is named in the warning. | Low | 200 |
-| `PURCHA-5020` | Volume rebate action while the setting is off | Volume rebates are off. | Turn on Volume rebates from vendors in Configuration, under Procurement. | Medium | 422 |
-| `PURCHA-5021` | Rebate period or vendor not usable | Enter a period (from, to) and a known vendor. | Use dates as YYYY-MM-DD with from not after to, or leave the vendor blank for all. | Medium | 422 |
-| `PURCHA-5022` | Rebate claim step taken from the wrong status | This claim is not ready for that step. | A Calculated claim goes for approval; an Approved claim is settled. | Medium | 422 |
-| `PURCHA-5023` | Submitting a rebate claim with no rebate | This claim has nothing to claim. | The vendor did not reach the first tier in this period. Recalculate after more bills, or leave it. | Medium | 422 |
-| `PURCHA-5024` | Rebate tiers on a vendor agreement are not usable | The rebate target on the agreement is not set up correctly. | Tier 1 needs a target and a percentage; tier 2 needs a higher target and a higher percentage; the basis is Gross or Net. | Medium | 422 |
-| `PURCHA-5025` | Rebate claim saved by hand | Rebate claims are made by Calculate. | Use Calculate, Send or Settle on Vendor Rebate Claims. | Medium | 422 |
-| `PURCHA-5030` | Goods received before a PO without a reason code (148.38) | Choose why these goods came before a PO. | Pick a reason under Received before PO, or link the PO this receipt is for. | Medium | 422 |
-| `PURCHA-5031` | Goods received before a PO without a vendor (148.38) | Choose the vendor for this receipt. | A receipt with no PO needs its vendor; pick it and save again. | Medium | 422 |
-| `PURCHA-5032` | Vendor bill paid against goods whose retro PO is not approved (148.38) | This bill is for goods received before a PO. | Pay it after the retro PO is approved; it is listed under Goods received before PO. | Medium | 422 |
-| `PURCHA-5033` | Retro PO names a receipt that is not one received before a PO (148.38) | That receipt was not received before a PO. | Pick a receipt marked Received before PO. | Medium | 422 |
-| `PURCHA-5034` | Retro PO for a vendor other than the receipt's (148.38) | This PO's vendor differs from the receipt's. | Use the vendor the goods were received from. | Medium | 422 |
-| `PURCHA-5035` | Receipt already has a retro PO (148.38) | This receipt already has a retro PO. | Open that PO, or reject it first. | Medium | 422 |
-
-## Purchase Requisition
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `PURCHA-5010` | Requisition line with no item, an unknown item, a quantity not above zero or not whole, no store, an unknown store or an unusable vendor | This request line is not complete. | Choose an item, a whole quantity above zero and a store; leave the vendor empty or choose an active one. | Medium | 422 |
-| `PURCHA-5011` | Requisition with no item lines and no description, quantity or amount | Add item lines, or fill description, quantity and amount. | Add at least one item line, or complete the three header fields. | Medium | 422 |
-| `PURCHA-5012` | Edit of a requisition line already on a purchase order | This line is already on a purchase order. | Change the purchase order, or cancel it to free the line. | Medium | 422 |
-| `PURCHA-5013` | Combine with no open request line for the vendor | No open request lines for this vendor. | Check the vendor on the lines, or whether another person already combined them. | Low | 422 |
-| `PURCHA-5014` | Combine with no vendor, or an unknown or unusable vendor or store | Choose a vendor to combine for. | Choose an active vendor, and a store that exists if you limit it to one. | Low | 422 |
-| `PURCHA-5016` | One-shot purchase order conversion of a requisition that has item lines | This request has item lines. | Use Combine open requests for the vendor. | Low | 422 |
-
-## Purchase Return
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `PURCHA-0620` | Returning accepted goods after the purchase return window | The return window for this goods receipt has passed. | Accepted goods can be returned only within the days set in Configuration > Procurement > Purchase return window. Rejected and damaged goods can still be returned. | Medium | 422 |
 

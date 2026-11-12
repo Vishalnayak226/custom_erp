@@ -445,6 +445,9 @@ var passwordChangeAllowedPaths = map[string]bool{
 
 func rateLimitCategory(path, method string) (category string, limit int) {
 	switch {
+	case strings.HasPrefix(path, "/api/v1/procurement/vendor-link/public"):
+		// Stage 148.18: the vendor's signed PO link has no session, so it is keyed by address and kept tight.
+		return "vendor-link", 20
 	case path == "/api/v1/security/csp-report":
 		// Stage 57: a browser posts one report per violation - ~28 per page
 		// load today (report-only style-src-attr) - with no Authorization
@@ -455,6 +458,11 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// bucket so this noise can never starve a real request. Each report
 		// is one log line, so a generous ceiling is still a ceiling.
 		return "csp-report", 600
+	case path == "/api/v1/logs/browser-error":
+		// 158.3: the app reports at most five of its own errors a page, so
+		// they get a small bucket of their own and never spend the 60/min
+		// a user's real calls share.
+		return "browser-error", 20
 	case strings.HasSuffix(path, "/login") || strings.HasSuffix(path, "/mfa/verify") || strings.HasSuffix(path, "/mfa/activate") ||
 		strings.HasSuffix(path, "/forgot-password") || strings.HasSuffix(path, "/reset-password") ||
 		strings.HasSuffix(path, "/operator-handoff"):
@@ -464,7 +472,8 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// action that needs the tightest budget, not the 60/min default.
 		return "login", 5
 	case strings.HasPrefix(path, "/api/v1/import/") ||
-		(strings.HasPrefix(path, "/api/v1/pim/import-templates/") && (strings.HasSuffix(path, "/preview") || strings.HasSuffix(path, "/import"))):
+		(strings.HasPrefix(path, "/api/v1/pim/import-templates/") && (strings.HasSuffix(path, "/preview") || strings.HasSuffix(path, "/import"))) ||
+		strings.HasPrefix(path, "/api/v1/pim/product-sheet/"): // 146.5.4: same file work, same budget
 		// Bulk Upload API: file processing is the heaviest per-request cost
 		// in this codebase, so it gets the tightest non-login budget.
 		// BLD-046: the templated PIM import path (RunPIMImportTemplate) does
@@ -491,12 +500,16 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// Webhook API: bursts from the external platform are expected and
 		// legitimate, so this gets a higher budget than login/reports.
 		return "webhook", 30
+	case path == "/api/v1/pricing/line":
+		// Stage 148.26: one price lookup per item picked on an invoice, so it
+		// shares the generous search budget, not the 60/min default.
+		return "search", 100
 	case strings.HasPrefix(path, "/api/v1/doc/") && method == "GET":
 		// Search API: the generic doc list/get endpoint. Already paginated
 		// server-side (Stage 1.4/hardening_roadmap Phase 2.4), so a
 		// generous budget is safe here.
 		return "search", 100
-	case method == "GET" && isImageReadPath(path):
+	case method == "GET" && (isImageReadPath(path) || strings.HasPrefix(path, "/media/")): // 146.5.9: signed public image addresses
 		// Stage 95: a PO's Images page loads one thumbnail per image - 40 on
 		// a 20-line PO - and the browser keeps each one (an image id never
 		// changes what it names), so image reads get their own bucket rather
@@ -671,13 +684,16 @@ var publicRoutes = map[string]bool{
 	// (the link's random token, stored only as a hash, is the credential; it
 	// names no customer), and provider callbacks (the sender's callback key,
 	// plus WhatsApp's X-Hub-Signature-256 checked against the app secret).
-	"/api/v1/crm/public/preferences": true,
-	"/api/v1/crm/public/unsubscribe": true,
-	"/api/v1/crm/public/feedback":    true,
-	"/api/v1/crm/hooks/whatsapp":     true,
-	"/api/v1/crm/hooks/sms":          true,
-	"/api/v1/crm/hooks/email":        true,
-	"/api/v1/crm/hooks/webhook":      true,
+	"/api/v1/crm/public/preferences":                  true,
+	"/api/v1/crm/public/unsubscribe":                  true,
+	"/api/v1/crm/public/feedback":                     true,
+	"/api/v1/procurement/vendor-link/public":          true,
+	"/api/v1/procurement/vendor-link/public/proposal": true,
+	"/api/v1/procurement/vendor-link/public/invoice":  true,
+	"/api/v1/crm/hooks/whatsapp":                      true,
+	"/api/v1/crm/hooks/sms":                           true,
+	"/api/v1/crm/hooks/email":                         true,
+	"/api/v1/crm/hooks/webhook":                       true,
 	// BLD-031 (2026-09-23): Shopify itself cannot hold a human ERP bearer
 	// token either - the same reasoning as the courier routes above, missed
 	// when these two were added (Stage 14.21-14.24/16). Without this entry
@@ -699,7 +715,12 @@ func loadCORSAllowlist() map[string]bool {
 	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
 		for _, o := range strings.Split(v, ",") {
 			if o = strings.TrimSpace(o); o != "" {
-				allowed[o] = true
+				// 49.4.2: exact origins only; "null", "*" and paths are dropped.
+				if norm, ok := normalizeCORSOrigin(o); ok {
+					allowed[norm] = true
+				} else {
+					log.Printf("[cors] ignoring CORS_ALLOWED_ORIGINS entry %q: not an exact scheme://host[:port] origin", o)
+				}
 			}
 		}
 	}
@@ -790,6 +811,9 @@ func securityHeaders(next http.Handler) http.Handler {
 		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
 		"frame-src 'self' printbridge:; " +
 		"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; " +
+		// 49.4.3: the Trusted Types trial - every string-to-DOM sink (innerHTML, insertAdjacentHTML, ...) that is not
+		// given a TrustedHTML is reported as a trusted-types-sink violation and still runs. Report-only.
+		"require-trusted-types-for 'script'; " +
 		"report-uri /api/v1/security/csp-report"
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -972,7 +996,7 @@ func isTrustedProxyIP(ip net.IP) bool {
 // exists to prevent, but relying on the proxy alone leaves the app correct only
 // for as long as that one config line stays right.
 //
-// This is also what go_live_decisions.md §5 pre-specified as the code-side
+// This is also what go-live-decisions.md §5 pre-specified as the code-side
 // prerequisite for putting Cloudflare in front: with right-to-left parsing in
 // place, activation is adding Cloudflare's edge CIDRs to TRUSTED_PROXY_CIDRS,
 // not a change to this function.
@@ -1063,6 +1087,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
+		// 49.4.2: the answer depends on Origin, so no cache may share it.
+		w.Header().Add("Vary", "Origin")
 		if originAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -1077,7 +1103,18 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		if r.Method == "OPTIONS" {
+			if originAllowed(origin) {
+				w.Header().Add("Vary", "Access-Control-Request-Method")
+				w.Header().Add("Vary", "Access-Control-Request-Headers")
+				w.Header().Set("Access-Control-Max-Age", "600")
+			}
 			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// 49.4.2: a write from an origin that is neither allowlisted nor this
+		// server (CSRF_ORIGIN_CHECK: report by default, enforce, off).
+		if crossOriginWriteRefused(r) {
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, "This request came from an address that is not allowed to change data here.")
 			return
 		}
 
@@ -1344,6 +1381,12 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 							writeAPIError(w, r, "GLOBAL-0009", "")
 							return
 						}
+						// 162.15: signed out on the server, or idle past the
+						// client's server idle limit.
+						if engines.UserSessionRefused(r.Context(), tenantID, userID, claims["jti"], engines.TokenExpiry(claims)) {
+							writeAPIError(w, r, "GLOBAL-0009", "")
+							return
+						}
 						// Stage 57.17: an administrator chose this password (a
 						// new account, or an admin-issued reset), so until the
 						// user sets their own, the only thing the session may do
@@ -1434,6 +1477,26 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				// audited (AuditRequired: true in the catalog entry).
 				writeAPIError(w, r, "GLOBAL-0011", "")
 				return
+			}
+		}
+
+		// Stage 49.2.3: MFA assurance tiers - one check for every action a tier
+		// names (engines/mfa_tiers.go). Off by default; report-only logs.
+		if purpose == "" && userID != "" {
+			pattern := matchedRoutePattern(r)
+			capability := ""
+			if c, ok := routeCapabilities[pattern]; ok {
+				capability = c.Capability
+			}
+			if tiers := engines.MFATiersForAction(pattern, capability, isBulkExport(r)); len(tiers) > 0 {
+				d := engines.EvaluateMFATier(tenantID, userID, role, tiers)
+				if d.Refuse || d.Report {
+					engines.LogMFATierDecision(r.Context(), tenantID, username, d, r.Method+" "+r.URL.Path)
+				}
+				if d.Refuse {
+					writeAPIErrorGeneric(w, r, http.StatusForbidden, "This action needs two-factor sign-in. Set up an authenticator in Profile, then sign in again.")
+					return
+				}
 			}
 		}
 

@@ -109,7 +109,7 @@ func TestEngines(t *testing.T) {
 		// same shared dev DB left a stray Brand.fefo_enabled doctype_fields
 		// row behind (mandatory:true, per public/profiles/agriculture.json)
 		// that was never part of Brand's own baseline schema (absent from
-		// db/migration.sql). Reset it before asserting, same
+		// db/migrations/migration.sql). Reset it before asserting, same
 		// clear-fixture-before-asserting convention as GenerateSequence
 		// above, instead of leaving this subtest hostage to whatever
 		// industry-profile testing last touched the "default" tenant.
@@ -745,7 +745,7 @@ func TestEngines(t *testing.T) {
 		// reaching for the old path gets a named, explained refusal and moves
 		// NO stock - rather than deleting the coverage outright. The
 		// replacement path's own behaviour is covered end to end by
-		// internal/server/returns_stage47_4_test.go, which drives the real
+		// internal/server/returns_test.go, which drives the real
 		// ReturnRequest aggregate through approve/receive/QC/refund.
 		// The Paid POSCart is still seeded so the refusal is proven to come
 		// from the retirement itself, not from a missing original bill.

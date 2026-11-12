@@ -455,7 +455,7 @@ administrator set is refused; rejected and damaged goods can still go back.
 Error codes: `PURCHA-0116` (no reason), `PURCHA-0117` (more than can be
 returned), `PURCHA-0118` (no valid GRN), `PURCHA-0119` (already returned or
 posted), `PURCHA-0120` (Debit Note raised but not posted - post it from
-**Financial Accounting → Debit / Credit Notes**).
+**Financial Accounting → Debit Notes**).
 
 ## After the GRN: vendor invoice and payment
 

@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"fmt"
 	"strings"
@@ -29,6 +30,13 @@ func leaveDaysInside(days float64, leaveFrom, leaveTo, from, to string) float64 
 	return float64(int(b.Sub(a).Hours()/24) + 1)
 }
 
+// EmployeeAccessChange is one Employee save as the access link sees it.
+type EmployeeAccessChange struct {
+	UserID, Status, ExitDate   string
+	PriorStatus, PriorExitDate string
+	Actor                      string
+}
+
 // SyncEmployeeAccessLink implements MB 16.3's "Access Link": an Employee's
 // active/inactive status controls their linked ERP user account's ability
 // to log in. Rather than adding an extra check to the login path, this
@@ -36,7 +44,10 @@ func leaveDaysInside(days float64, leaveFrom, leaveTo, from, to string) float64 
 // the linked user's status to match the employee's status is sufficient to
 // block (or restore) login with no new login-path code needed. A no-op if
 // the employee has no linked user_id.
-func SyncEmployeeAccessLink(tenantID, employeeUserID, employeeStatus string) error {
+// A leaver (see EmployeeHasLeft) is disabled at once like Deactivate; a save that
+// is not a change of leaving state never touches the account.
+func SyncEmployeeAccessLink(ctx context.Context, tenantID string, ch EmployeeAccessChange) error {
+	employeeUserID, employeeStatus := ch.UserID, ch.Status
 	if employeeUserID == "" {
 		return nil
 	}
@@ -44,21 +55,22 @@ func SyncEmployeeAccessLink(tenantID, employeeUserID, employeeStatus string) err
 	if err != nil {
 		return err
 	}
-	userStatus := "Active"
-	if employeeStatus == "Inactive" {
-		userStatus = "Inactive"
+	left := EmployeeHasLeft(employeeStatus, ch.ExitDate, time.Now())
+	wasLeft := EmployeeHasLeft(ch.PriorStatus, ch.PriorExitDate, time.Now())
+	switch {
+	case left:
+		return disableLeaverUser(ctx, tenantID, schema, ch)
+	case wasLeft:
+		// Only a real return from leaving restores the user. A save of an
+		// already-Active Employee never touches the account, so an
+		// administrator's disable of it stays (49.2.1).
+		MarkUserReactivated(schema, employeeUserID) // a fresh dormant window
+		if _, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET status = 'Active' WHERE id = $1`, schema), employeeUserID); err == nil {
+			InvalidateLiveUserState(tenantID, employeeUserID)
+		}
+		return err
 	}
-	if userStatus == "Active" {
-		MarkUserReactivated(schema, employeeUserID) // 49.2.1: a fresh dormant window
-	}
-	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET status = $1 WHERE id = $2`, schema), userStatus, employeeUserID)
-	if err == nil {
-		// Stage 29.8: drop the cached auth state so deactivating an Employee
-		// kills their live session on the next request rather than at the end
-		// of the cache window.
-		InvalidateLiveUserState(tenantID, employeeUserID)
-	}
-	return err
+	return nil
 }
 
 // PayrollExportEntry is one employee's approved attendance/leave summary

@@ -826,26 +826,9 @@ func approvedPriceOverrides(tenantID, cartNumber string) map[string]resolvedOver
 	return out
 }
 
-// MarkOverridesConsumed retires every Approved override for a cart once the
-// sale it authorised has actually completed. Without this, a cart number
-// replayed (or a Failed cart re-submitted) would silently inherit an
-// authorisation that was granted for a different sale - the override document
-// stays as evidence either way, it simply stops pricing anything.
-func MarkOverridesConsumed(tenantID, cartNumber string) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil || strings.TrimSpace(cartNumber) == "" {
-		return
-	}
-	if _, err := db.DB.Exec(fmt.Sprintf(`
-		UPDATE %s.documents
-		SET data = jsonb_set(data, '{status}', to_jsonb('Consumed'::text)),
-		    status = 'Consumed', updated_at = CURRENT_TIMESTAMP
-		WHERE doctype = 'POSPriceOverride' AND status = 'Approved' AND data->>'cart_number' = $1`, schema),
-		cartNumber); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "MarkOverridesConsumed",
-			fmt.Sprintf("cart %s: could not retire its price overrides: %v", cartNumber, err), "")
-	}
-}
+// An override is retired (status Consumed) by the sale it priced, inside that
+// sale's own transaction: see finalizePOSCheckoutTx in pos_checkout.go. A sale
+// that rolls back leaves it Approved; a replayed cart number finds nothing.
 
 // --- 47.2.3: the price-override command ------------------------------------
 

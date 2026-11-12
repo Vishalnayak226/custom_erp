@@ -187,7 +187,7 @@ Our ERP column: **Have / Partial / Missing / Planned (id) / Not adopt**.
 
 | # | Capability | Vendor reference | Our ERP | Evidence | Note |
 |---|---|---|---|---|---|
-| 1 | Attribute definitions (code, label, type, options, group, unit) | unb 02:53-04:30; sas 11:31 | Have | `db/migration.sql:961-965`; group `migrations_stage26_4_pim_maturity.sql:26`; unit/used_for `migrations_stage81_1_attribute_library.sql:35-37` | Types only Data/Number/Select/Date |
+| 1 | Attribute definitions (code, label, type, options, group, unit) | unb 02:53-04:30; sas 11:31 | Have | `db/migrations/migration.sql:961-965`; group `migrations_stage26_4_pim_maturity.sql:26`; unit/used_for `migrations_stage81_1_attribute_library.sql:35-37` | Types only Data/Number/Select/Date |
 | 2 | More attribute types: Boolean, multi-valued, long text, link/URL, image/file, tree list | unb f03:45, f04:15; sas f42:30 | Partial | value_type options `'Data,Number,Select,Date'` (`migration.sql:963`). Grep `multi_value\|multivalue\|is_multi\|MultiSelect` in engines/db finds nothing | Tags and stones are multi-valued in jewellery |
 | 3 | Attribute value checked against its definition (type, allowed values) on save | unb f25:00 (accepted values) | Missing (verify) | `ProductAttributeValue.value` is `Data` (`migration.sql:983`). No ProductAttributeValue validator in `engines/` (grep finds only reads: `pim.go:168`, `pim_related.go:59`, `pim_reports.go:43`). UI saves free text (`public/view-pim.js:1786-1818`) | Data-quality hole |
 | 4 | Attribute groups | unb f14:30 | Have | `migrations_stage26_4_pim_maturity.sql:14-27` | |
@@ -202,7 +202,7 @@ Our ERP column: **Have / Partial / Missing / Planned (id) / Not adopt**.
 | 13 | Channel-scoped completeness | sas 14:10-14:26 | Have | `pim.go:341-358` (ChannelFieldMap mandatory=Yes) | |
 | 14 | Mandatory/validation per marketplace **category / product type** | unb f25:00, f26:30 | Missing | ChannelFieldMap fields: code, channel, source_field, target_field, mandatory, transform_rule only (`migration.sql:1104-1109`, `migrations_stage36_5_transform_rules.sql:60`); no category scope | Amazon jewellery: 13 product types |
 | 15 | Channel view of a product (that channel's columns, fill %, edit in place) | sas f01:30 | Partial | Readiness, "Not ready for…" and publish preview exist (`view-pim.js:1602,1658`; `pim_publish.go:38,580`). No edit-in-channel-layout view | |
-| 16 | Workbench queue with "what to fix next" | — | Have | `pim.go:421` ListWorkbench; USER_GUIDE §8a (`docs/guides/USER_GUIDE.md:1802`) | |
+| 16 | Workbench queue with "what to fix next" | — | Have | `pim.go:421` ListWorkbench; USER_GUIDE §8a (`docs/guides/user-guide.md:1802`) | |
 | 17 | Enrichment status lifecycle | sas f05:15 | Have | `migration.sql:1065` (Draft…Published, Publish Failed, Archived) | |
 | 18 | Marketing content per language (title, short/long, SEO, tags), approval-gated, versions and rollback | unb f14:30 (05 Content Team) | Have | `migration.sql:993-1001,1022-1023`; `engines/pim_content_versions.go:29,80` | |
 | 19 | **Certify:** sign off the whole product (attributes + media + content) for channel export; "changed since sign-off" flag; feeds read the signed-off copy | unb 00:27-01:02, 16:25-18:08, f14:30 | Partial | Only ProductContent is approval-gated and snapshotted. Attributes and media are not; feeds read live data (`pim_export_template.go:279-323`). Payload hash exists (`pim_publish.go:205`) | Needs decision |

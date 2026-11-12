@@ -22,7 +22,7 @@ func TestReservationSweeperReleasesOnlyWhatNothingNeeds(t *testing.T) {
 		t.Fatalf("inspect inventory_reservation: %v", err)
 	}
 	if !ready {
-		t.Skip("db/migrations_stage35_3_7_reservation_attribution.sql has not been applied to this database")
+		t.Skip("db/migrations/migrations_stage35_3_7_reservation_attribution.sql has not been applied to this database")
 	}
 
 	const sku = "TEST-SWEEP-SKU"
@@ -168,7 +168,7 @@ func TestCreateReservationRecordsAttribution(t *testing.T) {
 		t.Fatalf("inspect inventory_reservation: %v", err)
 	}
 	if !ready {
-		t.Skip("db/migrations_stage35_3_7_reservation_attribution.sql has not been applied to this database")
+		t.Skip("db/migrations/migrations_stage35_3_7_reservation_attribution.sql has not been applied to this database")
 	}
 
 	const sku = "TEST-ATTR-SKU"

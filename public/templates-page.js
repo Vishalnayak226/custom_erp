@@ -15,7 +15,7 @@ export async function renderTemplatesPage(container) {
   const sections = [['tpl-erp', 'ERP documents'], ['tpl-stickers', 'Stickers and barcodes'], ['tpl-oms', 'OMS']];
   container.insertAdjacentHTML('beforeend', `
     <div class="page-header"><div class="page-title-section"><h1 class="page-title">Templates</h1></div></div>
-    <div class="tpl-rail" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px;" role="navigation" aria-label="Template modules">${sections.map(([id, label]) =>
+    <div class="tpl-rail s-309e86" role="navigation" aria-label="Template modules">${sections.map(([id, label]) =>
       `<button type="button" class="btn btn-outline btn-sm" data-tpl-go="${id}">${label}</button>`).join('')}</div>`);
   container.querySelectorAll('[data-tpl-go]').forEach(b => b.addEventListener('click', () =>
     document.getElementById(b.dataset.tplGo)?.scrollIntoView({ block: 'start', behavior: 'smooth' })));

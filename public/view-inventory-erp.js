@@ -5,8 +5,8 @@
 const Q = new URL(import.meta.url).search;
 const esc = (s) => escapeHTMLText(String(s ?? ''));
 const num = (v) => Number(v) || 0;
-const fmtQty = (v) => num(v).toLocaleString();
-const when = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? esc(v || '') : esc(d.toLocaleString()); };
+const fmtQty = (v) => formatNumber(num(v));
+const when = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? esc(v || '') : esc(formatDateTime(d)); };
 
 async function getJSON(url, fallback) {
   const res = await apiFetch(url);
@@ -17,7 +17,7 @@ async function getJSON(url, fallback) {
 function bar(container, title, extra = '') {
   const el = document.createElement('div');
   el.className = 'page-header';
-  el.innerHTML = `<div class="page-title-section"><h1 class="page-title">${esc(title)}</h1></div><div style="display:flex;gap:8px;flex-wrap:wrap;">${extra}</div>`;
+  el.innerHTML = `<div class="page-title-section"><h1 class="page-title">${esc(title)}</h1></div><div class="s-b32917">${extra}</div>`;
   container.appendChild(el);
   return el;
 }
@@ -82,7 +82,7 @@ async function renderDashboard(container) {
     return `<div class="table-panel"><h2>${esc(title)}</h2><div class="table-wrapper"><table class="inv-dash-table">
       <thead><tr><th>${esc(head)}</th><th class="num">Designs</th><th class="num">Qty</th><th aria-label="Share of qty"></th>${showValue ? '<th class="num">Value</th>' : ''}</tr></thead>
       <tbody>${shown.length ? shown.map(line).join('') + others
-        : `<tr><td colspan="${cols}" style="text-align:center;color:var(--text-muted);padding:20px;">No stock here yet.</td></tr>`}</tbody></table></div></div>`;
+        : `<tr><td colspan="${cols}" class="s-b4fdf8">No stock here yet.</td></tr>`}</tbody></table></div></div>`;
   };
   const grid = document.createElement('div');
   grid.className = 'inv-dash-grid';
@@ -112,14 +112,14 @@ async function renderLedger(container) {
   const working = await loadViewModule('/view-store.js?v=1').then(m => m.ensureWorkingStore()).catch(() => null);
   const fixedStore = working && working.code && !window.erpStoreViewAll ? working : null;
   bar(container, 'Inventory Ledger');
-  const filters = panel(container, `<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-sku">Item</label><input class="form-input" id="inv-l-sku" style="width:180px;" value="${esc(ledgerFilter.sku)}" autocomplete="off"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-loc">Store</label>${fixedStore
-        ? `<input class="form-input" id="inv-l-loc" style="width:150px;" value="${esc(fixedStore.name || fixedStore.code)}" readonly title="The store picked in the top bar">`
-        : `<input class="form-input" id="inv-l-loc" style="width:150px;" value="${esc(ledgerFilter.location_code)}" autocomplete="off">`}</div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-type">Document type</label><input class="form-input" id="inv-l-type" style="width:150px;" value="${esc(ledgerFilter.voucher_type)}" placeholder="GRN, POSCart, StockMove..."></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-start">From</label><input type="date" class="form-input" id="inv-l-start" value="${esc(ledgerFilter.start)}"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-end">To</label><input type="date" class="form-input" id="inv-l-end" value="${esc(ledgerFilter.end)}"></div>
+  const filters = panel(container, `<div class="s-97380c">
+      <div class="form-group s-116966"><label class="form-label" for="inv-l-sku">Item</label><input class="form-input s-54f91a" id="inv-l-sku" value="${esc(ledgerFilter.sku)}" autocomplete="off"></div>
+      <div class="form-group s-116966"><label class="form-label" for="inv-l-loc">Store</label>${fixedStore
+        ? `<input class="form-input s-7c07cd" id="inv-l-loc" value="${esc(fixedStore.name || fixedStore.code)}" readonly title="The store picked in the top bar">`
+        : `<input class="form-input s-7c07cd" id="inv-l-loc" value="${esc(ledgerFilter.location_code)}" autocomplete="off">`}</div>
+      <div class="form-group s-116966"><label class="form-label" for="inv-l-type">Document type</label><input class="form-input s-7c07cd" id="inv-l-type" value="${esc(ledgerFilter.voucher_type)}" placeholder="All types"></div>
+      <div class="form-group s-116966"><label class="form-label" for="inv-l-start">From</label><input type="date" class="form-input" id="inv-l-start" value="${esc(ledgerFilter.start)}"></div>
+      <div class="form-group s-116966"><label class="form-label" for="inv-l-end">To</label><input type="date" class="form-input" id="inv-l-end" value="${esc(ledgerFilter.end)}"></div>
       <button type="button" class="btn btn-primary" data-inv-l-show>Show</button>
       <button type="button" class="btn btn-outline" data-inv-l-clear>Clear</button>
     </div>`);
@@ -143,7 +143,7 @@ async function renderLedger(container) {
   if (res && res.status === 422) {
     const body = await res.json().catch(() => ({}));
     if (body.code === 'REPORT-0161') {
-      host.innerHTML = '<p class="text-muted" style="padding: 16px;">More movements match than one screen can load. Choose an item or a store, or a shorter date range, above and click Show.</p>';
+      host.innerHTML = '<p class="text-muted s-c74152">More movements match than one screen can load. Choose an item or a store, or a shorter date range, above and click Show.</p>';
       return;
     }
   }
@@ -159,8 +159,8 @@ async function renderLedger(container) {
       return `<tr><td>${when(r.created_at)}</td><td>${esc(r.item_id)}</td><td>${esc(r.warehouse_id)}</td>
         <td class="num">${q > 0 ? fmtQty(q) : ''}</td><td class="num">${q < 0 ? fmtQty(-q) : ''}</td><td class="num">${fmtQty(r.running_balance)}</td>
         <td>${esc(r.voucher_type)} <span class="text-muted">${esc(r.voucher_id || '')}</span></td><td>${esc(moved)}</td><td>${esc(r.user_id || '')}</td></tr>`;
-    }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;">No movement matches. Widen the dates or clear the filters.</td></tr>'}</tbody></table></div>
-    ${total > rows.length ? `<div style="display:flex;gap:10px;align-items:center;margin:10px 0 0;font-size:13px;" class="text-muted"><button type="button" class="btn btn-outline" data-inv-l-newer ${ledgerOffset > 0 ? '' : 'disabled'}>Newer</button><span>${ledgerOffset + 1}-${ledgerOffset + rows.length} of ${total}</span><button type="button" class="btn btn-outline" data-inv-l-older ${ledgerOffset + rows.length < total ? '' : 'disabled'}>Older</button></div>` : ''}`;
+    }).join('') : '<tr><td colspan="9" class="s-b4fdf8">No movement matches. Widen the dates or clear the filters.</td></tr>'}</tbody></table></div>
+    ${total > rows.length ? `<div class="text-muted s-c7bd98"><button type="button" class="btn btn-outline" data-inv-l-newer ${ledgerOffset > 0 ? '' : 'disabled'}>Newer</button><span>${ledgerOffset + 1}-${ledgerOffset + rows.length} of ${total}</span><button type="button" class="btn btn-outline" data-inv-l-older ${ledgerOffset + rows.length < total ? '' : 'disabled'}>Older</button></div>` : ''}`;
   host.querySelector('[data-inv-l-newer]')?.addEventListener('click', () => { ledgerOffset = Math.max(0, ledgerOffset - LEDGER_LIMIT); renderView('inventory:ledger'); });
   host.querySelector('[data-inv-l-older]')?.addEventListener('click', () => { ledgerOffset += LEDGER_LIMIT; renderView('inventory:ledger'); });
 }
@@ -182,33 +182,33 @@ async function renderMRPChanges(container) {
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div style="display:flex;gap:8px;margin-bottom:12px;max-width:520px;">
+  list.innerHTML = `<div class="s-8d8359">
       <input type="search" class="form-input" data-mrp-search placeholder="Find an item's MRP history (code or name)" value="${esc(mrpSearch)}">
       <button type="button" class="btn btn-outline" data-mrp-find>Find</button></div>
     <div class="table-wrapper"><table><thead><tr><th>Change</th><th>Effective from</th><th>Items (old → new MRP)</th><th>Reason</th><th>Status</th><th></th></tr></thead>
     <tbody>${docs.length ? docs.map(d => {
       const ls = lines(d);
-      return `<tr><td style="font-family:monospace;">${esc(d.code || d.id)}</td><td>${esc(d.effective_date)}</td>
+      return `<tr><td class="s-72126d">${esc(d.code || d.id)}</td><td>${esc(d.effective_date)}</td>
         <td>${ls.slice(0, 3).map(l => `${esc(l.item_name || l.sku)} <span class="text-muted">${formatMoney(l.old_mrp)} → </span><b>${formatMoney(l.new_mrp)}</b>`).join('<br>')}${ls.length > 3 ? `<div class="text-muted">+${ls.length - 3} more</div>` : ''}</td>
         <td>${esc(d.reason || '')}</td><td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span></td>
         <td>${d.status === 'Scheduled' ? `<button type="button" class="action-btn action-btn-danger" data-mrp-cancel="${esc(d.id)}">Cancel</button>` : ''}
             ${d.status === 'Applied' && ls.some(l => num(l.on_hand) > 0) ? `<button type="button" class="action-btn" data-mrp-stickers="${esc(d.id)}">Reprint stickers</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">${mrpSearch ? 'No MRP change names that item.' : 'No MRP has been changed here yet. + New MRP Change starts one.'}</td></tr>`}</tbody></table></div>`;
+    }).join('') : `<tr><td colspan="6" class="s-b4fdf8">${mrpSearch ? 'No MRP change names that item.' : 'No MRP has been changed here yet. + New MRP Change starts one.'}</td></tr>`}</tbody></table></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  form.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="mrp-effective">Effective from</label><input type="date" class="form-input" id="mrp-effective" value="${new Date().toISOString().slice(0, 10)}"></div>
-      <div class="form-group" style="margin:0;flex:1;min-width:220px;"><label class="form-label" for="mrp-reason">Reason</label><input class="form-input" id="mrp-reason" placeholder="e.g. Vendor price revision"></div>
+  form.innerHTML = `<div class="s-d9da29">
+      <div class="form-group s-116966"><label class="form-label" for="mrp-effective">Effective from</label><input type="date" class="form-input" id="mrp-effective" value="${new Date().toISOString().slice(0, 10)}"></div>
+      <div class="form-group s-42a037"><label class="form-label" for="mrp-reason">Reason</label><input class="form-input" id="mrp-reason" placeholder="e.g. Vendor price revision"></div>
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Current MRP</th><th class="num">Sale price</th><th class="num">New MRP</th><th></th></tr></thead><tbody data-mrp-lines></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-mrp-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
+    <div class="s-ac2f58">
+      <input class="form-input s-3521b3" data-mrp-add-input placeholder="Add by Design, Combination ID or barcode" autocomplete="off">
       <button type="button" class="btn btn-outline" data-mrp-add>Add item</button>
     </div>
-    <div class="login-error hidden" data-mrp-error style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-mrp-save>Save MRP change</button></div>`;
+    <div class="login-error hidden s-56f435" data-mrp-error></div>
+    <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-mrp-save>Save MRP change</button></div>`;
 
   const section = txnPagedSection({ id: 'mrp-screen', title: 'MRP Change', page: 'New MRP change', count: docs.length, newLabel: 'New MRP Change', form, list });
   container.appendChild(section);
@@ -233,12 +233,12 @@ async function renderMRPChanges(container) {
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
   const draw = () => {
     form.querySelector('[data-mrp-lines]').innerHTML = mrpLines.length ? mrpLines.map((l, i) => `<tr>
-        <td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td>
+        <td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div></td>
         <td class="num">${formatMoney(l.mrp)}</td><td class="num">${formatMoney(l.sale_price)}</td>
-        <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:120px;text-align:right;" data-mrp-new="${i}" value="${esc(l.new_mrp ?? '')}">
-          <div data-mrp-warn="${i}" style="color:var(--danger-strong);font-size:12px;"></div></td>
+        <td class="num"><input type="number" min="0" step="0.01" class="form-input s-0d0b57" data-mrp-new="${i}" value="${esc(l.new_mrp ?? '')}">
+          <div data-mrp-warn="${i}" class="s-3a7bb6"></div></td>
         <td><button type="button" class="action-btn action-btn-danger" data-mrp-remove="${i}">Remove</button></td></tr>`).join('')
-      : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">Add the items whose MRP changes.</td></tr>';
+      : '<tr><td colspan="5" class="s-f692de">Add the items whose MRP changes.</td></tr>';
     // Updated in place: a redraw here would run inside the input's own blur.
     const warn = (i) => { const l = mrpLines[i]; form.querySelector(`[data-mrp-warn="${i}"]`).textContent = num(l.new_mrp) > 0 && num(l.sale_price) > num(l.new_mrp) ? 'Sale price is above this MRP' : ''; };
     form.querySelectorAll('[data-mrp-new]').forEach(el => { warn(Number(el.dataset.mrpNew)); el.addEventListener('input', () => { mrpLines[Number(el.dataset.mrpNew)].new_mrp = el.value; warn(Number(el.dataset.mrpNew)); }); });
@@ -318,32 +318,32 @@ async function renderAdjustments(container) {
     <tbody>${docs.length ? docs.map(d => {
       const ls = lines(d);
       const problem = d.post_error || d.gl_error;
-      return `<tr><td style="font-family:monospace;">${esc(d.code || d.id)}</td><td>${esc(d.location)}</td>
+      return `<tr><td class="s-72126d">${esc(d.code || d.id)}</td><td>${esc(d.location)}</td>
         <td>${ls.slice(0, 3).map(l => `${num(l.qty) > 0 ? '+' : ''}${fmtQty(l.qty)} ${esc(l.item_name || l.sku)} <span class="text-muted">(${esc(l.reason || l.reason_code)})</span>`).join('<br>')}${ls.length > 3 ? `<div class="text-muted">+${ls.length - 3} more</div>` : ''}</td>
         <td class="num">${formatMoney(d.increase_value)}</td><td class="num">${formatMoney(d.decrease_value)}</td>
-        <td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span>${problem ? `<div style="color:var(--danger-strong);font-size:12px;max-width:260px;">${esc(problem)}</div>` : ''}
-          ${d.reversal_of ? `<div class="text-muted" style="font-size:12px;">Reverses ${esc(codeOf[d.reversal_of] || d.reversal_of)}</div>` : ''}${d.reversed_by ? `<div class="text-muted" style="font-size:12px;">Reversed by ${esc(codeOf[d.reversed_by] || d.reversed_by)}</div>` : ''}</td>
+        <td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span>${problem ? `<div class="s-262624">${esc(problem)}</div>` : ''}
+          ${d.reversal_of ? `<div class="text-muted s-6cb285">Reverses ${esc(codeOf[d.reversal_of] || d.reversal_of)}</div>` : ''}${d.reversed_by ? `<div class="text-muted s-6cb285">Reversed by ${esc(codeOf[d.reversed_by] || d.reversed_by)}</div>` : ''}</td>
         <td>${d.status === 'Approved' ? `<button type="button" class="action-btn" data-adj-post="${esc(d.id)}">Post</button>${/changed since|was \d+ when/.test(problem || '') ? ` <button type="button" class="action-btn" data-adj-post-now="${esc(d.id)}" title="Take the before quantities again from today's stock (store manager)">Post with current stock</button>` : ''}` : ''}
           ${d.status === 'Posted' && !d.reversed_by && !d.reversal_of ? `<button type="button" class="action-btn" data-adj-reverse="${esc(d.id)}">Reverse</button>` : ''}</td></tr>`;
-    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">No stock has been adjusted here yet. + New Stock Adjustment starts one.</td></tr>'}</tbody></table></div>`;
+    }).join('') : '<tr><td colspan="7" class="s-b4fdf8">No stock has been adjusted here yet. + New Stock Adjustment starts one.</td></tr>'}</tbody></table></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  form.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="adj-store">Store</label><input class="form-input" id="adj-store" value="${esc(sessionStore())}" autocomplete="off" style="width:200px;"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="adj-loss">Loss class</label><select class="form-select" id="adj-loss" style="width:160px;">
+  form.innerHTML = `<div class="s-d9da29">
+      <div class="form-group s-116966"><label class="form-label" for="adj-store">Store</label><input class="form-input s-2acaf3" id="adj-store" value="${esc(sessionStore())}" autocomplete="off"></div>
+      <div class="form-group s-116966"><label class="form-label" for="adj-loss">Loss class</label><select class="form-select s-28c0f6" id="adj-loss">
         <option value="">None</option><option>Shrinkage</option><option>Damage</option><option>Expiry</option><option>Theft</option></select></div>
-      <div class="form-group" style="margin:0;flex:1;min-width:220px;"><label class="form-label" for="adj-note">Note</label><input class="form-input" id="adj-note" placeholder="e.g. Monthly damage check"></div>
+      <div class="form-group s-42a037"><label class="form-label" for="adj-note">Note</label><input class="form-input" id="adj-note" placeholder="e.g. Monthly damage check"></div>
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Change (+ / -)</th><th>Reason</th><th>Bin</th><th>Lot</th><th>To Damaged</th><th>Note</th><th></th></tr></thead><tbody data-adj-lines></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-adj-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
+    <div class="s-ac2f58">
+      <input class="form-input s-3521b3" data-adj-add-input placeholder="Add by Design, Combination ID or barcode" autocomplete="off">
       <button type="button" class="btn btn-outline" data-adj-add>Add item</button>
     </div>
-    <div class="login-error hidden" data-adj-error style="margin-top:12px;"></div>
-    <div data-adj-preview style="margin-top:12px;"></div>
-    <div style="margin-top:16px;display:flex;gap:8px;"><button type="button" class="btn btn-outline" data-adj-preview-btn>Preview</button><button type="button" class="btn btn-primary" data-adj-save>Save adjustment</button></div>`;
+    <div class="login-error hidden s-56f435" data-adj-error></div>
+    <div data-adj-preview class="s-56f435"></div>
+    <div class="s-20fcea"><button type="button" class="btn btn-outline" data-adj-preview-btn>Preview</button><button type="button" class="btn btn-primary" data-adj-save>Save adjustment</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'adj-screen', title: 'Stock Adjustment', page: 'New stock adjustment', count: docs.length, newLabel: 'New Stock Adjustment', form, list }));
   txnRestorePane('adj-screen');
@@ -378,15 +378,15 @@ async function renderAdjustments(container) {
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
   const draw = () => {
     form.querySelector('[data-adj-lines]').innerHTML = adjLines.length ? adjLines.map((l, i) => `<tr>
-        <td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td>
-        <td class="num"><input type="number" step="1" class="form-input" style="width:110px;text-align:right;" data-adj-qty="${i}" value="${esc(l.qty)}" placeholder="-2 or 3"></td>
+        <td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div></td>
+        <td class="num"><input type="number" step="1" class="form-input s-b54ee3" data-adj-qty="${i}" value="${esc(l.qty)}" placeholder="-2 or 3"></td>
         <td>${rp.reasonSelectHTML(reasons, { value: l.reason_code, attrs: `data-adj-reason="${i}"` })}</td>
-        <td><input class="form-input" data-adj-bin="${i}" value="${esc(l.bin || '')}" style="width:100px;" placeholder="optional"></td>
-        <td><input class="form-input" data-adj-lot="${i}" value="${esc(l.batch_no || '')}" style="width:100px;" placeholder="optional"></td>
-        <td style="text-align:center;"><input type="checkbox" data-adj-damaged="${i}" ${l.damaged ? 'checked' : ''} title="Still yours: moved out of sellable stock (or back with a + change), not written off"></td>
-        <td><input class="form-input" data-adj-note="${i}" value="${esc(l.note)}" style="min-width:140px;"></td>
+        <td><input class="form-input s-db4cf1" data-adj-bin="${i}" value="${esc(l.bin || '')}" placeholder="optional"></td>
+        <td><input class="form-input s-db4cf1" data-adj-lot="${i}" value="${esc(l.batch_no || '')}" placeholder="optional"></td>
+        <td class="s-91a870"><input type="checkbox" data-adj-damaged="${i}" ${l.damaged ? 'checked' : ''} title="Still yours: moved out of sellable stock (or back with a + change), not written off"></td>
+        <td><input class="form-input s-4592c7" data-adj-note="${i}" value="${esc(l.note)}"></td>
         <td><button type="button" class="action-btn action-btn-danger" data-adj-remove="${i}">Remove</button></td></tr>`).join('')
-      : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px;">Add the items whose stock is wrong. A negative change takes stock off; a positive one adds it. Tick To Damaged for a damaged unit you still own - it leaves sellable stock without being written off.</td></tr>';
+      : '<tr><td colspan="8" class="s-f692de">Add the items whose stock is wrong. A negative change takes stock off; a positive one adds it. Tick To Damaged for a damaged unit you still own - it leaves sellable stock without being written off.</td></tr>';
     // Kept in step as typed, never redrawn from an input's own events.
     form.querySelectorAll('[data-adj-qty]').forEach(el => el.addEventListener('input', () => { adjLines[Number(el.dataset.adjQty)].qty = el.value; }));
     form.querySelectorAll('[data-adj-reason]').forEach(el => el.addEventListener('change', () => { adjLines[Number(el.dataset.adjReason)].reason_code = el.value; }));
@@ -450,7 +450,7 @@ async function renderAdjustments(container) {
     form.querySelector('[data-adj-preview]').innerHTML = `<div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Before</th><th class="num">Change</th><th class="num">After</th><th class="num">Value</th></tr></thead>
       <tbody>${(pv.lines || []).map(l => `<tr><td>${esc(l.item_name || l.sku)}${l.bin ? ` <span class="text-muted">bin ${esc(l.bin)}</span>` : ''}${l.condition ? ' <span class="text-muted">to Damaged</span>' : ''}</td>
         <td class="num">${fmtQty(l.before_qty)}</td><td class="num">${num(l.qty) > 0 ? '+' : ''}${fmtQty(l.qty)}</td><td class="num">${fmtQty(l.after_qty)}</td><td class="num">${formatMoney(l.value)}</td></tr>`).join('')}</tbody></table></div>
-      <div class="text-muted" style="margin-top:6px;">GL: ${(pv.gl || []).map(g => g.debit ? `Dr ${esc(g.account)} ${formatMoney(g.debit)}` : `Cr ${esc(g.account)} ${formatMoney(g.credit)}`).join(' · ') || 'nothing is booked (condition moves only)'}</div>`;
+      <div class="text-muted s-fe7b49">GL: ${(pv.gl || []).map(g => g.debit ? `Dr ${esc(g.account)} ${formatMoney(g.debit)}` : `Cr ${esc(g.account)} ${formatMoney(g.credit)}`).join(' · ') || 'nothing is booked (condition moves only)'}</div>`;
   });
   draw();
 }
@@ -490,39 +490,42 @@ async function renderMaterials(container) {
   const me = localStorage.getItem('erp_username') || '';
   const views = { all: () => true, mine: d => d.requested_by === me, issue: d => d.status === 'Approved', back: d => d.status === 'Issued' || d.status === 'Partly Returned' };
   const shown = docs.filter(views[miView] || views.all);
+  // 162.2: a role that may only ask (Cashier) sees no Issue or Return button.
+  // The store may issue: edit on MaterialIssue, or create on MaterialReturn (the server's rule).
+  const mayReturn = canDo('create', 'MaterialReturn'), mayIssue = mayReturn || canUpdateDoctype('MaterialIssue');
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div style="margin-bottom:10px;"><select class="form-select" data-mi-view style="width:200px;" aria-label="Show">
+  list.innerHTML = `<div class="s-761d3a"><select class="form-select s-2acaf3" data-mi-view aria-label="Show">
       ${[['all', 'All requests'], ['mine', 'My requests'], ['issue', 'Ready to issue'], ['back', 'Return remaining']].map(([k, l]) => `<option value="${k}" ${k === miView ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="table-wrapper"><table><thead><tr><th>Request</th><th>Store</th><th>Department</th><th>Items</th><th class="num">Value</th><th>Status</th><th></th></tr></thead>
     <tbody>${shown.length ? shown.map(d => {
       const ls = lines(d);
-      return `<tr><td style="font-family:monospace;">${esc(d.code || d.id)}</td><td>${esc(d.location)}</td>
-        <td>${esc(d.department)}${d.cost_center ? `<div class="text-muted" style="font-size:12px;">${esc(d.cost_center)}</div>` : ''}<div class="text-muted" style="font-size:12px;">${esc(d.purpose)}</div></td>
+      return `<tr><td class="s-72126d">${esc(d.code || d.id)}</td><td>${esc(d.location)}</td>
+        <td>${esc(d.department)}${d.cost_center ? `<div class="text-muted s-6cb285">${esc(d.cost_center)}</div>` : ''}<div class="text-muted s-6cb285">${esc(d.purpose)}</div></td>
         <td>${ls.slice(0, 3).map(l => `${fmtQty(l.qty)} ${esc(l.item_name || l.sku)}${num(l.returned_qty) ? ` <span class="text-muted">(${fmtQty(l.returned_qty)} back)</span>` : ''}`).join('<br>')}${ls.length > 3 ? `<div class="text-muted">+${ls.length - 3} more</div>` : ''}</td>
         <td class="num">${formatMoney(d.amount)}</td><td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span></td>
-        <td>${d.status === 'Approved' ? `<button type="button" class="action-btn" data-mi-issue="${esc(d.id)}">Issue</button>` : ''}
-          ${d.status === 'Issued' || d.status === 'Partly Returned' ? `<button type="button" class="action-btn" data-mi-return="${esc(d.id)}">Return unused</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">${docs.length ? 'Nothing here in this view.' : 'No material has been asked for yet. + New Material Request starts one.'}</td></tr>`}</tbody></table></div>
-    <div data-mi-return-pane style="margin-top:14px;"></div>`;
+        <td>${mayIssue && d.status === 'Approved' ? `<button type="button" class="action-btn" data-mi-issue="${esc(d.id)}">Issue</button>` : ''}
+          ${mayReturn && (d.status === 'Issued' || d.status === 'Partly Returned') ? `<button type="button" class="action-btn" data-mi-return="${esc(d.id)}">Return unused</button>` : ''}</td></tr>`;
+    }).join('') : `<tr><td colspan="7" class="s-b4fdf8">${docs.length ? 'Nothing here in this view.' : 'No material has been asked for yet. + New Material Request starts one.'}</td></tr>`}</tbody></table></div>
+    <div data-mi-return-pane class="s-d6f2af"></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group" style="margin:0;"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
-  form.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  form.innerHTML = `<div class="s-d9da29">
       ${field('mi-store', 'Store', 180, `value="${esc(sessionStore())}"`)}${field('mi-dept', 'Department', 180)}${field('mi-cc', 'Cost centre', 160, 'placeholder="optional"')}
       ${field('mi-emp', 'Employee', 160, 'placeholder="optional"')}${field('mi-project', 'Project', 140, 'placeholder="optional"')}
-      <div class="form-group" style="margin:0;flex:1;min-width:220px;"><label class="form-label" for="mi-purpose">Purpose</label><input class="form-input" id="mi-purpose" placeholder="e.g. Packing for the weekend sale"></div>
+      <div class="form-group s-42a037"><label class="form-label" for="mi-purpose">Purpose</label><input class="form-input" id="mi-purpose" placeholder="e.g. Packing for the weekend sale"></div>
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Qty</th><th></th></tr></thead><tbody data-mi-lines></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-mi-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
+    <div class="s-ac2f58">
+      <input class="form-input s-3521b3" data-mi-add-input placeholder="Add by Design, Combination ID or barcode" autocomplete="off">
       <button type="button" class="btn btn-outline" data-mi-add>Add item</button>
     </div>
-    <div class="login-error hidden" data-mi-error style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-mi-save>Save request</button></div>`;
+    <div class="login-error hidden s-56f435" data-mi-error></div>
+    <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-mi-save>Save request</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'mi-screen', title: 'Material Issue', page: 'New material request', count: docs.length, newLabel: 'New Material Request', form, list }));
   txnRestorePane('mi-screen');
@@ -544,13 +547,13 @@ async function renderMaterials(container) {
     const d = docs.find(x => x.id === b.dataset.miReturn);
     const pane = list.querySelector('[data-mi-return-pane]');
     const open = lines(d).filter(l => num(l.issued_qty) - num(l.returned_qty) > 0);
-    pane.innerHTML = `<h3 style="margin:0 0 8px;">Return unused from ${esc(d.code || d.id)}</h3>
+    pane.innerHTML = `<h3 class="s-df6718">Return unused from ${esc(d.code || d.id)}</h3>
       <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Issued</th><th class="num">Back so far</th><th class="num">Returning now</th><th>Condition</th></tr></thead>
       <tbody>${open.map((l, i) => `<tr><td>${esc(l.item_name || l.sku)}</td><td class="num">${fmtQty(l.issued_qty)}</td><td class="num">${fmtQty(l.returned_qty)}</td>
-        <td class="num"><input type="number" step="1" min="0" class="form-input" style="width:100px;text-align:right;" data-mr-qty="${i}" placeholder="0"></td>
-        <td><select class="form-select" data-mr-cond="${i}" style="width:130px;"><option>Good</option><option>Damaged</option></select></td></tr>`).join('')}</tbody></table></div>
-      <div class="login-error hidden" data-mr-error style="margin-top:10px;"></div>
-      <div style="margin-top:10px;"><button type="button" class="btn btn-primary" data-mr-save>Post return</button></div>`;
+        <td class="num"><input type="number" step="1" min="0" class="form-input s-96d2a5" data-mr-qty="${i}" placeholder="0"></td>
+        <td><select class="form-select s-c6fffd" data-mr-cond="${i}"><option>Good</option><option>Damaged</option></select></td></tr>`).join('')}</tbody></table></div>
+      <div class="login-error hidden s-d2c171" data-mr-error></div>
+      <div class="s-d2c171"><button type="button" class="btn btn-primary" data-mr-save>Post return</button></div>`;
     const err = pane.querySelector('[data-mr-error]');
     pane.querySelector('[data-mr-save]').addEventListener('click', async e => {
       const btn = e.currentTarget;
@@ -573,10 +576,10 @@ async function renderMaterials(container) {
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
   const draw = () => {
     form.querySelector('[data-mi-lines]').innerHTML = miLines.length ? miLines.map((l, i) => `<tr>
-        <td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td>
-        <td class="num"><input type="number" step="1" min="1" class="form-input" style="width:110px;text-align:right;" data-mi-qty="${i}" value="${esc(l.qty)}"></td>
+        <td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div></td>
+        <td class="num"><input type="number" step="1" min="1" class="form-input s-b54ee3" data-mi-qty="${i}" value="${esc(l.qty)}"></td>
         <td><button type="button" class="action-btn action-btn-danger" data-mi-remove="${i}">Remove</button></td></tr>`).join('')
-      : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:16px;">Add the store items the department needs - stock items only; what is consumed by auto backflush is not asked for here.</td></tr>';
+      : '<tr><td colspan="3" class="s-f692de">Add the store items the department needs - stock items only; what is consumed by auto backflush is not asked for here.</td></tr>';
     form.querySelectorAll('[data-mi-qty]').forEach(el => el.addEventListener('input', () => { miLines[Number(el.dataset.miQty)].qty = el.value; }));
     form.querySelectorAll('[data-mi-remove]').forEach(el => el.addEventListener('click', () => { miLines.splice(Number(el.dataset.miRemove), 1); draw(); }));
   };
@@ -653,50 +656,50 @@ async function renderChallans(container) {
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div style="margin-bottom:10px;"><select class="form-select" data-dc-view style="width:200px;" aria-label="Show">
+  list.innerHTML = `<div class="s-761d3a"><select class="form-select s-2acaf3" data-dc-view aria-label="Show">
       ${[['all', 'All challans'], ['open', 'Open returns'], ['soon', 'Due back in 7 days'], ['exceptions', 'Exceptions'], ['ewb', 'E-way bill needed']].map(([k, l]) => `<option value="${k}" ${k === dcView ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="table-wrapper"><table><thead><tr><th>Challan</th><th>Purpose / party</th><th>Store</th><th>Items</th><th class="num">Value</th><th>Expected back</th><th>Status</th><th></th></tr></thead>
     <tbody>${shown.length ? shown.map(d => {
       const ls = parse(d.items);
       const o = open(d);
       const late = out(d) && o > 0 && due(d) && due(d) < today;
-      return `<tr><td style="font-family:monospace;">${esc(d.code || d.id)}</td>
-        <td>${esc(d.purpose)}${d.returnable === false ? ' <span class="text-muted">(non-returnable)</span>' : ''}<div class="text-muted" style="font-size:12px;">${esc(d.party_name)}${d.party_gstin ? ' · ' + esc(d.party_gstin) : ''}</div></td>
+      return `<tr><td class="s-72126d">${esc(d.code || d.id)}</td>
+        <td>${esc(d.purpose)}${d.returnable === false ? ' <span class="text-muted">(non-returnable)</span>' : ''}<div class="text-muted s-6cb285">${esc(d.party_name)}${d.party_gstin ? ' · ' + esc(d.party_gstin) : ''}</div></td>
         <td>${esc(d.location)}</td>
-        <td>${ls.slice(0, 3).map(l => `${fmtQty(l.qty)} ${esc(l.item_name || l.sku)}`).join('<br>')}${ls.length > 3 ? `<div class="text-muted">+${ls.length - 3} more</div>` : ''}${out(d) && d.returnable !== false ? `<div class="text-muted" style="font-size:12px;">${fmtQty(o)} still out</div>` : ''}</td>
+        <td>${ls.slice(0, 3).map(l => `${fmtQty(l.qty)} ${esc(l.item_name || l.sku)}`).join('<br>')}${ls.length > 3 ? `<div class="text-muted">+${ls.length - 3} more</div>` : ''}${out(d) && d.returnable !== false ? `<div class="text-muted s-6cb285">${fmtQty(o)} still out</div>` : ''}</td>
         <td class="num">${formatMoney(d.amount)}</td>
         <td>${esc(due(d))}${late ? ' <span class="badge badge-danger">overdue</span>' : ''}</td>
         <td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span>${d.ewb_required === 'Yes' ? ' <span class="badge badge-warning" title="E-way bill needed">EWB</span>' : ''}</td>
-        <td style="white-space:nowrap;">${d.status === 'Approved' ? `<button type="button" class="action-btn" data-dc-act="dispatch" data-id="${esc(d.id)}">Dispatch</button> ` : ''}
+        <td class="s-86abda">${d.status === 'Approved' ? `<button type="button" class="action-btn" data-dc-act="dispatch" data-id="${esc(d.id)}">Dispatch</button> ` : ''}
           ${out(d) && d.returnable !== false && o > 0 ? `<button type="button" class="action-btn" data-dc-act="return" data-id="${esc(d.id)}">Receive return</button> <button type="button" class="action-btn" data-dc-act="writeoff" data-id="${esc(d.id)}">Write off</button> ` : ''}
           ${['Draft', 'Pending Approval', 'Approved'].includes(d.status) ? `<button type="button" class="action-btn action-btn-danger" data-dc-act="cancel" data-id="${esc(d.id)}">Cancel</button> ` : ''}
           ${d.status !== 'Draft' && d.status !== 'Cancelled' ? `<button type="button" class="action-btn" data-dc-act="print" data-id="${esc(d.id)}">Print</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">${docs.length ? 'Nothing here in this view.' : 'No goods have gone out on a challan yet. + New Delivery Challan starts one.'}</td></tr>`}</tbody></table></div>
-    <div data-dc-pane style="margin-top:14px;"></div>`;
+    }).join('') : `<tr><td colspan="8" class="s-b4fdf8">${docs.length ? 'Nothing here in this view.' : 'No goods have gone out on a challan yet. + New Delivery Challan starts one.'}</td></tr>`}</tbody></table></div>
+    <div data-dc-pane class="s-d6f2af"></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group" style="margin:0;"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
-  form.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  form.innerHTML = `<div class="s-d9da29">
       ${field('dc-store', 'From store', 160, `value="${esc(sessionStore())}"`)}
-      <div class="form-group" style="margin:0;"><label class="form-label" for="dc-purpose">Purpose</label><select class="form-select" id="dc-purpose" style="width:170px;">${DC_PURPOSES.map(p => `<option>${p}</option>`).join('')}</select></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="dc-returnable">Comes back</label><select class="form-select" id="dc-returnable" style="width:110px;"><option value="yes">Yes</option><option value="no">No</option></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="dc-purpose">Purpose</label><select class="form-select s-d52ddd" id="dc-purpose">${DC_PURPOSES.map(p => `<option>${p}</option>`).join('')}</select></div>
+      <div class="form-group s-116966"><label class="form-label" for="dc-returnable">Comes back</label><select class="form-select s-607468" id="dc-returnable"><option value="yes">Yes</option><option value="no">No</option></select></div>
       ${field('dc-expected', 'Expected back', 150, 'type="date"')}
       ${field('dc-ref', 'Reference', 140, 'placeholder="optional"')}
     </div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="dc-ptype">Party type</label><select class="form-select" id="dc-ptype" style="width:140px;"><option>Job worker</option><option>Vendor</option><option>Customer</option><option>Other</option></select></div>
+    <div class="s-d9da29">
+      <div class="form-group s-116966"><label class="form-label" for="dc-ptype">Party type</label><select class="form-select s-830eb9" id="dc-ptype"><option>Job worker</option><option>Vendor</option><option>Customer</option><option>Other</option></select></div>
       ${field('dc-party', 'Consignee', 200)}${field('dc-gstin', 'GSTIN', 170, 'placeholder="if registered"')}${field('dc-state', 'State', 130)}
-      <div class="form-group" style="margin:0;flex:1;min-width:220px;"><label class="form-label" for="dc-address">Address</label><input class="form-input" id="dc-address"></div>
+      <div class="form-group s-42a037"><label class="form-label" for="dc-address">Address</label><input class="form-input" id="dc-address"></div>
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Qty</th><th>Lot</th><th>Serial numbers</th><th class="num">Value</th><th></th></tr></thead><tbody data-dc-lines></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-dc-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
+    <div class="s-ac2f58">
+      <input class="form-input s-3521b3" data-dc-add-input placeholder="Add by Design, Combination ID or barcode" autocomplete="off">
       <button type="button" class="btn btn-outline" data-dc-add>Add item</button>
     </div>
-    <div class="login-error hidden" data-dc-error style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-dc-save>Save challan</button></div>`;
+    <div class="login-error hidden s-56f435" data-dc-error></div>
+    <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-dc-save>Save challan</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'dc-screen', title: 'Delivery Challan', page: 'New delivery challan', count: docs.length, newLabel: 'New Delivery Challan', form, list }));
   txnRestorePane('dc-screen');
@@ -725,13 +728,13 @@ async function renderChallans(container) {
       return;
     }
     if (act === 'dispatch') {
-      pane.innerHTML = `<h3 style="margin:0 0 8px;">Dispatch ${esc(d.code || d.id)}</h3>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-          <div class="form-group" style="margin:0;"><label class="form-label" for="dcd-mode">Transport</label><select class="form-select" id="dcd-mode" style="width:120px;"><option>Road</option><option>Rail</option><option>Air</option><option>Ship</option><option>By hand</option></select></div>
+      pane.innerHTML = `<h3 class="s-df6718">Dispatch ${esc(d.code || d.id)}</h3>
+        <div class="s-aad644">
+          <div class="form-group s-116966"><label class="form-label" for="dcd-mode">Transport</label><select class="form-select s-465bfe" id="dcd-mode"><option>Road</option><option>Rail</option><option>Air</option><option>Ship</option><option>By hand</option></select></div>
           ${field('dcd-vehicle', 'Vehicle no', 130)}${field('dcd-lr', 'LR / AWB no', 130)}${field('dcd-transporter', 'Transporter', 160)}${field('dcd-tid', 'Transporter ID', 150)}${field('dcd-pk', 'Packages', 90, 'type="number" min="0" step="1"')}
           ${field('dcd-date', 'Dispatch date', 150, `type="date" value="${today}"`)}
           <button type="button" class="btn btn-primary" data-dcd-go>Dispatch</button></div>
-        ${d.ewb_required === 'Yes' ? '<div class="txn-hint" style="margin-top:8px;">This challan needs an e-way bill before the goods move.</div>' : ''}`;
+        ${d.ewb_required === 'Yes' ? '<div class="txn-hint s-8a77e5">This challan needs an e-way bill before the goods move.</div>' : ''}`;
       pane.querySelector('[data-dcd-go]').addEventListener('click', () => post(`${url}/dispatch`, {
         transport_mode: pane.querySelector('#dcd-mode').value, vehicle_no: pane.querySelector('#dcd-vehicle').value, lr_awb_no: pane.querySelector('#dcd-lr').value,
         transporter: pane.querySelector('#dcd-transporter').value, transporter_id: pane.querySelector('#dcd-tid').value,
@@ -742,14 +745,14 @@ async function renderChallans(container) {
     const left = (x) => x.issued - x.returned - x.damaged - x.rejected - x.lost - x.kept;
     const outSerials = (x) => Object.entries(x.serials || {}).filter(([, s]) => s === 'With party').map(([k]) => k);
     if (act === 'return') {
-      pane.innerHTML = `<h3 style="margin:0 0 8px;">What came back on ${esc(d.code || d.id)}</h3>
+      pane.innerHTML = `<h3 class="s-df6718">What came back on ${esc(d.code || d.id)}</h3>
         <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Still out</th><th class="num">Good</th><th class="num">Damaged</th><th class="num">Rejected</th><th>Serial numbers back</th><th>Reason (damaged / rejected)</th></tr></thead>
         <tbody>${bal.map((x, i) => `<tr><td>${esc(x.sku)}${x.batch_no ? ` <span class="text-muted">lot ${esc(x.batch_no)}</span>` : ''}</td><td class="num">${fmtQty(left(x))}</td>
-          ${['good', 'damaged', 'rejected'].map(c => `<td class="num"><input type="number" min="0" step="1" class="form-input" style="width:80px;text-align:right;" data-dcr="${c}" data-i="${i}" placeholder="0"></td>`).join('')}
-          <td>${outSerials(x).length ? `<input class="form-input" data-dcr="serials" data-i="${i}" placeholder="${esc(outSerials(x).slice(0, 3).join(', '))}" style="min-width:160px;">` : '<span class="text-muted">-</span>'}</td>
-          <td><input class="form-input" data-dcr="reason" data-i="${i}" style="min-width:140px;"></td></tr>`).join('')}</tbody></table></div>
-        <div class="txn-hint" style="margin-top:6px;">Serials: one condition per save.</div>
-        <div style="margin-top:10px;"><button type="button" class="btn btn-primary" data-dcr-go>Receive</button></div>`;
+          ${['good', 'damaged', 'rejected'].map(c => `<td class="num"><input type="number" min="0" step="1" class="form-input s-21b28d" data-dcr="${c}" data-i="${i}" placeholder="0"></td>`).join('')}
+          <td>${outSerials(x).length ? `<input class="form-input s-94253f" data-dcr="serials" data-i="${i}" placeholder="${esc(outSerials(x).slice(0, 3).join(', '))}">` : '<span class="text-muted">-</span>'}</td>
+          <td><input class="form-input s-4592c7" data-dcr="reason" data-i="${i}"></td></tr>`).join('')}</tbody></table></div>
+        <div class="txn-hint s-fe7b49">Serials: one condition per save.</div>
+        <div class="s-d2c171"><button type="button" class="btn btn-primary" data-dcr-go>Receive</button></div>`;
       pane.querySelector('[data-dcr-go]').addEventListener('click', () => {
         const v = (c, i) => pane.querySelector(`[data-dcr="${c}"][data-i="${i}"]`);
         const lines = [];
@@ -766,13 +769,13 @@ async function renderChallans(container) {
       return;
     }
     if (act === 'writeoff') {
-      pane.innerHTML = `<h3 style="margin:0 0 8px;">Write off from ${esc(d.code || d.id)}</h3>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-          <div class="form-group" style="margin:0;"><label class="form-label" for="dcw-line">Item</label><select class="form-select" id="dcw-line" style="width:220px;">${bal.map((x, i) => `<option value="${i}">${esc(x.sku)}${x.batch_no ? ' / ' + esc(x.batch_no) : ''} (${left(x)} out)</option>`).join('')}</select></div>
+      pane.innerHTML = `<h3 class="s-df6718">Write off from ${esc(d.code || d.id)}</h3>
+        <div class="s-aad644">
+          <div class="form-group s-116966"><label class="form-label" for="dcw-line">Item</label><select class="form-select s-0fac91" id="dcw-line">${bal.map((x, i) => `<option value="${i}">${esc(x.sku)}${x.batch_no ? ' / ' + esc(x.batch_no) : ''} (${left(x)} out)</option>`).join('')}</select></div>
           ${field('dcw-qty', 'Qty', 90, 'type="number" min="1" step="1"')}
-          <div class="form-group" style="margin:0;"><label class="form-label" for="dcw-kind">What happened</label><select class="form-select" id="dcw-kind" style="width:150px;"><option>Lost</option><option>Kept by party</option></select></div>
+          <div class="form-group s-116966"><label class="form-label" for="dcw-kind">What happened</label><select class="form-select s-7c07cd" id="dcw-kind"><option>Lost</option><option>Kept by party</option></select></div>
           ${field('dcw-serials', 'Serial numbers', 170, 'placeholder="if it has them"')}
-          <div class="form-group" style="margin:0;flex:1;min-width:200px;"><label class="form-label" for="dcw-reason">Reason</label><input class="form-input" id="dcw-reason"></div>
+          <div class="form-group s-780092"><label class="form-label" for="dcw-reason">Reason</label><input class="form-input" id="dcw-reason"></div>
           <button type="button" class="btn btn-primary" data-dcw-go>Send for approval</button></div>`;
       pane.querySelector('[data-dcw-go]').addEventListener('click', () => {
         const x = bal[Number(pane.querySelector('#dcw-line').value)];
@@ -788,13 +791,13 @@ async function renderChallans(container) {
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
   const draw = () => {
     form.querySelector('[data-dc-lines]').innerHTML = dcLines.length ? dcLines.map((l, i) => `<tr>
-        <td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td>
-        <td class="num"><input type="number" step="1" min="1" class="form-input" style="width:90px;text-align:right;" data-dcl="qty" data-i="${i}" value="${esc(l.qty)}"></td>
-        <td><input class="form-input" data-dcl="batch_no" data-i="${i}" value="${esc(l.batch_no || '')}" style="width:100px;" placeholder="optional"></td>
-        <td><input class="form-input" data-dcl="serials" data-i="${i}" value="${esc(l.serials || '')}" style="min-width:160px;" placeholder="optional, comma separated"></td>
-        <td class="num"><input type="number" step="0.01" min="0" class="form-input" style="width:110px;text-align:right;" data-dcl="declared_value" data-i="${i}" value="${esc(l.declared_value || '')}" placeholder="at cost"></td>
+        <td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div></td>
+        <td class="num"><input type="number" step="1" min="1" class="form-input s-d29533" data-dcl="qty" data-i="${i}" value="${esc(l.qty)}"></td>
+        <td><input class="form-input s-db4cf1" data-dcl="batch_no" data-i="${i}" value="${esc(l.batch_no || '')}" placeholder="optional"></td>
+        <td><input class="form-input s-94253f" data-dcl="serials" data-i="${i}" value="${esc(l.serials || '')}" placeholder="optional, comma separated"></td>
+        <td class="num"><input type="number" step="0.01" min="0" class="form-input s-b54ee3" data-dcl="declared_value" data-i="${i}" value="${esc(l.declared_value || '')}" placeholder="at cost"></td>
         <td><button type="button" class="action-btn action-btn-danger" data-dc-remove="${i}">Remove</button></td></tr>`).join('')
-      : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">Add the items going out. Value is the declared value for the challan; blank uses their cost.</td></tr>';
+      : '<tr><td colspan="6" class="s-f692de">Add the items going out. Value is the declared value for the challan; blank uses their cost.</td></tr>';
     form.querySelectorAll('[data-dcl]').forEach(el => el.addEventListener('input', () => { dcLines[Number(el.dataset.i)][el.dataset.dcl] = el.value; }));
     form.querySelectorAll('[data-dc-remove]').forEach(el => el.addEventListener('click', () => { dcLines.splice(Number(el.dataset.dcRemove), 1); draw(); }));
   };

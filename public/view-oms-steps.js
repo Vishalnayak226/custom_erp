@@ -131,7 +131,7 @@ async function renderPending(container) {
       <button type="button" class="btn btn-outline btn-sm" data-pending-bulk-act="reject">Reject</button>
     </div>
     <div class="table-wrapper"><table>
-      <thead><tr><th style="width:32px;"><input type="checkbox" data-pending-all aria-label="Select every pending order"></th>
+      <thead><tr><th class="s-82b9d8"><input type="checkbox" data-pending-all aria-label="Select every pending order"></th>
         <th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Location</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
       <tbody>${rows.length === 0 ? emptyRow(9, 'No order is waiting.') : rows.map(o => `<tr>
         <td><input type="checkbox" data-pending-pick="${esc(o.order_id)}" aria-label="Select order ${esc(o.order_number || o.order_id)}"${pendingSelected.has(o.order_id) ? ' checked' : ''}></td>
@@ -185,6 +185,7 @@ const HOLD_WORDS = {
   ALLOCATION_FAILED: 'No stock to reserve',
   PAYMENT_PENDING: 'Payment not confirmed',
   CREDIT: 'Over credit limit',
+  MARGIN: 'Below floor rate',
   ADDR_INVALID: 'Address incomplete',
   SKU_MAPPING_FAILED: 'An item is not mapped'
 };
@@ -212,7 +213,7 @@ async function renderOnHold(container) {
         <td title="${esc(o.hold_since || o.created_at)}">${esc(ageText(o.hold_since || o.created_at))}</td>
         <td class="num">${formatMoney(o.total_amount)}</td>
         <td class="oms-step-actions">
-          ${o.hold_reason === 'CREDIT' ? '' : `<button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>`}
+          ${o.hold_reason === 'CREDIT' || o.hold_reason === 'MARGIN' ? '' : `<button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>`}
           <button type="button" class="action-btn" data-hold-act="open" data-id="${esc(o.order_id)}">Open</button>
         </td></tr>`).join('')}</tbody>
     </table></div>`;
@@ -235,7 +236,7 @@ function loadOrderBox(container, step, tasks, orders, open) {
   const box = document.createElement('div');
   box.className = 'table-panel oms-step-panel';
   box.innerHTML = `
-    <form class="oms-scan-row" data-load-form style="margin:0;">
+    <form class="oms-scan-row s-116966" data-load-form>
       <input class="form-input" data-load-input autocomplete="off" placeholder="Scan or type the pick list, order or channel order number" aria-label="Load order">
       <button type="submit" class="btn btn-primary">Load</button>
     </form>

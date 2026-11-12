@@ -113,7 +113,7 @@ try {
         $brainOut = Join-Path $stage 'docs/brain'
         Run-Go @('run', './cmd/brainmap', '-out', $brainOut)
         Run-Go @('run', './cmd/brainmap', '-out', $brainOut, '-check')
-        $sets['brain'] = @('docs/brain/BRAIN.md', 'docs/brain/brain.html')
+        $sets['brain'] = @('docs/brain/brain-map.md', 'docs/brain/brain.html')
         $sources['brain'] = @('docs/brain/brain.map.json', 'graphify-out/graph.json', 'cmd/brainmap/main.go', 'cmd/brainmap/brain.tmpl.html', 'repository file inventory')
         $generators['brain'] = 'cmd/brainmap'
     }

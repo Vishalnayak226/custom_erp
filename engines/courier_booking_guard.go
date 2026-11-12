@@ -32,7 +32,7 @@ import (
 //     when the courier says there is none. A courier with no lookup refuses the
 //     retry (CourierUnconfirmedCode) until someone resolves it from the
 //     courier's portal: the AWB found there, or "not booked".
-//  4. db/migrations_stage47_11_8a_courier_booking_guard.sql is the backstop:
+//  4. db/migrations/migrations_stage47_11_8a_courier_booking_guard.sql is the backstop:
 //     one AWB on one live booking, one live AWB per parcel.
 
 // CourierBookingLookup is optional on a CourierAdapter: an adapter whose API

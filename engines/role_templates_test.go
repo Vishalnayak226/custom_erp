@@ -48,7 +48,7 @@ func TestKnownModulesMatchTheTenantSchema(t *testing.T) {
 // Administrator, not a separate grant) is unaffected.
 //
 // Stage 51.8 (2026-10-04): this used to assert on the "Stores" doctype by
-// name, which `db/migrations_stage30_5_5_retire_stores.sql` permanently
+// name, which `db/migrations/migrations_stage30_5_5_retire_stores.sql` permanently
 // retired into `Location` on 2026-08-02 - so the test was asserting a grant
 // on a doctype that no longer ships and could only ever fail. Rewritten to
 // sweep every doctype the live schema actually declares, which covers the

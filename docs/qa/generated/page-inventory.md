@@ -7,15 +7,15 @@
 > **Generated 2026-09-10.** This page is produced from `public/**/*.js`, the shell's view registry in `public/app.js`, `internal/server/routes.go` and `route_capabilities.go`, role templates, the data and settings registries, and the owner table in `docs/product/wholeops-outsider-plan-2026-10-23.md`, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Stage 135.5. Each front-end file, the screens the shell routes to it, and each API call its source makes, with the handler, module / feature gate, capability and roles enforced for that route. **Roles** are evaluated with `checkRouteCapability`, the check every signed-in request passes, for: Super Admin, Admin, Administrator, Store Supervisor, Cashier, Picker, Warehouse Manager, Accounts Payable, Accounts Receivable, Accountant, HR Manager, Employee Self-Service, Auditor, Integrator, Setup Operator, Merchandiser. A module gate also needs the module switched on for the client, and generic record routes also need the role's per-doctype grant. **Methods** are every method registered for the called path; the source is not parsed for which one it sends, and a path built from a base is matched to every route under that base. **Nothing here was inspected live** and tabs are not derived from source: 55.0F records both. **Failure behaviour** is one shared contract for every screen (47.10.6): a refused permission shows *No access*, a missing record *Not found*, any other load failure *Nothing was changed. Trying again is safe.* with a retry.
+Stage 135.5. Each front-end file, the screens the shell routes to it, and each API call its source makes, with the handler, module / feature gate, capability and roles enforced for that route. **Roles** are evaluated with `checkRouteCapability`, the check every signed-in request passes, for: Super Admin, Admin, Administrator, Store Supervisor, Cashier, Picker, Warehouse Manager, Accounts Payable, Accounts Receivable, Accountant, HR Manager, Employee Self-Service, Auditor, Integrator, Setup Operator, Privacy Approver, Merchandiser. A module gate also needs the module switched on for the client, and generic record routes also need the role's per-doctype grant. **Methods** are every method registered for the called path; the source is not parsed for which one it sends, and a path built from a base is matched to every route under that base. **Nothing here was inspected live** and tabs are not derived from source: 55.0F records both. **Failure behaviour** is one shared contract for every screen (47.10.6): a refused permission shows *No access*, a missing record *Not found*, any other load failure *Nothing was changed. Trying again is safe.* with a retry.
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 90 |
-| Screens in the shell registry | 69 |
-| File-to-route actions | 997 |
-| Registered `/api` routes | 907 |
-| Routes no front-end file calls | 189 |
+| Front-end files with screens or API calls | 112 |
+| Screens in the shell registry | 70 |
+| File-to-route actions | 1135 |
+| Registered `/api` routes | 1002 |
+| Routes no front-end file calls | 207 |
 | Calls matching no route | 2 |
 
 ## Screens and front-end files
@@ -28,6 +28,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | GET | `/api/v1/approval/pending` | `handleListPendingApprovals` |  | signed-in: approval.default | every signed-in role |
+| POST | `/api/v1/auth/logout` | `handleLogout` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/activate` | `handleMFAActivate` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/enroll` | `handleMFAEnroll` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/verify` | `handleMFAVerify` |  | signed-in: auth.default | every signed-in role |
@@ -42,6 +43,8 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | GET | `/api/v1/health` | `handleHealth` |  | public: health.default | anyone |
 | GET | `/api/v1/images` | `handleListOwnerImages` |  | signed-in: images.default | every signed-in role |
 | POST | `/api/v1/images` | `handleUploadOwnerImage` |  | signed-in: images.default | every signed-in role |
+| GET | `/api/v1/import-batches` | `handleImportBatchList` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches` | `handleImportBatchCreate` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/import/{doctype}/template` | `handleGetImportTemplate` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/import/{doctype}` | `handleBulkImport` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/inbox` | `handleTaskInbox` |  | signed-in: approval.default | every signed-in role |
@@ -49,6 +52,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | ANY | `/api/v1/labels` | `handleLabels` |  | signed-in: labels.default | every signed-in role |
 | GET | `/api/v1/localization` | `handleGetLocalization` |  | signed-in: localization.default | every signed-in role |
 | POST | `/api/v1/login` | `handleLogin` |  | public: login.default | anyone |
+| POST | `/api/v1/logs/browser-error` | `handleBrowserError` |  | signed-in: system.default | every signed-in role |
 | POST | `/api/v1/me/change-password` | `handleChangePassword` |  | signed-in: me.default | every signed-in role |
 | POST | `/api/v1/me/mfa/devices/forget` | `handleForgetMyMFADevices` |  | signed-in: me.default | every signed-in role |
 | POST | `/api/v1/me/mfa/recovery-codes/regenerate` | `handleMFARegenerateRecoveryCodes` |  | signed-in: me.default | every signed-in role |
@@ -72,10 +76,13 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | POST | `/api/v1/print/qz/payload` | `handleQZPrintPayload` | stickers | signed-in: stickers.default | every signed-in role |
 | GET | `/api/v1/ready` | `handleReadiness` |  | public: health.default | anyone |
 | GET | `/api/v1/reason-codes` | `handleListReasonCodes` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/reports/run/{id}` | `handleRunReport` | reports | signed-in: reports.default | every signed-in role |
 | POST | `/api/v1/reserve` | `handleCreateReservation` |  | signed-in: reserve.default | every signed-in role |
 | POST | `/api/v1/returns` | `handleCreateReturnRequest` | oms | signed-in: oms.default | every signed-in role |
 | ANY | `/api/v1/sequence` | `handleSequence` |  | signed-in: sequence.default | every signed-in role |
 | GET | `/api/v1/setup/status` | `handleSetupStatus` |  | signed-in: setup.default | every signed-in role |
+| GET | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
+| POST | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
 | GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
 | GET | `/api/v1/system/environment` | `handleGetEnvironment` |  | signed-in: system.default | every signed-in role |
@@ -131,6 +138,22 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | ANY | `/api/v1/crm/public/preferences` | `handleCRMPublicPreferences` | crm_loyalty | public: crm_loyalty.default | anyone |
+
+### `public/p/vendor.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| ANY | `/api/v1/procurement/vendor-link/public` | `handleVendorLinkPublic` | procurement | public: procurement.default | anyone |
+
+### `public/pim-catalog-share.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/pim/catalog-share` | `handlePIMCatalogShare` | pim | public: pim.default | anyone |
 
 ### `public/print-routing.js`
 
@@ -230,6 +253,14 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | ANY | `/api/v1/crm/tasks` | `handleCRMTasks` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/templates` | `handleCRMTemplates` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 
+### `public/store/store-earnings.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/store-app/earnings` | `handleStoreAppEarnings` |  | signed-in: store_app.default | every signed-in role |
+
 ### `public/store/store-floor.js`
 
 Owners: not in the plan's table. Live inspection: not recorded.
@@ -239,6 +270,17 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/pos/held-bills` | `handleListHeldPOSBills` |  | signed-in: pos.default | every signed-in role |
 | POST | `/api/v1/pos/held-bills` | `handleHoldPOSBill` |  | signed-in: pos.default | every signed-in role |
 | POST | `/api/v1/store-app/orders` | `handleStoreAppOrder` | oms | signed-in: oms.default | every signed-in role |
+
+### `public/store/store-inspect.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/reason-codes` | `handleListReasonCodes` |  | signed-in: doc.default | every signed-in role |
+| POST | `/api/v1/store-app/inspections/dispose` | `handleStoreAppInspectionDispose` | quality | signed-in: quality.default | every signed-in role |
+| POST | `/api/v1/store-app/inspections/result` | `handleStoreAppInspectionResult` | quality | signed-in: quality.default | every signed-in role |
+| GET | `/api/v1/store-app/inspections` | `handleStoreAppInspections` | quality | signed-in: quality.default | every signed-in role |
 
 ### `public/store/store-stock.js`
 
@@ -268,6 +310,8 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/store-app/counts` | `handleStoreAppCounts` | wms | signed-in: wms.default | every signed-in role |
 | GET | `/api/v1/store-app/devices` | `handleStoreAppDevices` |  | signed-in: store_app.devices | every signed-in role |
 | POST | `/api/v1/store-app/devices` | `handleStoreAppDevices` |  | signed-in: store_app.devices | every signed-in role |
+| GET | `/api/v1/store-app/earnings` | `handleStoreAppEarnings` |  | signed-in: store_app.default | every signed-in role |
+| GET | `/api/v1/store-app/inspections` | `handleStoreAppInspections` | quality | signed-in: quality.default | every signed-in role |
 | GET | `/api/v1/store-app/item` | `handleStoreAppItem` |  | signed-in: availability.default | every signed-in role |
 | GET | `/api/v1/store-app/labels` | `handleStoreAppLabels` | stickers | signed-in: stickers.default | every signed-in role |
 | POST | `/api/v1/store-app/labels` | `handleStoreAppLabels` | stickers | signed-in: stickers.default | every signed-in role |
@@ -288,6 +332,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | POST | `/api/v1/approval/decide` | `handleDecideApproval` |  | signed-in: approval.default | every signed-in role |
+| POST | `/api/v1/auth/logout` | `handleLogout` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/verify` | `handleMFAVerify` |  | signed-in: auth.default | every signed-in role |
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
@@ -301,6 +346,8 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/store-app/devices/{id}/remove` | `handleStoreAppDeviceRemove` |  | signed-in: store_app.devices | every signed-in role |
 | GET | `/api/v1/store-app/devices` | `handleStoreAppDevices` |  | signed-in: store_app.devices | every signed-in role |
 | POST | `/api/v1/store-app/devices` | `handleStoreAppDevices` |  | signed-in: store_app.devices | every signed-in role |
+| GET | `/api/v1/store-app/earnings` | `handleStoreAppEarnings` |  | signed-in: store_app.default | every signed-in role |
+| GET | `/api/v1/store-app/inspections` | `handleStoreAppInspections` | quality | signed-in: quality.default | every signed-in role |
 | GET | `/api/v1/store-app/item` | `handleStoreAppItem` |  | signed-in: availability.default | every signed-in role |
 | POST | `/api/v1/store-app/pin/login` | `handleStoreAppPINLogin` |  | public: login.default | anyone |
 | POST | `/api/v1/store-app/pin/remove` | `handleStoreAppPINRemove` |  | signed-in: store_app.default | every signed-in role |
@@ -328,6 +375,8 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/procurement/purchase-order/{id}/reconciliation` | `handlePOReconciliation` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/purchase-order/{id}/send` | `handleSendPurchaseOrder` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/purchase-order/{id}/short-close` | `handlePOShortClose` | procurement | signed-in: procurement.default | every signed-in role |
+| GET | `/api/v1/procurement/purchase-order/{id}/vendor-link` | `handleVendorLinkState` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/purchase-order/{id}/vendor-link` | `handleVendorLinkCreate` | procurement | signed-in: procurement.default | every signed-in role |
 
 ### `public/txn-screen.js`
 
@@ -400,6 +449,27 @@ Owners: M01, M30. Live inspection: not recorded.
 | GET | `/api/v1/unicommerce/credentials` | `handleGetUnicommerceCredentials` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/unicommerce/credentials` | `handleUnicommerceCredentials` | oms | signed-in: oms.default | every signed-in role |
 
+### `public/view-ai-access.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/admin/ai-access/clients` | `handleListAIAccessClients` | ai_access | admin: admin.api-credentials | Super Admin, Admin |
+| POST | `/api/v1/admin/ai-access/clients` | `handleIssueAIAccessClient` | ai_access | admin: admin.api-credentials | Super Admin, Admin |
+| DELETE | `/api/v1/admin/api-credentials/{id}` | `handleRevokeAPICredential` |  | admin: admin.api-credentials | Super Admin, Admin |
+| GET | `/api/v1/admin/users` | `handleListUsers` |  | admin: admin.users | Super Admin, Admin |
+| POST | `/api/v1/admin/users` | `handleCreateUser` |  | admin: admin.users | Super Admin, Admin |
+
+### `public/view-ai-drafts.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/orders/assistant-drafts` | `handleListAssistantDrafts` | ai_access | signed-in: ai_access.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/submit-assistant-draft` | `handleSubmitAssistantDraft` | ai_access | signed-in: ai_access.default | every signed-in role |
+
 ### `public/view-api-access.js`
 
 Owners: M28. Live inspection: not recorded.
@@ -436,6 +506,17 @@ Owners: M02, M14. Live inspection: not recorded.
 |---|---|---|---|---|---|
 | GET | `/api/v1/platform/tenants/{tenant}/attribute-library` | `handleAttributeLibrary` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/attribute-library` | `handleApplyAttributeLibrary` |  | admin: platform.console | Super Admin |
+
+### `public/view-b2b-pricing.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/orders/{id}/margin-release` | `handleMarginRelease` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/pricing/endings/apply` | `handlePriceEndingsApply` |  | signed-in: pos.default | every signed-in role |
+| POST | `/api/v1/pricing/endings/preview` | `handlePriceEndingsPreview` |  | signed-in: pos.default | every signed-in role |
+| GET | `/api/v1/pricing/flags` | `handlePricingFlags` | oms | signed-in: oms.default | every signed-in role |
 
 ### `public/view-bin-tools.js`
 
@@ -486,6 +567,14 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/sales/bulk-upload/runs/{id}` | `handleBulkSalesRun` |  | signed-in: finance.default | every signed-in role |
 | GET | `/api/v1/sales/bulk-upload/runs` | `handleBulkSalesRuns` |  | signed-in: finance.default | every signed-in role |
 | GET | `/api/v1/sales/bulk-upload/template` | `handleBulkSalesTemplate` |  | signed-in: finance.default | every signed-in role |
+
+### `public/view-channel-listings.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/marketplace/channels/{channel}/listings` | `handleChannelListings` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 
 ### `public/view-consumption.js`
 
@@ -547,6 +636,16 @@ Owners: M19, M24. Live inspection: not recorded.
 | ANY | `/api/v1/crm/tickets` | `handleCRMTickets` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+
+### `public/view-custom-orders.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/sales/custom-orders/choices` | `handleCustomOrderChoices` | custom_orders | signed-in: custom_orders.default | every signed-in role |
+| POST | `/api/v1/sales/custom-orders/quote` | `handleCustomOrderQuote` | custom_orders | signed-in: custom_orders.default | every signed-in role |
+| POST | `/api/v1/sales/custom-orders` | `handleCreateCustomOrder` | custom_orders | signed-in: custom_orders.default | every signed-in role |
 
 ### `public/view-dashboards.js`
 
@@ -627,6 +726,16 @@ Owners: M17, M18. Live inspection: not recorded.
 | POST | `/api/v1/gst/ewaybills/{doctype}/{id}/{action}` | `handleEWBAction` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/gst/ewaybills` | `handleListEWBs` |  | signed-in: doc.default | every signed-in role |
 
+### `public/view-expense-bill.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/procurement/expense-bills/{id}/link-po` | `handleLinkExpenseBill` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| GET | `/api/v1/procurement/expense-bills` | `handleListExpenseBills` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/expense-bills` | `handleCreateExpenseBill` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+
 ### `public/view-expenses.js`
 
 Screens: Expenses (`#/view/expenses`; help: Submit and settle an expense claim, verified 2026-09-09).  
@@ -682,14 +791,19 @@ Owners: M17, M18. Live inspection: not recorded.
 | GET | `/api/v1/finance/periods/{id}/close-checklist` | `handlePeriodCloseChecklist` |  | signed-in: finance.default | every signed-in role |
 | POST | `/api/v1/finance/periods/{id}/close-tasks/{task}/{action}` | `handlePeriodCloseTaskAction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/periods/{id}/close` | `handleCloseAccountingPeriod` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/periods/{id}/hold` | `handleHoldAccountingPeriod` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/periods/{id}/release` | `handleReleaseAccountingPeriod` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/periods/{id}/reopen-request` | `handlePeriodReopenRequest` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.default | every signed-in role |
 | POST | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/sales-invoice/{id}/cancel` | `handleCancelSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/sales-invoice/{id}/post` | `handlePostSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/sales-invoice/{id}/settle` | `handleSettleSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| GET | `/api/v1/finance/set-off/suggestions` | `handleSetOffSuggestions` |  | signed-in: finance.default | every signed-in role |
 | GET | `/api/v1/finance/trial-balance` | `handleTrialBalance` |  | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
 | POST | `/api/v1/finance/vendor-credit-note/{id}/post` | `handlePostVendorCreditNote` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| GET | `/api/v1/procurement/expense-bills` | `handleListExpenseBills` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/expense-bills` | `handleCreateExpenseBill` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/procurement/vendor-invoice/match` | `handleMatchVendorInvoice` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/vendor-invoice/pay-with-tds` | `handlePayVendorInvoiceWithTDS` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/procurement/vendor-invoice/pay` | `handlePayVendorInvoice` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
@@ -704,6 +818,32 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/attachments/{doctype}/{id}` | `handleListAttachments` |  | signed-in: attachments.default | every signed-in role |
 | POST | `/api/v1/attachments/{doctype}/{id}` | `handleAddAttachment` |  | signed-in: attachments.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+
+### `public/view-golive.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/golive/graph/scope` | `handleGoLiveGraphScope` |  | admin: admin.golive | Super Admin, Admin |
+| GET | `/api/v1/golive/graph` | `handleGoLiveGraph` |  | admin: admin.golive | Super Admin, Admin |
+| POST | `/api/v1/golive/packs/{pack}/evidence` | `handleGoLiveEvidence` |  | admin: admin.golive | Super Admin, Admin |
+| POST | `/api/v1/golive/packs/{pack}/signoff` | `handleGoLiveSignOff` |  | admin: admin.golive | Super Admin, Admin |
+| POST | `/api/v1/golive/packs/{pack}/waive/end` | `handleGoLiveWaiveEnd` |  | admin: admin.golive | Super Admin, Admin |
+| POST | `/api/v1/golive/packs/{pack}/waive` | `handleGoLiveWaive` |  | admin: admin.golive | Super Admin, Admin |
+| GET | `/api/v1/golive/packs/{pack}` | `handleGoLivePack` |  | admin: admin.golive | Super Admin, Admin |
+| GET | `/api/v1/golive/scope` | `handleGoLiveScopeGet` |  | admin: admin.golive | Super Admin, Admin |
+| POST | `/api/v1/golive/scope` | `handleGoLiveScopeSave` |  | admin: admin.golive | Super Admin, Admin |
+
+### `public/view-gstr1-lock.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/finance/gstr1-filed/{month}/unmark` | `handleGSTR1Unmark` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/gstr1-filed/{month}` | `handleGSTR1MarkFiled` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| GET | `/api/v1/finance/gstr1-filed` | `handleGSTR1FiledMonths` |  | signed-in: finance.default | every signed-in role |
 
 ### `public/view-handoff.js`
 
@@ -776,6 +916,42 @@ Owners: M28. Live inspection: not recorded.
 | POST | `/api/v1/import-jobs/{id}/resume` | `handleResumeImportJob` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/import-jobs/{id}` | `handleImportJobSummary` |  | signed-in: import.default | every signed-in role |
 
+### `public/view-import-staging.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/availability` | `handleGetAvailability` |  | signed-in: availability.default | every signed-in role |
+| GET | `/api/v1/branding` | `handleBranding` |  | public: version.default | anyone |
+| POST | `/api/v1/checkout` | `handleCheckout` |  | signed-in: checkout.default | every signed-in role |
+| GET | `/api/v1/doc-find` | `handleDocFind` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/grn-steps` | `handleGRNStepsInbox` | procurement | signed-in: procurement.default | every signed-in role |
+| GET | `/api/v1/health` | `handleHealth` |  | public: health.default | anyone |
+| GET | `/api/v1/images` | `handleListOwnerImages` |  | signed-in: images.default | every signed-in role |
+| POST | `/api/v1/images` | `handleUploadOwnerImage` |  | signed-in: images.default | every signed-in role |
+| GET | `/api/v1/import-batches` | `handleImportBatchList` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches` | `handleImportBatchCreate` |  | signed-in: import.default | every signed-in role |
+| GET | `/api/v1/inbox` | `handleTaskInbox` |  | signed-in: approval.default | every signed-in role |
+| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.default | every signed-in role |
+| ANY | `/api/v1/labels` | `handleLabels` |  | signed-in: labels.default | every signed-in role |
+| GET | `/api/v1/localization` | `handleGetLocalization` |  | signed-in: localization.default | every signed-in role |
+| POST | `/api/v1/login` | `handleLogin` |  | public: login.default | anyone |
+| GET | `/api/v1/me` | `handleGetProfile` |  | signed-in: me.default | every signed-in role |
+| PUT | `/api/v1/me` | `handleUpdateProfile` |  | signed-in: me.default | every signed-in role |
+| POST | `/api/v1/orders` | `handleCreateSalesOrder` | oms | signed-in: oms.default | every signed-in role |
+| ANY | `/api/v1/prefix` | `handlePrefix` |  | signed-in: prefix.default | every signed-in role |
+| GET | `/api/v1/ready` | `handleReadiness` |  | public: health.default | anyone |
+| GET | `/api/v1/reason-codes` | `handleListReasonCodes` |  | signed-in: doc.default | every signed-in role |
+| POST | `/api/v1/reserve` | `handleCreateReservation` |  | signed-in: reserve.default | every signed-in role |
+| POST | `/api/v1/returns` | `handleCreateReturnRequest` | oms | signed-in: oms.default | every signed-in role |
+| ANY | `/api/v1/sequence` | `handleSequence` |  | signed-in: sequence.default | every signed-in role |
+| GET | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
+| POST | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
+| GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
+| GET | `/api/v1/version` | `handleVersion` |  | public: version.default | anyone |
+
 ### `public/view-inbox.js`
 
 Screens: Approvals (`#/view/approvals`; help: Open a shop and make your first sale, verified 2026-08-17; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Security, Roles & Approvals, verified 2026-09-03; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17).  
@@ -847,6 +1023,8 @@ Owners: M02, M14. Live inspection: not recorded.
 | GET | `/api/v1/inventory/item-setup` | `handleGetItemSetup` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/inventory/material-requests` | `handleCreateMaterialRequest` | inventory | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/inventory/mrp-changes` | `handleCreateMRPChange` | inventory | signed-in: inventory.default | every signed-in role |
+| GET | `/api/v1/inventory/piece-holds` | `handleListPieceHolds` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/inventory/piece-holds` | `handlePlacePieceHold` | inventory | signed-in: inventory.default | every signed-in role |
 | GET | `/api/v1/inventory/stock` | `handleInventoryStock` | inventory | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/inventory/treatment-correction/apply` | `handleTreatmentCorrectionApply` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/inventory/treatment-correction/preview` | `handleTreatmentCorrectionPreview` |  | signed-in: doc.default | every signed-in role |
@@ -862,6 +1040,18 @@ Owners: M15, M16. Live inspection: not recorded.
 | POST | `/api/v1/manufacturing/subcontract-order/receive-lines` | `handleReceiveJobWorkLines` | manufacturing | signed-in: manufacturing.default | every signed-in role |
 | POST | `/api/v1/manufacturing/subcontract-order/receive` | `handleReceiveSubcontractOrder` | manufacturing | signed-in: manufacturing.default | every signed-in role |
 | POST | `/api/v1/manufacturing/subcontract-order/send` | `handleSendSubcontractOrder` | manufacturing | signed-in: manufacturing.default | every signed-in role |
+
+### `public/view-journal-tools.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/approval/submit` | `handleSubmitApproval` |  | signed-in: approval.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/intercompany-transaction` | `handleCreateIntercompanyTransaction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 
 ### `public/view-journal.js`
 
@@ -1003,6 +1193,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/marketplace/channels/{channel}/credentials` | `handleChannelConnectorCredentials` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/channels/{channel}/credentials` | `handleChannelConnectorCredentials` | oms / oms_integration | signed-in: oms.default | every signed-in role |
+| GET | `/api/v1/marketplace/channels/{channel}/listings` | `handleChannelListings` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/channels/{channel}/pull-orders` | `handleChannelOrderPull` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/channels/{channel}/push-status` | `handleChannelStatusPush` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/marketplace/channels/{channel}/setup-check` | `handleChannelSetupCheck` | oms / oms_integration | signed-in: oms.default | every signed-in role |
@@ -1031,18 +1222,15 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | POST | `/api/v1/oms/views` | `handleOMSSavedViews` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/order-lines/{lineId}/hold` | `handleHoldOrderLine` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/order-lines/{lineId}/release-hold` | `handleReleaseOrderLineHold` | oms | signed-in: oms.default | every signed-in role |
+| GET | `/api/v1/orders/assistant-drafts` | `handleListAssistantDrafts` | ai_access | signed-in: ai_access.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/cancel` | `handleCancelOrder` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/credit-notes` | `handleOrderCreditNotes` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/edit` | `handleEditOrder` | oms | signed-in: oms.default | every signed-in role |
-| POST | `/api/v1/orders/{id}/hold` | `handlePlaceOrderHold` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/lines` | `handleEditOrderLines` | oms | signed-in: oms.default | every signed-in role |
-| POST | `/api/v1/orders/{id}/priority` | `handleSetOrderPriority` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/release-hold` | `handleReleaseOrderHold` | oms | signed-in: oms.default | every signed-in role |
-| POST | `/api/v1/orders/{id}/release-to-fulfillment` | `handleReleaseOrderToFulfillment` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/replacement` | `handleCreateReplacementOrder` | oms | signed-in: oms.default | every signed-in role |
-| POST | `/api/v1/orders/{id}/split` | `handleSplitOrder` | oms | signed-in: oms.default | every signed-in role |
-| POST | `/api/v1/orders/{id}/switch-facility` | `handleSwitchOrderFacility` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders` | `handleCreateSalesOrder` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/pricing/line` | `handlePricingLine` |  | signed-in: pos.default | every signed-in role |
 | GET | `/api/v1/reports/run/{id}` | `handleRunReport` | reports | signed-in: reports.default | every signed-in role |
 | POST | `/api/v1/returns` | `handleCreateReturnRequest` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/wms/bundles/{operation}` | `handleBundleAssembly` | wms | signed-in: wms.default | every signed-in role |
@@ -1071,6 +1259,16 @@ Owners: not in the plan's table. Live inspection: not recorded.
 |---|---|---|---|---|---|
 | GET | `/api/v1/inventory/pieces/{doctype}/{id}` | `handleGetPieceAttributes` | inventory | signed-in: inventory.default | every signed-in role |
 
+### `public/view-piece-hold.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/inventory/piece-holds/release` | `handleReleasePieceHold` | inventory | signed-in: inventory.default | every signed-in role |
+| GET | `/api/v1/inventory/piece-holds` | `handleListPieceHolds` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/inventory/piece-holds` | `handlePlacePieceHold` | inventory | signed-in: inventory.default | every signed-in role |
+
 ### `public/view-pim-data.js`
 
 Owners: not in the plan's table. Live inspection: not recorded.
@@ -1098,6 +1296,19 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/pim/live-on/{itemCode}` | `handlePIMLiveOn` | pim | signed-in: pim.default | every signed-in role |
+
+### `public/view-pim-stewardship.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/approval/submit` | `handleSubmitApproval` |  | signed-in: approval.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/pim/media-order` | `handlePIMMediaOrder` | pim | signed-in: pim.default | every signed-in role |
+| POST | `/api/v1/pim/media-order` | `handlePIMMediaOrder` | pim | signed-in: pim.default | every signed-in role |
+| GET | `/api/v1/pim/stewardship/{attribute}` | `handlePIMStewardshipDetail` | pim | signed-in: pim.default | every signed-in role |
+| GET | `/api/v1/pim/stewardship` | `handlePIMStewardship` | pim | signed-in: pim.default | every signed-in role |
 
 ### `public/view-pim.js`
 
@@ -1133,6 +1344,8 @@ Owners: M14, M27. Live inspection: not recorded.
 | GET | `/api/v1/pim/import-templates/{id}/preview-mapping` | `handlePIMImportTemplatePreviewMapping` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/import-templates/{id}/preview` | `handlePIMImportTemplateRun` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/import-templates` | `handlePIMImportTemplates` | pim | signed-in: pim.default | every signed-in role |
+| GET | `/api/v1/pim/media-order` | `handlePIMMediaOrder` | pim | signed-in: pim.default | every signed-in role |
+| POST | `/api/v1/pim/media-order` | `handlePIMMediaOrder` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/media/bulk-download` | `handlePIMMediaBulkDownload` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/media/bulk-upload` | `handlePIMMediaBulkUpload` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/media/search` | `handlePIMMediaSearch` | pim | signed-in: pim.default | every signed-in role |
@@ -1149,6 +1362,7 @@ Owners: M14, M27. Live inspection: not recorded.
 | GET | `/api/v1/pim/related-products/{itemCode}` | `handlePIMRelatedProducts` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/reports/{name}` | `handlePIMReport` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/search-feed.csv` | `handlePIMSearchFeedExport` | pim | signed-in: pim.default | every signed-in role |
+| GET | `/api/v1/pim/stewardship` | `handlePIMStewardship` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/task-templates/{code}/instantiate` | `handlePIMTaskTemplateInstantiate` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/task-templates` | `handlePIMTaskTemplates` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/tasks/bulk` | `handlePIMTaskBulk` | pim | signed-in: pim.default | every signed-in role |
@@ -1295,6 +1509,15 @@ Owners: M03, M04. Live inspection: not recorded.
 | GET | `/api/v1/procurement/purchase-returns/context` | `handlePurchaseReturnContext` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/purchase-returns/{id}/post` | `handlePostPurchaseReturn` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/reports/run/{id}` | `handleRunReport` | reports | signed-in: reports.default | every signed-in role |
+
+### `public/view-product-sheet.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/pim/product-sheet/import` | `handleProductSheet` | pim | signed-in: pim.default | every signed-in role |
+| POST | `/api/v1/pim/product-sheet/preview` | `handleProductSheet` | pim | signed-in: pim.default | every signed-in role |
 
 ### `public/view-purchase-trust.js`
 
@@ -1445,6 +1668,8 @@ Owners: M29. Live inspection: not recorded.
 | POST | `/api/v1/admin/role-permissions/rollback` | `handleRoleGrantRollback` |  | admin: admin.role-permissions | Super Admin, Admin |
 | GET | `/api/v1/admin/role-permissions` | `handleRolePermissions` |  | admin: admin.role-permissions | Super Admin, Admin |
 | POST | `/api/v1/admin/role-permissions` | `handleRolePermissions` |  | admin: admin.role-permissions | Super Admin, Admin |
+| GET | `/api/v1/admin/roles/landing` | `handleRoleLanding` |  | admin: admin.roles | Super Admin, Admin |
+| POST | `/api/v1/admin/roles/landing` | `handleRoleLanding` |  | admin: admin.roles | Super Admin, Admin |
 | GET | `/api/v1/admin/roles/stores` | `handleRoleStores` |  | admin: admin.roles | Super Admin, Admin |
 | POST | `/api/v1/admin/roles/stores` | `handleRoleStores` |  | admin: admin.roles | Super Admin, Admin |
 | GET | `/api/v1/admin/roles` | `handleListRoles` |  | admin: admin.roles | Super Admin, Admin |
@@ -1461,6 +1686,26 @@ Owners: M17, M18. Live inspection: not recorded.
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| POST | `/api/v1/pricing/line` | `handlePricingLine` |  | signed-in: pos.default | every signed-in role |
+
+### `public/view-security-notify.js`
+
+Screens: Privacy approvals (`#/view/privacy-approvals`; no help article).  
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/admin/security/export/backfill` | `handleSecurityExportBackfill` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/export/test` | `handleSecurityExportTest` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/export` | `handleSecurityExportStatus` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/export` | `handleSecurityExportSave` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/notify/approvers` | `handleNotifyApprovers` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/notify/decide` | `handleNotifyDecide` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/notify/decisions` | `handleNotifyDecisions` |  | admin: admin.privacy-approval | Super Admin, Admin, Privacy Approver |
+| POST | `/api/v1/admin/security/notify/incidents` | `handleNotifyIncidentOpen` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/notify/matrix` | `handleNotifyMatrix` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/notify/matrix` | `handleNotifyMatrixSave` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/notify/review` | `handleNotifyReview` |  | admin: admin.privacy-approval | Super Admin, Admin, Privacy Approver |
 
 ### `public/view-security.js`
 
@@ -1469,6 +1714,8 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | GET | `/api/v1/admin/audit-logs/forensic-export` | `handleForensicExport` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/access-reviews` | `handleListAccessReviews` |  | admin: admin.users | Super Admin, Admin |
+| POST | `/api/v1/admin/security/access-reviews` | `handleRecordAccessReview` |  | admin: admin.users | Super Admin, Admin |
 | POST | `/api/v1/admin/security/detections/run` | `handleRunSecurityDetections` |  | admin: admin.audit-logs | Super Admin, Admin |
 | POST | `/api/v1/admin/security/freeze-exports` | `handleFreezeExports` |  | admin: admin.audit-logs | Super Admin, Admin |
 | POST | `/api/v1/admin/security/freeze-integrations` | `handleFreezeIntegrations` |  | admin: admin.audit-logs | Super Admin, Admin |
@@ -1491,6 +1738,18 @@ Owners: M21–M24. Live inspection: not recorded.
 | GET | `/api/v1/service/contracts/{id}` | `handleServiceContractView` | service | signed-in: service.default | every signed-in role |
 | GET | `/api/v1/service/desk` | `handleServiceDesk` | service | signed-in: service.default | every signed-in role |
 | POST | `/api/v1/service/ticket` | `handleCreateServiceTicket` | service | signed-in: service.default | every signed-in role |
+
+### `public/view-set-off.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/finance/set-off/pairs/{id}/balances` | `handleSetOffBalances` |  | signed-in: finance.default | every signed-in role |
+| GET | `/api/v1/finance/set-off/suggestions` | `handleSetOffSuggestions` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/set-off/{id}/reverse` | `handleSetOffReverse` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| GET | `/api/v1/finance/set-off/{id}/statement` | `handleSetOffStatement` |  | signed-in: finance.default | every signed-in role |
 
 ### `public/view-setup-workbook.js`
 
@@ -1515,6 +1774,16 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/integrations/credentials/disconnect` | `handleConnectorDisconnect` |  | admin: admin.integrations | Super Admin, Admin |
 | GET | `/api/v1/shopify/{channel}` | `handleShopifyOverview` | oms | signed-in: oms.default | every signed-in role |
+
+### `public/view-stock-age.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
+| POST | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
 
 ### `public/view-stock-locations.js`
 
@@ -1610,6 +1879,19 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/procurement/vendor-rebates/{id}/settle` | `handleSettleVendorRebateClaim` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/procurement/vendor-rebates/{id}/submit` | `handleSubmitVendorRebateClaim` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 
+### `public/view-vendor-link.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/procurement/purchase-order/{id}/vendor-link` | `handleVendorLinkState` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/purchase-order/{id}/vendor-link` | `handleVendorLinkCreate` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/vendor-link/file/{id}/review` | `handleVendorLinkFileReview` | procurement | signed-in: procurement.default | every signed-in role |
+| GET | `/api/v1/procurement/vendor-link/file/{id}` | `handleVendorLinkFile` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/vendor-link/proposal/{id}/apply` | `handleVendorLinkApply` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/vendor-link/proposal/{id}/reject` | `handleVendorLinkReject` | procurement | signed-in: procurement.default | every signed-in role |
+
 ### `public/view-warehouse.js`
 
 Screens: Putaway (`#/view/putaway`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Warehouse Cockpit (`#/view/warehouse-cockpit`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Appointment Calendar (`#/view/appointment-calendar`; help: Dock appointments, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Yard Board (`#/view/yard-board`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; Trailer check-in and yard movement, verified 2026-09-09), Place Hold (`#/view/place-hold`; help: Place and release an inventory hold, verified 2026-10-18; Warehouse (WMS) - what each screen is for, verified 2026-10-18), RF Receiving (`#/view/rf-receiving`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Sortation (`#/view/sortation`; help: Sort orders into put-wall slots, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Loading Dock (`#/view/loading-dock`; help: Load cartons and record departure, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Bin Conditions (`#/view/bin-conditions`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Cycle Count (`#/view/cycle-count`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), License Plates (`#/view/lpn`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Bin Replenishment (`#/view/bin-replenishment`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Location Movement (`#/view/location-movement`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18), Wave Picking (`#/view/wave-picking`; help: Inventory & Warehouse Operations, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Mobile Picking (`#/view/mobile-picking`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17).  
@@ -1667,6 +1949,17 @@ Owners: M08–M11. Live inspection: not recorded.
 | POST | `/api/v1/wms/yard/check-in` | `handleYardCheckIn` | wms | signed-in: wms.default | every signed-in role |
 | POST | `/api/v1/wms/yard/{id}/door` | `handleYardAssignDoor` | wms | signed-in: wms.default | every signed-in role |
 
+### `public/view-wholesale.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/finance/summary-invoices/preview` | `handlePreviewSummaryInvoices` | wholesale | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/summary-invoices` | `handleCreateSummaryInvoices` | wholesale | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/procurement/dropship-confirm` | `handleConfirmDropShip` | wholesale | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| GET | `/api/v1/procurement/dropship-lines` | `handleOpenDropShipLines` | wholesale | signed-in: wholesale.default | every signed-in role |
+
 ### `public/view-wms-labour.js`
 
 Owners: M08–M11. Live inspection: not recorded.
@@ -1680,17 +1973,18 @@ Owners: M08–M11. Live inspection: not recorded.
 | GET | `/api/v1/wms/labor/plan` | `handleLaborPlan` | wms | signed-in: wms.default | every signed-in role |
 | GET | `/api/v1/wms/labor/standard-preview` | `handleLaborStandardPreview` | wms | signed-in: wms.default | every signed-in role |
 
-No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `shell-steady.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
+No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `shell-nav.js`, `shell-steady.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
 
 ## Screens missing an owner or a help article
 
-3 of 69 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
+4 of 70 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
 
 | Screen | View | File | Owner | Help article |
 |---|---|---|---|---|
 | Bin Generator | `bin-tools` | `public/view-bin-tools.js` | missing | yes |
 | Gate entries | `gate-entry` | `public/view-gate-entry.js` | missing | yes |
 | Offline Sales | `offline-sales` | `public/view-offline-sales.js` | missing | yes |
+| Privacy approvals | `privacy-approvals` | `public/view-security-notify.js` | missing | missing |
 
 ## Generic Setup pages
 
@@ -1736,26 +2030,30 @@ Settings → Configuration renders the settings registry by module, through the 
 | Module | Settings |
 |---|---|
 | App branding | 1 |
-| CRM | 29 |
-| Finance | 4 |
+| CRM | 30 |
+| Finance | 8 |
 | GST & Compliance | 1 |
 | HR & Payroll | 1 |
-| Inventory | 17 |
+| Inventory | 19 |
 | Localization | 2 |
 | Loyalty | 14 |
 | Manufacturing | 4 |
+| Navigation | 1 |
 | Notifications | 1 |
 | OMS | 9 |
+| Orders | 4 |
 | PIM | 4 |
-| PIM / PIMS | 1 |
-| Platform | 25 |
-| Point of Sale | 12 |
+| PIM / PIMS | 2 |
+| Platform | 26 |
+| Point of Sale | 13 |
 | Printing | 6 |
-| Procurement | 19 |
+| Procurement | 20 |
 | Procurement & GRN | 15 |
+| Quality | 4 |
 | Reports | 1 |
-| Sales & Returns | 1 |
-| Security | 15 |
+| Sales | 3 |
+| Sales & Returns | 5 |
+| Security | 25 |
 | Stock Transfer | 1 |
 | Store app | 1 |
 | Warehouse | 16 |
@@ -1845,9 +2143,6 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/crm/voucher/validate` | `handleValidateVoucher` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | POST | `/api/v1/doc/{doctype}/{id}/reactivate` | `handleReactivateMasterDocument` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/einvoice/reconciliation` | `handleEInvoiceReconciliation` | finance | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
-| GET | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
-| POST | `/api/v1/finance/intercompany-transaction` | `handleCreateIntercompanyTransaction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/intercompany-transaction/{id}/retry-post` | `handleRetryPostIntercompanyTransaction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/journal-voucher/recurring` | `handleCreateRecurringJournalTemplate` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/landed-cost-voucher` | `handleCreateLandedCostVoucher` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
@@ -1863,6 +2158,14 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | GET | `/api/v1/help/public/index` | `handleHelpPublicIndex` |  | public: help.default | anyone |
 | GET | `/api/v1/help/public/search-index` | `handleHelpPublicSearchIndex` |  | public: help.default | anyone |
 | GET | `/api/v1/hr/salary-components` | `handleSalaryComponentsPreview` | hr | signed-in: hr.payroll | Super Admin, Admin, Administrator, HR Manager |
+| GET | `/api/v1/import-batches/{id}` | `handleImportBatchGet` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/approve` | `handleImportBatchApprove` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/commit` | `handleImportBatchCommit` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/discard` | `handleImportBatchDiscard` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/preview` | `handleImportBatchPreview` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/reconcile` | `handleImportBatchReconcile` |  | signed-in: import.default | every signed-in role |
+| GET | `/api/v1/import-batches/{id}/rows` | `handleImportBatchRows` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/validate` | `handleImportBatchValidate` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/integration/bigcommerce/webhook/{channelCode}` | `handleBigCommerceWebhook` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/integration/courier/{provider}/tracking` | `handleCourierTrackingWebhook` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/integration/shopify/order` | `handleShopifyOrderWebhook` | oms / oms_integration | signed-in: oms.default | every signed-in role |
@@ -1872,6 +2175,10 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/inventory/pieces/{doctype}/{id}/correct` | `handleCorrectPieceAttributes` | inventory | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/loyalty/redeem` | `handleRedeemLoyaltyPoints` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | GET | `/api/v1/manufacturing/active-bom` | `handleActiveBOMForItem` | manufacturing | signed-in: manufacturing.default | every signed-in role |
+| POST | `/api/v1/marketplace/channels/{channel}/listings/link` | `handleChannelListingsLink` | oms / oms_integration | signed-in: oms.default | every signed-in role |
+| GET | `/api/v1/marketplace/channels/{channel}/listings/link-preview` | `handleChannelListingsLinkPreview` | oms / oms_integration | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/marketplace/channels/{channel}/listings/pull` | `handleChannelListingsPull` | oms / oms_integration | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/marketplace/channels/{channel}/listings/stock-sync` | `handleChannelListingsStockSync` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/marketplace/connectors` | `handleConnectorDescriptors` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/couriers/{provider}/awb` | `handleCourierAllocateAWB` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/couriers/{provider}/cancel` | `handleCourierCancel` | oms / oms_integration | signed-in: oms.default | every signed-in role |
@@ -1881,11 +2188,17 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/marketplace/ndr/{id}/resolve` | `handleNDRResolve` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/gate-passes/{id}/discard` | `handleGatePassTransition` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/gate-passes/{id}/update` | `handleUpdateGatePass` | oms | signed-in: oms.default | every signed-in role |
+| GET | `/api/v1/oms/promise` | `handlePromisePreview` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/shipping-packages/{id}/cancel` | `handleCancelShippingPackage` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/shipping-packages/{id}/split` | `handleSplitShippingPackage` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/optimization/forecast` | `handleDemandForecast` | advanced_forecasting | signed-in: optimization.default | every signed-in role |
 | GET | `/api/v1/optimization/replenishment-suggestions` | `handleReplenishmentSuggestions` | advanced_forecasting | signed-in: optimization.default | every signed-in role |
 | GET | `/api/v1/optimization/sla-breaches` | `handleSLABreaches` | advanced_forecasting | signed-in: optimization.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/hold` | `handlePlaceOrderHold` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/priority` | `handleSetOrderPriority` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/release-to-fulfillment` | `handleReleaseOrderToFulfillment` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/split` | `handleSplitOrder` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/switch-facility` | `handleSwitchOrderFacility` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/pim/channels/{code}/credentials` | `handleSaveChannelCredential` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/channels/{code}/pull-state` | `handlePIMChannelPullState` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/import-schedules/{id}/rotate-hook-token` | `handlePIMImportScheduleRotateHookToken` | pim | signed-in: pim.default | every signed-in role |
@@ -1902,6 +2215,9 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/pos/payment/void` | `handlePOSPaymentVoid` |  | signed-in: pos.default | every signed-in role |
 | POST | `/api/v1/procurement/purchase-order/{id}/images/main` | `handlePOImageMain` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/purchase-order/{id}/images/remove` | `handlePOImageRemove` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/purchase-order/{id}/vendor-link/revoke` | `handleVendorLinkRevoke` | procurement | signed-in: procurement.default | every signed-in role |
+| ANY | `/api/v1/procurement/vendor-link/public/invoice` | `handleVendorLinkPublicInvoice` | procurement | public: procurement.default | anyone |
+| ANY | `/api/v1/procurement/vendor-link/public/proposal` | `handleVendorLinkPublicProposal` | procurement | public: procurement.default | anyone |
 | POST | `/api/v1/refunds/{id}/reject` | `handleRejectRefundRequest` | oms | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/reports/current-stock` | `handleCurrentStockReport` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/reports/sales-register` | `handleSalesRegisterReport` | reports | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |

@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "kind": "journeylab.soak",
+  "generated_at": "2026-11-10T17:43:53Z",
+  "duration_planned": "15m0s",
+  "duration_actual_seconds": 1001.45,
+  "db_stats_source": "pg_stat_statements",
+  "cycles": 5,
+  "cycles_pass": 5,
+  "cycles_failed_outside_disturbances": 0,
+  "cycles_failed_during_disturbances": 0,
+  "api_p95_ms_first_quarter": 0,
+  "api_p95_ms_last_quarter": 0,
+  "server_rss_kb_start": 39220,
+  "server_rss_kb_end": 51108,
+  "server_rss_kb_peak": 77396,
+  "disturbances": [
+    {
+      "name": "server restart mid-load",
+      "status": "pass",
+      "detail": "server killed hard while the journey was running; the next cycle passed without help",
+      "measures": [
+        "healthy again after 3.3 s",
+        "back in service after 23.5 s"
+      ]
+    },
+    {
+      "name": "outbox drains after the server restart",
+      "status": "pass",
+      "detail": "no event stayed Pending after the restart",
+      "measures": [
+        "2 event(s) in the outbox, 0 Pending at the moment of the kill, 0 Pending for over a minute afterwards"
+      ]
+    },
+    {
+      "name": "token and rate-limiter key churn",
+      "status": "pass",
+      "detail": "memory plateaued: +40764 KB over the first two rounds, +-6944 KB over the last two (cap 65536 KB)",
+      "measures": [
+        "4000 junk-token and 4000 signed-token requests per round, 4 rounds; 8200 answered, 7800 rate-limited",
+        "server RSS KB: before 32464, after round 1 59004, after round 2 73228, after rounds 3-4 66284"
+      ]
+    },
+    {
+      "name": "database restart",
+      "status": "pass",
+      "detail": "Postgres restarted (fast) under load, server kept running; service resumed without a server restart",
+      "measures": [
+        "service resumed after 138.6 s"
+      ]
+    },
+    {
+      "name": "month boundary and time zone (database level)",
+      "status": "pass",
+      "detail": "the business day starts at the same instant whichever zone the session uses, and the day before ends one second earlier; running the application at a faked date still needs a clock seam",
+      "measures": [
+        "19 boundary checks over 6 dates and 3 session zones, plus one daylight-saving business-zone check"
+      ]
+    }
+  ],
+  "disk_projection_24h": {
+    "measured_seconds": 1001.45,
+    "measured_growth_bytes": 8798208,
+    "bytes_per_hour": 31627761.55,
+    "horizon_hours": 24,
+    "projected_growth_bytes": 759066277,
+    "basis": "linear extrapolation of the measured window at the same load; real growth bends with retention, vacuum and load"
+  },
+  "final_reconciliation": [
+    {
+      "kind": "gl",
+      "name": "ledger total debits = credits",
+      "pass": true,
+      "detail": "debits 2619090, credits 2619090"
+    },
+    {
+      "kind": "money",
+      "name": "every voucher balances (debits = credits per document)",
+      "pass": true,
+      "detail": "0 unbalanced voucher(s)"
+    },
+    {
+      "kind": "stock",
+      "name": "no negative on-hand",
+      "pass": true,
+      "detail": "0 row(s) below zero"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: advance-outstanding-ageing",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-ap-aging",
+      "pass": true,
+      "detail": "A receipt is carried at its taxable cost; the GST on its bill goes to 1500 GST Input Credit when paid, so an item here is the goods value still owed, not the bi"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-ar-aging",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-gst-document-tax-detail",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-gstr-1-b2b-b2c-summary",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-gstr-1-hsn-summary",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-hsn-tax-summary",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-sales-register",
+      "pass": true,
+      "detail": "Ledger is the revenue and output GST posted for these same bills and invoices. A difference is a sale whose posting failed or an invoice not yet posted - check "
+    },
+    {
+      "kind": "stock",
+      "name": "engine: cat-stock-valuation-summary",
+      "pass": true,
+      "detail": "Ledger is the inventory control account. A difference is stock valued at standard cost (never received, so never posted) or a movement whose posting failed - ch"
+    },
+    {
+      "kind": "stock",
+      "name": "engine: custody-with-party",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: gst-return-summary",
+      "pass": true,
+      "detail": "Detail is the tax lines View Details lists; summary is the Total Tax Liability column."
+    },
+    {
+      "kind": "stock",
+      "name": "engine: inventory-valuation",
+      "pass": true,
+      "detail": "A remaining difference is stock moved without a GL entry (e.g. cycle-count variances, which post no GL) or GL posted to 1200 without stock (a journal) - review "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: payables-ageing",
+      "pass": true,
+      "detail": "A receipt is carried at its taxable cost; the GST on its bill goes to 1500 GST Input Credit when paid, so an item here is the goods value still owed, not the bi"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: po-commitments",
+      "pass": true,
+      "detail": "No GL account carries purchase-order commitments, so there is no ledger tie for this report. Goods received but not yet paid sit in 2100 GRN Suspense: 19048.00 "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: points-liability",
+      "pass": true,
+      "detail": "Points are expensed when redeemed (Loyalty -\u003e Account for loyalty points), so no GL account carries this liability and there is no ledger tie. Choose \"liability"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: print-evidence",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: receivables-ageing",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: sales-register",
+      "pass": true,
+      "detail": "Ledger is the revenue and output GST posted for these same sales. A difference is bill-level discounts and offers (the register shows the line price before them"
+    },
+    {
+      "kind": "stock",
+      "name": "engine: stock-pools",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: store-credit-liability",
+      "pass": true
+    },
+    {
+      "kind": "audit",
+      "name": "audit checkpoint sealed",
+      "pass": true,
+      "detail": "rows 1-8772 sealed"
+    },
+    {
+      "kind": "audit",
+      "name": "audit evidence verifies (no tampered row, no bad checkpoint)",
+      "pass": true,
+      "detail": "8077 signed row(s) verified, 695 unsigned legacy, 0 unverifiable, 1 checkpoint(s) verified"
+    },
+    {
+      "kind": "audit",
+      "name": "audit checkpoints present",
+      "pass": true,
+      "detail": "1 verified checkpoint(s)"
+    }
+  ],
+  "overall": "pass",
+  "command_for_24h_run": "journeylab soak -duration 24h -server-bin \u003cserver\u003e -pg-bin \u003cpg bin dir\u003e -out \u003cdir\u003e   (needs the same JWT_SECRET exported as the soak uses; see the guide)",
+  "limits": [
+    "the time-zone check is a database check: there is no application clock seam, so the app itself cannot be run at a faked date",
+    "the limiter check watches the server's memory; the limiter's own table size is not exposed",
+    "the soak runs on one machine, so server and database share its CPU and disk",
+    "disk projection is linear from this run's measured growth at this load"
+  ],
+  "cycle_sample": [
+    {
+      "at_seconds": 157.38,
+      "status": "pass",
+      "wall_ms": 157376.08,
+      "api_p95_ms": 1382.39,
+      "during_disturbance": true
+    },
+    {
+      "at_seconds": 613.56,
+      "status": "pass",
+      "wall_ms": 455680.19,
+      "api_p95_ms": 3767.44,
+      "during_disturbance": true
+    },
+    {
+      "at_seconds": 765.47,
+      "status": "pass",
+      "wall_ms": 151411.68,
+      "api_p95_ms": 788.68,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 852.18,
+      "status": "pass",
+      "wall_ms": 86201.68,
+      "api_p95_ms": 313.74,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 992.38,
+      "status": "pass",
+      "wall_ms": 139673.81,
+      "api_p95_ms": 356.66,
+      "during_disturbance": false
+    }
+  ]
+}

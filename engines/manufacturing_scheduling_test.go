@@ -9,7 +9,7 @@ import (
 
 // Stage 26.9.10/26.9.11 (Manufacturing/MRP Sprint P2 follow-up) engine
 // tests. Kept in its own file, same convention wms_enterprise_test.go/
-// reports_stage26_10_test.go already established for staying out of
+// reports_operations_test.go already established for staying out of
 // engines_test.go while other concurrent work is mid-editing it.
 func TestManufacturingSchedulingAndSubcontract(t *testing.T) {
 	connStr := testConnStr()

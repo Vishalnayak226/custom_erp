@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-28, continued from the release notes.
+summary: Earlier releases, 2026-08-04 to 2026-10-16, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,87 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **106** earlier entries, 2026-07-27 to 2026-09-28.
+This page continues the [release notes](release-notes.md) with **105** earlier entries, 2026-08-04 to 2026-10-16.
+
+Older still: [part 3](release-notes-3.md).
+
+## 2026-10-16
+
+**Stage 61.6-61.11 — GRN batch numbers with full flexibility** *(code + docs; committed `f017bd2` and deployed 2026-10-17)*
+
+The user asked whether Stage 61 was "ready with expected flexibility"; the honest answer was no, six gaps were listed, and the user said build all of them, the expectation being drag-and-drop label design. Detail in micro_checklist.md Stage 61.
+
+**Stage 64 — every client kept in step with tenant_default; background failures reach the client's error log** *(code + docs)*
+
+Found while preparing the minn.wholeops.in handover: production's `tenant_minn` (provisioned 2026-09-22) was missing 16 tables, 11 columns (`audit_logs.signature`, so every audit write on that client failed), 53 record types with 446 fields, their permissions, 12 number series, all 230 status-change rules, the INR currency and the TDS sections; 10 of its tables drew ids from `tenant_default`'s sequences. Cause: most migrations change only `tenant_default`, the tenant-looping ones only reach clients that already exist, and provisioning clones a hand-kept table list. Fix at the two choke points: `db/tenant_schema_sync.go` (catalog-driven, insert-only) runs after every `-migrate` and inside `ProvisionTenantSchema`. Also: 11 per-client background-worker failure sites now go through `LogBackgroundJobError`, which records each distinct failure in that client's `system_error_logs` once an hour (the user: "all logs should be captured if a data issue is found; I should be able to browse the db and fix it in both instances"). Detail in micro_checklist.md Stage 64.
+
+## 2026-10-15
+
+**Stages 62 + 63 — designs inside the PO, multi-PO GRN at invoice price with automatic notes, designed transaction prints** *(code + docs, NOT COMMITTED)*
+
+The user: create SKUs / design combinations in the PO from the org's attribute matrix (design number new or reused per config); one GRN for several POs of a vendor; PO price and invoice price on every line, the vendor's invoice amount at the top, the difference raised as debit / credit notes — "never on hold"; then, mid-stage, "print templates customisable by the user, drag and drop, mapped product-wise, PO / Vendor PO (images, Excel) / Transfer Out / In / GRN / notes, brand always there, which store I am generating from". Detail in micro_checklist.md Stages 62 and 63.
+
+**Stage 61 — GRN batch numbers and scan-to-age lookup** *(code + docs, NOT COMMITTED)*
+
+The user: a SKU keeps one barcode, so "in each GRN, each Combination ID/SKU will have a batch number" (every SKU), and "after scanning I should know the batch, so I will know ageing or which day it came in". Detail in micro_checklist.md Stage 61.
+
+**Stage 60.8/60.9 — only the platform operator reaches other clients; one table per transaction** *(code + docs, NOT COMMITTED)*
+
+The user: "Only Super admin I can, no one else. Client can't change other" and "I need individual table for all txn ... I should be fixing it". Detail in micro_checklist.md 60.8/60.9.
+
+## 2026-10-14
+
+**Stage 60 — number series per transaction and store, item types, names not codes, platform data console** *(code + docs, NOT COMMITTED)*
+
+The user asked whether PO/GRN/barcode were ready and what was missing, then said "Build" with decisions: lengths 5 (purchase, HR) / 6 (stock, sales, production, assets); the store's Short Code inside numbers; Store Name / Store Code / Short Code / Facility Code with Facility Code for OMS; item types with barcode rules **and** behaviour; a raw-edit console over every table of any client with customer details hidden; no internal codes in the UI except Design, Combination and barcode. Full detail in micro_checklist.md Stage 60.
+
+## 2026-10-03
+
+**Stage 50 — BLD-041 completed: native ESM screen loading meets both cold budgets, preserves entitlement/error/help/print paths, no bundler or npm scripts** *(code + tests + docs)*
+
+**This supersedes the intermediate classic-script implementation and open status recorded in §180.** Expanded the split to 18 native ES modules; `public/app.js` retains the app shell, shared services, navigation and the existing access checks. A route's module is fetched only after `/api/v1/me/modules` has returned and `isMenuModuleVisible` permits it. `loadViewModule()` caches the in-flight import/result to avoid duplicate requests and adds a cache-busting retry URL after a failed import; the existing retry panel handles failure. No bundler, build output, package install or npm script is required. POS, standalone Returns and RF traceability have distinct modules, so first paint on POS does not download the other screens. Help and cross-domain reports/PIM actions use explicit lazy bridges. Shared document-table, formatting, QZ and print-sheet helpers stay in the shell to avoid a dependency waterfall when entering those screens.
+
+## 2026-10-02
+
+**Stage 50 — BLD-041 opened (lazy screen code and initial payload budgets): baseline measured, a classic-script lazy-loading approach decided over an ES-module rewrite, and the mechanism proven end-to-end on 4 real view groups (Manufacturing, Expenses, Fixed Assets, Stock Transfer) — small but real, verified payload reduction; item stays open** *(code + docs)*
+
+First session to touch BLD-041. Measured the real baseline first rather than assuming: three cold-cache HTTP runs against a disposable scratch server (`Accept-Encoding: gzip`) put cold-core (index.html + styles.css + db.js + components/erp-typeahead.js + app.js + qz-print.js) at 347,586 bytes (~339.4 KiB) against the 180 KiB budget, and initial JS alone at 307,602 bytes (~300.4 KiB) against the 120 KiB budget — `app.js` alone is ~96.7% of the JS total and the only lever that moves the needle.
+
+**Stage 50 — BLD-036's gap (2) closed for real (all ~28 remaining "Failed to load" sites individually re-verified, one genuine dead end found and fixed); gap (3) deliberately accepted as residual rather than chased a fourth time** *(code + docs)*
+
+Picked up where the 2026-10-01 thread left off: BLD-036 had three named gaps across three prior sessions, of which gap (1) (double-submit guard coverage) was already closed that same day. Two remained: (2) ~20 of the 54 "Failed to load" sites assessed as action-triggered, non-dead-end fetches but never individually re-verified one by one, and (3) several bespoke section-refresh functions (`loadYardBoard`, `loadWarehouseCockpit`, `loadOMSOrders`, and the same shape elsewhere in WMS/Finance) still blank-then-fill instead of the doctype-table's stale-while-revalidate pattern.
+
+## 2026-10-01
+
+**Stage 50 — BLD-036 continued again (recoverable empty/loading/error/offline states): double-submit guard swept across 18 more bespoke composers app-wide, and a real, unrelated third-instance timezone-skew bug found and honestly flagged (not fixed) while investigating a regression-run failure — item stays open** *(code + docs)*
+
+Picked up the prior thread's handoff verbatim: BLD-036 was left open on three named, narrower gaps (~30 bespoke composers outside the five guarded paths still unguarded; ~20 of 54 dead-end sites unaudited; the bespoke section-refresh screens still blank-then-fill). Confirmed via `git status` that the tree's uncommitted state was unchanged since that handoff. Given (1) is the most mechanical and lowest-risk of the three — a proven extraction pattern applied for a third time, not new design — worked it in full rather than splitting effort across all three.
+
+## 2026-09-30
+
+**Stage 50 — BLD-036 continued (recoverable empty/loading/error/offline states): double-submit guard extended to Approve/Reject and two bespoke composers, 13 more dead-end "Failed to load" screens given a real retry, stable-loading-layout genuinely assessed, and two real bugs caught by live-verifying the fixes themselves — still real progress, item stays open** *(code + docs)*
+
+Picked up the prior same-day thread's handoff verbatim: BLD-036 was left open on three explicitly named gaps (the double-submit guard covering only two of many save paths; only 1 of ~54 "Failed to load" dead-end messages swept; "stable loading layout" not assessed at all). Confirmed via `git status` that the tree's uncommitted state was unchanged since that handoff before starting, and worked all three gaps in the same pass rather than picking one.
+
+**Stage 50 — BLD-036 (recoverable empty/loading/error/offline states): a global API timeout added, a real duplicate-document-creation gap closed on the two highest-traffic save paths, and the Approvals dead-end load failure given a real retry — real progress, item stays open** *(code + docs)*
+
+Picked up as the next-ready item off the prior thread's handoff (BLD-036 — READY after BLD-035's shared-form fixes, which landed 2026-09-29). Confirmed via `git status` that the tree's uncommitted state (BLD-046/BLD-043/BLD-035/documentation-hygiene, `docs/ai_handover.md` §6) was unchanged since that handoff, then started fresh, touching `public/app.js` only.
+
+## 2026-09-29
+
+**Stage 50 — BLD-035 (consistent forms and truthful transaction outcomes): a hardcoded "saved" response replaced with the document's real status app-wide, five silent save/submit/decide call sites wired to show it, missing Date/Currency form fields fixed, and an unrelated Stage-51.1-era edit/delete routing bug found and fixed live** *(code + docs)*
+
+Continuing from the prior thread's priority order (BLD-035 first — DEPENDS on BLD-010/011/012, all done, and had sat READY across several sessions' handoffs without being picked up). Confirmed via `git status` that HEAD was still `afaf419` with the prior session's BLD-046/documentation-hygiene work uncommitted, then started fresh. Checked MC-031/042/082/089 before touching code — they live in `docs/qa/erp-maturity-checklist.md`, not `micro_checklist.md` (confirmed via grep first, per this file's own MC-089 sourcing note) — and found MC-042 ("approval transitions and user messages match economic outcome") already scored FAIL and MC-089 OPEN, so this was a real, acknowledged gap rather than a verify-and-close item.
+
+**Documentation hygiene — split `docs/micro_checklist.md` down to pending-only items, moving every closed item into the archive at item/sub-group granularity for the first time** *(docs only, no code change)*
+
+User asked to clean the live checklist down to pending work. Checked every live stage (20, 26, 31, 34, 38, 39, 47-52) against the file's own rule (a stage header may only be marked closed if 100% of its items are `[x]`) — none qualified, since every stage retains at least one genuinely open item (several from the 2026-09-28 session). The existing archive convention only ever moves a *whole* closed Stage, so at that granularity there was nothing new to move; asked the user how to proceed, and they chose the larger, non-standard option: pull every individual closed `[x]` item out of the still-open stages too, not just whole stages.
 
 ## 2026-09-28
+
+**Stage 50 — BLD-046 (bounded imports, reports, exports and jobs): a real cross-worker tenant-scoping bug found and fixed, four bespoke tickers bounded, CSV import capped, one export converted to real streaming — real progress, item stays open on the "interrupted" leg** *(code + tests + docs)*
+
+Continuing the same thread that closed BLD-034 (§172) earlier the same day. Per the priority order the prior session handed off (BLD-046 first — DEPENDS on BLD-043, done; BLD-035 next). Confirmed genuinely unstarted via `git status`/the build checklist's own `[ ]` mark before touching anything.
 
 **Stage 50 — BLD-034 (usable dense tables): server-backed pagination/search/counts replacing a 500-row client-side cap, plus a search field-permission leak and a pre-existing refresh-persistence bug found and closed along the way** *(code + docs)*
 
@@ -466,82 +544,4 @@ Stage 31.1 built the QZ Tray bridge and wired stickers plus the marketplace-docu
 **Stage 33 — Dialog viewport fit & responsive form layout** *(code)*
 
 User report with a screenshot of the New Location dialog, its header cut off at the top of the frame and no Save button anywhere: *"Nothing is visible here. So, set up. Make it more 2 column or 3 if required so it will be visible. All screen and config it should auto adjust with 100% to any percent 40% or whatever. If 120% also it should get auto adjusted."* Item-by-item mechanics in micro_checklist.md Stage 33.
-
-**Stage 32.1 — Interaction responsiveness: the sidebar hover defect** *(code)*
-
-User report after using the deployed app: *"The interface is not at all smooth. I have to click many times. Then it is working. Hover is also not working. I have to click on arrow then it is showing permanently else it is going away."* Item-by-item mechanics in micro_checklist.md Stage 32.1.
-
-## 2026-08-03
-
-**Stage 31.1 — QZ Tray silent printing** *(code + schema + docs)*
-
-User request, framed from marketplace operations: *"For Myntra and other Marketplaces OMS, I want to crack QZ print automation"*, with Myntra support's own setup mail attached, and the clarification that it should be **one-click print for all** — from the ERP as well as for the marketplace documents the channels supply. Three scope questions were put to the user first (what it drives, how QZ is authorised per PC, and what the label hardware is); the answers were one-click across both, self-signed/fully silent, and support all printer types. Item-by-item mechanics in micro_checklist.md Stage 31.1.
-
-## 2026-08-02
-
-**Stage 30.5.5 — Retiring `Stores`, folding its fields into `Location`** *(code + schema + docs)*
-
-The last open item in Stage 30, and the only one that was blocked on a product decision rather than on work. `Stores` was promoted in the sidebar and documented as "your shop/warehouse locations", but it had **zero Link references and zero Go references** — nothing in the system could select one. A user following the manual created their shop somewhere no transaction could see it.
-
-**Stage 30.5.8 — The picker consistency sweep** *(code)*
-
-The audit item read as four unrelated chores: three screens missing a typeahead their siblings had, a 103-entry Location list with no structure, Employee picked with a `<select>` on five screens and a typeahead on a sixth, and icon-only buttons with no accessible name. They shared one cause — **there was no single place to be consistent in**. All 42 picker call sites configured `attachTypeahead` themselves, so "how a Location is chosen" was a decision made fifteen separate times, which is precisely how three screens came to be missing it without anyone noticing.
-
-## 2026-08-01
-
-**Stage 30.5.11 — Retiring the Dashboard landing screen** *(code + docs)*
-
-User's call, made looking at the screen: *"Dashboard not required. Everything it is showing from config."* It was accurate — the screen held four derived stat cards (registered record types, audit-log count, active tenant, a hardcoded "Operational" pill) over nine shortcut tiles into **Database Schema Design, Dynamic Labels, Prefix Configs, Extension Hooks, Activity Log, Configuration, System Status, Tenant Entitlements** and **Tenant Usage**, every one of which the Settings module already lists. It owned no business data; it was a second front door to configuration.
-
-**Stage 30.3/30.4/30.5 + the 29.7/29.8 strays — the manual overhaul and the UX sweep** *(code + docs)*
-
-User request: finish the whole remaining Stage 30 manual/UX backlog in one pass, plus three items the previous session had flagged as *open but mis-filed inside the closed-stage archive*. Three genuine product decisions were taken with the user up front so the rest could run end to end without stopping: Trial Balance scoping (**mandatory as-of date**), the screenshot workflow (**scripted Playwright captures**), and the two flagged status transitions (**allow both, reason-code required**). Full item-by-item detail in **micro_checklist.md** Stage 29.7/29.8 follow-ups and Stage 30.
-
-**Stage 30.8 — The project brain map** *(tooling + docs)*
-
-User request: a graphify-driven diagram of the entire project, in its own folder under `docs/`, that "may behave like a brain", is appended to as the system grows, and is easy to update. Built as `docs/brain/` — `BRAIN.md` (7 Mermaid diagrams + a card per region), `brain.html` (interactive, self-contained), `brain.map.json` (the only hand-edited file) — generated by a new stdlib-only `cmd/brainmap`. Item-by-item mechanics in micro_checklist.md Stage 30.8.
-
-**Stage 30.7 — Config sweep ("nothing hardcoded") + POS offer engine** *(code)*
-
-Two requests the user framed as separate and which were built as such: every module's operational config surfaced on the Configuration page and *properly wired* ("if I change it should immediately change everywhere"), and offer configuration for POS, set up in the ERP and reflected at the till. Two scope questions were put to the user first — which offer families to support (answer: all four) and what to do about platform safety limits (answer: expose them, but do it properly) — and the build followed those answers. Item-by-item mechanics in micro_checklist.md Stage 30.7.
-
-**Stage 30.6 — Server-issued document numbers** *(code)*
-
-User request, made from the Purchase Orders screen: *"PO number will be auto created. I will create po sequence. Same of GRN and all other transaction."* Two scope questions were put to the user before building (how wide, and what shape the numbers take); both were answered, and the work followed those answers. Item-by-item mechanics in micro_checklist.md Stage 30.6.
-
-## 2026-07-31
-
-**Stage 30.1/30.2 — the layman audit's P0 block, closed** *(code)*
-
-User asked to start building open checklist items, explicitly not phase by phase. Took the whole P0 block of Stage 30 (the 2026-07-30 layman audit, `docs/archive/audits/ux-manual-audit.md`) — seven items — plus two backend items from 30.5 that fell out of the same work. Item-by-item mechanics in micro_checklist.md Stage 30.
-
-## 2026-07-29
-
-**Stage 29.9 — Final SaaS module/menu naming pass** *(code + docs)*
-
-User asked, ahead of a SaaS relaunch, whether reusing standard ERP nomenclature carries trademark/replication risk — confirmed no (generic functional terms like "Sales Order"/"Chart of Accounts" are industry-standard, not vendor IP; this repo's own Stage 21.11 ERPNext-style renames are the same category of naming). User then picked final names from a SAP/Microsoft/Oracle/NetSuite/Infor/Odoo/ERPNext comparison and asked for them applied everywhere. Item-by-item mechanics in micro_checklist.md Stage 29.9.
-
-**Stage 29.8 — the last two loophole items closed: status-transition map + JWT session staleness** *(code)*
-
-Both remaining items in `ERP_LOOPHOLES_ANALYSIS.md` were blocked on a decision rather than on work — one marked `[needs design decision]`, the other deferred by standing policy. The user asked to be asked; they chose opt-in-strict enforcement scoped to transactional doctypes **and** masters, a middleware live-state re-check over a jti denylist, and multi-key signing rotation. Item mechanics in micro_checklist.md Stage 29.8.
-
-**Stage 29.7 — QC exhaustive-report follow-ups: gl_postings reporting index + production sslmode docs** *(code + docs)*
-
-User asked for the two non-blocking observations in `QC_EXHAUSTIVE_REPORT.md` (O1 index, O2 sslmode) to be fixed, plus any other open items. Item-by-item mechanics in micro_checklist.md Stage 29.7.
-
-## 2026-07-28
-
-**Stage 28.5 — UI defect batch: dialog legibility, flyout reliability, global search** *(code)*
-
-Four defects reported by the user in one session, all fixed in `public/app.js` + `public/styles.css` — no Go, no schema change, no new dependency. Item-by-item mechanics in micro_checklist.md Stage 28.5.
-
-## 2026-07-27
-
-**Stage 29 — OMS operations follow-up** *(code)*
-
-User explicitly authorized the previously identified OMS follow-ups. Added a unified Order Management workbench over the existing generic document API; no duplicate reporting endpoint or table was introduced. Shopify and Unicommerce intake now normalize into `CreateSalesOrder`, preserving their legacy mapping tables while sharing the SalesOrder engine's SKU mapping, validation, allocation, reservation, hold, and idempotency behavior. Shipment handover now creates a single idempotent Draft SalesInvoice only after all fulfillment tasks ship, and tracking delivery dispatches the existing `Order Delivered` notification; invoice posting/settlement remain explicit finance actions to avoid implicit GL writes. Focused and full serialized tests pass; the first full run exposed a transient existing WMS-slotting fixture flake, whose isolated and subsequent full reruns passed. Stage 23.11 was reviewed again and correctly remains a no-op because no paste-grid product surface exists.
-
-**Stage 28 — Configurability, Theming & Deployment** *(code, UNCOMMITTED as of this note)*
-
-User request (one batch): every operational config should live in the admin UI, module by module — "nothing hardcoded"; a dark/light/system theme toggle; user-controllable report columns saved as profiles (one Universal/shared, one Personal); and Caddy as the reverse proxy for automatic Let's Encrypt TLS. Approved plan built all four in sequence, verifying + checkpointing after each. Full per-item mechanics in micro_checklist.md Stage 28.
 

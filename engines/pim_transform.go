@@ -83,7 +83,7 @@ func lookupPIMValueMap(tenantID, channel, attribute, ourValue string) (string, b
 // the same shape Stage 36.2.3's workflow condition vocabulary uses and for
 // the same reason: a rule is authored by a category manager in a form, and
 // a form that accepts an expression or code is a remote-execution surface.
-// ApplyPIMTransformRule is the one seam both the export path
+// ApplyPIMTransformRuleCtx is the one seam both the export path
 // (ChannelFieldMap.transform_rule, engines/connector.go) and the import
 // path (PIMImportTemplate's per-column rule, Stage 36.3) call, so the two
 // can never disagree about what a given rule does to a value.
@@ -560,17 +560,12 @@ func fetchPIMTransformRule(tenantID, ruleID string) (string, []PIMTransformStep,
 	return canonicalID, steps, nil
 }
 
-// ApplyPIMTransformRule runs value through every step of a rule in sequence
-// order. The single seam both the export path (BuildChannelPayload, via
+// ApplyPIMTransformRuleCtx runs value through every step of a rule in
+// sequence order, with the channel and product context a value map or a
+// join needs. The single seam both the export path (BuildChannelPayload, via
 // ChannelFieldMap.transform_rule) and the import path (Stage 36.3's
 // PIMImportTemplate) call, so the two can never disagree about what a rule
 // does to a value.
-func ApplyPIMTransformRule(tenantID, ruleID, value string) (string, error) {
-	return ApplyPIMTransformRuleCtx(ruleID, value, PIMTransformContext{TenantID: tenantID})
-}
-
-// ApplyPIMTransformRuleCtx is ApplyPIMTransformRule with the channel and
-// product context a value map or a join needs.
 func ApplyPIMTransformRuleCtx(ruleID, value string, tc PIMTransformContext) (string, error) {
 	_, steps, err := fetchPIMTransformRule(tc.TenantID, ruleID)
 	if err != nil {

@@ -10,7 +10,7 @@
     { "code": "SO", "name": "Sales Order", "area": "Sales", "menu": "menu-oms", "doctype": "SalesOrder", "next": "PICK" },
     { "code": "SI", "name": "Sales Invoice", "area": "Sales", "menu": "menu-sales-invoices", "doctype": "SalesInvoice" },
     { "code": "SR", "name": "Sales Return", "area": "Sales", "menu": "menu-returns", "doctype": "SalesReturn" },
-    { "code": "CN", "name": "Credit Note", "area": "Sales", "menu": "menu-finance-notes", "doctype": "CreditNote" },
+    { "code": "CN", "name": "Credit Note", "area": "Sales", "menu": "menu-finance-cn", "doctype": "CreditNote" },
     { "code": "DN", "name": "Debit Note", "area": "Sales", "menu": "menu-finance-notes", "doctype": "DebitNote" },
     { "code": "EI", "name": "E-Invoice (IRN)", "area": "Sales", "menu": "menu-einvoice" },
     { "code": "CUS", "name": "Customers", "area": "Sales", "menu": "menu-customers", "doctype": "Customer" },
@@ -44,7 +44,7 @@
     { "code": "SHIP", "name": "Ship", "area": "Warehouse", "menu": "menu-oms-ship" },
     { "code": "WAVE", "name": "Wave / Batch Picking", "area": "Warehouse", "menu": "menu-wave-picking" },
 
-    { "code": "GL", "name": "Finance / GL", "area": "Money", "menu": "menu-finance" },
+    { "code": "GL", "name": "Work to review", "area": "Money", "menu": "menu-finance" },
     { "code": "JV", "name": "Journal Voucher", "area": "Money", "menu": "menu-journal-vouchers", "doctype": "JournalVoucher" },
     { "code": "PAY", "name": "Payment Proposal", "area": "Money", "menu": "menu-payment-proposals", "doctype": "PaymentProposal" },
     { "code": "BR", "name": "Bank Reconciliation", "area": "Money", "menu": "menu-bank-reconciliation" },

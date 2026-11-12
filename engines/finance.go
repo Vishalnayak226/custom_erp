@@ -87,6 +87,10 @@ type PostingOptions struct {
 	// row's date afterwards. Empty is now. A caller deep below the one that
 	// knows the time is reached with BindPostingTime instead.
 	PostedAt string
+	// Stage 148.20. Lines, when set, are written one ledger row each with the
+	// line's own dimensions instead of one row per account. Nil is every other
+	// caller. Their sums must equal the debits and credits maps.
+	Lines []PostingLine
 }
 
 // postedAtSQL is the created_at value of a posting with PostedAt set, as SQL
@@ -224,6 +228,10 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 	if err := rejectIfCurrentPeriodClosed(tx, schema, docType, docID, transactionDate); err != nil {
 		return err
 	}
+	// Stage 148.25: a sales posting in a month whose GSTR-1 is filed, or a period On Hold.
+	if err := checkSalesMonthLockedTx(tx, schema, docType, docID, postingKey, transactionDate); err != nil {
+		return err
+	}
 	// Stage 148.5: every account must be in the chart and not blocked.
 	if err := checkPostingAccountsTx(tx, schema, postingKey, debits, credits); err != nil {
 		return err
@@ -305,6 +313,10 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 		attrArgs = append(attrArgs, opt.PostedAt)
 	}
 
+	if len(opt.Lines) > 0 {
+		return insertPostingLinesTx(tx, schema, opt, docType, docID, keyArg, currencyArg != nil, debits, credits, attrCols, attrVals, attrArgs)
+	}
+
 	// Insert debits
 	for code, val := range debits {
 		if val <= 0 {
@@ -366,7 +378,7 @@ func currencyPostingArgs(tenantID string, opt PostingOptions) (currency interfac
 // was wrong on this specific query, because the query itself was the problem.
 // The predicate is spelled as the half-open `created_at < ($1::date + 1)`
 // rather than `created_at::date <= $1`, per the convention documented at the
-// top of finance_reports_stage26.go: a cast wraps the indexed column in a
+// top of finance_reports.go: a cast wraps the indexed column in a
 // function call, which can never be a range seek, so the sargable spelling is
 // what actually lets idx_gl_postings_account_created serve this.
 // AccountBalance is one GetTrialBalance row - package-scoped (not declared

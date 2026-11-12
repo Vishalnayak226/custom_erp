@@ -14,7 +14,7 @@ import (
 // just its content, and because the server signs the result, the forged claims
 // arrived with a perfectly valid HMAC.
 //
-// docs/operations/pentest_scope.md names this as a P1 for an external tester;
+// docs/operations/pentest-scope.md names this as a P1 for an external tester;
 // these tests close it in-house instead. They assert the property that makes
 // the whole class impossible - a claim value round-trips to exactly itself,
 // and can never introduce a key that the issuer did not emit.

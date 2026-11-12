@@ -5,7 +5,7 @@
 // secret typed here is sent once and never shown again (a generated webhook
 // secret is shown once in the dialog).
 
-const icWhen = (v) => { if (!v) return '—'; const d = new Date(v); return String(v).length <= 10 || isNaN(d) ? String(v) : d.toLocaleString(); };
+const icWhen = (v) => { if (!v) return '—'; const d = new Date(v); return String(v).length <= 10 || isNaN(d) ? String(v) : formatDateTime(d); };
 const icKinds = { courier: 'Courier', channel: 'Channel', clevertap: 'CleverTap', pinelabs: 'Pine Labs', unicommerce: 'Unicommerce' };
 
 export async function renderIntegrationCredentialsView(container) {
@@ -20,13 +20,13 @@ export async function renderIntegrationCredentialsView(container) {
   form.className = 'table-panel';
   form.style.padding = '24px';
   form.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;max-width:640px;">
+    <div class="s-39ec6d">
       <div class="form-group"><label class="form-label" for="ic-kind">Kind</label>
         <select id="ic-kind" class="form-select"><option value="courier">Courier</option><option value="channel">Channel</option><option value="clevertap">CleverTap</option></select></div>
       <div class="form-group" id="ic-code-box"><label class="form-label" for="ic-code" id="ic-code-label">Courier</label>
         <select id="ic-courier" class="form-select">${couriers.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
         <input id="ic-code" class="form-input hidden" autocomplete="off"></div>
-      <div class="form-group" id="ic-fields-box" style="grid-column:1/-1;"><label class="form-label" for="ic-fields">Fields</label>
+      <div class="form-group s-068a8d" id="ic-fields-box"><label class="form-label" for="ic-fields">Fields</label>
         <textarea id="ic-fields" class="form-input" rows="4" autocomplete="off" placeholder="name=value, one per line"></textarea></div>
       <div class="form-group hidden" id="ic-region-box"><label class="form-label" for="ic-region">Region</label>
         <input id="ic-region" class="form-input" value="in1" autocomplete="off"></div>
@@ -37,7 +37,7 @@ export async function renderIntegrationCredentialsView(container) {
 
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = rows.length === 0 ? '<p class="text-muted" style="padding:16px;">None yet.</p>' : `
+  list.innerHTML = rows.length === 0 ? '<p class="text-muted s-287f77">None yet.</p>' : `
     <div class="table-wrapper"><table><thead><tr><th>Kind</th><th>Name</th><th>Status</th><th>Owner</th><th>Last used</th><th>Expires</th><th>Changed</th><th></th></tr></thead>
       <tbody>${rows.map((r, i) => `<tr>
         <td>${esc(icKinds[r.kind] || r.kind)}</td><td>${esc(r.name)}</td>

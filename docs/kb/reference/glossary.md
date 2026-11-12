@@ -138,7 +138,7 @@ order actually arrived without asking anyone to check a database.
 *Double-entry* means every transaction has matching debits and credits that must
 balance.
 
-**Trial balance.** The check that they do. **Finance / GL** reports it as
+**Trial balance.** The check that they do. **Trial Balance** reports it as
 *Balanced trial ledger* when debits equal credits as of a date.
 
 **GST.** The sales tax added automatically, resolved from the product's HSN code

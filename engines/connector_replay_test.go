@@ -76,6 +76,10 @@ func TestChannelPullReplayImportsEachOrderOnce(t *testing.T) {
 	db.DB.Exec("INSERT INTO " + schema + ".inventory_availability (sku, location_code, on_hand, available) VALUES ('RPL-SKU', 'HO', 50, 50)")
 	channel, _ := json.Marshal(map[string]interface{}{"code": "RPL", "platform": "replay-fixture", "location_code": "HO"})
 	db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ('RPL', 'Channel', $1, 'Active', 'system')", channel)
+	// A new client requires a sandbox rehearsal before a connector (162.19); this test is not about that.
+	if err := SetSetting(tenantID, SettingRequireRehearsal, "false", "system"); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChannelCredential(tenantID, "RPL", map[string]string{"token": "local"}); err != nil {
 		t.Fatalf("credential: %v", err)
 	}

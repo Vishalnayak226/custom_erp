@@ -23,6 +23,9 @@ func SaveUnicommerceCredential(tenantID, storeCode, apiKey, apiSecret, baseURL s
 // SaveUnicommerceCredentialBy (49.8.5) also records who saved it and an
 // optional expiry (a date or RFC3339; blank = none).
 func SaveUnicommerceCredentialBy(tenantID, storeCode, apiKey, apiSecret, baseURL, savedBy, expiresAt string) error {
+	if err := checkConnectorRehearsal(tenantID, "unicommerce", storeCode, savedBy); err != nil {
+		return err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err

@@ -10,7 +10,7 @@ import (
 // Stage 146.2.7 - birthday and anniversary points. A CRM journey step
 // "give_points" credits a fixed number of points once per customer per
 // occasion per year. The ledger row's reference ("birthday:2026") is covered
-// by a unique index (db/migrations_stage146_2_7_occasion_online_points.sql), so a
+// by a unique index (db/migrations/migrations_stage146_2_7_occasion_online_points.sql), so a
 // re-run journey, a second trigger or a second journey on the same occasion
 // can never pay twice. Blocked members and never-earn tags get nothing, the
 // points expire like any earn, and nothing happens until an admin adds the

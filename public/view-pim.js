@@ -54,6 +54,10 @@ async function renderPIMView(container) {
     await renderPIMMyWorkTab(container);
   } else if (currentPIMTab === 'media-library') {
     await renderPIMMediaLibraryTab(container);
+  } else if (currentPIMTab === 'stewardship') {
+    // 47.13.4: who owns each attribute, where its value comes from
+    const stw = await loadViewModule('/view-pim-stewardship.js' + new URL(import.meta.url).search);
+    await stw.renderStewardship(container);
   } else if (['channel-templates', 'feeds', 'design-values', 'checklists'].includes(currentPIMTab)) {
     // 146.5: marketplace templates, feeds with run history, design-level values
     const data = await loadViewModule('/view-pim-data.js' + new URL(import.meta.url).search);
@@ -109,25 +113,25 @@ async function renderPIMMediaLibraryTab(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px;">
-      <div class="form-group" style="margin-bottom:0;">
+    <div class="s-b0e775">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="pim-medlib-item">Item code</label>
-        <input type="text" id="pim-medlib-item" class="form-input" style="width:160px;" placeholder="e.g. SKU-001">
+        <input type="text" id="pim-medlib-item" class="form-input s-28c0f6" placeholder="e.g. SKU-001">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="pim-medlib-role">Role</label>
-        <select id="pim-medlib-role" class="form-input" style="width:150px;">
+        <select id="pim-medlib-role" class="form-input s-7c07cd">
           <option value="">Any role</option>
           ${PIM_MEDIA_ROLES.map(role => `<option value="${role}">${role}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="pim-medlib-tag">Tag</label>
-        <input type="text" id="pim-medlib-tag" class="form-input" style="width:140px;" placeholder="e.g. winter-2026">
+        <input type="text" id="pim-medlib-tag" class="form-input s-830eb9" placeholder="e.g. winter-2026">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="pim-medlib-filetype">File type</label>
-        <select id="pim-medlib-filetype" class="form-input" style="width:140px;">
+        <select id="pim-medlib-filetype" class="form-input s-830eb9">
           <option value="">Any type</option>
           <option value="image/jpeg">JPEG</option>
           <option value="image/png">PNG</option>
@@ -138,22 +142,24 @@ async function renderPIMMediaLibraryTab(container) {
       </div>
       <button class="btn btn-outline" id="pim-medlib-search">Search</button>
     </div>
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; padding-top:12px; border-top:1px solid var(--border-color);">
-      <div class="form-group" style="margin-bottom:0;">
+    <div class="s-763e02">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="pim-medlib-bulk-zip">Bulk upload (.zip, files named ITEMCODE__role.ext or ITEMCODE.ext)</label>
         <input type="file" id="pim-medlib-bulk-zip" class="form-input" accept=".zip">
       </div>
       <button class="btn btn-outline" id="pim-medlib-bulk-upload-btn">Upload ZIP</button>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="pim-medlib-bulk-items">Bulk download - item codes (comma-separated)</label>
-        <input type="text" id="pim-medlib-bulk-items" class="form-input" style="width:220px;" placeholder="SKU-001, SKU-002">
+        <input type="text" id="pim-medlib-bulk-items" class="form-input s-0fac91" placeholder="SKU-001, SKU-002">
       </div>
       <button class="btn btn-outline" id="pim-medlib-bulk-download-btn">Download ZIP</button>
     </div>
-    <div id="pim-medlib-bulk-result" style="margin-bottom:16px;"></div>
-    <div id="pim-medlib-grid" style="display:flex; gap:12px; flex-wrap:wrap;"></div>
+    <div id="pim-medlib-bulk-result" class="s-87c136"></div>
+    <div id="pim-medlib-grid" class="s-c79bb0"></div>
   `;
   container.appendChild(panel);
+  // 146.5.9: image order per channel
+  try { await (await loadViewModule('/view-pim-stewardship.js' + new URL(import.meta.url).search)).mountChannelOrder(container); } catch (e) { console.error('channel order', e); }
 
   let medlibObserver = null;
   const medlibUrls = new Set();
@@ -181,13 +187,13 @@ async function renderPIMMediaLibraryTab(container) {
       return;
     }
     grid.innerHTML = assets.map(m => `
-      <div class="table-panel" style="padding:8px; width:160px;" data-medlib-card="${escapeHTMLText(m.id)}">
-        <div style="font-size:11px; font-weight:600; margin-bottom:4px;">${escapeHTMLText(m.item)}</div>
-        <img data-medlib-thumb="${escapeHTMLText(m.id)}" style="width:100%; height:90px; object-fit:cover; background:var(--surface-subtle); border-radius:4px;" alt="${escapeHTMLText(m.alt_text || m.media_role)}">
-        <div class="text-muted" style="font-size:10px; margin-top:4px;">${escapeHTMLText(m.media_role)} &middot; ${escapeHTMLText(m.file_type)}</div>
-        <div style="font-size:10px; margin-top:2px; word-break:break-word;">${m.tags ? escapeHTMLText(m.tags) : '<span class="text-muted">No tags</span>'}</div>
-        <button class="btn btn-outline btn-sm" style="width:100%; margin-top:6px;" data-medlib-edit-tags="${escapeHTMLText(m.id)}" data-tags="${escapeHTMLText(m.tags || '')}">Edit Tags</button>
-        <button class="btn btn-outline btn-sm" style="width:100%; margin-top:4px;" data-medlib-deactivate="${escapeHTMLText(m.id)}">Deactivate</button>
+      <div class="table-panel s-7496d0" data-medlib-card="${escapeHTMLText(m.id)}">
+        <div class="s-d29ea2">${escapeHTMLText(m.item)}</div>
+        <img data-medlib-thumb="${escapeHTMLText(m.id)}" class="s-2e6334" alt="${escapeHTMLText(m.alt_text || m.media_role)}">
+        <div class="text-muted s-5c66c7">${escapeHTMLText(m.media_role)} &middot; ${escapeHTMLText(m.file_type)}</div>
+        <div class="s-ae6463">${m.tags ? escapeHTMLText(m.tags) : '<span class="text-muted">No tags</span>'}</div>
+        <button class="btn btn-outline btn-sm s-313cf2" data-medlib-edit-tags="${escapeHTMLText(m.id)}" data-tags="${escapeHTMLText(m.tags || '')}">Edit Tags</button>
+        <button class="btn btn-outline btn-sm s-bb1ee8" data-medlib-deactivate="${escapeHTMLText(m.id)}">Deactivate</button>
       </div>
     `).join('');
 
@@ -291,7 +297,7 @@ async function renderPIMDashboardTab(container) {
     ['queued_publish_jobs', 'Publish queued', 'workbench'], ['failed_publish_jobs', 'Publish failed', 'workbench']
   ];
   const panel = document.createElement('div'); panel.className = 'table-panel';
-  panel.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;">${cards.map(([key, label, target]) => `<button class="table-panel pim-dashboard-card" data-pim-dashboard-target="${target}" style="padding:18px;text-align:left;border:1px solid var(--border-color);cursor:pointer;"><div class="text-muted" style="font-size:12px;">${label}</div><div style="font-size:28px;font-weight:700;margin-top:6px;">${stats[key] ?? 0}</div></button>`).join('')}</div>`;
+  panel.innerHTML = `<div class="s-34d8d3">${cards.map(([key, label, target]) => `<button class="table-panel pim-dashboard-card s-d5a21b" data-pim-dashboard-target="${target}"><div class="text-muted s-6cb285">${label}</div><div class="s-de7088">${stats[key] ?? 0}</div></button>`).join('')}</div>`;
   container.appendChild(panel);
   panel.querySelectorAll('[data-pim-dashboard-target]').forEach(card => card.addEventListener('click', () => {
     const target = card.getAttribute('data-pim-dashboard-target');
@@ -313,13 +319,13 @@ async function renderPIMFeedsPanel(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.marginTop = '16px';
-  panel.innerHTML = `<h3 style="margin:0 0 10px;font-size:15px;">Marketplace feeds</h3>
-    ${packable.map(c => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;"><span>${escapeHTMLText(c.name || c.id)} (${escapeHTMLText(c.platform)})</span>
+  panel.innerHTML = `<h3 class="s-01f1a9">Marketplace feeds</h3>
+    ${packable.map(c => `<div class="s-ca3dca"><span>${escapeHTMLText(c.name || c.id)} (${escapeHTMLText(c.platform)})</span>
       <button type="button" class="btn btn-outline btn-sm" data-pack="${escapeHTMLText(c.id)}">Apply ${escapeHTMLText(c.platform)} layout</button></div>`).join('')}
     ${active.length ? `<div class="table-wrapper"><table><thead><tr><th>Feed</th><th>Family</th><th>Category</th><th>File</th><th></th></tr></thead><tbody>
       ${active.map(t => `<tr data-feed="${escapeHTMLText(t.id)}"><td>${escapeHTMLText(t.name || t.id)}</td>
-        <td><input class="form-input" data-feed-family style="width:120px;" placeholder="all"></td><td><input class="form-input" data-feed-category style="width:120px;" placeholder="all"></td>
-        <td><select class="form-select" data-feed-format style="width:auto;"><option value="csv">CSV</option><option value="xlsx">XLSX</option></select></td>
+        <td><input class="form-input s-465bfe" data-feed-family placeholder="all"></td><td><input class="form-input s-465bfe" data-feed-category placeholder="all"></td>
+        <td><select class="form-select s-30e741" data-feed-format><option value="csv">CSV</option><option value="xlsx">XLSX</option></select></td>
         <td><button type="button" class="btn btn-primary btn-sm" data-feed-run>Download</button></td></tr>`).join('')}</tbody></table></div>` : ''}`;
   container.appendChild(panel);
   panel.querySelectorAll('[data-pack]').forEach(btn => btn.addEventListener('click', async () => {
@@ -399,19 +405,19 @@ async function renderPIMMyWorkTab(container) {
   panel.style.padding = '24px';
   panel.innerHTML = `
     <div class="dashboard-stats-row" id="pim-task-tiles"></div>
-    <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
-      <div class="form-group" style="margin:0;">
+    <div class="table-controls s-f10932">
+      <div class="form-group s-116966">
         <label class="form-label" for="pim-task-assignee">Assignee</label>
         <select class="form-select" id="pim-task-assignee"><option value="me">My tasks</option><option value="all">Everyone</option></select>
       </div>
-      <div class="form-group" style="margin:0;">
+      <div class="form-group s-116966">
         <label class="form-label" for="pim-task-status">Status</label>
         <select class="form-select" id="pim-task-status">
           <option value="">Any status</option><option value="Open">Open</option><option value="In Progress">In Progress</option>
           <option value="Blocked">Blocked</option><option value="Done">Done</option><option value="Cancelled">Cancelled</option>
         </select>
       </div>
-      <div class="form-group" style="margin:0;">
+      <div class="form-group s-116966">
         <label class="form-label" for="pim-task-type">Type</label>
         <select class="form-select" id="pim-task-type">
           <option value="">Any type</option><option value="Enrichment">Enrichment</option><option value="Imagery">Imagery</option>
@@ -419,16 +425,16 @@ async function renderPIMMyWorkTab(container) {
           <option value="Review">Review</option><option value="Other">Other</option>
         </select>
       </div>
-      <div class="form-group" style="margin:0;">
+      <div class="form-group s-116966">
         <label class="form-label" for="pim-task-priority">Priority</label>
         <select class="form-select" id="pim-task-priority">
           <option value="">Any priority</option><option value="High">High</option><option value="Normal">Normal</option><option value="Low">Low</option>
         </select>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:18px;">
+      <label class="s-71ebaf">
         <input type="checkbox" id="pim-task-overdue"> Overdue only
       </label>
-      <button class="btn btn-outline" id="pim-task-refresh" style="margin-top:14px;">Refresh</button>
+      <button class="btn btn-outline s-d6f2af" id="pim-task-refresh">Refresh</button>
     </div>
     <div class="bulk-edit-bar hidden" id="pim-task-bulk-bar">
       <span id="pim-task-selection-count">0 selected</span>
@@ -437,35 +443,35 @@ async function renderPIMMyWorkTab(container) {
       <button class="btn btn-outline btn-sm" id="pim-task-bulk-due">Set due date</button>
       <button class="btn btn-outline btn-sm" id="pim-task-bulk-comment">Add comment</button>
     </div>
-    <div class="table-wrapper" id="pim-task-table" style="margin-top:12px;"></div>`;
+    <div class="table-wrapper s-56f435" id="pim-task-table"></div>`;
   container.appendChild(panel);
 
   const templatePanel = document.createElement('div');
   templatePanel.className = 'table-panel';
   templatePanel.style.cssText = 'padding:24px;margin-top:24px;';
   templatePanel.innerHTML = `
-    <h2 style="font-size:16px;margin:0 0 14px;">Run a task template</h2>
-    <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-template-select">Template</label><select class="form-select" id="pim-template-select"></select></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-template-group">Product group</label><select class="form-select" id="pim-template-group"></select></div>
-      <button class="btn btn-primary" id="pim-template-run" style="margin-top:14px;">Create tasks</button>
+    <h2 class="s-8406f1">Run a task template</h2>
+    <div class="table-controls s-f10932">
+      <div class="form-group s-116966"><label class="form-label" for="pim-template-select">Template</label><select class="form-select" id="pim-template-select"></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="pim-template-group">Product group</label><select class="form-select" id="pim-template-group"></select></div>
+      <button class="btn btn-primary s-d6f2af" id="pim-template-run">Create tasks</button>
     </div>
-    <div id="pim-template-result" style="margin-top:12px;"></div>`;
+    <div id="pim-template-result" class="s-56f435"></div>`;
   container.appendChild(templatePanel);
 
   const workflowPanel = document.createElement('div');
   workflowPanel.className = 'table-panel';
   workflowPanel.style.cssText = 'padding:24px;margin-top:24px;';
   workflowPanel.innerHTML = `
-    <h2 style="font-size:16px;margin:0 0 14px;">Workflow runs</h2>
-    <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-ref">Product / group</label><input class="form-input" id="pim-workflow-ref" placeholder="Item code"></div>
-      <button class="btn btn-primary" id="pim-workflow-start" style="margin-top:14px;">Start run</button>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-run-status">Show</label><select class="form-select" id="pim-run-status"><option value="Running">Running</option><option value="Paused">Paused</option><option value="">All</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div>
+    <h2 class="s-8406f1">Workflow runs</h2>
+    <div class="table-controls s-f10932">
+      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-ref">Product / group</label><input class="form-input" id="pim-workflow-ref" placeholder="Item code"></div>
+      <button class="btn btn-primary s-d6f2af" id="pim-workflow-start">Start run</button>
+      <div class="form-group s-116966"><label class="form-label" for="pim-run-status">Show</label><select class="form-select" id="pim-run-status"><option value="Running">Running</option><option value="Paused">Paused</option><option value="">All</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div>
     </div>
-    <div class="table-wrapper" id="pim-run-table" style="margin-top:12px;"></div>`;
+    <div class="table-wrapper s-56f435" id="pim-run-table"></div>`;
   container.appendChild(workflowPanel);
 
   const f = pimMyWorkState.filter;
@@ -561,7 +567,7 @@ async function loadPIMWorkflowDefinitions() {
 async function loadPIMTasks() {
   const host = document.getElementById('pim-task-table');
   if (!host) return;
-  host.innerHTML = '<div class="text-muted" style="padding:16px;">Loading tasks…</div>';
+  host.innerHTML = '<div class="text-muted s-287f77">Loading tasks…</div>';
   const res = await apiFetch(`/api/v1/pim/tasks?${pimTaskQuery()}`);
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to load tasks.'); host.innerHTML = ''; return; }
@@ -603,7 +609,7 @@ function renderPIMTaskTable(result) {
   if (!host) return;
   const tasks = result.tasks || [];
   if (tasks.length === 0) {
-    host.innerHTML = `<p class="text-muted" style="padding:16px;text-align:center;">No tasks match this filter.</p>`;
+    host.innerHTML = `<p class="text-muted s-b8127d">No tasks match this filter.</p>`;
     return;
   }
   const rows = tasks.map(task => {
@@ -614,15 +620,15 @@ function renderPIMTaskTable(result) {
     return `<tr>
       <td><input type="checkbox" class="pim-task-select" data-task="${escapeHTMLText(task.id)}"${pimMyWorkState.selected.has(task.id) ? ' checked' : ''}></td>
       <td>
-        <div style="font-weight:600;">${escapeHTMLText(task.title)}</div>
-        <div class="text-muted" style="font-size:12px;">${escapeHTMLText(task.task_type || '')}${task.stage ? ' · stage ' + escapeHTMLText(task.stage) : ''}${task.comments && task.comments.length ? ' · ' + task.comments.length + ' comment(s)' : ''}</div>
+        <div class="s-eed0f8">${escapeHTMLText(task.title)}</div>
+        <div class="text-muted s-6cb285">${escapeHTMLText(task.task_type || '')}${task.stage ? ' · stage ' + escapeHTMLText(task.stage) : ''}${task.comments && task.comments.length ? ' · ' + task.comments.length + ' comment(s)' : ''}</div>
       </td>
-      <td>${task.item_code ? escapeHTMLText(task.item_code) + (task.item_name ? `<div class="text-muted" style="font-size:12px;">${escapeHTMLText(task.item_name)}</div>` : '') : '<span class="text-muted">—</span>'}</td>
+      <td>${task.item_code ? escapeHTMLText(task.item_code) + (task.item_name ? `<div class="text-muted s-6cb285">${escapeHTMLText(task.item_name)}</div>` : '') : '<span class="text-muted">—</span>'}</td>
       <td>${escapeHTMLText(task.assignee || '(unassigned)')}</td>
       <td>${due}</td>
       <td>${escapeHTMLText(task.priority || 'Normal')}</td>
       <td>${pimTaskStatusBadge(task)}</td>
-      <td style="white-space:nowrap;">
+      <td class="s-86abda">
         ${canProgress && task.status !== 'In Progress' ? `<button class="action-btn" data-task-act="start" data-task="${escapeHTMLText(task.id)}">Start</button>` : ''}
         ${canProgress ? `<button class="action-btn" data-task-act="done" data-task="${escapeHTMLText(task.id)}">Done</button>` : ''}
         <button class="action-btn" data-task-act="open" data-task="${escapeHTMLText(task.id)}">Details</button>
@@ -632,12 +638,12 @@ function renderPIMTaskTable(result) {
 
   host.innerHTML = `<table>
     <thead><tr>
-      <th style="width:32px;"><input type="checkbox" id="pim-task-select-all"></th>
+      <th class="s-82b9d8"><input type="checkbox" id="pim-task-select-all"></th>
       <th>Task</th><th>Product</th><th>Assignee</th><th>Due</th><th>Priority</th><th>Status</th><th>Actions</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <p class="text-muted" style="font-size:12px;margin:10px 0 0;">Showing ${tasks.length} of ${result.total} task(s).</p>`;
+  <p class="text-muted s-60db2d">Showing ${tasks.length} of ${result.total} task(s).</p>`;
 
   host.querySelectorAll('.pim-task-select').forEach(box => {
     box.addEventListener('change', () => {
@@ -746,26 +752,26 @@ async function openPIMTaskDetail(taskID) {
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">${escapeHTMLText(task.title)}</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
-        <p style="margin:0 0 10px;">${pimTaskStatusBadge(task)} <span class="text-muted" style="font-size:13px;">${escapeHTMLText(task.task_type || '')} · ${escapeHTMLText(task.scope_type || '')} ${escapeHTMLText(task.scope_ref || '')}</span></p>
-        ${task.instructions ? `<p style="font-size:13px;">${escapeHTMLText(task.instructions)}</p>` : ''}
-        <dl style="display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:0 0 14px;">
-          <dt class="text-muted">Product</dt><dd style="margin:0;">${escapeHTMLText(task.item_code || '—')} ${escapeHTMLText(task.item_name || '')}</dd>
-          <dt class="text-muted">Assignee</dt><dd style="margin:0;">${escapeHTMLText(task.assignee || '(unassigned)')}</dd>
-          <dt class="text-muted">Due</dt><dd style="margin:0;">${escapeHTMLText(task.due_date || '—')}${task.overdue ? ' <span class="badge badge-danger">overdue</span>' : ''}</dd>
-          ${task.workflow_run ? `<dt class="text-muted">Workflow run</dt><dd style="margin:0;">${escapeHTMLText(task.workflow_run)} · stage ${escapeHTMLText(task.stage || '')}</dd>` : ''}
-          ${task.completed_at ? `<dt class="text-muted">Completed</dt><dd style="margin:0;">${escapeHTMLText(task.completed_at)} by ${escapeHTMLText(task.completed_by || '')}</dd>` : ''}
+        <p class="s-759e41">${pimTaskStatusBadge(task)} <span class="text-muted s-5e0faa">${escapeHTMLText(task.task_type || '')} · ${escapeHTMLText(task.scope_type || '')} ${escapeHTMLText(task.scope_ref || '')}</span></p>
+        ${task.instructions ? `<p class="s-5e0faa">${escapeHTMLText(task.instructions)}</p>` : ''}
+        <dl class="s-49e729">
+          <dt class="text-muted">Product</dt><dd class="s-116966">${escapeHTMLText(task.item_code || '—')} ${escapeHTMLText(task.item_name || '')}</dd>
+          <dt class="text-muted">Assignee</dt><dd class="s-116966">${escapeHTMLText(task.assignee || '(unassigned)')}</dd>
+          <dt class="text-muted">Due</dt><dd class="s-116966">${escapeHTMLText(task.due_date || '—')}${task.overdue ? ' <span class="badge badge-danger">overdue</span>' : ''}</dd>
+          ${task.workflow_run ? `<dt class="text-muted">Workflow run</dt><dd class="s-116966">${escapeHTMLText(task.workflow_run)} · stage ${escapeHTMLText(task.stage || '')}</dd>` : ''}
+          ${task.completed_at ? `<dt class="text-muted">Completed</dt><dd class="s-116966">${escapeHTMLText(task.completed_at)} by ${escapeHTMLText(task.completed_by || '')}</dd>` : ''}
         </dl>
-        <h4 style="font-size:13px;margin:0 0 6px;">Comments</h4>
-        <div id="pim-task-comments" style="max-height:200px;overflow-y:auto;font-size:13px;">
-          ${(task.comments || []).length === 0 ? '<p class="text-muted" style="margin:0;">No comments yet.</p>' :
-            task.comments.map(c => `<p style="margin:0 0 8px;"><strong>${escapeHTMLText(c.author)}</strong> <span class="text-muted">${escapeHTMLText((c.at || '').slice(0, 16).replace('T', ' '))}</span><br>${escapeHTMLText(c.comment)}</p>`).join('')}
+        <h4 class="s-84a09e">Comments</h4>
+        <div id="pim-task-comments" class="s-354c12">
+          ${(task.comments || []).length === 0 ? '<p class="text-muted s-116966">No comments yet.</p>' :
+            task.comments.map(c => `<p class="s-df6718"><strong>${escapeHTMLText(c.author)}</strong> <span class="text-muted">${escapeHTMLText((c.at || '').slice(0, 16).replace('T', ' '))}</span><br>${escapeHTMLText(c.comment)}</p>`).join('')}
         </div>
-        <div class="form-group" style="margin-top:12px;">
+        <div class="form-group s-56f435">
           <label class="form-label" for="pim-task-comment-input">Add a comment</label>
           <input class="form-input" id="pim-task-comment-input" placeholder="What changed, or what is blocking this?">
         </div>
       </div>
-      <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
+      <div class="modal-footer s-f854f4">
         <button type="button" class="btn btn-secondary" id="pim-task-close">Close</button>
         <button type="button" class="btn btn-outline" id="pim-task-comment-btn">Comment</button>
         ${!terminal ? `<button type="button" class="btn btn-outline" id="pim-task-reassign">Reassign</button>` : ''}
@@ -825,7 +831,7 @@ async function runPIMTaskTemplate() {
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Could not run that template.'); return; }
   const result = await res.json();
-  host.innerHTML = `<p style="font-size:13px;margin:0;"><strong>${result.created_count}</strong> task(s) created${result.skipped_count > 0 ? `, <strong>${result.skipped_count}</strong> skipped (they already have an open task from this template)` : ''}.</p>`;
+  host.innerHTML = `<p class="s-06ed28"><strong>${result.created_count}</strong> task(s) created${result.skipped_count > 0 ? `, <strong>${result.skipped_count}</strong> skipped (they already have an open task from this template)` : ''}.</p>`;
   await loadPIMTasks();
 }
 
@@ -858,22 +864,22 @@ async function loadPIMWorkflowRuns() {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   const res = await apiFetch(`/api/v1/pim/workflow-runs?${params.toString()}`);
-  if (!res || !res.ok) { host.innerHTML = '<p class="text-muted" style="padding:12px;">Could not load workflow runs.</p>'; return; }
+  if (!res || !res.ok) { host.innerHTML = '<p class="text-muted s-cc781b">Could not load workflow runs.</p>'; return; }
   const runs = (await res.json()).runs || [];
   if (runs.length === 0) {
-    host.innerHTML = '<p class="text-muted" style="padding:12px;">No workflow runs in this state.</p>';
+    host.innerHTML = '<p class="text-muted s-cc781b">No workflow runs in this state.</p>';
     return;
   }
   host.innerHTML = `<table>
     <thead><tr><th>Product</th><th>Workflow</th><th>Stage</th><th>Status</th><th>Waiting on</th><th>Tasks</th><th>Actions</th></tr></thead>
     <tbody>${runs.map(run => `<tr>
-      <td>${escapeHTMLText(run.item_code)}${run.item_name ? `<div class="text-muted" style="font-size:12px;">${escapeHTMLText(run.item_name)}</div>` : ''}</td>
+      <td>${escapeHTMLText(run.item_code)}${run.item_name ? `<div class="text-muted s-6cb285">${escapeHTMLText(run.item_name)}</div>` : ''}</td>
       <td>${escapeHTMLText(run.workflow_name || run.workflow)}</td>
-      <td>${escapeHTMLText(run.current_stage || '—')}<div class="text-muted" style="font-size:12px;">${escapeHTMLText(run.stage_progress || '')}</div></td>
+      <td>${escapeHTMLText(run.current_stage || '—')}<div class="text-muted s-6cb285">${escapeHTMLText(run.stage_progress || '')}</div></td>
       <td><span class="badge ${run.status === 'Completed' ? 'badge-success' : run.status === 'Cancelled' ? 'badge-secondary' : run.status === 'Paused' ? 'badge-warning' : 'badge-secondary'}">${escapeHTMLText(run.status)}</span></td>
-      <td style="font-size:12px;">${escapeHTMLText(run.blocked_reason || '—')}</td>
+      <td class="s-6cb285">${escapeHTMLText(run.blocked_reason || '—')}</td>
       <td>${run.open_tasks} open / ${run.total_tasks}</td>
-      <td style="white-space:nowrap;">
+      <td class="s-86abda">
         ${run.status === 'Running' ? `<button class="action-btn" data-run-act="advance" data-run="${escapeHTMLText(run.id)}">Advance</button>
         <button class="action-btn" data-run-act="pause" data-run="${escapeHTMLText(run.id)}">Pause</button>` : ''}
         ${run.status === 'Paused' ? `<button class="action-btn" data-run-act="resume" data-run="${escapeHTMLText(run.id)}">Resume</button>` : ''}
@@ -928,7 +934,7 @@ window.openPIMAssignTaskModal = async function(itemCode, contextLabel) {
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Assign a task</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
-        <p class="text-muted" style="font-size:13px;margin:0 0 12px;">On <strong>${escapeHTMLText(itemCode)}</strong>${contextLabel ? `, from ${escapeHTMLText(contextLabel)}` : ''}.</p>
+        <p class="text-muted s-642b44">On <strong>${escapeHTMLText(itemCode)}</strong>${contextLabel ? `, from ${escapeHTMLText(contextLabel)}` : ''}.</p>
         <div class="form-group"><label class="form-label" for="pim-assign-title">Title</label><input class="form-input" id="pim-assign-title" value="Fix ${escapeHTMLText(itemCode)}"></div>
         <div class="form-group"><label class="form-label" for="pim-assign-type">Type</label><select class="form-select" id="pim-assign-type">
           <option>Enrichment</option><option>Imagery</option><option>Attributes</option><option>Translation</option><option>Review</option><option>Other</option>
@@ -977,7 +983,7 @@ window.openPIMAssignTaskModal = async function(itemCode, contextLabel) {
 async function renderPIMReportsTab(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
-  panel.innerHTML = `<div class="table-controls"><div class="form-group" style="margin:0;"><label class="form-label" for="pim-report-name">Report</label><select class="form-select" id="pim-report-name"><option value="content-aging">Content aging</option><option value="duplicate-media">Duplicate media</option><option value="channel-mapping-gap">Channel mapping gaps</option><option value="attribute-quality">Attribute quality</option><option value="media-expiry">Media expiry</option><option value="content-sla-breach">Content SLA breaches</option></select></div><button class="btn btn-primary" id="pim-report-run">Run report</button><button class="btn btn-outline" id="pim-search-feed-export">Download Search Feed (CSV)</button></div><div class="table-wrapper" id="pim-report-results" style="margin-top:16px;"></div>`;
+  panel.innerHTML = `<div class="table-controls"><div class="form-group s-116966"><label class="form-label" for="pim-report-name">Report</label><select class="form-select" id="pim-report-name"><option value="content-aging">Content aging</option><option value="duplicate-media">Duplicate media</option><option value="channel-mapping-gap">Channel mapping gaps</option><option value="attribute-quality">Attribute quality</option><option value="media-expiry">Media expiry</option><option value="content-sla-breach">Content SLA breaches</option></select></div><button class="btn btn-primary" id="pim-report-run">Run report</button><button class="btn btn-outline" id="pim-search-feed-export">Download Search Feed (CSV)</button></div><div class="table-wrapper s-1b0f49" id="pim-report-results"></div>`;
   container.appendChild(panel);
   const results = panel.querySelector('#pim-report-results');
   const run = async () => {
@@ -1023,17 +1029,17 @@ async function renderPIMWorkbenchTab(container) {
   filterPanel.style.marginBottom = '16px';
   filterPanel.style.minHeight = '0';
   filterPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-ab84b5">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-family-filter">Family</label>
-        <select id="pim-family-filter" class="form-input" style="width: 220px;">
+        <select id="pim-family-filter" class="form-input s-30080b">
           <option value="">All families</option>
           ${families.map(f => `<option value="${escapeHTMLText(f.code || f.id)}" ${(f.code || f.id) === currentPIMFamilyFilter ? 'selected' : ''}>${escapeHTMLText(f.name || f.code || f.id)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-sku-paste">Item codes</label>
-        <input id="pim-sku-paste" class="form-input" style="width: 260px;" value="${escapeHTMLText(pimSkuPaste)}" placeholder="Paste codes">
+        <input id="pim-sku-paste" class="form-input s-5341bb" value="${escapeHTMLText(pimSkuPaste)}" placeholder="Paste codes">
       </div>
     </div>
   `;
@@ -1064,12 +1070,12 @@ async function renderPIMWorkbenchTab(container) {
       <tbody>
   `;
   html += entries.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No items found. Create one under Setup &raquo; Item.</td></tr>`
+    ? `<tr><td colspan="6" class="s-306094">No items found. Create one under Setup &raquo; Item.</td></tr>`
     : entries.map(e => {
         const badgeClass = e.score >= 80 ? 'badge-success' : e.score >= 40 ? 'badge-warning' : 'badge-danger';
         return `
-          <tr class="pim-workbench-row" data-item="${escapeHTMLText(e.item_code)}" style="cursor: pointer;">
-            <td style="font-family: monospace;">${escapeHTMLText(e.item_code)}</td>
+          <tr class="pim-workbench-row s-74fa97" data-item="${escapeHTMLText(e.item_code)}">
+            <td class="s-355794">${escapeHTMLText(e.item_code)}</td>
             <td>${escapeHTMLText(e.name || '')}</td>
             <td ${e.family ? `data-link-ref="${escapeHTMLText(e.family)}" data-link-doctype="ProductFamily"` : ''}>${escapeHTMLText(e.family || '')}</td>
             <td><span class="badge badge-secondary">${escapeHTMLText(e.status || '')}</span></td>
@@ -1109,109 +1115,109 @@ async function renderPIMDetailPanel(container, itemCode) {
   panel.style.padding = '24px';
   panel.style.marginTop = '16px';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;"><span data-link-ref="${escapeHTMLText(itemCode)}" data-link-doctype="Item">${escapeHTMLText(itemCode)}</span> - Completeness: ${escapeHTMLText(comp.score)}% <span class="badge badge-secondary" style="margin-left: 8px;">${escapeHTMLText(comp.enrichment_status || '')}</span></h2>
-    <div class="pim-missing-fields" style="margin-bottom:16px;">
+    <h2 class="s-79bd22"><span data-link-ref="${escapeHTMLText(itemCode)}" data-link-doctype="Item">${escapeHTMLText(itemCode)}</span> - Completeness: ${escapeHTMLText(comp.score)}% <span class="badge badge-secondary s-8ce609">${escapeHTMLText(comp.enrichment_status || '')}</span></h2>
+    <div class="pim-missing-fields s-87c136">
       <strong>What to fix next</strong>
       ${comp.missing_fields && comp.missing_fields.length > 0
-        ? `<ul style="margin:8px 0 0;padding-left:20px;">${comp.missing_fields.map(field => `<li>${escapeHTMLText(field)} — ${pimCorrectionMarkup(field, attrDefs)}</li>`).join('')}</ul>`
-        : '<p style="margin:8px 0 0;color:var(--text-muted);">Core product is complete. Check a channel below before publishing.</p>'}
+        ? `<ul class="s-6c5e8c">${comp.missing_fields.map(field => `<li>${escapeHTMLText(field)} — ${pimCorrectionMarkup(field, attrDefs)}</li>`).join('')}</ul>`
+        : '<p class="s-d3925e">Core product is complete. Check a channel below before publishing.</p>'}
     </div>
 
-    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Add / Update Attribute Value</h3>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h3 class="s-3ad76c">Add / Update Attribute Value</h3>
+    <div class="s-00f3c5">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-attr-select">Attribute</label>
-        <select id="pim-attr-select" class="form-input" style="width: 200px;">
+        <select id="pim-attr-select" class="form-input s-0fff9b">
           <option value="">Select attribute</option>
           ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}" data-value-type="${escapeHTMLText(a.value_type || 'Data')}" data-value-options="${escapeHTMLText(a.value_options || '')}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-attr-value">Value</label>
-        <input type="text" id="pim-attr-value" class="form-input" style="width: 200px;">
+        <input type="text" id="pim-attr-value" class="form-input s-0fff9b">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-attr-locale" title="Leave blank to set the global default value">Locale Override</label>
-        <input type="text" id="pim-attr-locale" class="form-input" style="width: 100px;" placeholder="e.g. fr">
+        <input type="text" id="pim-attr-locale" class="form-input s-da190a" placeholder="e.g. fr">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-attr-channel" title="Leave blank to set the global default value">Channel Override</label>
-        <select id="pim-attr-channel" class="form-input" style="width: 160px;">
+        <select id="pim-attr-channel" class="form-input s-56cae7">
           <option value="">All channels</option>
           ${channelsForOverride.map(c => `<option value="${escapeHTMLText(c.code || c.id)}">${escapeHTMLText(c.name || c.code || c.id)}</option>`).join('')}
         </select>
       </div>
       <button class="btn btn-primary" id="pim-attr-save-btn">Save</button>
     </div>
-    <div id="pim-attr-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="pim-attr-error" class="login-error hidden s-29b798"></div>
 
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-      <h3 style="font-size: 14px; font-weight: 700; margin: 0;">Content</h3>
+    <div class="s-138ab9">
+      <h3 class="s-95d910">Content</h3>
       <button class="btn btn-outline btn-sm" id="pim-content-assist-btn" title="Draft title, descriptions and tags from this product's own stored data. Nothing is saved until you click Save Draft.">Assist</button>
       <span class="text-muted" id="pim-content-current" role="status">Loading saved content…</span>
     </div>
-    <div id="pim-content-assist-note" class="hidden" style="margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); font-size: 13px; color: var(--text-muted);"></div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div id="pim-content-assist-note" class="hidden s-a0ff6d"></div>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-lang">Language</label>
-        <input type="text" id="pim-content-lang" class="form-input" style="width: 90px;" value="en">
+        <input type="text" id="pim-content-lang" class="form-input s-34deaa" value="en">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-shape" title="Marketplace shapes the title and adds bullet points plus a meta description - the format most marketplace listing pages use, versus a storefront page's single flowing description.">Assist Shape</label>
-        <select id="pim-content-shape" class="form-input" style="width: 140px;">
+        <select id="pim-content-shape" class="form-input s-21b277">
           <option value="standard">Standard</option>
           <option value="marketplace">Marketplace</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-title">Title</label>
-        <input type="text" id="pim-content-title" class="form-input" style="width: 220px;">
+        <input type="text" id="pim-content-title" class="form-input s-30080b">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-short">Short Description</label>
-        <input type="text" id="pim-content-short" class="form-input" style="width: 260px;">
+        <input type="text" id="pim-content-short" class="form-input s-5341bb">
       </div>
     </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
-      <div class="form-group" style="margin-bottom: 0; flex: 1;">
+    <div class="s-cdbe80">
+      <div class="form-group s-121ddc">
         <label class="form-label" for="pim-content-long">Long Description</label>
-        <textarea id="pim-content-long" class="form-input" rows="3" style="width: 100%;"></textarea>
+        <textarea id="pim-content-long" class="form-input s-16000c" rows="3"></textarea>
       </div>
     </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-cdbe80">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-seo">SEO Title</label>
-        <input type="text" id="pim-content-seo" class="form-input" style="width: 220px;">
+        <input type="text" id="pim-content-seo" class="form-input s-30080b">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-tags">Tags</label>
-        <input type="text" id="pim-content-tags" class="form-input" style="width: 220px;">
+        <input type="text" id="pim-content-tags" class="form-input s-30080b">
       </div>
     </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-cdbe80">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-owner">Owner (username)</label>
-        <input type="text" id="pim-content-owner" class="form-input" style="width: 160px;">
+        <input type="text" id="pim-content-owner" class="form-input s-56cae7">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-content-sla">SLA Due Date</label>
-        <input type="date" id="pim-content-sla" class="form-input" style="width: 160px;">
+        <input type="date" id="pim-content-sla" class="form-input s-56cae7">
       </div>
       <button class="btn btn-outline" id="pim-content-save-btn">Save Draft</button>
       <button class="btn btn-primary" id="pim-content-submit-btn">Submit for Approval</button>
     </div>
-    <div id="pim-content-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <div id="pim-content-history" style="margin-top: 16px;"></div>
+    <div id="pim-content-error" class="login-error hidden s-4c0544"></div>
+    <div id="pim-content-history" class="s-4c0544"></div>
 
-    <h3 style="font-size: 14px; font-weight: 700; margin: 24px 0 12px;">Media</h3>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h3 class="s-1a80e4">Media</h3>
+    <div class="s-cade60">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-media-file">File (jpg/png/webp/gif/pdf)</label>
         <input type="file" id="pim-media-file" class="form-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-media-role">Role</label>
-        <select id="pim-media-role" class="form-input" style="width: 160px;">
+        <select id="pim-media-role" class="form-input s-56cae7">
           <option>Main Image</option>
           <option>Gallery</option>
           <option>Variant Image</option>
@@ -1221,34 +1227,34 @@ async function renderPIMDetailPanel(container, itemCode) {
           <option>Video/Other</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-media-alt">Alt Text</label>
-        <input type="text" id="pim-media-alt" class="form-input" style="width: 180px;">
+        <input type="text" id="pim-media-alt" class="form-input s-f9de92">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-media-expiry">Expiry Date</label>
-        <input type="date" id="pim-media-expiry" class="form-input" style="width: 160px;">
+        <input type="date" id="pim-media-expiry" class="form-input s-56cae7">
       </div>
       <button class="btn btn-primary" id="pim-media-upload-btn">Upload</button>
     </div>
-    <div id="pim-media-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
-    <div id="pim-media-gallery" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;"></div>
+    <div id="pim-media-error" class="login-error hidden s-5beb8f"></div>
+    <div id="pim-media-gallery" class="s-beb40d"></div>
 
-    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Channel Publishing</h3>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h3 class="s-3ad76c">Channel Publishing</h3>
+    <div class="s-cade60">
+      <div class="form-group s-50435f">
         <label class="form-label" for="pim-publish-channel">Channel</label>
-        <select id="pim-publish-channel" class="form-input" style="width: 200px;"><option value="">Loading...</option></select>
+        <select id="pim-publish-channel" class="form-input s-0fff9b"><option value="">Loading...</option></select>
       </div>
       <button class="btn btn-outline" id="pim-publish-preview-btn">Preview</button>
       <button class="btn btn-primary" id="pim-publish-btn" disabled>Publish</button>
     </div>
-    <div id="pim-publish-readiness" role="status" style="margin-bottom:12px;">Checking channel requirements…</div>
-    <div id="pim-publish-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
-    <div id="pim-publish-preview" style="margin-bottom: 12px;"></div>
+    <div id="pim-publish-readiness" role="status" class="s-da12f2">Checking channel requirements…</div>
+    <div id="pim-publish-error" class="login-error hidden s-5beb8f"></div>
+    <div id="pim-publish-preview" class="s-5beb8f"></div>
     <div id="pim-publish-log"></div>
 
-    <h3 style="font-size: 14px; font-weight: 700; margin: 24px 0 12px;">Related Products</h3>
+    <h3 class="s-1a80e4">Related Products</h3>
     <div id="pim-related-products" class="text-muted">Loading&hellip;</div>
   `;
   container.appendChild(panel);
@@ -1320,12 +1326,12 @@ async function openPIMImportTemplateRun(templateID) {
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Preview and import catalog CSV');
-  overlay.innerHTML = `<div class="modal-container" style="max-width:820px;">
+  overlay.innerHTML = `<div class="modal-container s-09a5de">
     <div class="modal-header"><h3 class="modal-title">Preview and import catalog CSV</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
     <div class="modal-body">
       <p>Template: <strong>${escapeHTMLText(templateID)}</strong></p>
       <div id="pim-import-mapping" role="status">Loading field mapping…</div>
-      <div class="form-group" style="margin-top:16px;"><label class="form-label" for="pim-import-file">CSV file</label><input class="form-input" type="file" id="pim-import-file" accept=".csv,text/csv"></div>
+      <div class="form-group s-1b0f49"><label class="form-label" for="pim-import-file">CSV file</label><input class="form-input" type="file" id="pim-import-file" accept=".csv,text/csv"></div>
       <div id="pim-import-result" role="status"></div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-secondary" id="pim-import-close">Close</button><button type="button" class="btn btn-outline" id="pim-import-preview">Preview (no changes)</button><button type="button" class="btn btn-primary" id="pim-import-commit" disabled>Import validated file</button></div>
@@ -1350,7 +1356,7 @@ async function openPIMImportTemplateRun(templateID) {
   }
   const mapping = await mappingRes.json();
   const rows = mapping.mappings || [];
-  mappingEl.innerHTML = `<p style="margin:8px 0;">Target: <strong>${escapeHTMLText(mapping.target_doctype)}</strong></p><div class="table-wrapper"><table><thead><tr><th>CSV column</th><th>ERP field</th><th>Transform</th><th>Default</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHTMLText(row.source_column)}</td><td>${row.target_label ? escapeHTMLText(row.target_label) : `<span class="badge badge-danger">Unknown: ${escapeHTMLText(row.target_field)}</span>`}</td><td>${escapeHTMLText(row.transform_rule || '')}</td><td>${escapeHTMLText(row.default_value || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  mappingEl.innerHTML = `<p class="s-f5554e">Target: <strong>${escapeHTMLText(mapping.target_doctype)}</strong></p><div class="table-wrapper"><table><thead><tr><th>CSV column</th><th>ERP field</th><th>Transform</th><th>Default</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHTMLText(row.source_column)}</td><td>${row.target_label ? escapeHTMLText(row.target_label) : `<span class="badge badge-danger">Unknown: ${escapeHTMLText(row.target_field)}</span>`}</td><td>${escapeHTMLText(row.transform_rule || '')}</td><td>${escapeHTMLText(row.default_value || '')}</td></tr>`).join('')}</tbody></table></div>`;
   if (rows.length === 0 || rows.some(row => !row.target_label)) {
     previewButton.disabled = true;
     resultEl.textContent = 'Repair the template mapping before uploading a file.';
@@ -1430,8 +1436,8 @@ async function renderPIMRelatedProducts(itemCode) {
       <thead><tr><th>Item</th><th>Name</th><th>Shared Attributes</th></tr></thead>
       <tbody>
         ${related.map(r => `
-          <tr class="pim-related-row" data-item="${escapeHTMLText(r.item_code)}" style="cursor:pointer;">
-            <td style="font-family: monospace;">${escapeHTMLText(r.item_code)}</td>
+          <tr class="pim-related-row s-3b6a3a" data-item="${escapeHTMLText(r.item_code)}">
+            <td class="s-355794">${escapeHTMLText(r.item_code)}</td>
             <td>${escapeHTMLText(r.name)}</td>
             <td>${r.shared_attributes}</td>
           </tr>
@@ -1501,16 +1507,16 @@ async function runPIMContentAssist(itemCode) {
   // silently dropped.
   const bullets = (draft.bullets || []).map(b => `<li>${escapeHTMLText(b)}</li>`).join('');
   const marketplaceExtra = (draft.bullets && draft.bullets.length > 0) || draft.meta_description
-    ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color);">
-         ${bullets ? `<div><strong>Bullet points:</strong></div><ul style="margin: 4px 0 0 18px;">${bullets}</ul>` : ''}
-         ${draft.meta_description ? `<div style="margin-top: 6px;"><strong>Meta description:</strong> ${escapeHTMLText(draft.meta_description)}</div>` : ''}
+    ? `<div class="s-1cf295">
+         ${bullets ? `<div><strong>Bullet points:</strong></div><ul class="s-28850b">${bullets}</ul>` : ''}
+         ${draft.meta_description ? `<div class="s-a5595d"><strong>Meta description:</strong> ${escapeHTMLText(draft.meta_description)}</div>` : ''}
        </div>`
     : '';
   noteEl.innerHTML = `
     <strong>${filled} field${filled === 1 ? '' : 's'} filled from this product's own data.</strong>
     Nothing has been saved yet - review the text, then use Save Draft or Submit for Approval.
-    <div style="margin-top: 6px;">Built from: ${escapeHTMLText(sources)}</div>
-    ${warnings ? `<ul style="margin: 6px 0 0 18px;">${warnings}</ul>` : ''}
+    <div class="s-a5595d">Built from: ${escapeHTMLText(sources)}</div>
+    ${warnings ? `<ul class="s-f45d9b">${warnings}</ul>` : ''}
     ${marketplaceExtra}`;
   noteEl.classList.remove('hidden');
 }
@@ -1522,17 +1528,17 @@ async function renderPIMMediaGallery(itemCode) {
   const media = res && res.ok ? await res.json() : [];
 
   if (media.length === 0) {
-    gallery.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">No media uploaded yet.</div>`;
+    gallery.innerHTML = `<div class="s-4b3c6e">No media uploaded yet.</div>`;
     return;
   }
 
   gallery.innerHTML = media.map(m => `
-    <div class="table-panel" style="padding: 8px; width: 150px;" data-media-card="${escapeHTMLText(m.id)}">
-      <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">${escapeHTMLText(m.media_role)} <span class="text-muted">v${escapeHTMLText(m.version_no || 1)}</span></div>
-      <img data-media-thumb="${escapeHTMLText(m.id)}" style="width: 100%; height: 90px; object-fit: cover; background: var(--bg-secondary); border-radius: 4px;" alt="${escapeHTMLText(m.alt_text || m.media_role)}">
-      <div class="text-muted" style="font-size:10px; margin-top:4px; word-break:break-word;">${escapeHTMLText(m.alt_text || 'No alt text')}${m.expiry_date ? ` · expires ${escapeHTMLText(m.expiry_date)}` : ''}</div>
-      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 6px;" data-edit-media="${escapeHTMLText(m.id)}" data-alt="${escapeHTMLText(m.alt_text || '')}" data-expiry="${escapeHTMLText(m.expiry_date || '')}">Edit Alt/Expiry</button>
-      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 4px;" data-deactivate-media="${escapeHTMLText(m.id)}">Deactivate</button>
+    <div class="table-panel s-53e79d" data-media-card="${escapeHTMLText(m.id)}">
+      <div class="s-d8d01b">${escapeHTMLText(m.media_role)} <span class="text-muted">v${escapeHTMLText(m.version_no || 1)}</span></div>
+      <img data-media-thumb="${escapeHTMLText(m.id)}" class="s-9e6a15" alt="${escapeHTMLText(m.alt_text || m.media_role)}">
+      <div class="text-muted s-57f567">${escapeHTMLText(m.alt_text || 'No alt text')}${m.expiry_date ? ` · expires ${escapeHTMLText(m.expiry_date)}` : ''}</div>
+      <button class="btn btn-outline btn-sm s-e63a63" data-edit-media="${escapeHTMLText(m.id)}" data-alt="${escapeHTMLText(m.alt_text || '')}" data-expiry="${escapeHTMLText(m.expiry_date || '')}">Edit Alt/Expiry</button>
+      <button class="btn btn-outline btn-sm s-13648a" data-deactivate-media="${escapeHTMLText(m.id)}">Deactivate</button>
     </div>
   `).join('');
 
@@ -1626,12 +1632,12 @@ async function renderPIMPublishSection(itemCode) {
   const logRes = await apiFetch(`/api/v1/pim/publish-log?item=${encodeURIComponent(itemCode)}`);
   const log = logRes && logRes.ok ? await logRes.json() : [];
   logEl.innerHTML = log.length === 0
-    ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet.</div>`
+    ? `<div class="s-4b3c6e">No publish attempts yet.</div>`
     // error_code (Stage 26.4.8: marketplace error dictionary) lets a failed
     // attempt be triaged at a glance (missing credential vs. duplicate SKU
     // vs. a blank required field) instead of only reading the raw message.
     : `<table><thead><tr><th>Channel</th><th>Status</th><th>External ID</th><th>Error Code</th><th>When</th></tr></thead><tbody>${
-        log.map(l => `<tr><td>${escapeHTMLText(l.channel_code)}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${escapeHTMLText(l.status)}</span></td><td style="font-family: monospace;">${escapeHTMLText(l.external_id || '')}</td><td style="font-family: monospace;">${escapeHTMLText(l.error_code || '')}</td><td>${escapeHTMLText(l.created_at || '')}</td></tr>`).join('')
+        log.map(l => `<tr><td>${escapeHTMLText(l.channel_code)}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${escapeHTMLText(l.status)}</span></td><td class="s-355794">${escapeHTMLText(l.external_id || '')}</td><td class="s-355794">${escapeHTMLText(l.error_code || '')}</td><td>${escapeHTMLText(l.created_at || '')}</td></tr>`).join('')
       }</tbody></table>`;
 }
 
@@ -1664,7 +1670,7 @@ async function checkPIMPublishReadiness(itemCode) {
     status.textContent = `Ready to publish to ${select.selectedOptions[0]?.textContent || channel}. This queues a local publish job; an external marketplace receipt must be checked separately.`;
   } else {
     const issues = readiness.missing_fields || [];
-    status.innerHTML = `<strong>Not ready for ${escapeHTMLText(select.selectedOptions[0]?.textContent || channel)}:</strong><ul style="margin:8px 0 0;padding-left:20px;">${issues.map(issue => `<li>${escapeHTMLText(issue)} ${pimReadinessCorrectionMarkup(issue)}</li>`).join('')}</ul>`;
+    status.innerHTML = `<strong>Not ready for ${escapeHTMLText(select.selectedOptions[0]?.textContent || channel)}:</strong><ul class="s-6c5e8c">${issues.map(issue => `<li>${escapeHTMLText(issue)} ${pimReadinessCorrectionMarkup(issue)}</li>`).join('')}</ul>`;
     status.querySelectorAll('[data-pim-ready-action]').forEach(button => button.addEventListener('click', () => {
       const target = button.getAttribute('data-pim-ready-action');
       if (target === 'item') { window.location.hash = '#/setup/Item'; return; }
@@ -1711,7 +1717,7 @@ async function previewPIMPublish(itemCode) {
   }
   const preview = await res.json();
   previewEl.innerHTML = `
-    <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload'}</h4>
+    <h4 class="s-db5726">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload'}</h4>
     <table><thead><tr><th>Field</th><th>Previously Published</th><th>About to Publish</th></tr></thead><tbody>${
       (preview.fields || []).map(f => `<tr style="${f.changed ? 'font-weight:600;' : ''}"><td>${escapeHTMLText(f.field)}</td><td>${escapeHTMLText(f.old || '')}</td><td>${escapeHTMLText(f.new || '')}</td></tr>`).join('')
     }</tbody></table>
@@ -1762,21 +1768,21 @@ async function renderPIMContentHistory(itemCode) {
   const versions = versionsRes && versionsRes.ok ? await versionsRes.json() : [];
 
   const logHTML = log.length === 0
-    ? `<div class="text-muted" style="font-size:13px;">No approval history yet.</div>`
+    ? `<div class="text-muted s-5e0faa">No approval history yet.</div>`
     : `<table><thead><tr><th>Action</th><th>By</th><th>Comment</th><th>When</th></tr></thead><tbody>${
         log.map(l => `<tr><td>${escapeHTMLText(l.action)}</td><td>${escapeHTMLText(l.actor_user_id)}</td><td>${escapeHTMLText(l.comment || '')}</td><td>${escapeHTMLText(l.created_at || '')}</td></tr>`).join('')
       }</tbody></table>`;
 
   const versionsHTML = versions.length === 0
-    ? `<div class="text-muted" style="font-size:13px;">No approved versions yet.</div>`
+    ? `<div class="text-muted s-5e0faa">No approved versions yet.</div>`
     : `<table><thead><tr><th>Version</th><th>Title</th><th>Approved At</th><th></th></tr></thead><tbody>${
         versions.map(v => `<tr><td>${escapeHTMLText(v.version_no)}</td><td>${escapeHTMLText((v.data && v.data.title) || '')}</td><td>${escapeHTMLText(v.created_at || '')}</td><td><button class="btn btn-outline btn-sm" data-rollback-version="${escapeHTMLText(v.id)}">Restore</button></td></tr>`).join('')
       }</tbody></table>`;
 
   container.innerHTML = `
-    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px;">Approval History</h3>
+    <h3 class="s-0c8c0c">Approval History</h3>
     ${logHTML}
-    <h3 style="font-size: 14px; font-weight: 700; margin: 16px 0 8px;">Approved Versions</h3>
+    <h3 class="s-55dbab">Approved Versions</h3>
     ${versionsHTML}
   `;
 

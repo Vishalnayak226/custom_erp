@@ -25,9 +25,10 @@ async function storeStateCode(store) {
 
 // Stage 148.1: a tracked item's line names its pieces or batch, so it books their own cost.
 function namedStockInputs(l, i) {
-  const box = (key, label) => `<input class="form-input" style="margin-top:4px;" data-sil="${key}" data-i="${i}" placeholder="${label}" aria-label="${label}" value="${esc(l[key] || '')}">`;
+  const box = (key, label) => `<input class="form-input s-96ad60" data-sil="${key}" data-i="${i}" placeholder="${label}" aria-label="${label}" value="${esc(l[key] || '')}">`;
   return (l.tracking === 'Serial' || l.tracking === 'Batch and Serial' ? box('serial_nos', 'Piece codes') : '')
-    + (l.tracking === 'Batch' || l.tracking === 'Batch and Serial' ? box('batch_no', 'Batch') : '');
+    + (l.tracking === 'Batch' || l.tracking === 'Batch and Serial' ? box('batch_no', 'Batch') : '')
+    + (l.free ? box('income_account', 'Income account (blank: Sales)') : '');  // Stage 148.22
 }
 
 export async function renderSalesInvoiceEntry(container, onDone) {
@@ -37,10 +38,10 @@ export async function renderSalesInvoiceEntry(container, onDone) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group" style="margin:0;"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
-  panel.innerHTML = `<div class="page-header" style="margin:0 0 12px;"><div class="page-title-section"><h1 class="page-title">New Sales Invoice</h1></div>
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  panel.innerHTML = `<div class="page-header s-249d01"><div class="page-title-section"><h1 class="page-title">New Sales Invoice</h1></div>
       <div><button type="button" class="btn btn-ghost" data-si="back">Back to invoices</button></div></div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+    <div class="s-d9da29">
       ${field('si-customer', 'Customer', 220)}${field('si-gstin', 'Buyer GSTIN', 170, 'placeholder="for a registered buyer"')}
       ${field('si-store', 'Store', 150, `value="${esc(sessionStore())}"`)}
       ${field('si-date', 'Invoice date', 150, `type="date" value="${new Date().toISOString().slice(0, 10)}"`)}
@@ -48,12 +49,12 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       ${field('si-due', 'Due date', 150, 'type="date"')}${field('si-ref', 'Customer reference', 150, 'placeholder="their PO no"')}
       ${field('si-challan', 'Delivery challan', 150, 'placeholder="if already sent"')}
     </div>
-    <div class="txn-hint" data-si="supply" style="margin-bottom:10px;"></div>
+    <div class="txn-hint s-761d3a" data-si="supply"></div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate (before GST)</th><th class="num">Discount (₹)</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th><th></th></tr></thead><tbody data-si="lines"></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;"><input class="form-input" data-si="add" placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off"></div>
-    <div data-si="totals" style="margin-top:14px;max-width:320px;margin-left:auto;"></div>
-    <div class="login-error hidden" data-si="error" style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-si="save">Save as draft</button></div>`;
+    <div class="s-918f5b"><input class="form-input s-3521b3" data-si="add" placeholder="Add by Design, Combination ID or barcode" autocomplete="off"><input class="form-input s-a5d7a0" data-si="free" placeholder="Add a line by description" autocomplete="off"></div>
+    <div data-si="totals" class="s-140432"></div>
+    <div class="login-error hidden s-56f435" data-si="error"></div>
+    <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-si="save">Save as draft</button></div>`;
   container.appendChild(panel);
   const q = (k) => panel.querySelector(`[data-si="${k}"]`);
   const v = (id) => panel.querySelector(id).value.trim();
@@ -78,22 +79,37 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       l.taxable = r2(num(l.qty) * num(l.rate) - l.discount);
       l.tax = r2(l.taxable * num(l.gst_rate) / 100);
       taxable += l.taxable; tax += l.tax;
-      return `<tr><td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div>${namedStockInputs(l, i)}</td><td>${esc(l.hsn || '')}</td>
-        <td class="num"><input type="number" min="0" step="any" class="form-input" style="width:80px;text-align:right;" data-sil="qty" data-i="${i}" value="${esc(l.qty)}"></td>
-        <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:110px;text-align:right;" data-sil="rate" data-i="${i}" value="${esc(l.rate)}"></td>
-        <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:90px;text-align:right;" data-sil="discount" data-i="${i}" value="${esc(l.discount)}" title="Taken off this line before GST"></td>
-        <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:70px;text-align:right;" data-sil="gst_rate" data-i="${i}" value="${esc(l.gst_rate)}"></td>
+      return `<tr><td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div>${l.why ? `<div class="text-muted s-6cb285">${esc(l.why)}</div>` : ''}${S.needReason ? `<input class="form-input s-1ca389" placeholder="Why this rate" data-sil="floor_reason" data-i="${i}" value="${esc(l.floor_reason || '')}">` : ''}${namedStockInputs(l, i)}</td><td>${esc(l.hsn || '')}</td>
+        <td class="num"><input type="number" min="0" step="any" class="form-input s-21b28d" data-sil="qty" data-i="${i}" value="${esc(l.qty)}"></td>
+        <td class="num"><input type="number" min="0" step="0.01" class="form-input s-b54ee3" data-sil="rate" data-i="${i}" value="${esc(l.rate)}"></td>
+        <td class="num"><input type="number" min="0" step="0.01" class="form-input s-d29533" data-sil="discount" data-i="${i}" value="${esc(l.discount)}" title="Taken off this line before GST"></td>
+        <td class="num"><input type="number" min="0" step="0.01" class="form-input s-ac4691" data-sil="gst_rate" data-i="${i}" value="${esc(l.gst_rate)}"></td>
         <td class="num">${formatMoney(l.taxable)}</td><td class="num">${formatMoney(l.tax)}</td><td class="num">${formatMoney(l.taxable + l.tax)}</td>
         <td><button type="button" class="action-btn action-btn-danger" data-sil-remove="${i}">Remove</button></td></tr>`;
-    }).join('') : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:16px;">Add the items billed.</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="s-f692de">Add the items billed.</td></tr>';
     taxable = r2(taxable); tax = r2(tax);
     const half = r2(tax / 2);
     S.totals = { taxable, tax, cgst: inter ? 0 : half, sgst: inter ? 0 : r2(tax - half), igst: inter ? tax : 0, total: r2(taxable + tax) };
-    q('totals').innerHTML = `<table class="tdp-totals" style="width:100%;"><tr><td>Taxable value</td><td class="num">${formatMoney(taxable)}</td></tr>
+    q('totals').innerHTML = `<table class="tdp-totals s-046678"><tr><td>Taxable value</td><td class="num">${formatMoney(taxable)}</td></tr>
       ${inter ? `<tr><td>IGST</td><td class="num">${formatMoney(S.totals.igst)}</td></tr>` : `<tr><td>CGST</td><td class="num">${formatMoney(S.totals.cgst)}</td></tr><tr><td>SGST</td><td class="num">${formatMoney(S.totals.sgst)}</td></tr>`}
       <tr><td><strong>Invoice total</strong></td><td class="num"><strong>${formatMoney(S.totals.total)}</strong></td></tr></table>`;
-    panel.querySelectorAll('[data-sil]').forEach(el => el.addEventListener('change', () => { if (!el.isConnected) return; S.lines[Number(el.dataset.i)][el.dataset.sil] = el.value; draw(); }));
+    panel.querySelectorAll('[data-sil]').forEach(el => el.addEventListener('change', async () => {
+      if (!el.isConnected) return;
+      const ln = S.lines[Number(el.dataset.i)];
+      ln[el.dataset.sil] = el.value;
+      if (el.dataset.sil === 'rate') { ln.rateTyped = true; ln.why = ''; } // a typed rate always wins (148.26)
+      if (el.dataset.sil === 'qty') await priceLine(ln);
+      draw();
+    }));
     panel.querySelectorAll('[data-sil-remove]').forEach(el => el.addEventListener('click', () => { S.lines.splice(Number(el.dataset.silRemove), 1); draw(); }));
+  };
+  // 148.26: a blank rate comes from the customer's price list (setting off: nothing changes).
+  const priceLine = async (l) => {
+    if (l.rateTyped || !S.customer && !v('#si-customer')) return;
+    const res = await apiFetch('/api/v1/pricing/line', { method: 'POST', body: JSON.stringify({ customer_id: (S.customer && (S.customer.id || S.customer.code)) || '', customer: v('#si-customer'), sku: l.sku, qty: num(l.qty), as_of: v('#si-date') }) });
+    if (!res || !res.ok) return;
+    const p = await res.json();
+    if (p.found) { l.rate = p.rate; l.why = p.reason || ''; } else { l.why = ''; }
   };
   q('back').addEventListener('click', () => onDone && onDone());
   attachLinkTypeahead(panel.querySelector('#si-customer'), 'Customer', { keepCode: true, onPick: (c) => {
@@ -102,6 +118,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     const code = (c.gstin || '').slice(0, 2) || c.state_code || '';
     if (code) panel.querySelector('#si-pos').value = code;
     fillDue();
+    Promise.all(S.lines.map(priceLine)).then(draw);
     draw();
   } });
   // Due date from the customer's terms (Stage 148.3); a date typed by hand is never replaced.
@@ -131,12 +148,21 @@ export async function renderSalesInvoiceEntry(container, onDone) {
   panel.querySelector('#si-gstin').addEventListener('change', () => { const g = v('#si-gstin'); if (g.length >= 2) panel.querySelector('#si-pos').value = g.slice(0, 2); draw(); });
   panel.querySelector('#si-pos').addEventListener('input', draw);
   const addInput = q('add');
-  attachLinkTypeahead(addInput, 'Item', { noSetupHint: true, onPick: (item) => {
+  attachLinkTypeahead(addInput, 'Item', { noSetupHint: true, onPick: async (item) => {
     S.lines.push({ sku: item.code || item.id, name: item.name || '', hsn: item.hsn_code || '', qty: 1, rate: num(item.sale_price || item.price || item.mrp), discount: 0, gst_rate: num(item.gst_rate), tracking: item.tracking_mode || '' });
+    await priceLine(S.lines[S.lines.length - 1]);
     addInput.value = '';
     addInput.dispatchEvent(new Event('input'));
     draw();
   } });
+  // Stage 148.22: a line with no item: a description, its own GST and income account.
+  q('free').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.value.trim()) return;
+    e.preventDefault();
+    S.lines.push({ sku: '', name: e.target.value.trim(), hsn: '', qty: 1, rate: 0, discount: 0, gst_rate: 0, tracking: '', free: true, income_account: '' });
+    e.target.value = '';
+    draw();
+  });
   q('save').addEventListener('click', async e => {
     const btn = e.currentTarget;
     const err = q('error');
@@ -151,11 +177,11 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     const res = await apiFetch('/api/v1/doc/SalesInvoice', { method: 'POST', body: JSON.stringify({
       customer: v('#si-customer'), customer_id: (S.customer && (S.customer.code || S.customer.id) && v('#si-customer') === (S.customer.code || S.customer.id) ? (S.customer.id || S.customer.code) : ''), payment_term: (S.customer && S.customer.payment_term) || '', customer_gstin: g.toUpperCase(), location: v('#si-store'), invoice_date: v('#si-date'), place_of_supply: v('#si-pos'),
       due_date: v('#si-due'), customer_reference: v('#si-ref'), delivery_challan: v('#si-challan'), interstate: interstate(),
-      items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), discount: num(l.discount), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax), serial_nos: l.serial_nos || '', batch_no: l.batch_no || '' }))),
+      items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), discount: num(l.discount), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax), serial_nos: l.serial_nos || '', batch_no: l.batch_no || '', income_account: (l.income_account || '').trim(), floor_reason: l.floor_reason || '' }))),
       taxable_amount: S.totals.taxable, cgst: S.totals.cgst, sgst: S.totals.sgst, igst: S.totals.igst, total_tax: S.totals.tax, total_amount: S.totals.total, status: 'Draft' }) });
     btn.disabled = false;
     if (!res) return;
-    if (!res.ok) { fail(await getErrorMessage(res, 'The invoice was not saved.')); return; }
+    if (!res.ok) { const m = await getErrorMessage(res, 'The invoice was not saved.'); if (/lowest rate/.test(m)) { S.needReason = true; draw(); } fail(m); return; }
     showToast('Invoice saved as a draft - Post it from the list.', { variant: 'success' });
     if (onDone) onDone();
   });

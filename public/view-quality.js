@@ -17,7 +17,7 @@ const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.
 const esc = v => escapeHTMLText(v == null ? '' : String(v));
 const num = v => { const x = Number(v) || 0; return x === Math.round(x) ? String(x) : x.toFixed(2); };
 const today = () => localISODate(new Date());
-const muted = t => `<div style="font-size: 11px; color: var(--text-muted);">${t}</div>`;
+const muted = t => `<div class="s-428d6b">${t}</div>`;
 const rowsOf = v => { try { const a = typeof v === 'string' ? JSON.parse(v || '[]') : v; return Array.isArray(a) ? a : []; } catch (e) { return []; } };
 
 async function listOf(doctype) {
@@ -46,12 +46,12 @@ function openQualityDialog(title, bodyHTML, saveLabel, onSave) {
   overlay.className = 'modal-overlay open';
   overlay.id = 'quality-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 720px;" role="dialog" aria-modal="true" aria-labelledby="quality-dialog-title">
+    <div class="modal-container s-759612" role="dialog" aria-modal="true" aria-labelledby="quality-dialog-title">
       <div class="modal-header"><h3 class="modal-title" id="quality-dialog-title">${esc(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-q-close>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button></div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">${bodyHTML}</div>
+      <div class="modal-body s-a4aea4">${bodyHTML}</div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-q-close>Cancel</button>
         ${saveLabel ? `<button type="button" class="btn btn-primary" data-q-save>${esc(saveLabel)}</button>` : ''}</div>
     </div>`;
@@ -67,10 +67,10 @@ function openQualityDialog(title, bodyHTML, saveLabel, onSave) {
 
 // A readings table: parameter, spec (inspections only), reading, Pass/Fail.
 function readingsTable(id, withSpec) {
-  return `<div style="overflow-x: auto;"><table>
+  return `<div class="s-987eb2"><table>
     <thead><tr><th>Parameter</th>${withSpec ? '<th>Specification</th>' : ''}<th>${withSpec ? 'Reading' : 'Actual value'}</th><th>Pass / Fail</th><th></th></tr></thead>
     <tbody id="${id}"></tbody></table></div>
-    <button type="button" class="btn btn-outline btn-sm" data-add-reading="${id}" style="margin-top: 8px;">+ Add reading</button>`;
+    <button type="button" class="btn btn-outline btn-sm s-0d69e4" data-add-reading="${id}">+ Add reading</button>`;
 }
 
 function addReadingRow(tbody, r = {}, fixed = false) {
@@ -112,10 +112,10 @@ function wireReadings(root, tbodyId, withSpec, planSelect) {
 }
 
 function readingsDetail(rows, withSpec) {
-  if (!rows.length) return '<p style="color: var(--text-muted); margin: 0;">No readings recorded.</p>';
+  if (!rows.length) return '<p class="s-bcef30">No readings recorded.</p>';
   return `<table><thead><tr><th>Parameter</th>${withSpec ? '<th>Specification</th>' : ''}<th>Reading</th><th>Result</th></tr></thead><tbody>
     ${rows.map(r => `<tr><td>${esc(r.parameter_name)}</td>${withSpec ? `<td>${esc(r.spec)}</td>` : ''}<td>${esc(r.reading ?? r.actual_value)}</td>
-      <td>${(r.pass_fail || '') === 'Fail' ? '<b style="color: var(--danger, #b91c1c);">Fail</b>' : esc(r.pass_fail)}</td></tr>`).join('')}</tbody></table>`;
+      <td>${(r.pass_fail || '') === 'Fail' ? '<b class="s-cd6621">Fail</b>' : esc(r.pass_fail)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function toggleDetail(rowId, html) {
@@ -146,7 +146,7 @@ async function renderInspections(container) {
   };
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = qis.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No inspections yet.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = qis.length === 0 ? '<p class="s-a63e81">No inspections yet.</p>' : `<div class="s-987eb2"><table>
     <thead><tr><th>Inspection</th><th>Inspecting</th><th>Item / lot</th><th class="num">Qty</th><th>Result</th><th>Decision</th><th></th></tr></thead>
     <tbody>${qis.map(q => {
       const type = q.source_type || 'Production', src = q.source_id || q.production_order_id || '';
@@ -154,11 +154,11 @@ async function renderInspections(container) {
       if (q.status === 'Draft' && type === 'Production') acts.push(`<button class="action-btn" data-qi-act="submit" data-id="${esc(q.id)}">Submit for approval</button>`);
       if (q.status === 'Draft' && type !== 'Production') acts.push(`<button class="action-btn" data-qi-act="decide" data-id="${esc(q.id)}">Decide</button>`);
       if (q.ncr_id) acts.push(`<button class="action-btn" data-qi-act="ncr" data-id="${esc(q.ncr_id)}">${esc(q.ncr_id)}</button>`);
-      return `<tr><td style="font-family: monospace;">${esc(q.code || q.id)}${q.inspected_by ? muted('by ' + esc(q.inspected_by)) : ''}</td>
+      return `<tr><td class="s-355794">${esc(q.code || q.id)}${q.inspected_by ? muted('by ' + esc(q.inspected_by)) : ''}</td>
         <td>${esc(type)}${muted(`${esc(sourceLabel[type] || '')} ${esc(src)}`)}</td>
         <td>${esc(q.item || '')}${q.batch_no ? muted('lot ' + esc(q.batch_no)) : ''}${q.location ? muted(esc(q.location)) : ''}</td>
         <td class="num">${q.qty_inspected ? num(q.qty_inspected) : ''}</td><td>${resultBadge(q.result)}</td>
-        <td style="font-size: 12px;">${decision(q)}</td><td>${acts.join(' ')}</td></tr>
+        <td class="s-11fcdc">${decision(q)}</td><td>${acts.join(' ')}</td></tr>
         <tr class="hidden" id="qi-detail-${esc(q.id)}"><td colspan="7"></td></tr>`;
     }).join('')}</tbody></table></div>`;
 
@@ -167,31 +167,33 @@ async function renderInspections(container) {
   form.style.padding = '24px';
   const active = plans.filter(p => (p.status || 'Active') === 'Active');
   form.innerHTML = `
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-type">Inspecting</label>
+    <div class="s-d3ed5a">
+      <div class="form-group s-50435f"><label class="form-label" for="qi-type">Inspecting</label>
         <select id="qi-type" class="form-select"><option value="Incoming">Goods received (GRN)</option><option value="Production">Production output</option><option value="Outgoing">Goods going out (sales order)</option></select></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-source" id="qi-source-label">GRN</label>
-        <input type="text" id="qi-source" class="form-input" style="width: 220px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-item">Item</label>
-        <input type="text" id="qi-item" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-batch">Batch / lot</label>
-        <input type="text" id="qi-batch" class="form-input" style="width: 120px;"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-loc">Location</label>
-        <input type="text" id="qi-loc" class="form-input" style="width: 150px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-qty">Quantity inspected</label>
-        <input type="number" id="qi-qty" class="form-input" style="width: 110px;" min="0" step="any"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="qi-plan">Inspection plan</label>
+      <div class="form-group s-50435f"><label class="form-label" for="qi-source" id="qi-source-label">GRN</label>
+        <input type="text" id="qi-source" class="form-input s-30080b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="qi-item">Item</label>
+        <input type="text" id="qi-item" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="qi-batch">Batch / lot</label>
+        <input type="text" id="qi-batch" class="form-input s-5187b6"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="qi-loc">Location</label>
+        <input type="text" id="qi-loc" class="form-input s-0a9e77" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="qi-qty">Quantity inspected</label>
+        <input type="number" id="qi-qty" class="form-input s-148b84" min="0" step="any"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="qi-plan">Inspection plan</label>
         <select id="qi-plan" class="form-select"><option value="">No plan - enter readings</option>${active.map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.item || '')}</option>`).join('')}</select></div>
     </div>
-    <p id="qi-hint" style="color: var(--text-muted); font-size: 12px; margin: 8px 0 0;"></p>
-    <div style="margin-top: 16px;">${readingsTable('qi-readings', true)}</div>
-    <div class="form-group" style="margin: 16px 0 0;"><label class="form-label" for="qi-remarks">Remarks</label>
+    <p id="qi-hint" class="s-cc7568"></p>
+    <div class="s-4c0544">${readingsTable('qi-readings', true)}</div>
+    <div class="form-group s-41a73c"><label class="form-label" for="qi-remarks">Remarks</label>
       <input type="text" id="qi-remarks" class="form-input"></div>
-    <div style="margin-top: 16px;"><button class="btn btn-primary" id="qi-save">Record inspection</button></div>`;
+    <div class="s-4c0544"><button class="btn btn-primary" id="qi-save">Record inspection</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'qi-screen', title: 'Quality Inspections', heading: 'h2', list, count: qis.length,
     forms: { new: ['New Inspection', form] } }));
   txnRestorePane('qi-screen');
+  // 146.3.11: stock age inspections, drawn only when Settings has that check on.
+  try { await (await import('./view-stock-age.js' + new URL(import.meta.url).search)).renderStockAgeSection(container, { openQualityDialog }); } catch (e) { /* optional section */ }
 
   const hint = {
     Incoming: 'A fail holds the inspected quantity.',
@@ -231,7 +233,7 @@ async function renderInspections(container) {
   list.querySelectorAll('[data-qi-act]').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
     const q = qis.find(x => x.id === id);
-    if (btn.dataset.qiAct === 'readings') toggleDetail(`qi-detail-${id}`, readingsDetail(rowsOf(q.readings), true) + (q.remarks ? `<p style="margin: 8px 0 0;">Remarks: ${esc(q.remarks)}</p>` : ''));
+    if (btn.dataset.qiAct === 'readings') toggleDetail(`qi-detail-${id}`, readingsDetail(rowsOf(q.readings), true) + (q.remarks ? `<p class="s-f27e18">Remarks: ${esc(q.remarks)}</p>` : ''));
     else if (btn.dataset.qiAct === 'submit') {
       if (await post('/api/v1/approval/submit', { doctype: 'QualityInspection', document_id: id }, 'Could not submit the inspection.', 'Quality Inspection')) {
         showToast('Submitted - an approver decides it under Approvals.'); renderView('manufacturing');
@@ -245,19 +247,19 @@ async function decideInspection(q) {
   const pass = q.result === 'Pass';
   const codes = pass ? [] : (await listOf('HoldCode')).filter(h => h.category === 'Quality' && (h.status || 'Active') === 'Active');
   const body = pass
-    ? `<p style="margin: 0;">${resultBadge('Pass')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}: every reading passed. Accepting changes no stock.</p>
+    ? `<p class="s-2a0ca8">${resultBadge('Pass')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}: every reading passed. Accepting changes no stock.</p>
        <input type="hidden" id="qd-disp" value="Accept">`
-    : `<p style="margin: 0;">${resultBadge('Fail')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}, ${num(q.qty_inspected)} at ${esc(q.location)}. Raises a non-conformance report.</p>
-       <div class="form-group" style="margin: 0;"><label class="form-label" for="qd-disp">Decision</label>
+    : `<p class="s-2a0ca8">${resultBadge('Fail')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}, ${num(q.qty_inspected)} at ${esc(q.location)}. Raises a non-conformance report.</p>
+       <div class="form-group s-2a0ca8"><label class="form-label" for="qd-disp">Decision</label>
          <select id="qd-disp" class="form-select">
            <option value="Hold stock">Hold stock - stays on hand, cannot be sold or issued until a hold release is approved</option>
            <option value="Rework">Rework - held the same way until it is reworked and released</option>
            <option value="Use as-is (concession)">Use as-is (concession) - no hold; needs a reason and someone other than the inspector</option>
          </select></div>
-       <div class="form-group" style="margin: 0;" id="qd-code-wrap"><label class="form-label" for="qd-code">Hold code</label>
+       <div class="form-group s-2a0ca8" id="qd-code-wrap"><label class="form-label" for="qd-code">Hold code</label>
          ${codes.length ? `<select id="qd-code" class="form-select">${codes.map(h => `<option value="${esc(h.code || h.id)}">${esc(h.code || h.id)}${h.description ? ' - ' + esc(h.description) : ''}</option>`).join('')}</select>`
-           : `<p style="margin: 0;">No active hold codes of category <b>Quality</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['HoldCode'])}>Add a hold code</button></p>`}</div>
-       <div class="form-group" style="margin: 0;"><label class="form-label" for="qd-note">Note</label>
+           : `<p class="s-2a0ca8">No active hold codes of category <b>Quality</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['HoldCode'])}>Add a hold code</button></p>`}</div>
+       <div class="form-group s-2a0ca8"><label class="form-label" for="qd-note">Note</label>
          <textarea id="qd-note" class="form-input" rows="2" placeholder="Required for a concession: why the stock can be used"></textarea></div>`;
   const dlg = openQualityDialog(`Decide inspection ${q.code || q.id}`, body, pass ? 'Accept' : 'Record decision', async d => {
     const out = await post(`/api/v1/quality/inspection/${encodeURIComponent(q.id)}/dispose`, {
@@ -278,9 +280,9 @@ async function renderCertificates(container) {
   const [coas, plans] = await Promise.all([listOf('CertificateOfAnalysis'), listOf('InspectionPlan')]);
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = coas.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No certificates yet.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = coas.length === 0 ? '<p class="s-a63e81">No certificates yet.</p>' : `<div class="s-987eb2"><table>
     <thead><tr><th>Certificate</th><th>Item</th><th>Lot</th><th>Plan</th><th>Result</th><th>Status</th><th></th></tr></thead>
-    <tbody>${coas.map(c => `<tr><td style="font-family: monospace;">${esc(c.code || c.id)}</td><td>${esc(c.item)}</td><td>${esc(c.batch_no)}</td><td>${esc(c.inspection_plan || '')}</td>
+    <tbody>${coas.map(c => `<tr><td class="s-355794">${esc(c.code || c.id)}</td><td>${esc(c.item)}</td><td>${esc(c.batch_no)}</td><td>${esc(c.inspection_plan || '')}</td>
       <td>${resultBadge(c.overall_result)}</td><td><span class="badge ${c.status === 'Released' ? 'badge-success' : c.status === 'Rejected' ? 'badge-danger' : 'badge-secondary'}">${esc(c.status)}</span></td>
       <td><button class="action-btn" data-coa-act="results" data-id="${esc(c.id)}">Results</button>
         ${c.status === 'Draft' && c.overall_result === 'Pass' ? `<button class="action-btn" data-coa-act="release" data-id="${esc(c.id)}">Release</button>` : ''}
@@ -291,14 +293,14 @@ async function renderCertificates(container) {
   form.className = 'table-panel';
   form.style.padding = '24px';
   form.innerHTML = `
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="coa-item">Item</label><input type="text" id="coa-item" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="coa-batch">Batch / lot</label><input type="text" id="coa-batch" class="form-input" style="width: 140px;"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="coa-plan">Inspection plan</label>
+    <div class="s-d3ed5a">
+      <div class="form-group s-50435f"><label class="form-label" for="coa-item">Item</label><input type="text" id="coa-item" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="coa-batch">Batch / lot</label><input type="text" id="coa-batch" class="form-input s-21b277"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="coa-plan">Inspection plan</label>
         <select id="coa-plan" class="form-select"><option value="">No plan</option>${plans.filter(p => (p.status || 'Active') === 'Active').map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.item || '')}</option>`).join('')}</select></div>
     </div>
-    <div style="margin-top: 16px;">${readingsTable('coa-results', false)}</div>
-    <p style="color: var(--text-muted); font-size: 12px;">Rejecting moves every bin of this lot to QC-Hold.</p>
+    <div class="s-4c0544">${readingsTable('coa-results', false)}</div>
+    <p class="s-817a95">Rejecting moves every bin of this lot to QC-Hold.</p>
     <button class="btn btn-primary" id="coa-save">Save certificate</button>`;
 
   container.appendChild(txnPagedSection({ id: 'coa-screen', title: 'Certificates of Analysis', heading: 'h2', list, count: coas.length,
@@ -338,13 +340,13 @@ async function renderNonConformance(container) {
   const t = today();
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = ncrs.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No non-conformance reports.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = ncrs.length === 0 ? '<p class="s-a63e81">No non-conformance reports.</p>' : `<div class="s-987eb2"><table>
     <thead><tr><th>Report</th><th>What went wrong</th><th>Source</th><th>Item / lot</th><th>Root cause</th><th>Corrective action</th><th>Status</th><th></th></tr></thead>
     <tbody>${ncrs.map(n => {
       const overdue = n.due_date && n.due_date < t && n.status !== 'Closed';
       const act = n.status === 'Draft' ? 'investigate' : n.status === 'Investigating' ? 'plan' : n.status === 'CorrectiveActionPlanned' ? 'close' : '';
       const label = { investigate: 'Investigate', plan: 'Plan action', close: 'Close' }[act];
-      return `<tr><td style="font-family: monospace;">${esc(n.code || n.id)}</td><td>${esc(n.description)}</td>
+      return `<tr><td class="s-355794">${esc(n.code || n.id)}</td><td>${esc(n.description)}</td>
         <td>${n.source_id ? `${esc(n.source_doctype === 'QualityInspection' ? 'Inspection' : n.source_doctype || '')} ${esc(n.source_id)}` : ''}</td>
         <td>${esc(n.item || '')}${n.batch_no ? muted('lot ' + esc(n.batch_no)) : ''}</td><td>${esc(n.root_cause_reason_code || '')}</td>
         <td>${esc(n.corrective_action || '')}${n.owner ? muted('owner ' + esc(n.owner) + (n.due_date ? ' · due ' + esc(n.due_date) : '')) : ''}${overdue ? '<span class="badge badge-danger">overdue</span>' : ''}
@@ -358,14 +360,14 @@ async function renderNonConformance(container) {
   form.style.padding = '24px';
   form.innerHTML = `
     <div class="form-group"><label class="form-label" for="ncr-desc">What went wrong</label><input type="text" id="ncr-desc" class="form-input"></div>
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ncr-src-type">Found on</label>
+    <div class="s-d3ed5a">
+      <div class="form-group s-50435f"><label class="form-label" for="ncr-src-type">Found on</label>
         <select id="ncr-src-type" class="form-select"><option value="">Nothing specific</option><option value="GRN">GRN</option><option value="ProductionOrder">Production order</option><option value="SalesOrder">Sales order</option><option value="QualityInspection">Inspection</option></select></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ncr-src">Document</label><input type="text" id="ncr-src" class="form-input" style="width: 200px;"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ncr-item">Item</label><input type="text" id="ncr-item" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ncr-batch">Batch / lot</label><input type="text" id="ncr-batch" class="form-input" style="width: 140px;"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ncr-src">Document</label><input type="text" id="ncr-src" class="form-input s-0fff9b"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ncr-item">Item</label><input type="text" id="ncr-item" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ncr-batch">Batch / lot</label><input type="text" id="ncr-batch" class="form-input s-21b277"></div>
     </div>
-    <div style="margin-top: 16px;"><button class="btn btn-primary" id="ncr-save">Raise report</button></div>`;
+    <div class="s-4c0544"><button class="btn btn-primary" id="ncr-save">Raise report</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'ncr-screen', title: 'Non-conformance', heading: 'h2', list, count: ncrs.length,
     forms: { new: ['New Report', form] } }));
@@ -389,20 +391,20 @@ async function ncrStep(n, act) {
   if (act === 'investigate') {
     const reasons = (await listOf('ReasonCode')).filter(r => r.category === 'Quality' && (r.status || 'Active') === 'Active');
     openQualityDialog(`Investigate ${n.code || n.id}`, reasons.length
-      ? `<div class="form-group" style="margin: 0;"><label class="form-label" for="ncr-rc">Root cause</label><select id="ncr-rc" class="form-select">${reasons.map(r => `<option value="${esc(r.id)}">${esc(r.code || r.id)}${r.description ? ' - ' + esc(r.description) : ''}</option>`).join('')}</select></div>`
-      : `<p style="margin: 0;">No active reason codes of category <b>Quality</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add a reason code</button></p>`,
+      ? `<div class="form-group s-2a0ca8"><label class="form-label" for="ncr-rc">Root cause</label><select id="ncr-rc" class="form-select">${reasons.map(r => `<option value="${esc(r.id)}">${esc(r.code || r.id)}${r.description ? ' - ' + esc(r.description) : ''}</option>`).join('')}</select></div>`
+      : `<p class="s-2a0ca8">No active reason codes of category <b>Quality</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add a reason code</button></p>`,
       reasons.length ? 'Start investigation' : '', async d => (await post(`${path}/investigate`, { root_cause_reason_code: d.querySelector('#ncr-rc').value }, 'Could not start the investigation.', 'Non-conformance')) && done('Investigation started.'));
   } else if (act === 'plan') {
     openQualityDialog(`Corrective action for ${n.code || n.id}`, `
-      <div class="form-group" style="margin: 0;"><label class="form-label" for="ncr-action">Corrective action</label><textarea id="ncr-action" class="form-input" rows="2"></textarea></div>
-      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <div class="form-group" style="margin: 0;"><label class="form-label" for="ncr-owner">Owner (who does it)</label><input type="text" id="ncr-owner" class="form-input" style="width: 220px;"></div>
-        <div class="form-group" style="margin: 0;"><label class="form-label" for="ncr-due">Due</label><input type="date" id="ncr-due" class="form-input"></div></div>`,
+      <div class="form-group s-2a0ca8"><label class="form-label" for="ncr-action">Corrective action</label><textarea id="ncr-action" class="form-input" rows="2"></textarea></div>
+      <div class="s-4699da">
+        <div class="form-group s-2a0ca8"><label class="form-label" for="ncr-owner">Owner (who does it)</label><input type="text" id="ncr-owner" class="form-input s-30080b"></div>
+        <div class="form-group s-2a0ca8"><label class="form-label" for="ncr-due">Due</label><input type="date" id="ncr-due" class="form-input"></div></div>`,
       'Plan action', async d => (await post(`${path}/plan-corrective-action`, { corrective_action: d.querySelector('#ncr-action').value, owner: d.querySelector('#ncr-owner').value, due_date: d.querySelector('#ncr-due').value },
         'Could not record the corrective action.', 'Non-conformance')) && done('Corrective action planned.'));
   } else if (act === 'close') {
-    openQualityDialog(`Close ${n.code || n.id}`, `<p style="margin: 0;">Action: ${esc(n.corrective_action)}${n.owner ? ` (owner ${esc(n.owner)})` : ''}</p>
-      <div class="form-group" style="margin: 0;"><label class="form-label" for="ncr-evidence">Evidence the action was done</label><textarea id="ncr-evidence" class="form-input" rows="2" placeholder="e.g. vendor letter received, next three lots passed inspection"></textarea></div>`,
+    openQualityDialog(`Close ${n.code || n.id}`, `<p class="s-2a0ca8">Action: ${esc(n.corrective_action)}${n.owner ? ` (owner ${esc(n.owner)})` : ''}</p>
+      <div class="form-group s-2a0ca8"><label class="form-label" for="ncr-evidence">Evidence the action was done</label><textarea id="ncr-evidence" class="form-input" rows="2" placeholder="e.g. vendor letter received, next three lots passed inspection"></textarea></div>`,
       'Close report', async d => (await post(`${path}/close`, { closure_evidence: d.querySelector('#ncr-evidence').value }, 'Could not close the report.', 'Non-conformance')) && done('Report closed.'));
   }
 }
@@ -415,7 +417,7 @@ async function renderMaintenance(container) {
   const open = s => s === 'Draft' || s === 'Scheduled' || s === 'InProgress';
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = orders.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No maintenance orders yet.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = orders.length === 0 ? '<p class="s-a63e81">No maintenance orders yet.</p>' : `<div class="s-987eb2"><table>
     <thead><tr><th>Order</th><th>Asset</th><th>Work</th><th>Scheduled</th><th>Status</th><th>Checklist</th><th>Done</th><th></th></tr></thead>
     <tbody>${orders.map(o => {
       const tasks = rowsOf(o.checklist), parts = rowsOf(o.parts_used);
@@ -425,44 +427,44 @@ async function renderMaintenance(container) {
       if (o.status === 'Scheduled') acts.push(['start', 'Start']);
       if (o.status === 'InProgress') acts.push(['complete', 'Complete']);
       if (open(o.status)) acts.push(['cancel', 'Cancel']);
-      return `<tr><td style="font-family: monospace;">${esc(o.code || o.id)}${o.maintenance_schedule_id ? muted('from ' + esc(o.maintenance_schedule_id)) : ''}</td>
+      return `<tr><td class="s-355794">${esc(o.code || o.id)}${o.maintenance_schedule_id ? muted('from ' + esc(o.maintenance_schedule_id)) : ''}</td>
         <td>${esc(o.asset)}</td><td>${esc(o.description)}</td>
         <td>${esc(o.scheduled_date || '')}${overdue ? ' <span class="badge badge-danger">overdue</span>' : ''}</td>
         <td><span class="badge ${o.status === 'Completed' ? 'badge-success' : o.status === 'Cancelled' ? 'badge-secondary' : 'badge-warning'}">${esc(o.status === 'InProgress' ? 'In progress' : o.status)}</span>${o.started_by ? muted('started by ' + esc(o.started_by)) : ''}</td>
         <td>${tasks.length ? `${tasks.filter(x => x.done).length} / ${tasks.length}` : ''}</td>
-        <td style="font-size: 12px;">${o.status === 'Completed' ? `${esc(o.completed_by || '')}${o.labour_hours ? ` · ${num(o.labour_hours)} h` : ''}${parts.length ? ` · parts: ${parts.map(p => `${esc(p.sku)} × ${num(p.qty)}`).join(', ')}` : ''}${muted(esc(o.completion_notes || ''))}` : ''}</td>
+        <td class="s-11fcdc">${o.status === 'Completed' ? `${esc(o.completed_by || '')}${o.labour_hours ? ` · ${num(o.labour_hours)} h` : ''}${parts.length ? ` · parts: ${parts.map(p => `${esc(p.sku)} × ${num(p.qty)}`).join(', ')}` : ''}${muted(esc(o.completion_notes || ''))}` : ''}</td>
         <td>${acts.map(([a, l]) => `<button class="action-btn" data-mo-act="${a}" data-id="${esc(o.id)}">${l}</button>`).join(' ')}</td></tr>`;
     }).join('')}</tbody></table></div>
-    ${schedules.length ? `<h3 style="font-size: 14px; margin: 20px 16px 8px;">Recurring schedules</h3><div style="overflow-x: auto;"><table>
+    ${schedules.length ? `<h3 class="s-c7c90a">Recurring schedules</h3><div class="s-987eb2"><table>
       <thead><tr><th>Schedule</th><th>Asset</th><th>Work</th><th class="num">Every (days)</th><th>Next due</th><th class="num">Tasks</th><th>Status</th></tr></thead>
-      <tbody>${schedules.map(s => `<tr><td style="font-family: monospace;">${esc(s.code || s.id)}</td><td>${esc(s.asset)}</td><td>${esc(s.description)}</td><td class="num">${num(s.interval_days)}</td>
+      <tbody>${schedules.map(s => `<tr><td class="s-355794">${esc(s.code || s.id)}</td><td>${esc(s.asset)}</td><td>${esc(s.description)}</td><td class="num">${num(s.interval_days)}</td>
         <td>${esc(s.next_due_date || '')}</td><td class="num">${String(s.checklist || '').split('\n').filter(x => x.trim()).length || ''}</td><td>${esc(s.status)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
 
   const orderForm = document.createElement('div');
   orderForm.className = 'table-panel';
   orderForm.style.padding = '24px';
   orderForm.innerHTML = `
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="mo-asset">Asset</label><input type="text" id="mo-asset" class="form-input" style="width: 220px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;"><label class="form-label" for="mo-desc">Work to be done</label><input type="text" id="mo-desc" class="form-input"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="mo-date">Scheduled for (optional)</label><input type="date" id="mo-date" class="form-input"></div>
+    <div class="s-d3ed5a">
+      <div class="form-group s-50435f"><label class="form-label" for="mo-asset">Asset</label><input type="text" id="mo-asset" class="form-input s-30080b" autocomplete="off"></div>
+      <div class="form-group s-879221"><label class="form-label" for="mo-desc">Work to be done</label><input type="text" id="mo-desc" class="form-input"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="mo-date">Scheduled for (optional)</label><input type="date" id="mo-date" class="form-input"></div>
     </div>
-    <div class="form-group" style="margin: 16px 0 0;"><label class="form-label" for="mo-checklist">Task checklist - one task per line (optional)</label><textarea id="mo-checklist" class="form-input" rows="3"></textarea></div>
-    <div style="margin-top: 16px;"><button class="btn btn-primary" id="mo-save">Create order</button></div>`;
+    <div class="form-group s-41a73c"><label class="form-label" for="mo-checklist">Task checklist - one task per line (optional)</label><textarea id="mo-checklist" class="form-input" rows="3"></textarea></div>
+    <div class="s-4c0544"><button class="btn btn-primary" id="mo-save">Create order</button></div>`;
 
   const schedForm = document.createElement('div');
   schedForm.className = 'table-panel';
   schedForm.style.padding = '24px';
   schedForm.innerHTML = `
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ms-code">Schedule code</label><input type="text" id="ms-code" class="form-input" style="width: 140px;"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ms-asset">Asset</label><input type="text" id="ms-asset" class="form-input" style="width: 220px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;"><label class="form-label" for="ms-desc">Work</label><input type="text" id="ms-desc" class="form-input"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ms-every">Every (days)</label><input type="number" id="ms-every" class="form-input" style="width: 90px;" min="1"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="ms-next">First due</label><input type="date" id="ms-next" class="form-input"></div>
+    <div class="s-d3ed5a">
+      <div class="form-group s-50435f"><label class="form-label" for="ms-code">Schedule code</label><input type="text" id="ms-code" class="form-input s-21b277"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ms-asset">Asset</label><input type="text" id="ms-asset" class="form-input s-30080b" autocomplete="off"></div>
+      <div class="form-group s-20be51"><label class="form-label" for="ms-desc">Work</label><input type="text" id="ms-desc" class="form-input"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ms-every">Every (days)</label><input type="number" id="ms-every" class="form-input s-34deaa" min="1"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ms-next">First due</label><input type="date" id="ms-next" class="form-input"></div>
     </div>
-    <div class="form-group" style="margin: 16px 0 0;"><label class="form-label" for="ms-checklist">Task checklist - one task per line; each order raised gets it</label><textarea id="ms-checklist" class="form-input" rows="3"></textarea></div>
-    <div style="margin-top: 16px;"><button class="btn btn-primary" id="ms-save">Save schedule</button></div>`;
+    <div class="form-group s-41a73c"><label class="form-label" for="ms-checklist">Task checklist - one task per line; each order raised gets it</label><textarea id="ms-checklist" class="form-input" rows="3"></textarea></div>
+    <div class="s-4c0544"><button class="btn btn-primary" id="ms-save">Save schedule</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'mo-screen', title: 'Maintenance', heading: 'h2', list, count: orders.length,
     forms: { new: ['New Order', orderForm], schedule: ['New Schedule', schedForm] } }));
@@ -494,7 +496,7 @@ async function maintenanceStep(o, act) {
   const path = `/api/v1/quality/maintenance-order/${encodeURIComponent(o.id)}`;
   const done = msg => { showToast(msg, { variant: 'success' }); renderView('manufacturing'); return true; };
   if (act === 'schedule') {
-    openQualityDialog(`Schedule ${o.code || o.id}`, `<div class="form-group" style="margin: 0;"><label class="form-label" for="mo-sched-date">Scheduled for</label><input type="date" id="mo-sched-date" class="form-input" value="${today()}"></div>`,
+    openQualityDialog(`Schedule ${o.code || o.id}`, `<div class="form-group s-2a0ca8"><label class="form-label" for="mo-sched-date">Scheduled for</label><input type="date" id="mo-sched-date" class="form-input" value="${today()}"></div>`,
       'Schedule', async d => (await post(`${path}/schedule`, { scheduled_date: d.querySelector('#mo-sched-date').value }, 'Could not schedule the order.', 'Maintenance')) && done('Scheduled.'));
   } else if (act === 'start') {
     if (await post(`${path}/start`, {}, 'Could not start the order.', 'Maintenance')) done('Started.');
@@ -503,13 +505,13 @@ async function maintenanceStep(o, act) {
   } else if (act === 'complete') {
     const tasks = rowsOf(o.checklist);
     const dlg = openQualityDialog(`Complete ${o.code || o.id}`, `
-      ${tasks.length ? `<fieldset style="border: 0; padding: 0; margin: 0;"><legend class="form-label">Checklist - every task must be ticked</legend>
-        ${tasks.map((x, i) => `<label style="display: block; margin: 4px 0;"><input type="checkbox" class="mo-task" data-i="${i}"> ${esc(x.task)}</label>`).join('')}</fieldset>` : ''}
+      ${tasks.length ? `<fieldset class="s-d056b1"><legend class="form-label">Checklist - every task must be ticked</legend>
+        ${tasks.map((x, i) => `<label class="s-d17d1d"><input type="checkbox" class="mo-task" data-i="${i}"> ${esc(x.task)}</label>`).join('')}</fieldset>` : ''}
       <div><label class="form-label">Parts used (recorded on the order - not taken from stock)</label>
         <table><thead><tr><th>Item</th><th class="num">Qty</th><th></th></tr></thead><tbody id="mo-parts"></tbody></table>
-        <button type="button" class="btn btn-outline btn-sm" id="mo-add-part" style="margin-top: 6px;">+ Add part</button></div>
-      <div class="form-group" style="margin: 0;"><label class="form-label" for="mo-hours">Hours worked</label><input type="number" id="mo-hours" class="form-input" style="width: 100px;" min="0" step="any"></div>
-      <div class="form-group" style="margin: 0;"><label class="form-label" for="mo-notes">What was done</label><textarea id="mo-notes" class="form-input" rows="2"></textarea></div>`,
+        <button type="button" class="btn btn-outline btn-sm s-a5595d" id="mo-add-part">+ Add part</button></div>
+      <div class="form-group s-2a0ca8"><label class="form-label" for="mo-hours">Hours worked</label><input type="number" id="mo-hours" class="form-input s-da190a" min="0" step="any"></div>
+      <div class="form-group s-2a0ca8"><label class="form-label" for="mo-notes">What was done</label><textarea id="mo-notes" class="form-input" rows="2"></textarea></div>`,
       'Complete', async d => {
         const parts = [...d.querySelectorAll('#mo-parts tr')].map(tr => ({ sku: tr.querySelector('.mo-part-sku').value.trim(), qty: parseFloat(tr.querySelector('.mo-part-qty').value) || 0 })).filter(p => p.sku || p.qty);
         const checklist = tasks.map((x, i) => ({ task: x.task, done: d.querySelector(`.mo-task[data-i="${i}"]`).checked }));
@@ -518,7 +520,7 @@ async function maintenanceStep(o, act) {
       });
     const addPart = () => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td><input type="text" class="form-input mo-part-sku" aria-label="Part" autocomplete="off"></td><td class="num"><input type="number" class="form-input mo-part-qty" style="width: 80px;" min="0" step="any" aria-label="Quantity"></td>
+      tr.innerHTML = `<td><input type="text" class="form-input mo-part-sku" aria-label="Part" autocomplete="off"></td><td class="num"><input type="number" class="form-input mo-part-qty s-dabaad" min="0" step="any" aria-label="Quantity"></td>
         <td><button type="button" class="action-btn">Remove</button></td>`;
       tr.querySelector('button').addEventListener('click', () => tr.remove());
       dlg.querySelector('#mo-parts').appendChild(tr);

@@ -60,7 +60,7 @@ one; recorded here as an open gap rather than a fabricated key.
   reproduce it.
 - Impact: what an attacker gains (data read/write, cross-tenant access, privilege
   escalation, availability) — see
-  [docs/security/threat_model.md](docs/security/threat_model.md) §3 for this
+  [docs/security/threat-model.md](docs/security/threat-model.md) §3 for this
   project's own crown-jewel/trust-boundary language if it helps frame severity.
 - Whether you tested against a synthetic/sandbox tenant or something else (see Safe
   Harbor below — this matters for how the report is triaged).
@@ -92,7 +92,7 @@ process are the full subject of
 [docs/security/vulnerability-disclosure-lifecycle.md](docs/security/vulnerability-disclosure-lifecycle.md)
 (Stage 49.15.2–49.15.7). In short: every report is acknowledged, reproduced in an
 isolated sandbox before anything else, and tracked in
-[docs/security/risk_register.md](docs/security/risk_register.md) alongside this
+[docs/security/risk-register.md](docs/security/risk-register.md) alongside this
 project's own internally-found risks — one register, not two.
 
 ## Confidentiality

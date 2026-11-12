@@ -38,9 +38,9 @@ and whether the books agree with the bank.
 | **Vendor Invoice** | What suppliers have billed you |
 | **Payment Proposals** | Deciding what to pay, and when |
 | **Sales Invoice** | What you have billed customers |
-| **Debit / Credit Notes** | Corrections in either direction |
+| **Debit Notes**, **Vendor Credit Notes**, **Customer Credit Notes** | Corrections in either direction |
 | **Bank Reconciliation** | Making the statement and the ledger agree |
-| **Finance / GL** | The ledger itself, and the trial balance |
+| **Trial Balance**, **Chart of Accounts**, **Accounting Periods**, **Journal Vouchers** | The ledger itself, and the trial balance |
 | **Approvals** | Anything routed to you for a decision |
 
 All of them are under **Financial Accounting**.
@@ -64,7 +64,7 @@ code and the places of supply. You do not enter tax rates by hand anywhere, and
 an invoice that looks wrong is almost always a product classified wrong rather
 than an invoice built wrong - fix it on the Item.
 
-Settle invoices as the money arrives. **Debit / Credit Notes** handle the
+Settle invoices as the money arrives. The three note entries handle the
 corrections; use them rather than editing history.
 
 ## Foreign currency, if you use it
@@ -107,7 +107,7 @@ archaeology project, a day of them is a phone call.
 
 ## The check that catches almost everything
 
-**Finance / GL**, set **As Of Date** to today. Debits should equal credits and
+**Trial Balance**, set **As Of Date** to today. Debits should equal credits and
 the status should read *Balanced trial ledger*.
 
 If it does not balance, something upstream failed to post, and the sooner you
@@ -121,8 +121,8 @@ making it a habit.
 | Every receipt posted, every invoice raised | **Vendor Invoice** / **Sales Invoice** |
 | Payment run completed | **Payment Proposals** |
 | Bank fully reconciled | **Bank Reconciliation** |
-| Corrections issued as notes, not edits | **Debit / Credit Notes** |
-| Trial ledger balances | **Finance / GL** |
+| Corrections issued as notes, not edits | **Debit Notes**, **Vendor Credit Notes**, **Customer Credit Notes** |
+| Trial ledger balances | **Trial Balance** |
 | Open foreign balances restated | **Reports » Open FX Exposure** |
 
 ## Next

@@ -80,17 +80,21 @@ func TestModuleManifestEngineBoundaries(t *testing.T) {
 	}
 	for _, m := range catalog {
 		t.Run(m.ModuleKey, func(t *testing.T) {
+			// A module may have no row for a tenant (it reads as off): put that back too.
 			var before bool
-			if err := db.DB.QueryRow(`SELECT enabled FROM tenant_default.module_entitlements WHERE module_key=$1`, m.ModuleKey).Scan(&before); err != nil {
-				t.Fatal(err)
-			}
+			hadRow := db.DB.QueryRow(`SELECT enabled FROM tenant_default.module_entitlements WHERE module_key=$1`, m.ModuleKey).Scan(&before) == nil
 			t.Cleanup(func() {
-				if _, err := db.DB.Exec(`UPDATE tenant_default.module_entitlements SET enabled=$1 WHERE module_key=$2`, before, m.ModuleKey); err != nil {
+				q, args := `UPDATE tenant_default.module_entitlements SET enabled=$1 WHERE module_key=$2`, []interface{}{before, m.ModuleKey}
+				if !hadRow {
+					q, args = `DELETE FROM tenant_default.module_entitlements WHERE module_key=$1`, []interface{}{m.ModuleKey}
+				}
+				if _, err := db.DB.Exec(q, args...); err != nil {
 					t.Error(err)
 				}
 			})
 			for _, enabled := range []bool{false, true} {
-				if _, err := db.DB.Exec(`UPDATE tenant_default.module_entitlements SET enabled=$1 WHERE module_key=$2`, enabled, m.ModuleKey); err != nil {
+				if _, err := db.DB.Exec(`INSERT INTO tenant_default.module_entitlements (module_key, enabled, granted_by) VALUES ($2, $1, 'test')
+					ON CONFLICT (module_key) DO UPDATE SET enabled = EXCLUDED.enabled`, enabled, m.ModuleKey); err != nil {
 					t.Fatal(err)
 				}
 				eligible, err := listTenantSchemas(m.ModuleKey)

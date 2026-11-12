@@ -20,7 +20,7 @@ import (
 // through. The Family/Attribute framework, Content enrichment (approval-
 // gated via the existing engines/approval.go, Stage 13.8) and Item's
 // family/variant fields are all plain generic doctypes (see
-// db/migration.sql sections 31-32) needing no Go code of their own - this
+// db/migrations/migration.sql sections 31-32) needing no Go code of their own - this
 // file only holds what can't be generic CRUD: scoring a product's
 // readiness, deriving its overall enrichment_status, and preventing two
 // variant Items from sharing the same option combination under one parent.

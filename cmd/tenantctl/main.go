@@ -69,6 +69,16 @@ Clean slate (Stage 91)
                                             backup from the last 24 hours and an approved
                                             request-removal. Prints the plan first.
 
+Sandbox (Stage 47.12.6) - a client flagged a sandbox: synthetic data, nothing leaves the server
+  sandbox-create [-shape small] [-seed N] [-ttl-days N] -actor <who> -yes
+                                            a new sandbox client filled with synthetic data;
+                                            prints its one-time admin password
+  sandbox-reset  -tenant <id> -reason <text> [-shape small] [-seed N] -actor <who> -yes
+                                            empty the sandbox and fill it again from the seed.
+                                            Refuses any client that is not a sandbox
+  sandbox-effects -tenant <id> [-limit N]   what the sandbox's outside calls would have sent
+  sandbox-copy   -from <id> -tenant <id>    always refused: no client's data goes into a sandbox
+
 Key rotation (Stage 49.6.5)
   reencrypt-channel-credentials -tenant <id> -reason <text> -actor <who> -yes
                                             re-seal every stored connector credential under
@@ -128,6 +138,14 @@ func main() {
 		err = cmdResetData(args)
 	case "reencrypt-channel-credentials":
 		err = cmdReencryptChannelCredentials(args)
+	case "sandbox-create":
+		err = cmdSandboxCreate(args)
+	case "sandbox-reset":
+		err = cmdSandboxReset(args)
+	case "sandbox-effects":
+		err = cmdSandboxEffects(args)
+	case "sandbox-copy":
+		err = cmdSandboxCopy(args)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", command, usage)
 		os.Exit(2)
@@ -153,10 +171,10 @@ func cmdList(args []string) error {
 		return err
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "TENANT\tSCHEMA\tSTATUS\tBOOTSTRAP\tLEGAL HOLD\tRETENTION UNTIL")
+	fmt.Fprintln(w, "TENANT\tSCHEMA\tSTATUS\tSANDBOX\tBOOTSTRAP\tLEGAL HOLD\tRETENTION UNTIL")
 	for _, t := range tenants {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			t.TenantID, t.SchemaName, statusLabel(t), bootstrapLabel(t), yesNo(t.LegalHold), stamp(t.RetentionUntil))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			t.TenantID, t.SchemaName, statusLabel(t), yesNo(t.IsSandbox), bootstrapLabel(t), yesNo(t.LegalHold), stamp(t.RetentionUntil))
 	}
 	if err := w.Flush(); err != nil {
 		return err
@@ -770,4 +788,126 @@ func presentAbsentString(s string) string {
 		return "absent"
 	}
 	return "PRESENT (" + s + ")"
+}
+
+// ---------------------------------------------------------------------------
+// Sandbox (Stage 47.12.6)
+// ---------------------------------------------------------------------------
+
+// sandboxQuiet makes sure nothing these commands run can reach the outside,
+// whatever ENV says: a sandbox rehearsal is the one run that must not send.
+func sandboxQuiet() { os.Setenv("ERP_DISABLE_EXTERNAL_SIDE_EFFECTS", "1") }
+
+func cmdSandboxCreate(args []string) error {
+	fs := flag.NewFlagSet("sandbox-create", flag.ExitOnError)
+	shape := fs.String("shape", "small", "Size of the synthetic data: small (anywhere), or 10k/100k/1m on a scratch database only.")
+	seed := fs.Uint64("seed", 1, "Seed; one seed always builds the same data.")
+	ttl := fs.Int("ttl-days", 0, "Days until the sandbox expires (default 30).")
+	appVersion := fs.String("app-version", "", "Application version to stamp on the registry row.")
+	confirm := fs.Bool("yes", false, "Actually create it.")
+	actor := fs.String("actor", defaultActor(), "Who is performing this.")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if !*confirm {
+		fmt.Printf("DRY RUN - would create a sandbox client and fill it with synthetic data (shape %s, seed %d).\nRe-run with -yes.\n", *shape, *seed)
+		return nil
+	}
+	sandboxQuiet()
+	id, password, res, err := engines.CreateSyntheticSandbox(*appVersion, *ttl, engines.SandboxSeed{Shape: *shape, Seed: *seed, Log: os.Stderr})
+	if err != nil {
+		if id != "" {
+			fmt.Fprintf(os.Stderr, "created %s (one-time admin password %s) but: ", id, password)
+		}
+		return err
+	}
+	_ = engines.RecordTenantLifecycleEvent(id, "sandbox_created", *actor, fmt.Sprintf("synthetic sandbox, shape %s, seed %d", *shape, *seed))
+	fmt.Printf("Sandbox %s created and filled (shape %s, seed %d, checksum %s).\n\n", id, res.Shape.Name, res.Seed, res.Checksum)
+	fmt.Printf("  username                : admin\n  one-time admin password : %s\n\n", password)
+	fmt.Println("Shown once, stored only as a hash. Nothing this client does leaves the server;")
+	fmt.Printf("see what would have gone out with: tenantctl sandbox-effects -tenant %s\n", id)
+	return nil
+}
+
+func cmdSandboxReset(args []string) error {
+	fs := flag.NewFlagSet("sandbox-reset", flag.ExitOnError)
+	tenant := fs.String("tenant", "", "Sandbox tenant id (required).")
+	shape := fs.String("shape", "small", "Size of the synthetic data to fill it with again.")
+	seed := fs.Uint64("seed", 1, "Seed; the same seed gives the same data back.")
+	empty := fs.Bool("no-seed", false, "Empty it and leave it empty.")
+	reason, actor, confirm := commonFlags(fs, "Why this sandbox is being reset")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tenant == "" {
+		return fmt.Errorf("-tenant is required")
+	}
+	if !*confirm {
+		fmt.Printf("DRY RUN - would empty sandbox %q and fill it again (shape %s, seed %d). A client that is not a sandbox is refused.\nRe-run with -yes and -reason.\n", *tenant, *shape, *seed)
+		return nil
+	}
+	sandboxQuiet()
+	in := engines.SandboxSeed{Shape: *shape, Seed: *seed, Log: os.Stderr}
+	if *empty {
+		if _, err := engines.ResetSandboxData(*tenant, *actor, *reason); err != nil {
+			return err
+		}
+		fmt.Printf("%s is empty. Logins kept.\n", *tenant)
+		return nil
+	}
+	res, err := engines.ResetAndReseedSandbox(*tenant, *actor, *reason, in)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s reset and filled again (shape %s, seed %d, checksum %s). Logins kept.\n", *tenant, res.Shape.Name, res.Seed, res.Checksum)
+	return nil
+}
+
+func cmdSandboxEffects(args []string) error {
+	fs := flag.NewFlagSet("sandbox-effects", flag.ExitOnError)
+	tenant := fs.String("tenant", "", "Sandbox tenant id (required).")
+	limit := fs.Int("limit", 50, "How many to show.")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tenant == "" {
+		return fmt.Errorf("-tenant is required")
+	}
+	counts, err := engines.SandboxEffectCounts(*tenant)
+	if err != nil {
+		return err
+	}
+	rows, err := engines.ListSandboxEffects(*tenant, *limit)
+	if err != nil {
+		return err
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "WHEN\tKIND\tWHERE\tDETAIL")
+	for _, e := range rows {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.CreatedAt.Format("2006-01-02 15:04:05"), e.Kind, e.Effect, e.Detail)
+	}
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	kinds := make([]string, 0, len(counts))
+	for k := range counts {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	fmt.Printf("\nStopped, by kind:")
+	for _, k := range kinds {
+		fmt.Printf(" %s=%d", k, counts[k])
+	}
+	fmt.Println()
+	return nil
+}
+
+func cmdSandboxCopy(args []string) error {
+	fs := flag.NewFlagSet("sandbox-copy", flag.ExitOnError)
+	from := fs.String("from", "", "Client to copy from.")
+	tenant := fs.String("tenant", "", "Sandbox to copy into.")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	return engines.CopyTenantDataIntoSandbox(*from, *tenant)
 }

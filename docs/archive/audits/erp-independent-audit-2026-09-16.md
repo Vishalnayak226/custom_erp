@@ -118,8 +118,8 @@ Evidence: `ui-task-results.json`, `xss-cross-role-create.json`, `xss-cross-role-
 suite databases and focused fixtures reproduce it; retry alone does not recover. The CI
 filename-order migration path also reaches the same failure.
 
-**Cause:** [audit archive migration](../../../db/migrations_stage47_7_6_audit_archive.sql) depends on
-[audit evidence migration](../../../db/migrations_stage47_7_audit_evidence.sql), but sorts before it.
+**Cause:** [audit archive migration](../../../db/migrations/migrations_stage47_7_6_audit_archive.sql) depends on
+[audit evidence migration](../../../db/migrations/migrations_stage47_7_audit_evidence.sql), but sorts before it.
 The test fixtures applied the prerequisite explicitly and then resumed the unchanged runner.
 
 **Fix gate:** define a migration order that respects the dependency while preserving existing

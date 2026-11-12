@@ -151,7 +151,7 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 			t.Fatalf("expected payment without override to be rejected for a MismatchHold invoice")
 		}
 
-		// Real seeded user IDs (db/migration.sql) - documents.created_by has
+		// Real seeded user IDs (db/migrations/migration.sql) - documents.created_by has
 		// a foreign key to tenant_default.users, and PayVendorInvoice's
 		// override branch reassigns created_by to the requesting user (see
 		// its own comment for why), so this must be a real user id, not an

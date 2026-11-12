@@ -58,6 +58,10 @@ type SerialInfo struct {
 	Owner        string `json:"owner,omitempty"`
 	ReservedFor  string `json:"reserved_for,omitempty"`
 	Status       string `json:"status"`
+	// Stage 148.41: a named hold for a customer (its own fields; reserved_for is a voucher's).
+	HoldCustomer string `json:"-"`
+	HoldUntil    string `json:"-"`
+	HoldAdvance  string `json:"-"`
 	// Stage 148.1: what this piece cost and the GRN it came in on. Never on the wire.
 	ReceiptCostPaise int64  `json:"-"`
 	ReceiptGRN       string `json:"-"`
@@ -84,6 +88,9 @@ func serialFromData(docID, dataStr, status string) SerialInfo {
 	out.Vendor, _ = data["vendor"].(string)
 	out.Owner, _ = data["owner"].(string)
 	out.ReservedFor, _ = data["reserved_for"].(string)
+	out.HoldCustomer, _ = data["hold_customer"].(string)
+	out.HoldUntil, _ = data["hold_until"].(string)
+	out.HoldAdvance, _ = data["hold_advance"].(string)
 	out.ReceiptCostPaise = int64(numFromInterface(data["receipt_cost_paise"]))
 	out.ReceiptGRN, _ = data["receipt_grn"].(string)
 	// Same split Batch's own batchFromData documents: the JSON status key and
@@ -356,6 +363,15 @@ func TransitionSerialStatus(tenantID, sku, serialNo, newStatus, voucherType, vou
 			"serial %s of %s is allocated to %s, not %s - it cannot be packed against a different order", serialNo, sku, unit.ReservedFor, voucherID)}
 	}
 
+	if newStatus == SerialAllocated { // Stage 148.41: a held piece goes only to an order of the customer it is held for
+		customer := ""
+		if voucherType == "SalesOrder" {
+			customer = orderCustomerID(tenantID, voucherID)
+		}
+		if herr := pieceHoldRefusal(*unit, customer); herr != nil {
+			return herr
+		}
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err

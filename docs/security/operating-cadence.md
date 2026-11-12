@@ -32,11 +32,11 @@ than in an audit.
 | Continuous | Critical advisory intake: Go and module advisories, provider notices | engineering-owner | the daily patch-intake worker; `govulncheck` at every release |
 | Every release | Attack-surface and control evidence: routes, sign-in levels, jobs, flags, dependencies, outbound calls | engineering-owner | release gates G6 / G6b, `docs/security/attack_surface.json` |
 | Monthly (35 days) | Vulnerability and patch review | engineering-owner | `docs/security/dependency-ledger.json` `updated` |
-| Monthly | Restore drill on a throwaway copy | operations-owner | newest dated heading in `docs/operations/restore_drill_log.md` |
-| Monthly | Access review: admins without 2FA, API keys, emergency-control use | security-owner | Activity Log → Security (live) |
-| Monthly | Detection and data-growth review: fired detections, lost audit writes, the state forecast | security-owner | Activity Log → Security (live); `cmd/stateforecast` |
-| Quarterly (100 days) | Threat model review | security-owner | `docs/security/threat_model.md` `last_verified` |
-| Quarterly | Risk register review | security-owner | `docs/security/risk_register.md` `last_verified` |
+| Monthly | Restore drill on a throwaway copy | operations-owner | newest dated heading in `docs/operations/restore-drill-log.md` |
+| Monthly | Access review: admins without 2FA, API keys, emergency-control use | security-owner | Settings → Monitoring → Security Events (live) |
+| Monthly | Detection and data-growth review: fired detections, lost audit writes, the state forecast | security-owner | Settings → Monitoring → Security Events (live); `cmd/stateforecast` |
+| Quarterly (100 days) | Threat model review | security-owner | `docs/security/threat-model.md` `last_verified` |
+| Quarterly | Risk register review | security-owner | `docs/security/risk-register.md` `last_verified` |
 | Quarterly | Vendor and third-party review | security-owner | `docs/security/third-party-risk-register.md` `last_verified` |
 | Quarterly | Tabletop exercise on one incident runbook section | security-owner | a `tabletop` row in [assessment-register.md](assessment-register.md) |
 | Annual (380 days) | Independent penetration test and program review | security-owner | an `external` row in [assessment-register.md](assessment-register.md); `docs/security/secure-development-lifecycle.md` `last_verified` |

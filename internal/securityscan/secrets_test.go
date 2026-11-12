@@ -20,12 +20,12 @@ var reviewedSecretFindings = map[string]map[string]struct {
 	Count  int
 	Reason string
 }{
-	"internal/server/stage49_8_5_credentials_test.go": {
+	"internal/server/credentials_test.go": {
 		"high-entropy-assignment": {1, `A synthetic connector secret the 49.8.5 test saves and then
 			proves no HTTP answer ever reads back. It authenticates to nothing; the test needs a value
 			that looks like a real secret, or "never read back" would prove nothing.`},
 	},
-	"engines/connector_credential_list_stage4985c_test.go": {
+	"engines/connector_credential_list_test.go": {
 		"high-entropy-assignment": {1, `A synthetic connector secret ("t4985c-very-secret-token") the
 			49.8.5c test saves and then proves ListConnectorCredentials never returns. It authenticates to
 			nothing; like the 49.8.5 entry above, the test needs a value that looks like a real secret.`},

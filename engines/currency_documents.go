@@ -47,12 +47,6 @@ var currencyBearingDoctypes = map[string]bool{
 	"PurchaseRequisition": true,
 }
 
-// IsCurrencyBearingDoctype reports whether a doctype participates in the
-// multi-currency stamp.
-func IsCurrencyBearingDoctype(doctype string) bool {
-	return currencyBearingDoctypes[doctype]
-}
-
 // FunctionalCurrency returns the tenant's reporting currency, always uppercase.
 func FunctionalCurrency(tenantID string) string {
 	code := strings.ToUpper(strings.TrimSpace(GetSettingString(tenantID, SettingKeyFunctionalCurrency)))

@@ -56,7 +56,7 @@ func spFixture(t *testing.T) string {
 		t.Fatalf("inspect doctype_meta: %v", err)
 	}
 	if !ready {
-		t.Skip("db/migrations_stage35_4_shipping_package.sql has not been applied to this database")
+		t.Skip("db/migrations/migrations_stage35_4_shipping_package.sql has not been applied to this database")
 	}
 
 	spCleanup(t, schema)
@@ -124,6 +124,7 @@ func spCleanup(t *testing.T, schema string) {
 	for _, stmt := range []string{
 		`DELETE FROM ` + schema + `.documents WHERE doctype = 'CreditNote' AND data->>'sales_order_id' = $1`,
 		`DELETE FROM ` + schema + `.documents WHERE doctype = 'SalesInvoice' AND data->>'sales_order_id' = $1`,
+		`DELETE FROM ` + schema + `.documents WHERE doctype = 'OMSBill' AND data->>'sales_order_id' = $1`,
 		`DELETE FROM ` + schema + `.documents WHERE doctype = 'ShippingPackage' AND data->>'order_id' = $1`,
 		`DELETE FROM ` + schema + `.documents WHERE doctype = 'LogisticsBooking' AND data->>'order_id' = $1`,
 	} {

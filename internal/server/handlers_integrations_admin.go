@@ -908,7 +908,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		// endpoint to decide whether a deploy succeeded - a 200 alone cannot
 		// tell it apart from the OLD process still answering because the
 		// restart that was supposed to bring up the new build silently
-		// failed (found via docs/qa/audit-deploy-mock.py's restart-fails
+		// failed (found via docs/qa/audit_deploy_mock.py's restart-fails
 		// case: DEPLOY-OK was reported while the new binary/public were
 		// never actually running). git_commit/build_time already exist as
 		// ldflags-injected build identity (middleware.go) for exactly this

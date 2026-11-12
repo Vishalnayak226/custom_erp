@@ -165,7 +165,7 @@ func parseRSAPrivateKey(der []byte) (*rsa.PrivateKey, error) {
 //
 // QZ requires x509 / 2048-bit RSA for an override certificate. The generated
 // certificate is what gets copied to each packing PC as override.crt - see
-// docs/guides/QZ_PRINTING_SETUP.md. Regenerating it invalidates every PC's
+// docs/guides/qz-printing-setup.md. Regenerating it invalidates every PC's
 // override.crt, so the file is only written when absent.
 func generateQZKeyPair(dir, keyPath, certPath string) qzKeyMaterial {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -259,7 +259,7 @@ func QZSignRequest(hashHex string) (string, error) {
 
 // QZPrinter is one row of the Printer Master, narrowed to what the print
 // pipeline needs. Reuses the existing doctype (extended in
-// db/migrations_stage31_1_qz_print.sql) rather than a parallel registry, so
+// db/migrations/migrations_stage31_1_qz_print.sql) rather than a parallel registry, so
 // printers stay manageable from the normal Master Definition screens.
 type QZPrinter struct {
 	ID            string `json:"id"`

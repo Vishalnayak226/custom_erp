@@ -134,9 +134,9 @@ async function posAskMobile() {
     overlay.className = 'modal-overlay open';
     overlay.id = 'pos-ask-dialog';
     overlay.innerHTML = `
-      <div class="modal-container" style="max-width: 440px;" role="dialog" aria-modal="true" aria-labelledby="pos-ask-title">
+      <div class="modal-container s-c31abe" role="dialog" aria-modal="true" aria-labelledby="pos-ask-title">
         <div class="modal-header"><h3 class="modal-title" id="pos-ask-title">Customer's mobile number</h3></div>
-        <div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">
+        <div class="modal-body s-48c2b9">
           <input id="pos-ask-phone" class="form-input" type="tel" inputmode="tel" placeholder="Mobile number" autocomplete="off">
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-outline" data-ask="cancel">Cancel</button>
@@ -280,11 +280,11 @@ export function posAdvanceApplied(due) {
 
 function voucherHTML(title, rows, note) {
   return `<div class="receipt"><div class="receipt-header">
-      <div style="font-weight:700;">${esc(window.posStoreLabel ? window.posStoreLabel() : '')}</div>
-      <div style="font-weight:700; margin-top:4px;">${esc(title)}</div>
-      <div>${new Date().toLocaleString()}</div></div><hr>
+      <div class="s-e3ec02">${esc(window.posStoreLabel ? window.posStoreLabel() : '')}</div>
+      <div class="s-2e15bb">${esc(title)}</div>
+      <div>${formatDateTime(new Date())}</div></div><hr>
     ${rows.filter(r => r[1] !== '' && r[1] !== undefined && r[1] !== null).map(([k, v]) => `<div class="receipt-line"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
-    <hr>${note ? `<div style="font-size:11px;">${esc(note)}</div>` : ''}</div>`;
+    <hr>${note ? `<div class="s-11a508">${esc(note)}</div>` : ''}</div>`;
 }
 
 // previewVoucher (Stage 143.4) shows the slip as it will print, with Close
@@ -293,10 +293,10 @@ export function previewVoucher(html) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay open';
-    overlay.innerHTML = `<div class="modal-container" style="max-width: 440px;" role="dialog" aria-modal="true" aria-label="Preview">
+    overlay.innerHTML = `<div class="modal-container s-c31abe" role="dialog" aria-modal="true" aria-label="Preview">
       <div class="modal-header"><h3 class="modal-title">Preview</h3><button type="button" class="modal-close" aria-label="Close dialog" data-vp="close">×</button></div>
-      <div class="modal-body"><style>.vp-slip .receipt-line{display:flex;justify-content:space-between;gap:8px}.vp-slip hr{border:0;border-top:1px dashed #000;margin:6px 0}</style>
-        <div class="vp-slip" style="width:80mm; max-width:100%; margin:0 auto; box-sizing:border-box; padding:3mm 4mm; background:#fff; color:#000; font:12px/1.4 system-ui, sans-serif; box-shadow:0 1px 3px rgba(0,0,0,.25);">${html}</div></div>
+      <div class="modal-body">
+        <div class="vp-slip s-12e162">${html}</div></div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-vp="close">Close</button><button type="button" class="btn btn-primary" data-vp="print">Print</button></div></div>`;
     document.body.appendChild(overlay);
     const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
@@ -347,7 +347,7 @@ let advanceCustomer = null;
 // renderPOSAdvancePanel fills the till's Advance tab.
 export function renderPOSAdvancePanel(pane) {
   pane.innerHTML = `
-    <div class="txn-head" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
+    <div class="txn-head s-9c1366">
       <div class="form-group"><label class="form-label" for="adv-phone">Customer mobile</label>
         <input id="adv-phone" class="form-input" type="tel" inputmode="tel" placeholder="Mobile number (Enter)" autocomplete="off">
         <div id="adv-customer" class="txn-hint">The advance belongs to this customer.</div></div>
@@ -408,9 +408,9 @@ async function loadAdvanceList(pane) {
       <td>${esc(a.number)}</td><td>${esc(a.taken_at)}</td><td>${esc(a.customer_name)}</td><td>${esc(a.purpose)}${a.expected_date ? `<div class="txn-hint">by ${esc(a.expected_date)}</div>` : ''}</td>
       <td>${money2(a.amount)}<div class="txn-hint">${esc(a.payment_mode)}${a.tax ? ` · GST ${money2(a.tax)}` : ''}</div></td>
       <td>${money2(a.applied)}</td><td>${money2(a.refunded)}</td><td><b>${money2(a.balance)}</b></td><td>${esc(a.status)}</td>
-      <td style="white-space:nowrap;"><button type="button" class="action-btn" data-adv-print="${esc(a.number)}">Print</button>
+      <td class="s-86abda"><button type="button" class="action-btn" data-adv-print="${esc(a.number)}">Print</button>
         ${a.balance > 0 ? `<button type="button" class="action-btn action-btn-danger" data-adv-refund="${esc(a.number)}">Refund</button>` : ''}</td></tr>`).join('')
-    : `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">${advanceCustomer ? 'No advances for this customer yet.' : 'No open advances at this store. Type a mobile number to see a customer\'s advances.'}</td></tr>`;
+    : `<tr><td colspan="10" class="s-306094">${advanceCustomer ? 'No advances for this customer yet.' : 'No open advances at this store. Type a mobile number to see a customer\'s advances.'}</td></tr>`;
   body.querySelectorAll('[data-adv-print]').forEach(b => b.addEventListener('click', () => printAdvanceReceipt(list.find(a => a.number === b.dataset.advPrint))));
   body.querySelectorAll('[data-adv-refund]').forEach(b => b.addEventListener('click', () => refundAdvance(pane, list.find(a => a.number === b.dataset.advRefund))));
 }

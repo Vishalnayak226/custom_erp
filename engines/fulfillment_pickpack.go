@@ -203,7 +203,7 @@ func resolveScanToItem(schema, scan string) (sku, name string, found bool, err e
 // recomputeTaskStatus flips a still-Pending task to Picking the moment any
 // pick progress happens (a scan or a short-pick) - this repo's existing
 // FulfillmentTask.status vocabulary (Pending/Picking/Packed/Dispatched/
-// Rejected, db/migration.sql) already anticipated exactly this granularity
+// Rejected, db/migrations/migration.sql) already anticipated exactly this granularity
 // and no more, so both the pick and pack stages live under "Picking" until
 // CompletePackTask explicitly sets "Packed" - no schema change needed to
 // add finer-grained intermediate statuses that nothing else would consume.
@@ -391,7 +391,7 @@ func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err
 // one action (§12: "no partial-short-then-more-picking modeled" - the
 // picker isn't asked how much is short, only that the rest can't be found).
 // Requires a mandatory Active ReasonCode in a new "Short Pick" category
-// (db/migrations_stage26_12_3_pick_pack.sql extends the Stage 26.12.9
+// (db/migrations/migrations_stage26_12_3_pick_pack.sql extends the Stage 26.12.9
 // ReasonCode.category Select options), the same mandatory-reason-code
 // convention the Order Engine's Hold/Cancel actions already use.
 func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {

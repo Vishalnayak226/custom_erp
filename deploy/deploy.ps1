@@ -203,7 +203,7 @@ if ($LASTEXITCODE -ne 0) { throw "scp of the binary's signature failed" }
 # overwriting the running frontend before remote_deploy.sh ever got a chance
 # to snapshot the pre-deploy one for rollback - its "pre-deploy snapshot" was
 # actually a snapshot of the NEW release, so a rollback never actually
-# restored the old frontend (confirmed via docs/qa/audit-deploy-mock.py:
+# restored the old frontend (confirmed via docs/qa/audit_deploy_mock.py:
 # release_consistent was false on every failure case). Ship to a staging
 # name instead, exactly like erp-server.new already does, so the real
 # activation - and the real snapshot before it - happens inside

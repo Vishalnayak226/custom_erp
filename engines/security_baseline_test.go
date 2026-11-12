@@ -305,14 +305,14 @@ func TestSecurityCriticalEnvVarListIsSortedAndComplete(t *testing.T) {
 	}
 }
 
-// db/migration.sql seeds four accounts with literal bcrypt hashes. 24.27
+// db/migrations/migration.sql seeds four accounts with literal bcrypt hashes. 24.27
 // guarded one of them; 49.1.3 guards all four. This keeps the guarded set
 // equal to the seeded set, so a fifth bootstrap account cannot be added to the
 // migration without also being guarded.
 func TestSeededCredentialHashesCoverMigrationSQL(t *testing.T) {
-	sql, err := os.ReadFile("../db/migration.sql")
+	sql, err := os.ReadFile("../db/migrations/migration.sql")
 	if err != nil {
-		t.Fatalf("cannot read db/migration.sql: %v", err)
+		t.Fatalf("cannot read db/migrations/migration.sql: %v", err)
 	}
 	bcryptLiteral := regexp.MustCompile(`'(\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53})'`)
 	seededInSQL := map[string]bool{}
@@ -320,7 +320,7 @@ func TestSeededCredentialHashesCoverMigrationSQL(t *testing.T) {
 		seededInSQL[m[1]] = true
 	}
 	if len(seededInSQL) == 0 {
-		t.Fatal("found no bcrypt hash literals in db/migration.sql - the extraction pattern itself is broken, not the guard")
+		t.Fatal("found no bcrypt hash literals in db/migrations/migration.sql - the extraction pattern itself is broken, not the guard")
 	}
 	guarded := map[string]bool{}
 	for _, h := range seededCredentialHashes {
@@ -328,12 +328,12 @@ func TestSeededCredentialHashesCoverMigrationSQL(t *testing.T) {
 	}
 	for hash := range seededInSQL {
 		if !guarded[hash] {
-			t.Errorf("db/migration.sql seeds a password hash ending %q that seededCredentialHashes does not guard - add the account to that map so a production boot refuses it", hash[len(hash)-8:])
+			t.Errorf("db/migrations/migration.sql seeds a password hash ending %q that seededCredentialHashes does not guard - add the account to that map so a production boot refuses it", hash[len(hash)-8:])
 		}
 	}
 	for hash := range guarded {
 		if !seededInSQL[hash] {
-			t.Errorf("seededCredentialHashes guards a hash ending %q that db/migration.sql no longer seeds - remove it", hash[len(hash)-8:])
+			t.Errorf("seededCredentialHashes guards a hash ending %q that db/migrations/migration.sql no longer seeds - remove it", hash[len(hash)-8:])
 		}
 	}
 }

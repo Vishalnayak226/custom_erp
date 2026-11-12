@@ -65,30 +65,30 @@ async function renderWorkbench(container) {
   const chips = TABS.map(([key, label]) => `<button type="button" class="btn btn-sm ${wb.tab === key ? 'btn-primary' : 'btn-outline'}" data-einv-tab="${key}">${label} <b>${(data.counts || {})[key] || 0}</b></button>`).join(' ');
   const el = screen(container, 'E-Invoice (IRN)',
     `<button class="btn btn-outline" id="einv-run">Check now</button> <button class="btn btn-outline" data-go-settings>Settings</button> <button class="btn btn-outline" data-go-ewb>E-Way Bills</button>`,
-    `<div class="einv-filters" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
+    `<div class="einv-filters s-27a626">
        <div>${chips}</div>
-       <input class="form-input" id="einv-q" placeholder="Number or IRN" value="${esc(wb.q)}" style="max-width:180px;">
-       <input class="form-input" id="einv-gstin" placeholder="GSTIN" value="${esc(wb.gstin)}" style="max-width:170px;">
-       <input class="form-input" type="date" id="einv-from" value="${esc(wb.from)}" aria-label="From date" style="max-width:150px;">
-       <input class="form-input" type="date" id="einv-to" value="${esc(wb.to)}" aria-label="To date" style="max-width:150px;">
+       <input class="form-input s-532b40" id="einv-q" placeholder="Number or IRN" value="${esc(wb.q)}">
+       <input class="form-input s-132d31" id="einv-gstin" placeholder="GSTIN" value="${esc(wb.gstin)}">
+       <input class="form-input s-7eba57" type="date" id="einv-from" value="${esc(wb.from)}" aria-label="From date">
+       <input class="form-input s-7eba57" type="date" id="einv-to" value="${esc(wb.to)}" aria-label="To date">
        <button class="btn btn-outline btn-sm" id="einv-apply">Apply</button>
      </div>
      <table>
        <thead><tr><th>Date</th><th>Type</th><th>Number</th><th>Seller GSTIN</th><th>State</th><th>IRN</th><th class="num">Tries</th><th>What to do</th><th></th></tr></thead>
        <tbody>${rows.length === 0
-         ? `<tr><td colspan="9" style="text-align:center;color:var(--text-muted);">Nothing here. Posted invoices and credit notes of a GSTIN with e-invoicing on appear within a minute.</td></tr>`
+         ? `<tr><td colspan="9" class="s-306094">Nothing here. Posted invoices and credit notes of a GSTIN with e-invoicing on appear within a minute.</td></tr>`
          : rows.map(r => `<tr>
              <td>${esc(r.doc_date)}</td><td>${esc(r.doc_type)}</td>
-             <td style="font-family:monospace;">${esc(r.doc_number)}</td><td style="font-family:monospace;">${esc(r.gstin)}</td>
+             <td class="s-72126d">${esc(r.doc_number)}</td><td class="s-72126d">${esc(r.gstin)}</td>
              <td>${einvoiceStateBadge(r.state)}</td>
-             <td style="font-family:monospace;" title="${esc(r.irn)}">${esc(r.irn ? r.irn.slice(0, 12) + '…' : '')}</td>
+             <td class="s-72126d" title="${esc(r.irn)}">${esc(r.irn ? r.irn.slice(0, 12) + '…' : '')}</td>
              <td class="num">${r.attempts || 0}</td>
-             <td style="max-width:320px;">${esc(nextStep(r))}</td>
+             <td class="s-3521b3">${esc(nextStep(r))}</td>
              <td><button class="action-btn" data-einv-open="${r.id}">Open</button></td></tr>`).join('')}
        </tbody>
      </table>
-     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-       <span style="color:var(--text-muted);align-self:center;">${data.total || 0} in this view</span>
+     <div class="s-493a8f">
+       <span class="s-3330ed">${data.total || 0} in this view</span>
        <button class="btn btn-outline btn-sm" id="einv-prev" ${wb.offset === 0 ? 'disabled' : ''}>Previous</button>
        <button class="btn btn-outline btn-sm" id="einv-next" ${wb.offset + PAGE >= (data.total || 0) ? 'disabled' : ''}>Next</button>
      </div>`);
@@ -146,29 +146,29 @@ async function renderDetail(container, id) {
   };
   const btn = (key, label, cls = 'btn-outline') => can[key] ? `<button class="btn ${cls}" data-einv-act="${key}">${label}</button>` : '';
   const table = (rows, cols) => rows.length ? `<table><thead><tr>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${
-    rows.map(x => `<tr>${cols.map(c => `<td>${esc(c[0] === 'at' ? fmtTime(x.at) : x[c[0]])}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p style="color:var(--text-muted);">None yet.</p>';
+    rows.map(x => `<tr>${cols.map(c => `<td>${esc(c[0] === 'at' ? fmtTime(x.at) : x[c[0]])}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p class="s-5872de">None yet.</p>';
   const el = screen(container, `E-Invoice ${esc(r.doc_type)} ${esc(r.doc_number)}`,
     `<button class="btn btn-outline" data-einv-back>Back to list</button> ${btn('validate', 'Validate')} ${btn('submit', r.state === 'READY' ? 'Submit' : 'Retry', 'btn-primary')} ${btn('check', 'Check status', 'btn-primary')} ${btn('cancel', 'Cancel IRN')} ${btn('manual', 'Enter portal IRN')}`,
-    `<div class="oms-detail-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px;">
+    `<div class="oms-detail-summary s-13fcfa">
        ${fact('State', einvoiceStateBadge(r.state))}
        ${fact('Document', esc(`${r.source_doctype} · ${r.doc_date}`))}
        ${fact('Seller GSTIN', esc(r.gstin))}
        ${fact('Why', esc(r.reason))}
        ${fact('Rules', r.rule_version ? 'v' + r.rule_version : '')}
-       ${fact('IRN', r.irn ? `<span style="font-family:monospace;word-break:break-all;">${esc(r.irn)}</span>` : '')}
+       ${fact('IRN', r.irn ? `<span class="s-b40f4c">${esc(r.irn)}</span>` : '')}
        ${fact('Ack No / Date', r.ack_no ? esc(`${r.ack_no} · ${fmtTime(r.ack_date)}`) : '')}
        ${fact('Made by', r.source === 'manual' ? 'Portal (entered by hand, verified)' : '')}
        ${fact('Tries', String(r.attempts || 0))}
        ${fact('Next try', r.next_attempt_at ? esc(fmtTime(r.next_attempt_at)) : '')}
-       ${fact('Payload hash', r.payload_hash ? `<span style="font-family:monospace;">${esc(r.payload_hash.slice(0, 16))}…</span>` : '')}
+       ${fact('Payload hash', r.payload_hash ? `<span class="s-72126d">${esc(r.payload_hash.slice(0, 16))}…</span>` : '')}
      </div>
      ${(r.issues || []).length ? `<h3>To fix before it can be sent</h3>${table(r.issues, [['field', 'Field'], ['problem', 'Problem'], ['fix', 'How to fix']])}` : ''}
-     ${r.last_error && !(r.issues || []).length ? `<div class="login-error" style="margin:8px 0;">${esc(r.last_error)}</div>` : ''}
-     ${r.signed_qr ? `<h3>Signed QR</h3><div id="einv-qr" style="width:180px;"></div>` : ''}
+     ${r.last_error && !(r.issues || []).length ? `<div class="login-error s-f5554e">${esc(r.last_error)}</div>` : ''}
+     ${r.signed_qr ? `<h3>Signed QR</h3><div id="einv-qr" class="s-54f91a"></div>` : ''}
      <div id="einv-form"></div>
      <h3>Calls to the IRP</h3>${table(d.attempts || [], [['at', 'When'], ['action', 'Call'], ['outcome', 'Result'], ['error_code', 'Code'], ['error_message', 'Message'], ['duration_ms', 'ms']])}
      <h3>History</h3>${table(d.events || [], [['at', 'When'], ['event', 'Event'], ['from_state', 'From'], ['to_state', 'To'], ['detail', 'Detail'], ['actor', 'By']])}
-     ${d.payload ? `<details style="margin-top:10px;"><summary>The e-invoice JSON (frozen at posting)</summary><pre style="white-space:pre-wrap;font-size:12px;">${esc(JSON.stringify(d.payload, null, 2))}</pre></details>` : ''}`);
+     ${d.payload ? `<details class="s-d2c171"><summary>The e-invoice JSON (frozen at posting)</summary><pre class="s-1ef078">${esc(JSON.stringify(d.payload, null, 2))}</pre></details>` : ''}`);
   el.querySelector('[data-einv-back]').addEventListener('click', () => renderView('einvoice'));
   if (r.signed_qr) einvoiceQRInto(el.querySelector('#einv-qr'), r.signed_qr);
   const act = async (action, body) => {
@@ -191,13 +191,13 @@ async function renderDetail(container, id) {
 
 function cancelForm(el, r, act) {
   const box = el.querySelector('#einv-form');
-  box.innerHTML = `<div class="table-panel" style="margin:12px 0;padding:12px;">
+  box.innerHTML = `<div class="table-panel s-e39044">
     <h3>Cancel IRN</h3>
-    <p style="color:var(--text-muted);">Within 24 hours only; the number is never reused.</p>
+    <p class="s-5872de">Within 24 hours only; the number is never reused.</p>
     <div class="po-header-grid">
       <div class="form-group"><label class="form-label" for="einv-c-code">Reason code</label>
         <select class="form-select" id="einv-c-code"><option value="1">1 - Duplicate</option><option value="2">2 - Data entry mistake</option><option value="3">3 - Order cancelled</option><option value="4">4 - Others</option></select></div>
-      <div class="form-group" style="grid-column:span 3;"><label class="form-label" for="einv-c-reason">Reason</label><input class="form-input" id="einv-c-reason" maxlength="100"></div>
+      <div class="form-group s-ae9481"><label class="form-label" for="einv-c-reason">Reason</label><input class="form-input" id="einv-c-reason" maxlength="100"></div>
     </div>
     <button class="btn btn-primary" id="einv-c-go">Send for approval</button></div>`;
   box.querySelector('#einv-c-go').addEventListener('click', () => act('cancel', { code: box.querySelector('#einv-c-code').value, reason: box.querySelector('#einv-c-reason').value }));
@@ -205,10 +205,10 @@ function cancelForm(el, r, act) {
 
 function manualForm(el, r, act) {
   const box = el.querySelector('#einv-form');
-  box.innerHTML = `<div class="table-panel" style="margin:12px 0;padding:12px;">
+  box.innerHTML = `<div class="table-panel s-e39044">
     <h3>Enter the IRN made on the portal</h3>
     <div class="po-header-grid">
-      <div class="form-group" style="grid-column:span 2;"><label class="form-label" for="einv-m-irn">IRN (64 characters)</label><input class="form-input" id="einv-m-irn" maxlength="64" autocomplete="off"></div>
+      <div class="form-group s-94a5b4"><label class="form-label" for="einv-m-irn">IRN (64 characters)</label><input class="form-input" id="einv-m-irn" maxlength="64" autocomplete="off"></div>
       <div class="form-group"><label class="form-label" for="einv-m-ack">Ack No</label><input class="form-input" id="einv-m-ack" autocomplete="off"></div>
       <div class="form-group"><label class="form-label" for="einv-m-date">Ack Date (YYYY-MM-DD HH:MM)</label><input class="form-input" id="einv-m-date" autocomplete="off"></div>
     </div>
@@ -222,7 +222,7 @@ function manualForm(el, r, act) {
 function fmtTime(t) {
   if (!t) return '';
   const d = new Date(t);
-  return isNaN(d) ? String(t) : d.toLocaleString();
+  return isNaN(d) ? String(t) : formatDateTime(d);
 }
 
 // ---------------------------------------------------------------------------
@@ -238,14 +238,14 @@ async function renderSettings(container) {
     `<table>
        <thead><tr><th>GSTIN</th><th>Legal entity</th><th>Provider</th><th>E-invoicing</th><th>Auto-submit</th><th>Turnover</th><th>Types</th><th>Rules</th><th>Connection</th><th></th></tr></thead>
        <tbody>${profiles.length === 0
-         ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);">No GSTIN is set up. Use <b>+ New GSTIN</b> for each GSTIN that must e-invoice (turnover above ₹5 crore).</td></tr>`
+         ? `<tr><td colspan="10" class="s-306094">No GSTIN is set up. Use <b>+ New GSTIN</b> for each GSTIN that must e-invoice (turnover above ₹5 crore).</td></tr>`
          : profiles.map(p => `<tr>
-             <td style="font-family:monospace;">${esc(p.gstin)}</td><td>${esc(p.legal_entity)}</td>
+             <td class="s-72126d">${esc(p.gstin)}</td><td>${esc(p.legal_entity)}</td>
              <td>${esc(p.provider === 'fake' ? 'Test provider' : p.provider)}${p.credential_set ? ' · credentials stored' : ''}</td>
              <td>${p.enabled ? '<span class="badge badge-success">On</span>' : '<span class="badge badge-secondary">Off</span>'}</td>
              <td>${p.auto_submit ? 'On' : 'Off'}</td><td>${esc(p.turnover_band)}</td><td>${esc((p.document_types || []).join(', '))}</td>
              <td>v${p.rule_version} from ${esc(p.effective_from)}</td>
-             <td>${esc(p.test_status)}${p.tested_at ? `<div style="font-size:11px;color:var(--text-muted);">${esc(fmtTime(p.tested_at))}</div>` : ''}</td>
+             <td>${esc(p.test_status)}${p.tested_at ? `<div class="s-69ffa6">${esc(fmtTime(p.tested_at))}</div>` : ''}</td>
              <td><button class="action-btn" data-einv-edit="${esc(p.gstin)}">Edit</button> <button class="action-btn" data-einv-test="${esc(p.gstin)}">Test connection</button></td></tr>`).join('')}
        </tbody>
      </table>`);
@@ -273,7 +273,7 @@ async function renderProfileForm(container, gstin) {
     const found = res.ok ? ((await res.json()).profiles || []).find(x => x.gstin === gstin) : null;
     if (found) p = found;
   }
-  const checks = (name, all, on) => all.map(([v, l]) => `<label style="margin-right:12px;"><input type="checkbox" name="${name}" value="${v}" ${on.includes(v) ? 'checked' : ''}> ${l}</label>`).join('');
+  const checks = (name, all, on) => all.map(([v, l]) => `<label class="s-b8f614"><input type="checkbox" name="${name}" value="${v}" ${on.includes(v) ? 'checked' : ''}> ${l}</label>`).join('');
   const el = screen(container, gstin ? `E-Invoice Settings › ${esc(gstin)}` : 'E-Invoice Settings › New GSTIN',
     `<button class="btn btn-outline" data-einv-back>Back</button> <button class="btn btn-primary" id="einv-save">Save</button>`,
     `<div class="po-header-grid">
@@ -290,7 +290,7 @@ async function renderProfileForm(container, gstin) {
      <div class="form-group"><label><input type="checkbox" id="einv-enabled" ${p.enabled ? 'checked' : ''}> E-invoicing is on for this GSTIN</label></div>
      <div class="form-group"><label><input type="checkbox" id="einv-auto" ${p.auto_submit ? 'checked' : ''}> Send each posted invoice automatically (otherwise Submit from the workbench)</label></div>
      <h3>Provider credentials</h3>
-     <p style="color:var(--text-muted);">Never shown again${p.credential_set ? ' - <b>stored</b>; leave blank to keep them' : ''}.</p>
+     <p class="s-5872de">Never shown again${p.credential_set ? ' - <b>stored</b>; leave blank to keep them' : ''}.</p>
      <div class="po-header-grid">
        <div class="form-group"><label class="form-label" for="einv-user">API user name</label><input class="form-input" id="einv-user" autocomplete="off"></div>
        <div class="form-group"><label class="form-label" for="einv-pass">API password</label><input class="form-input" type="password" id="einv-pass" autocomplete="new-password"></div>
@@ -374,8 +374,8 @@ export async function einvoiceQRInto(el, text) {
 export function einvoicePrintBlock(rec) {
   if (!rec || rec.state === 'NOT_REQUIRED' || rec.state === 'CANCELLED') return '';
   if (rec.state !== 'ACKNOWLEDGED') return '<div class="invoice-draft">IRN PENDING</div>';
-  const when = rec.ack_date ? new Date(rec.ack_date).toLocaleString() : '';
-  return `<table><tr><td class="invoice-key">IRN</td><td style="word-break:break-all;">${esc(rec.irn)}</td></tr>
+  const when = rec.ack_date ? formatDateTime(rec.ack_date) : '';
+  return `<table><tr><td class="invoice-key">IRN</td><td class="s-752397">${esc(rec.irn)}</td></tr>
     <tr><td class="invoice-key">Ack No</td><td>${esc(rec.ack_no)}</td></tr><tr><td class="invoice-key">Ack Date</td><td>${esc(when)}</td></tr></table>
-    <div class="einv-print-qr" style="width:150px;margin-top:8px;"></div>`;
+    <div class="einv-print-qr s-9cbf52"></div>`;
 }

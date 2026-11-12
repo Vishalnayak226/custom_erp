@@ -9,7 +9,7 @@ import (
 // ProductFamilyAttribute/ProductAttributeGroup are all plain generic
 // doctypes (Stage 15/26.4.1) with no dedicated engine of their own - every
 // field-level change on them is already captured by the documents edit-log
-// trigger (db/migration.sql section 16 on tenant_default; on every client
+// trigger (db/migrations/migration.sql section 16 on tenant_default; on every client
 // since Stage 47.16.4a, public.erp_log_document_edit), which fires on every
 // documents UPDATE regardless of doctype. This file adds no
 // new table and no new trigger - it only reads that existing audit trail

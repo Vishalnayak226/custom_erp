@@ -13,12 +13,12 @@ function vaDialog(id, title, fields, saveLabel, onSave, view = 'doctype-table') 
       ? `<select id="${id}-${f.name}" class="form-select">${f.options.map(o => `<option value="${escapeHTMLText(o.value)}">${escapeHTMLText(o.label)}</option>`).join('')}</select></div>`
       : `<input id="${id}-${f.name}" class="form-input${f.type === 'number' ? ' num' : ''}" type="${f.type || 'text'}" ${f.type === 'number' ? 'min="0" step="0.01"' : ''} autocomplete="off" value="${escapeHTMLText(f.value || '')}"></div>`)).join('');
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 440px;" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
+    <div class="modal-container s-c31abe" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
       <div class="modal-header"><h3 class="modal-title" id="${id}-title">${escapeHTMLText(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-va-close>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button></div>
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">${rows}</div>
+      <div class="modal-body s-63bcac">${rows}</div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-va-close>Cancel</button>
         <button type="button" class="btn btn-primary" data-va-save>${escapeHTMLText(saveLabel)}</button></div>
     </div>`;

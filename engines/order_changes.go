@@ -217,6 +217,9 @@ func EditOrderLines(tenantID, orderID string, changes []OrderLineChange, reason,
 	if len(changes) == 0 {
 		return nil, &ValidationError{Code: "ORDERM-0467", SubFor: "lines", Message: "no line changes were sent"}
 	}
+	if handled, res, err := editDropShipOrderLines(tenantID, orderID, changes, userID); handled { // Stage 148.32
+		return res, err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -326,6 +329,9 @@ func EditOrderLines(tenantID, orderID string, changes []OrderLineChange, reason,
 			item, err := ResolveItemBySKU(tenantID, sku)
 			if err != nil || item == nil {
 				return nil, bad(fmt.Sprintf("no active item matches %q", sku))
+			}
+			if _, err := brandRestrictionCheck(tenantID, strField(order, "customer_id"), strField(order, "customer_name"), []string{sku}); err != nil { // Stage 148.43
+				return nil, err
 			}
 			if code, _ := item.Data["code"].(string); code != "" {
 				sku = code

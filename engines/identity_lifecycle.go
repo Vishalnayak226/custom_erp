@@ -59,12 +59,27 @@ const (
 // token or a support user's session. Best effort: a failure here never fails
 // the sign-in.
 func RecordSignIn(tenantID, userID string) {
+	RecordSignInFrom(context.Background(), tenantID, userID)
+}
+
+// RecordSignInFrom is RecordSignIn that also stores the client address the
+// request carries (Stage 47.16.3): the one the server's trusted-proxy rule
+// resolved (WithRequestSource) - never a raw header. A caller without a
+// request leaves the stored address as it was. The address is cleared 180
+// days after the sign-in (clearUserSignInAddress, the hourly retention sweep).
+func RecordSignInFrom(ctx context.Context, tenantID, userID string) {
 	if db.DB == nil || strings.TrimSpace(userID) == "" {
 		return
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return
+	}
+	if addr := RequestSourceFromContext(ctx).Address; addr != "" {
+		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET last_sign_in_at = NOW(), last_sign_in_ip = $2 WHERE id = $1`, schema), userID, addr); err == nil {
+			return
+		}
+		// A database mid-upgrade (the column not yet there) still records the time.
 	}
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET last_sign_in_at = NOW() WHERE id = $1`, schema), userID)
 }
@@ -311,6 +326,9 @@ func StartIdentityLifecycleSweep(ctx context.Context, interval time.Duration) {
 					}
 					if _, err := SweepUnusedAPICredentials(tenantID); err != nil {
 						LogBackgroundJobError("IDENTITY-LIFECYCLE", "unused API credentials", schema, err)
+					}
+					if _, err := SweepAgedAPICredentials(tenantID); err != nil {
+						LogBackgroundJobError("IDENTITY-LIFECYCLE", "aged API credentials", schema, err)
 					}
 				}
 			}

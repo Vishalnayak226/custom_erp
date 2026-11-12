@@ -11,7 +11,7 @@ import "sort"
 // doctype with no rows at all therefore exposed every field to every role
 // that passed the doctype gate - "no field rows means every field", exactly
 // the model this item exists to replace. The seed data proves the
-// consequence rather than merely implying it: db/migration.sql grants
+// consequence rather than merely implying it: db/migrations/migration.sql grants
 // ('Cashier', 'Payslip', TRUE, ...) and ('Cashier', 'EmployeeLoan', TRUE,
 // ...) doctype-level read, and no field_permissions row anywhere restricts
 // Payslip, so a Cashier could read every colleague's gross pay, net pay, PF,
@@ -92,7 +92,7 @@ type sensitiveFieldRule struct {
 
 // sensitiveFields is doctype -> fieldname -> rule.
 //
-// Field names were taken from the actual doctype_fields seeds in db/*.sql
+// Field names were taken from the actual doctype_fields seeds in db/migrations/*.sql
 // (extracted mechanically, then reviewed one by one - unlike
 // route_capabilities.go's 454 routes, this is a small enough set to justify
 // individual review, and each entry below carries a real access decision).

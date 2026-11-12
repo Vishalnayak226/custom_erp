@@ -108,6 +108,20 @@ func sessionReadRule(r *http.Request, tenantID, doctype string) (documentReadRul
 	return rule, nil
 }
 
+// seesEveryRow is true when the session has no scope narrowing for this
+// doctype (full access, or a registered doctype with no constraints left), so
+// whether one id exists is nothing to hide from it.
+func (rule documentReadRule) seesEveryRow() bool {
+	if rule.noSupplier || rule.supplierCode != "" {
+		return false
+	}
+	if engines.HasFullAccess(rule.role) {
+		return true
+	}
+	constraints, known := engines.ScopeConstraints(rule.doctype, rule.scope)
+	return known && len(constraints) == 0
+}
+
 // visible is the object-level check: the doctype's scope dimensions
 // (engines.ScopeConstraints / DocumentMatchesScope), or the legacy location
 // rule for a doctype the scope registry does not know, then the supplier

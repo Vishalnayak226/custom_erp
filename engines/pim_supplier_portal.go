@@ -12,7 +12,7 @@ import (
 //
 // A supplier is a normal ERP login whose role reaches exactly one doctype -
 // SupplierSubmission - rather than a separate portal application. See
-// db/migrations_stage26_4_10_supplier_portal.sql for why that shape was
+// db/migrations/migrations_stage26_4_10_supplier_portal.sql for why that shape was
 // chosen over a second app.
 //
 // This file holds the two pieces that shape cannot get from the generic
@@ -48,7 +48,7 @@ func SupplierCodeForUser(tenantID, userID string) (string, error) {
 //
 // The content lands as **Draft**, never Approved. That is the important part:
 // QC approval here means "this supplier's copy is acceptable to work with",
-// not "publish it". ProductContent has its own approval gate (db/migration.sql
+// not "publish it". ProductContent has its own approval gate (db/migrations/migration.sql
 // seeds an approval_rules row for it), and short-circuiting that from an
 // outside party's submission would let a supplier's text reach a live sales
 // channel without an internal publish decision ever being made.
@@ -79,7 +79,7 @@ func ApplyApprovedSupplierSubmission(tenantID, submissionID string, data map[str
 	}
 
 	// ProductContent's id convention is "<item_code>::<language>" (see
-	// db/migration.sql) - reusing it means an approved submission updates the
+	// db/migrations/migration.sql) - reusing it means an approved submission updates the
 	// item's existing content for that language instead of creating a second,
 	// competing row for the same pair.
 	contentID := productID + "::" + language

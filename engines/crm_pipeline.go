@@ -770,6 +770,9 @@ func MoveCRMOpportunity(tenantID, id, stageID, lostReason, actor string) (*CRMOp
 	newStatus := "Open"
 	switch target.Kind {
 	case "won":
+		if err := crmQuoteExpiredErr(tenantID, schema, quotation); err != nil { // 148.29
+			return nil, err
+		}
 		if quotation == "" || qStatus != "Approved" && qStatus != "Converted" {
 			return nil, crmErr(CRMCodePipeline, "a deal is won on an approved quotation - make one and have it approved first")
 		}
@@ -816,6 +819,9 @@ func crmRaiseSalesOrder(tenantID, schema, oppID, quotationID, customerID, actor 
 	}
 	var q map[string]interface{}
 	_ = json.Unmarshal(raw, &q)
+	if err := crmQuoteExpiredErr(tenantID, schema, quotationID); err != nil { // 148.29
+		return err
+	}
 	lines := crmQuotationLines(q)
 	if len(lines) == 0 {
 		return fmt.Errorf("the quotation has no lines")
@@ -828,7 +834,7 @@ func crmRaiseSalesOrder(tenantID, schema, oppID, quotationID, customerID, actor 
 		CustomerPhone: strField(c.Data, "phone"), ShippingAddress: strField(c.Data, "address"), ShippingLine2: strField(c.Data, "address_line2"),
 		ShippingCity: strField(c.Data, "city"), ShippingState: strField(c.Data, "state"), ShippingPincode: strField(c.Data, "pincode"), SkipPending: true, AcceptedBy: actor}
 	for _, l := range lines {
-		in.Lines = append(in.Lines, SalesOrderLineInput{SKU: l.SKU, Qty: l.Qty, UnitPrice: l.Rate})
+		in.Lines = append(in.Lines, SalesOrderLineInput{SKU: l.SKU, Qty: l.Qty, UnitPrice: l.Rate, FloorReason: l.FloorReason})
 	}
 	soID, err := CreateSalesOrder(tenantID, in)
 	if err != nil {
@@ -870,6 +876,10 @@ type CRMQuotationLine struct {
 	Qty    int     `json:"qty"`
 	Rate   float64 `json:"rate"`
 	Amount float64 `json:"amount"`
+	// Why is the price list that gave the rate; FloorReason is why a rate
+	// below the floor was accepted (148.26).
+	Why         string `json:"why,omitempty"`
+	FloorReason string `json:"floor_reason,omitempty"`
 }
 
 func crmQuotationLines(q map[string]interface{}) []CRMQuotationLine {
@@ -912,6 +922,11 @@ func SaveCRMQuotation(tenantID, oppID string, lines []CRMQuotationLine, validUnt
 		}
 		lines[i].SKU = strField(item.Data, "code")
 		lines[i].Name = firstNonEmpty(strField(item.Data, "name"), strField(item.Data, "item_name"))
+	}
+	if err := priceCRMQuoteLines(tenantID, o.CustomerID, lines); err != nil { // 148.26: list rate and floor
+		return nil, err
+	}
+	for i := range lines {
 		lines[i].Amount = round2(float64(lines[i].Qty) * lines[i].Rate)
 		total += lines[i].Amount
 	}
@@ -924,7 +939,7 @@ func SaveCRMQuotation(tenantID, oppID string, lines []CRMQuotationLine, validUnt
 	data := map[string]interface{}{"customer": o.CustomerID, "opportunity_id": oppID, "valid_until": validUntil, "items": string(itemsJSON),
 		"total_amount": round2(total), "terms": strings.TrimSpace(terms), "status": "Draft"}
 	qid := o.QuotationID
-	if qid != "" && (o.QuotationStatus == "Draft" || o.QuotationStatus == "Pending Approval" || o.QuotationStatus == "Approved" || o.QuotationStatus == "Rejected") {
+	if qid != "" && (o.QuotationStatus == "Draft" || o.QuotationStatus == "Pending Approval" || o.QuotationStatus == "Approved" || o.QuotationStatus == "Rejected" || o.QuotationStatus == "Expired") {
 		data["code"] = qid
 		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $2, status = 'Draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = 'SalesQuotation'`, schema), qid, crmJSON(data)); err != nil {
 			return nil, err

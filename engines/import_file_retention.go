@@ -29,8 +29,9 @@ const importFileRetentionSetting = "platform.import_file_retention_days"
 
 // ImportFileSweepResult counts what one sweep removed.
 type ImportFileSweepResult struct {
-	Files int64 // CSVs deleted from drop folders
-	Jobs  int64 // ImportJob documents whose raw rows were stripped
+	Files   int64 // CSVs deleted from drop folders
+	Jobs    int64 // ImportJob documents whose raw rows were stripped
+	Batches int64 // staged import batches (47.13.1) whose staged rows were removed
 }
 
 // SweepImportFileRetention removes raw import files older than the
@@ -80,6 +81,10 @@ func SweepImportFileRetention(tenantID string) (ImportFileSweepResult, error) {
 		return out, err
 	}
 	out.Jobs, _ = res.RowsAffected()
+	// Staged import batches: the staged rows (the file's contents) go; the batch stays.
+	if out.Batches, err = sweepImportBatches(tenantID, schema, cutoff); err != nil {
+		return out, err
+	}
 	return out, nil
 }
 

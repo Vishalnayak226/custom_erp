@@ -462,7 +462,7 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 		}
 		// Stage 148.1: a named piece costs what it cost, after the stock has moved,
 		// on the one choke point a till sale uses. An unnamed task touches nothing.
-		pieceDelta, err := settleNamedPiecesTx(tx, schema, namedPieces, false)
+		pieceDelta, err := settleNamedPiecesTx(tx, schema, namedPieces, false, orderCustomerID(tenantID, orderID))
 		if err != nil {
 			return err
 		}

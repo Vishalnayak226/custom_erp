@@ -190,6 +190,12 @@ func runDayLimitJobs(schema string) error {
 	if err := RunVendorAgreementExpiryAlerts(tenantID, schema); err != nil { // Stage 148.6
 		log.Printf("[DAYLIMITS] vendor agreement expiry alerts: %v", err)
 	}
+	if err := RunVendorLinkReminders(tenantID, schema); err != nil { // Stage 148.18
+		log.Printf("[DAYLIMITS] vendor link reminders: %v", err)
+	}
+	if _, _, err := RunQuoteExpirySweep(tenantID, schema); err != nil { // Stage 148.29 (setting off = nothing)
+		log.Printf("[DAYLIMITS] quote expiry: %v", err)
+	}
 	today := todayDate().Format("2006-01-02")
 	stamp := func(doctype, id string, patch map[string]interface{}) error {
 		b, _ := json.Marshal(patch)

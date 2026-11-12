@@ -120,6 +120,9 @@ func TestOnlyTheAdministratorTemplateReachesAdminRoutes(t *testing.T) {
 		"GET /api/v1/admin/setup-workbook/runs": true, "GET /api/v1/admin/setup-workbook/runs/{id}": true,
 		"GET /api/v1/admin/setup-workbook/runs/{id}/file": true,
 	}
+	privacyApproverAdmin := map[string]bool{
+		"GET /api/v1/admin/security/notify/decisions": true, "POST /api/v1/admin/security/notify/review": true,
+	}
 	for pattern, classification := range routeCapabilities {
 		if classification.Level != LevelAdmin {
 			continue
@@ -129,6 +132,10 @@ func TestOnlyTheAdministratorTemplateReachesAdminRoutes(t *testing.T) {
 				continue
 			}
 			if role == engines.RoleSetupOperator && setupOperatorAdmin[pattern] {
+				continue
+			}
+			// 49.12.5: the Privacy Approver reaches these two routes and no other.
+			if role == engines.RolePrivacyApprover && privacyApproverAdmin[pattern] {
 				continue
 			}
 			if allowed, _, _ := checkRouteCapability(pattern, role); allowed {

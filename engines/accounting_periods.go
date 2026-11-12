@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 type AccountingPeriod struct {
@@ -81,6 +82,42 @@ func CreateAccountingPeriod(tenantID, name, startDate, endDate, userID string) (
 // only way back to Open is an approved PeriodReopenRequest - corrections are
 // still reversal entries, never edits of what was posted.
 func CloseAccountingPeriod(tenantID, periodID, userID string) error {
+	return closeAccountingPeriod(tenantID, periodID, userID, nil)
+}
+
+// CloseAccountingPeriodChecked is the Close button's command (162.12). A
+// period whose pre-close checklist has a failing check still closes, but only
+// with a typed reason (at least 10 characters, FIN-0507 otherwise). The reason
+// and the failing checks go into the period's close log in the same
+// transaction, and into the audit log as CLOSE_PERIOD_NOT_READY. The hard
+// blockers (unsigned tasks, open tills, unsynced sales) refuse first, as
+// before, so nobody is asked for a reason the close would refuse anyway.
+func CloseAccountingPeriodChecked(tenantID, periodID, userID, reason string) error {
+	reason = strings.TrimSpace(reason)
+	return closeAccountingPeriod(tenantID, periodID, userID, func() (string, error) {
+		cl, err := GetPeriodCloseChecklist(tenantID, periodID)
+		if err != nil {
+			return "", err
+		}
+		var failed []string
+		for _, c := range cl.Checks {
+			if !c.Passed && c.Name != "Period is Open" { // On Hold closes too (148.25)
+				failed = append(failed, c.Name+": "+c.Detail)
+			}
+		}
+		if len(failed) == 0 {
+			return "", nil
+		}
+		if len([]rune(reason)) < 10 {
+			return "", &ValidationError{Code: "FIN-0507", Message: "this period is not ready to close (" + strings.Join(failed, "; ") + "). To close it anyway, say why (at least 10 characters)"}
+		}
+		return "closed while not ready (" + strings.Join(failed, "; ") + "); reason: " + reason, nil
+	})
+}
+
+// closeAccountingPeriod closes the period. gate, when set, runs after the hard
+// checks and before the status changes; the note it returns is recorded.
+func closeAccountingPeriod(tenantID, periodID, userID string, gate func() (string, error)) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -99,7 +136,7 @@ func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	if err != nil {
 		return fmt.Errorf("period not found: %v", err)
 	}
-	if status != "Open" {
+	if status != "Open" && status != "On Hold" { // 148.25: a period On Hold can be closed
 		return fmt.Errorf("period is already %s", status)
 	}
 	if err := requireSignedCloseTasks(tx, schema, periodID, round); err != nil {
@@ -118,6 +155,16 @@ func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	if openTills > 0 || unsynced > 0 {
 		return &ValidationError{Code: "FIN-0501", Message: fmt.Sprintf("cannot close: %d till(s) opened in or before this period are still open or awaiting approval, and %d offline sale(s) have not reached the server - close the tills and sync the sales first", openTills, unsynced)}
 	}
+	note := ""
+	if gate != nil {
+		if note, err = gate(); err != nil {
+			return err
+		}
+	}
+	detail := fmt.Sprintf("round %d closed with every task signed", round)
+	if note != "" {
+		detail += "; " + note
+	}
 
 	_, err = tx.Exec(fmt.Sprintf(`
 		UPDATE %s.accounting_periods SET status = 'Closed', closed_by = $1, closed_at = CURRENT_TIMESTAMP
@@ -125,8 +172,7 @@ func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	if err != nil {
 		return err
 	}
-	if err := writePeriodCloseLog(tx, schema, periodID, round, "CLOSED", "", usernameForUserID(schema, userID),
-		fmt.Sprintf("round %d closed with every task signed", round)); err != nil {
+	if err := writePeriodCloseLog(tx, schema, periodID, round, "CLOSED", "", usernameForUserID(schema, userID), detail); err != nil {
 		return err
 	}
 
@@ -135,6 +181,9 @@ func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	}
 
 	LogAuditEvent(tenantID, userID, "CLOSE_ACCOUNTING_PERIOD", "SUCCESS", fmt.Sprintf("Closed period '%s'", name))
+	if note != "" {
+		LogAuditEvent(tenantID, userID, "CLOSE_PERIOD_NOT_READY", "SUCCESS", fmt.Sprintf("Closed period '%s' %s", name, note))
+	}
 	return nil
 }
 
@@ -181,10 +230,8 @@ type PeriodCloseCheck struct {
 // PeriodCloseChecklist is a guided pre-close review for one accounting
 // period (Stage 20.34) - purely read-only validations layered on top of the
 // existing CloseAccountingPeriod control above, not new close logic itself.
-// A period can still be closed even if ReadyToClose is false; this is
-// advisory, surfaced in the UI before the user clicks Close, the same way
-// this codebase's other maker-checker/approval screens surface state
-// without themselves being the enforcement mechanism.
+// A period can still be closed even if ReadyToClose is false, but since
+// 162.12 only with a typed reason that is logged (CloseAccountingPeriodChecked).
 type PeriodCloseChecklist struct {
 	PeriodID     string             `json:"period_id"`
 	PeriodName   string             `json:"period_name"`

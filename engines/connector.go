@@ -235,7 +235,7 @@ func buildChannelPayload(tenantID, itemCode, channelCode string, withImages bool
 	if !withImages {
 		return payload, nil
 	}
-	mediaList, err := ListMediaForItem(tenantID, itemCode)
+	mediaList, _, err := ListMediaForItemChannel(tenantID, itemCode, channelCode) // 146.5.9: the channel's own image order
 	if err != nil {
 		return nil, err
 	}

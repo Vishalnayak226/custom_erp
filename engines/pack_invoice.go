@@ -62,6 +62,9 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 	if err := shippingPackageMutableStatus(p.Status); err != nil {
 		return "", err
 	}
+	if err := refuseSummaryPackageBill(tenantID, p.OrderID); err != nil { // Stage 148.31
+		return "", err
+	}
 	if len(p.Items) == 0 {
 		return "", fmt.Errorf("shipping package %s has no contents to invoice", packageID)
 	}
@@ -382,7 +385,7 @@ func addPackageShipping(tx *sql.Tx, schema, orderID string, invoiceData map[stri
 	}
 	var billed bool
 	if err := tx.QueryRow(fmt.Sprintf(`
-		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL AND status <> 'Cancelled'
+		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype IN ('SalesInvoice', 'OMSBill') AND deleted_at IS NULL AND status <> 'Cancelled'
 		   AND data->>'sales_order_id' = $1
 		   AND CASE WHEN jsonb_typeof(data->'shipping_charge') = 'number' THEN (data->>'shipping_charge')::numeric ELSE 0 END > 0)`, schema), orderID).Scan(&billed); err != nil {
 		return err

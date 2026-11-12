@@ -126,7 +126,7 @@ occasion it's cleared, or when a new CI-only tool/action is added:
 
 ## Regenerating / checking
 
-The ledger is hand-maintained data, like `risk_register.md` — there is
+The ledger is hand-maintained data, like `risk-register.md` — there is
 nothing to "regenerate" for it. To check it against the current tree:
 
 ```sh

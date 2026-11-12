@@ -70,9 +70,9 @@ async function renderOMSWorkbenchView(container) {
          styles.css at all, which is why its four tiles rendered as full-width
          stacked bars with an unstyled number. -->
     <div class="dashboard-stats-row" id="oms-tiles"></div>
-    <div class="table-panel" style="padding:16px 24px;margin-bottom:24px;">
-      <h2 style="font-size:16px;margin:0 0 8px;">Start with the work needing attention</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div class="table-panel s-bd6ccb">
+      <h2 class="s-78a190">Start with the work needing attention</h2>
+      <div class="s-b32917">
         <button class="btn btn-outline btn-sm" data-oms-queue="hold">Allocation or payment holds</button>
         <button class="btn btn-outline btn-sm" data-oms-go="pending">Pending Orders</button>
         <button class="btn btn-outline btn-sm" data-oms-queue="overdue">Overdue open orders</button>
@@ -82,7 +82,8 @@ async function renderOMSWorkbenchView(container) {
       <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
       <div id="oms-queue-rows"></div>
     </div>
-    <div class="table-panel oms-compact-panel" style="padding:16px 24px;margin-bottom:24px;">
+    <div class="table-panel s-bd6ccb" id="oms-ai-drafts"></div>
+    <div class="table-panel oms-compact-panel s-bd6ccb">
       <div class="oms-search-row">
         <input type="search" id="oms-global-search" class="form-input" aria-label="Search orders" placeholder="Search any order: order id, channel order id, AWB, phone, customer or SKU">
         <button class="btn btn-outline" id="oms-search-btn">Search</button>
@@ -90,11 +91,11 @@ async function renderOMSWorkbenchView(container) {
       </div>
       <div id="oms-search-results"></div>
     </div>
-    <div class="table-panel" style="padding:24px;">
+    <div class="table-panel s-ddaf9e">
       <div class="oms-console-head">
-        <h2 style="font-size:16px;margin:0;">Orders</h2>
+        <h2 class="s-b79c2e">Orders</h2>
         <div class="oms-view-actions">
-          <select id="oms-saved-views" class="form-input" style="max-width:220px;" aria-label="Saved views"><option value="">Saved views…</option></select>
+          <select id="oms-saved-views" class="form-input s-27af89" aria-label="Saved views"><option value="">Saved views…</option></select>
           <button class="btn btn-outline btn-sm" id="oms-save-view">Save this view</button>
           <button class="btn btn-outline btn-sm" id="oms-delete-view">Delete view</button>
         </div>
@@ -110,7 +111,7 @@ async function renderOMSWorkbenchView(container) {
     </div>
     </div>
     <div data-pane="new" class="hidden">
-      <div class="table-panel" id="oms-manual-panel" style="padding:24px;margin-bottom:24px;"></div>
+      <div class="table-panel s-87c933" id="oms-manual-panel"></div>
     </div>
    </div>`;
   txnRestorePane('oms-screen');
@@ -143,6 +144,7 @@ async function renderOMSWorkbenchView(container) {
   document.getElementById('oms-saved-views').addEventListener('change', applySelectedOMSView);
 
   renderManualOrderPanel(document.getElementById('oms-manual-panel'));
+  import('./view-ai-drafts.js' + new URL(import.meta.url).search).then(m => m.renderAssistantDrafts(document.getElementById('oms-ai-drafts'))).catch(() => document.getElementById('oms-ai-drafts')?.remove());
   // The tiles, the saved views and the order list are independent reads, so
   // they go out together rather than in sequence.
   await Promise.all([loadOMSTiles(), loadOMSExceptionQueues(), loadOMSSavedViews(), loadOMSOrders()]);
@@ -188,7 +190,7 @@ async function renderOMSSettingsView(container) {
 function omsWhen(value) {
   if (!value) return '—';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? String(value) : formatDateTime(d);
 }
 
 async function loadOMSExceptionQueues() {
@@ -266,7 +268,7 @@ async function loadOMSBundleOperations() {
     if (typeof components === 'string') { try { components = JSON.parse(components); } catch (_) { components = []; } }
     const ats = availability[index].length ? availability[index].map(row => `${escapeHTMLText(row.location_code)}: ${Number(row.ats || 0)}`).join('<br>') : '0';
     const stocked = bundle.fulfillment_mode === 'Stocked';
-    return `<tr><td><strong>${escapeHTMLText(bundle.name || sku)}</strong><div class="oms-channel-ref">${escapeHTMLText(sku)}</div></td><td><span class="badge ${stocked ? 'badge-warning' : 'badge-secondary'}">${escapeHTMLText(bundle.fulfillment_mode || '')}</span></td><td>${escapeHTMLText(bundle.pricing_mode || '')}</td><td>${components.map(c => `${escapeHTMLText(c.sku)} × ${Number(c.quantity || 0)}`).join('<br>')}</td><td>${ats}</td><td>${stocked ? `<div style="display:flex;gap:6px;flex-wrap:wrap;"><input class="form-input" data-bundle-location="${index}" placeholder="Location" style="width:110px;"><input class="form-input" data-bundle-qty="${index}" type="number" min="1" value="1" style="width:70px;"><button class="btn btn-outline btn-sm" data-bundle-operation="assemble" data-bundle-index="${index}" data-bundle-sku="${escapeHTMLText(sku)}">Assemble</button><button class="btn btn-outline btn-sm" data-bundle-operation="disassemble" data-bundle-index="${index}" data-bundle-sku="${escapeHTMLText(sku)}">Disassemble</button></div>` : '<span class="text-muted">Explodes at order creation</span>'}</td></tr>`;
+    return `<tr><td><strong>${escapeHTMLText(bundle.name || sku)}</strong><div class="oms-channel-ref">${escapeHTMLText(sku)}</div></td><td><span class="badge ${stocked ? 'badge-warning' : 'badge-secondary'}">${escapeHTMLText(bundle.fulfillment_mode || '')}</span></td><td>${escapeHTMLText(bundle.pricing_mode || '')}</td><td>${components.map(c => `${escapeHTMLText(c.sku)} × ${Number(c.quantity || 0)}`).join('<br>')}</td><td>${ats}</td><td>${stocked ? `<div class="s-cf2d28"><input class="form-input s-607468" data-bundle-location="${index}" placeholder="Location"><input class="form-input s-ec6626" data-bundle-qty="${index}" type="number" min="1" value="1"><button class="btn btn-outline btn-sm" data-bundle-operation="assemble" data-bundle-index="${index}" data-bundle-sku="${escapeHTMLText(sku)}">Assemble</button><button class="btn btn-outline btn-sm" data-bundle-operation="disassemble" data-bundle-index="${index}" data-bundle-sku="${escapeHTMLText(sku)}">Disassemble</button></div>` : '<span class="text-muted">Explodes at order creation</span>'}</td></tr>`;
   }).join('')}</tbody></table>`;
   host.querySelectorAll('[data-bundle-operation]').forEach(button => button.addEventListener('click', () => runOMSBundleOperation(button)));
 }
@@ -304,11 +306,12 @@ async function loadOMSConnectorOperations() {
     const { channels = [] } = await healthRes.json();
     healthHost.innerHTML = channels.length === 0 ? '<div class="text-muted">No active channels configured.</div>' : `
       <table><thead><tr><th>Channel</th><th>Platform</th><th>Last sync</th><th>Lag</th><th>24h failures</th><th>Exceptions</th><th>Actions</th></tr></thead><tbody>${channels.map(h => `
-        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Credentials not set'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref" style="color:var(--danger-strong);">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''} <button class="btn btn-outline btn-sm" data-channel-setup="${escapeHTMLText(h.channel)}">Check setup</button></td></tr>`).join('')}
+        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Credentials not set'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref s-adefec">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''} ${h.can_list_products ? `<button class="btn btn-outline btn-sm" data-channel-listings="${escapeHTMLText(h.channel)}">Listings</button> ` : ''}<button class="btn btn-outline btn-sm" data-channel-setup="${escapeHTMLText(h.channel)}">Check setup</button></td></tr>`).join('')}
       </tbody></table>`;
     healthHost.querySelectorAll('[data-channel-sync]').forEach(button => button.addEventListener('click', () => runOMSChannelSync(button)));
     // Stage 130.19 (55.21): what a channel needs to connect, and where to find it.
     healthHost.querySelectorAll('[data-channel-setup]').forEach(button => button.addEventListener('click', () => showOMSChannelSetup(button, healthHost)));
+    healthHost.querySelectorAll('[data-channel-listings]').forEach(button => button.addEventListener('click', async () => (await import('./view-channel-listings.js' + new URL(import.meta.url).search)).showChannelListings(healthHost, button.getAttribute('data-channel-listings'))));
   }
   if (!exceptionRes || !exceptionRes.ok) {
     exceptionHost.innerHTML = '<div class="text-muted">SKU exceptions are unavailable.</div>';
@@ -316,7 +319,7 @@ async function loadOMSConnectorOperations() {
     const { exceptions = [] } = await exceptionRes.json();
     exceptionHost.innerHTML = exceptions.length === 0 ? '<div class="text-muted">No open mapping exceptions.</div>' : `
       <table><thead><tr><th>Channel</th><th>Channel SKU</th><th>Latest order</th><th>Count</th><th>Map to ERP item</th><th>External product</th><th>Location</th><th></th></tr></thead><tbody>${exceptions.map((e, index) => `
-        <tr><td>${escapeHTMLText(e.channel)}</td><td style="font-family:monospace;">${escapeHTMLText(e.channel_sku)}</td><td>${escapeHTMLText(e.last_order_id || '—')}</td><td>${Number(e.occurrences || 1)}</td><td><input class="form-input" data-map-sku="${index}" placeholder="ERP SKU" aria-label="ERP SKU for ${escapeHTMLText(e.channel_sku)}"></td><td><input class="form-input" data-map-product="${index}" placeholder="Product ID" aria-label="Product ID for ${escapeHTMLText(e.channel_sku)}"></td><td><input class="form-input" data-map-location="${index}" placeholder="Location" aria-label="Location for ${escapeHTMLText(e.channel_sku)}"></td><td><button class="btn btn-primary btn-sm" data-map-exception="${index}" data-channel="${escapeHTMLText(e.channel)}" data-channel-sku="${escapeHTMLText(e.channel_sku)}">Map</button></td></tr>`).join('')}
+        <tr><td>${escapeHTMLText(e.channel)}</td><td class="s-72126d">${escapeHTMLText(e.channel_sku)}</td><td>${escapeHTMLText(e.last_order_id || '—')}</td><td>${Number(e.occurrences || 1)}</td><td><input class="form-input" data-map-sku="${index}" placeholder="ERP SKU" aria-label="ERP SKU for ${escapeHTMLText(e.channel_sku)}"></td><td><input class="form-input" data-map-product="${index}" placeholder="Product ID" aria-label="Product ID for ${escapeHTMLText(e.channel_sku)}"></td><td><input class="form-input" data-map-location="${index}" placeholder="Location" aria-label="Location for ${escapeHTMLText(e.channel_sku)}"></td><td><button class="btn btn-primary btn-sm" data-map-exception="${index}" data-channel="${escapeHTMLText(e.channel)}" data-channel-sku="${escapeHTMLText(e.channel_sku)}">Map</button></td></tr>`).join('')}
       </tbody></table>`;
     exceptionHost.querySelectorAll('[data-map-exception]').forEach(button => button.addEventListener('click', () => resolveOMSChannelSKU(button)));
   }
@@ -341,11 +344,11 @@ async function showOMSChannelSetup(button, host) {
   panel.className = 'table-panel';
   panel.style.cssText = 'padding:12px 16px;margin-top:10px;';
   panel.innerHTML = `<strong>${escapeHTMLText(c.channel)} (${escapeHTMLText(c.platform)})</strong>
-    <span class="badge ${c.ready ? 'badge-success' : 'badge-warning'}" style="margin-left:6px;">${c.ready ? 'Ready to connect' : 'Not ready'}</span>
-    ${c.problem ? `<div style="color:var(--danger-strong);margin-top:6px;">${escapeHTMLText(c.problem)}</div>` : ''}
-    ${(c.fields || []).length ? `<table style="margin-top:8px;"><thead><tr><th>Needs</th><th>Saved</th><th>Where to find it</th></tr></thead><tbody>${c.fields.map(f => `<tr><td>${escapeHTMLText(f.label)}</td><td>${f.set ? '✓' : '—'}</td><td>${escapeHTMLText(f.where)}</td></tr>`).join('')}</tbody></table>` : ''}
-    ${(c.steps || []).length ? `<ol style="margin:8px 0 0 18px;">${c.steps.map(s => `<li>${escapeHTMLText(s)}</li>`).join('')}</ol>` : ''}
-    ${c.last_status ? `<div class="text-muted" style="margin-top:6px;">Last sync: ${escapeHTMLText(c.last_status)} ${escapeHTMLText(c.last_sync_at || '')}${c.last_error ? ' - ' + escapeHTMLText(c.last_error) : ''}</div>` : ''}`;
+    <span class="badge ${c.ready ? 'badge-success' : 'badge-warning'} s-391ef1">${c.ready ? 'Ready to connect' : 'Not ready'}</span>
+    ${c.problem ? `<div class="s-c782c5">${escapeHTMLText(c.problem)}</div>` : ''}
+    ${(c.fields || []).length ? `<table class="s-8a77e5"><thead><tr><th>Needs</th><th>Saved</th><th>Where to find it</th></tr></thead><tbody>${c.fields.map(f => `<tr><td>${escapeHTMLText(f.label)}</td><td>${f.set ? '✓' : '—'}</td><td>${escapeHTMLText(f.where)}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${(c.steps || []).length ? `<ol class="s-cf7c0b">${c.steps.map(s => `<li>${escapeHTMLText(s)}</li>`).join('')}</ol>` : ''}
+    ${c.last_status ? `<div class="text-muted s-fe7b49">Last sync: ${escapeHTMLText(c.last_status)} ${escapeHTMLText(c.last_sync_at || '')}${c.last_error ? ' - ' + escapeHTMLText(c.last_error) : ''}</div>` : ''}`;
   host.appendChild(panel);
 }
 
@@ -410,7 +413,7 @@ async function loadOMSTiles() {
 async function loadOMSOrders(liveHost = null) {
   const host = liveHost?.isConnected ? liveHost : document.getElementById('oms-order-table');
   if (!host) return;
-  host.innerHTML = '<div class="text-muted" style="padding:16px;">Loading orders…</div>';
+  host.innerHTML = '<div class="text-muted s-287f77">Loading orders…</div>';
   const res = await apiFetch(`/api/v1/oms/orders?${omsFilterQuery()}`);
   if (!res) return;
   if (!res.ok) {
@@ -425,12 +428,14 @@ async function loadOMSOrders(liveHost = null) {
   renderOMSOrderTable(result);
 }
 
+const OMS_HOLD_WORDS = { CREDIT: 'Over credit limit', MARGIN: 'Below floor rate' };
+
 function renderOMSFacets(facets) {
   const host = document.getElementById('oms-facets');
   if (!host) return;
   const group = (key, label, values) => {
     const options = (values || []).map(v =>
-      `<option value="${escapeHTMLText(v.value)}"${omsConsoleState.filter[key] === v.value ? ' selected' : ''}>${escapeHTMLText(v.value)} (${v.count})</option>`).join('');
+      `<option value="${escapeHTMLText(v.value)}"${omsConsoleState.filter[key] === v.value ? ' selected' : ''}>${escapeHTMLText((key === 'hold_reason' && OMS_HOLD_WORDS[v.value]) || v.value)} (${v.count})</option>`).join('');
     return `<label class="oms-facet"><span>${escapeHTMLText(label)}</span>
       <select class="form-input" data-facet="${key}"><option value="">All</option>${options}</select></label>`;
   };
@@ -473,7 +478,7 @@ function renderOMSFacets(facets) {
 function omsStatusBadge(status, holdReason, holdOwner, holdSince) {
   const cls = status === 'On Hold' ? 'badge-warning' : (status === 'Delivered' || status === 'Shipped') ? 'badge-success' : status === 'Cancelled' ? 'badge-danger' : 'badge-secondary';
   return `<span class="badge ${cls}">${escapeHTMLText(status || '—')}</span>` +
-    (holdReason ? `<div class="oms-hold-reason">${escapeHTMLText(holdReason === 'CREDIT' ? 'Over credit limit' : holdReason)}${holdOwner ? ` · ${escapeHTMLText(holdOwner)}` : ''}${holdSince ? ` · since ${escapeHTMLText(String(holdSince).slice(0, 10))}` : ''}</div>` : '');
+    (holdReason ? `<div class="oms-hold-reason">${escapeHTMLText(OMS_HOLD_WORDS[holdReason] || holdReason)}${holdOwner ? ` · ${escapeHTMLText(holdOwner)}` : ''}${holdSince ? ` · since ${escapeHTMLText(String(holdSince).slice(0, 10))}` : ''}</div>` : '');
 }
 
 function renderOMSOrderTable(result) {
@@ -485,19 +490,19 @@ function renderOMSOrderTable(result) {
     <div class="table-wrapper">
       <table>
         <thead><tr>
-          <th style="width:32px;"><input type="checkbox" id="oms-select-all" aria-label="Select all orders on this page"></th>
+          <th class="s-82b9d8"><input type="checkbox" id="oms-select-all" aria-label="Select all orders on this page"></th>
           <th>Order</th><th>Source</th><th>Customer</th><th>Status</th><th>Lines</th><th>Location</th><th>Age</th><th class="num">Value</th><th>Actions</th>
         </tr></thead>
         <tbody>
         ${rows.length === 0
-          ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:24px;">No orders match this filter.</td></tr>`
+          ? `<tr><td colspan="10" class="s-a2478e">No orders match this filter.</td></tr>`
           : rows.map(o => {
             const channel = o.channel || 'Manual';
             const source = `${escapeHTMLText(channel)}${o.channel_order_id ? `<div class="oms-channel-ref" title="The order id in ${escapeHTMLText(channel)}">${escapeHTMLText(o.channel_order_id)}</div>` : ''}`;
             const age = o.age_minutes < 60 ? `${o.age_minutes}m` : o.age_minutes < 1440 ? `${Math.floor(o.age_minutes / 60)}h` : `${Math.floor(o.age_minutes / 1440)}d`;
             return `<tr>
               <td><input type="checkbox" class="oms-row-select" aria-label="Select order ${escapeHTMLText(o.order_id)}" data-order="${escapeHTMLText(o.order_id)}"${omsConsoleState.selected.has(o.order_id) ? ' checked' : ''}></td>
-              <td style="font-family:monospace;">${copyableCell(o.order_number || o.order_id, o.order_number || o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
+              <td class="s-72126d">${copyableCell(o.order_number || o.order_id, o.order_number || o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
               <td>${source}</td>
               <td>${escapeHTMLText(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(o.customer_phone)}</div>` : ''}</td>
               <td>${omsStatusBadge(o.status, o.hold_reason, o.hold_owner, o.hold_since)}</td>
@@ -596,15 +601,15 @@ async function runOMSGlobalSearch() {
   if (!res.ok) { await showApiError(res, 'Search failed.'); return; }
   const { results = [] } = await res.json();
   if (results.length === 0) {
-    host.innerHTML = `<div class="text-muted" style="padding:12px 0;">Nothing matched “${escapeHTMLText(query)}”.</div>`;
+    host.innerHTML = `<div class="text-muted s-215683">Nothing matched “${escapeHTMLText(query)}”.</div>`;
     return;
   }
   host.innerHTML = `
-    <div class="table-wrapper" style="margin-top:12px;">
+    <div class="table-wrapper s-56f435">
       <table><thead><tr><th>Order</th><th>Matched on</th><th>Source</th><th>Customer</th><th>Status</th><th></th></tr></thead>
       <tbody>${results.map(r => `
         <tr>
-          <td style="font-family:monospace;">${escapeHTMLText(r.order_number || r.order_id)}</td>
+          <td class="s-72126d">${escapeHTMLText(r.order_number || r.order_id)}</td>
           <td>${escapeHTMLText(r.matched_on)}</td>
           <td>${escapeHTMLText(r.channel)}${r.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(r.channel_order_id)}</div>` : ''}</td>
           <td>${escapeHTMLText(r.customer_name || '—')}</td>
@@ -708,12 +713,13 @@ window.openOMSOrderDetail = async function(orderID) {
 
   const lineRows = (d.lines || []).map(l => `
     <tr>
-      <td style="font-family:monospace;">${escapeHTMLText(l.line_id)}</td>
+      <td class="s-72126d">${escapeHTMLText(l.line_id)}</td>
       <td>${escapeHTMLText(l.sku)}</td>
       <td class="num">${escapeHTMLText(String(l.qty))}</td>
-      <td class="num">${formatMoney(l.unit_price)}</td>
+      <td class="num">${formatMoney(l.unit_price)}${l.price_reason ? `<div class="text-muted s-6cb285">${escapeHTMLText(l.price_reason)}</div>` : ''}${l.floor_reason ? `<div class="text-muted s-6cb285">${escapeHTMLText(l.floor_reason)}</div>` : ''}</td>
       <td>${escapeHTMLText(l.location_code || '—')}</td>
       <td>${omsStatusBadge(l.line_status, l.hold_reason)}</td>
+      <td title="${escapeHTMLText(l.promise_reason || '')}">${escapeHTMLText(l.promise_date || '—')}${l.promise_reason ? `<div class="text-muted s-6cb285">${escapeHTMLText(l.promise_reason)}</div>` : ''}</td>
       <td>${l.line_status === 'On Hold'
             ? `<button class="action-btn" data-line-release="${escapeHTMLText(l.line_id)}">Release line</button>`
             : (['Dispatched', 'Cancelled', 'Returned'].includes(l.line_status) ? '' : `<button class="action-btn" data-line-hold="${escapeHTMLText(l.line_id)}">Hold line</button>`)}
@@ -764,8 +770,8 @@ window.openOMSOrderDetail = async function(orderID) {
 
         <h4 class="oms-detail-heading">Lines <span class="text-muted">(${(d.lines || []).length})</span></h4>
         <div class="table-wrapper"><table>
-          <thead><tr><th>Line</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th>Allocated to</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>${lineRows || `<tr><td colspan="7" class="text-center text-muted">No lines.</td></tr>`}</tbody>
+          <thead><tr><th>Line</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th>Allocated to</th><th>Status</th><th>Promise</th><th>Actions</th></tr></thead>
+          <tbody>${lineRows || `<tr><td colspan="8" class="text-center text-muted">No lines.</td></tr>`}</tbody>
         </table></div>
 
         ${section('Reservations', d.reservations || [], [{ key: 'sku', label: 'SKU' }, { key: 'location_code', label: 'Location' }, { key: 'quantity', label: 'Qty' }, { key: 'reservation_type', label: 'Type' }, { key: 'expires_at', label: 'Expires' }])}
@@ -816,6 +822,11 @@ window.openOMSOrderDetail = async function(orderID) {
   overlay.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', async () => {
     const action = btn.getAttribute('data-action');
     const path = `/api/v1/orders/${encodeURIComponent(orderID)}`;
+    if (action === 'release' && order.hold_reason === 'MARGIN') { // 148.26: released with a reason
+      const reason = await showCustomPrompt('Why is this rate accepted?', '', 'Release hold');
+      if (!reason || !reason.trim()) return;
+      return omsPost(`${path}/margin-release`, { reason: reason.trim() }, 'Failed to release the hold.', after);
+    }
     if (action === 'release') return omsPost(`${path}/release-hold`, {}, 'Failed to release the hold.', after);
     // FA-20261005-03: the Reserved order's next step - creates its pick
     // tasks, which then appear on the Pick page (Stage 88.2).
@@ -909,10 +920,10 @@ function openOMSOrderLinesEdit(orderID, lines, onSaved) {
         <div class="table-wrapper"><table>
           <thead><tr><th>Line</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th>Remove</th></tr></thead>
           <tbody>${editable.map(l => `<tr data-line-row="${escapeHTMLText(l.line_id)}">
-            <td style="font-family:monospace;">${escapeHTMLText(l.line_id)}</td>
+            <td class="s-72126d">${escapeHTMLText(l.line_id)}</td>
             <td>${escapeHTMLText(l.sku)}</td>
-            <td class="num"><input type="number" min="1" step="1" class="form-input oms-line-qty" aria-label="Quantity for ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(String(l.qty))}" data-original="${escapeHTMLText(String(l.qty))}" style="max-width:90px;"></td>
-            <td class="num"><input type="number" min="0" step="0.01" class="form-input oms-line-price" aria-label="Unit price for ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(String(l.unit_price))}" data-original="${escapeHTMLText(String(l.unit_price))}" style="max-width:110px;"></td>
+            <td class="num"><input type="number" min="1" step="1" class="form-input oms-line-qty s-fed975" aria-label="Quantity for ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(String(l.qty))}" data-original="${escapeHTMLText(String(l.qty))}"></td>
+            <td class="num"><input type="number" min="0" step="0.01" class="form-input oms-line-price s-91245b" aria-label="Unit price for ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(String(l.unit_price))}" data-original="${escapeHTMLText(String(l.unit_price))}"></td>
             <td><input type="checkbox" class="oms-line-remove" aria-label="Remove ${escapeHTMLText(l.sku)}"></td>
           </tr>`).join('') || '<tr><td colspan="5" class="text-muted">No line can change - every line is dispatched, cancelled or returned.</td></tr>'}</tbody>
         </table></div>
@@ -995,7 +1006,7 @@ function openOMSReturn(orderID, lines, shipments) {
           <thead><tr><th>SKU</th><th class="num">Shipped</th><th class="num">Return</th></tr></thead>
           <tbody>${shipped.map(l => `<tr data-ret-sku="${escapeHTMLText(l.sku)}">
             <td>${escapeHTMLText(l.sku)}</td><td class="num">${escapeHTMLText(String(l.shipped_qty || l.qty))}</td>
-            <td class="num"><input type="number" min="0" max="${escapeHTMLText(String(l.shipped_qty || l.qty))}" step="1" value="0" class="form-input oms-ret-qty" aria-label="Quantity of ${escapeHTMLText(l.sku)} coming back" style="max-width:90px;"></td></tr>`).join('')}</tbody>
+            <td class="num"><input type="number" min="0" max="${escapeHTMLText(String(l.shipped_qty || l.qty))}" step="1" value="0" class="form-input oms-ret-qty s-fed975" aria-label="Quantity of ${escapeHTMLText(l.sku)} coming back"></td></tr>`).join('')}</tbody>
         </table></div>
         <div class="form-group"><label class="form-label" for="oms-ret-loc">Back to store</label>
           <input id="oms-ret-loc" class="form-input" placeholder="nearest by pincode"></div>
@@ -1018,8 +1029,10 @@ function openOMSReturn(orderID, lines, shipments) {
     if (!items.length) { showToast('Enter how many of which item came back.'); return; }
     const type = overlay.querySelector('#oms-ret-type').value;
     const booking = overlay.querySelector('#oms-ret-booking');
+    const why = await (await import('./reason-picker.js' + new URL(import.meta.url).search)).askReturnReason();
+    if (!why) return;
     const res = await apiFetch('/api/v1/returns', { method: 'POST', body: JSON.stringify({
-      request_type: type, original_order_id: orderID, booking_id: type === 'RTO' && booking ? booking.value : '',
+      ...why, request_type: type, original_order_id: orderID, booking_id: type === 'RTO' && booking ? booking.value : '',
       return_location: overlay.querySelector('#oms-ret-loc').value.trim(), items, idempotency_key: requestKey }) });
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'The return was not raised.'); return; }
@@ -1049,10 +1062,10 @@ function openOMSReplacement(orderID, lines) {
         <div class="table-wrapper"><table>
           <thead><tr><th>Original line</th><th>SKU shipped</th><th class="num">Shipped</th><th class="num">Send again</th><th>Exchange to SKU</th></tr></thead>
           <tbody>${shipped.map(l => `<tr data-repl-line="${escapeHTMLText(l.line_id)}">
-            <td style="font-family:monospace;">${escapeHTMLText(l.line_id)}</td>
+            <td class="s-72126d">${escapeHTMLText(l.line_id)}</td>
             <td>${escapeHTMLText(l.sku)}</td>
             <td class="num">${escapeHTMLText(String(l.qty))}</td>
-            <td class="num"><input type="number" min="0" max="${escapeHTMLText(String(l.qty))}" step="1" value="0" class="form-input oms-repl-qty" aria-label="Quantity to send again for ${escapeHTMLText(l.sku)}" style="max-width:90px;"></td>
+            <td class="num"><input type="number" min="0" max="${escapeHTMLText(String(l.qty))}" step="1" value="0" class="form-input oms-repl-qty s-fed975" aria-label="Quantity to send again for ${escapeHTMLText(l.sku)}"></td>
             <td><input class="form-input oms-repl-sku" aria-label="Exchange ${escapeHTMLText(l.sku)} to" placeholder="same item" disabled></td>
           </tr>`).join('')}</tbody>
         </table></div>
@@ -1176,6 +1189,7 @@ function openOMSOrderEdit(orderID, order, onSaved) {
 // down the same road as a Myntra one.
 // ---------------------------------------------------------------------------
 let manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
+let manualOrderNeedReason = false; // 148.26: a refused below-floor rate opens a reason box per line
 
 function renderManualOrderPanel(panel) {
   if (!panel) return;
@@ -1229,7 +1243,7 @@ function renderManualOrderPanel(panel) {
     </div>
     <div class="table-wrapper">
       <table class="po-lines">
-        <thead><tr><th style="min-width:200px;">Item</th><th class="num" style="width:90px;">Available</th><th class="num" style="width:90px;">Qty</th><th class="num" style="width:130px;">Unit price</th><th style="width:36px;"></th></tr></thead>
+        <thead><tr><th class="s-47b618">Item</th><th class="num s-581be4">Available</th><th class="num s-581be4">Qty</th><th class="num s-c6fffd">Unit price</th><th class="s-387298"></th></tr></thead>
         <tbody id="mo-lines-body"></tbody>
       </table>
     </div>
@@ -1247,6 +1261,7 @@ function renderManualOrderPanel(panel) {
     renderManualOrderLines();
   });
   document.getElementById('mo-create').addEventListener('click', createManualOrder);
+  document.getElementById('mo-customer').addEventListener('change', () => manualOrderLines.forEach((l, i) => { if (l.sku && !l.rateTyped) priceManualOrderLine(i); }));
   decorateFieldFormats(panel);
   // Stage 76.3: State is the home country's list, as on every other form.
   if ((window.FIELD_META?.regions || []).length) {
@@ -1262,10 +1277,10 @@ function renderManualOrderLines() {
   if (!body) return;
   body.innerHTML = manualOrderLines.map((l, i) => `
     <tr data-mo-line="${i}">
-      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Design, Combination ID or barcode" aria-label="Item for line ${i + 1}"></td>
-      <td class="num" style="vertical-align:middle;" data-mo-avail="${i}" title="${escapeHTMLText(l.availTitle || '')}">${manualOrderAvailHTML(l.avail)}</td>
+      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Design, Combination ID or barcode" aria-label="Item for line ${i + 1}">${manualOrderNeedReason ? `<input type="text" class="form-input s-96ad60" data-mo-field="floor_reason" value="${escapeHTMLText(l.floor_reason || '')}" placeholder="Why this rate" aria-label="Why this rate, line ${i + 1}">` : ''}</td>
+      <td class="num s-2a6e8f" data-mo-avail="${i}" title="${escapeHTMLText(l.availTitle || '')}">${manualOrderAvailHTML(l.avail)}</td>
       <td><input type="number" class="form-input num" data-mo-field="qty" min="1" step="1" value="${escapeHTMLText(l.qty)}" aria-label="Quantity for line ${i + 1}"></td>
-      <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}" aria-label="Unit price for line ${i + 1}"></td>
+      <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}" aria-label="Unit price for line ${i + 1}"><div class="text-muted s-6cb285" data-mo-why>${escapeHTMLText(l.why || '')}</div></td>
       <td><button type="button" class="po-line-remove" data-mo-remove="${i}" aria-label="Remove line ${i + 1}">&times;</button></td>
     </tr>`).join('');
 
@@ -1276,6 +1291,8 @@ function renderManualOrderLines() {
       const field = input.getAttribute('data-mo-field');
       const commit = () => { manualOrderLines[i][field] = input.value.trim(); };
       input.addEventListener('change', commit);
+      if (field === 'unit_price') input.addEventListener('input', () => { manualOrderLines[i].rateTyped = true; manualOrderLines[i].why = ''; const w = tr.querySelector('[data-mo-why]'); if (w) w.textContent = ''; });
+      if (field === 'qty') input.addEventListener('change', () => priceManualOrderLine(i));
       input.addEventListener('blur', commit);
       if (field === 'sku') input.addEventListener('change', () => fillManualOrderItem(i, input.value.trim()));
     });
@@ -1297,6 +1314,31 @@ function manualOrderAvailHTML(avail) {
   return Number(avail) > 0 ? escapeHTMLText(String(avail)) : '<span class="badge badge-danger">0</span>';
 }
 
+// 148.26: the rate comes from the customer's price list, with the rule shown; with
+// no list (or the setting off) it is the item's own price. A typed rate is left alone.
+async function priceManualOrderLine(i) {
+  const line = manualOrderLines[i];
+  if (!line || !line.sku || line.rateTyped) return;
+  const customer = document.getElementById('mo-customer')?.value.trim() || '';
+  let rate = line.itemPrice || 0, why = '';
+  const res = customer ? await apiFetch('/api/v1/pricing/line', { method: 'POST', body: JSON.stringify({ customer, sku: line.sku, qty: Number(line.qty) || 1 }) }).catch(() => null) : null;
+  if (manualOrderLines[i] !== line || line.rateTyped) return;
+  if (res && res.ok) {
+    const p = await res.json();
+    if (manualOrderLines[i] !== line || line.rateTyped) return;
+    if (p.found) { rate = p.rate; why = p.reason || ''; }
+  }
+  const row = document.querySelector(`[data-mo-line="${i}"]`);
+  line.why = why;
+  const whyEl = row?.querySelector('[data-mo-why]');
+  if (whyEl) whyEl.textContent = why;
+  if (rate > 0) {
+    line.unit_price = String(rate);
+    const input = row?.querySelector('[data-mo-field="unit_price"]');
+    if (input) input.value = String(rate);
+  }
+}
+
 async function fillManualOrderItem(i, sku) {
   const line = manualOrderLines[i];
   if (!line || line.filledSku === sku) return; // a pick fires change twice
@@ -1310,12 +1352,10 @@ async function fillManualOrderItem(i, sku) {
   const item = sku ? await lookupLinkDoc('Item', sku) : null;
   if (manualOrderLines[i] !== line || line.sku !== sku) return;
   if (!item) { show(''); return; }
-  const price = Number(item.sale_price || item.price || item.mrp) || 0;
-  if (price > 0) {
-    line.unit_price = String(price);
-    const input = row()?.querySelector('[data-mo-field="unit_price"]');
-    if (input) input.value = String(price);
-  }
+  line.rateTyped = false;
+  line.itemPrice = Number(item.sale_price || item.price || item.mrp) || 0;
+  await priceManualOrderLine(i);
+  if (manualOrderLines[i] !== line || line.sku !== sku) return;
   const res = await apiFetch(`/api/v1/availability?sku=${encodeURIComponent(item.code || item.id || sku)}`).catch(() => null);
   if (manualOrderLines[i] !== line || line.sku !== sku || !res || !res.ok) return;
   const data = await res.json();
@@ -1342,7 +1382,7 @@ async function createManualOrderInner() {
 
   const lines = manualOrderLines
     .filter(l => l.sku || l.qty)
-    .map(l => ({ sku: l.sku, qty: Number(l.qty) || 0, unit_price: Number(l.unit_price) || 0 }));
+    .map(l => ({ sku: l.sku, qty: Number(l.qty) || 0, unit_price: Number(l.unit_price) || 0, ...(l.floor_reason ? { floor_reason: l.floor_reason } : {}) }));
   if (lines.length === 0) { fail('Add at least one item.'); return; }
   const bad = lines.findIndex(l => !l.sku || l.qty <= 0);
   if (bad !== -1) { fail(`Line ${bad + 1} needs an item and a quantity of at least 1.`); return; }
@@ -1366,9 +1406,15 @@ async function createManualOrderInner() {
     })
   });
   if (!res) return;
-  if (!res.ok) { fail(await getErrorMessage(res, 'Failed to create the order.')); return; }
+  if (!res.ok) {
+    const msg = await getErrorMessage(res, 'Failed to create the order.');
+    if (/lowest rate/.test(msg)) { manualOrderNeedReason = true; renderManualOrderLines(); }
+    fail(msg);
+    return;
+  }
 
   const data = await res.json();
+  manualOrderNeedReason = false;
   manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
   // FA-20261005-06: a repeated reference returns the order it already made.
   if (data.existing) {
@@ -1415,38 +1461,38 @@ async function renderOMSSettlementsView(container) {
   settlementPanel.style.padding = '24px';
   settlementPanel.style.marginBottom = '24px';
   settlementPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mkt-settlement-id">Settlement ID</label>
-        <input type="text" id="mkt-settlement-id" class="form-input" style="width: 160px;">
+        <input type="text" id="mkt-settlement-id" class="form-input s-56cae7">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mkt-channel">Channel</label>
-        <select id="mkt-channel" class="form-input" style="width: 130px;">
+        <select id="mkt-channel" class="form-input s-27652d">
           <option value="Shopify">Shopify</option>
           <option value="Amazon">Amazon</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mkt-total-sale">Total Sale</label>
-        <input type="number" id="mkt-total-sale" class="form-input" style="width: 110px;">
+        <input type="number" id="mkt-total-sale" class="form-input s-148b84">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mkt-commission">Commission</label>
-        <input type="number" id="mkt-commission" class="form-input" style="width: 110px;">
+        <input type="number" id="mkt-commission" class="form-input s-148b84">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="mkt-net-payout">Net Payout</label>
-        <input type="number" id="mkt-net-payout" class="form-input" style="width: 110px;">
+        <input type="number" id="mkt-net-payout" class="form-input s-148b84">
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
+      <div class="form-group s-879221">
         <label class="form-label" for="mkt-order-pick">Orders in this payout</label>
-        <div style="display:flex;gap:8px;"><input type="text" id="mkt-order-pick" class="form-input" placeholder="Find a saved order"><button class="btn btn-outline" id="mkt-order-add" type="button">Add</button></div>
+        <div class="s-13e0b9"><input type="text" id="mkt-order-pick" class="form-input" placeholder="Find a saved order"><button class="btn btn-outline" id="mkt-order-add" type="button">Add</button></div>
         <div id="mkt-order-selected" aria-live="polite"></div>
       </div>
       <button class="btn btn-primary" id="mkt-reconcile-btn">Reconcile</button>
     </div>
-    <div id="mkt-settlement-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="mkt-settlement-error" class="login-error hidden s-29b798"></div>
   `;
   const settlementList = document.createElement('div');
   settlementList.className = 'table-panel';
@@ -1464,14 +1510,14 @@ async function renderOMSSettlementsView(container) {
       </thead>
       <tbody>
         ${settlements.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet.</td></tr>`
+          ? `<tr><td colspan="6" class="s-306094">No settlements yet.</td></tr>`
           : settlements.map(s => `
             <tr>
-              <td style="font-family: monospace;">${s.code || s.id}</td>
+              <td class="s-355794">${s.code || s.id}</td>
               <td>${s.channel || ''}</td>
-              <td>${(s.total_sale ?? 0).toLocaleString()}</td>
-              <td>${(s.commission ?? 0).toLocaleString()}</td>
-              <td>${(s.net_payout ?? 0).toLocaleString()}</td>
+              <td>${formatNumber(s.total_sale)}</td>
+              <td>${formatNumber(s.commission)}</td>
+              <td>${formatNumber(s.net_payout)}</td>
               <td><span class="badge ${s.status === 'Reconciled' ? 'badge-success' : 'badge-warning'}">${s.status}</span></td>
             </tr>
           `).join('')}
@@ -1508,7 +1554,7 @@ function renderOMSSettlementOrderSelection() {
   const host = document.getElementById('mkt-order-selected');
   if (!host) return;
   host.innerHTML = omsSettlementOrderIDs.length
-    ? omsSettlementOrderIDs.map(id => `<span class="badge badge-secondary" style="margin:4px 4px 0 0;">${escapeHTMLText(id)} <button type="button" class="action-btn" data-remove-settlement-order="${escapeHTMLText(id)}" aria-label="Remove order ${escapeHTMLText(id)}">×</button></span>`).join('')
+    ? omsSettlementOrderIDs.map(id => `<span class="badge badge-secondary s-b9d445">${escapeHTMLText(id)} <button type="button" class="action-btn" data-remove-settlement-order="${escapeHTMLText(id)}" aria-label="Remove order ${escapeHTMLText(id)}">×</button></span>`).join('')
     : '<small class="text-muted">No orders chosen.</small>';
   host.querySelectorAll('[data-remove-settlement-order]').forEach(button => button.addEventListener('click', () => {
     omsSettlementOrderIDs = omsSettlementOrderIDs.filter(id => id !== button.dataset.removeSettlementOrder);
@@ -1544,16 +1590,16 @@ async function renderSettlementReconciliationPanel(container) {
   panel.style.padding = '24px';
   panel.style.marginBottom = '24px';
   panel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+    <div class="s-227bdd">
       <div>
-        <h2 style="font-size: 16px; font-weight: 700; margin: 0;">Settlement Reconciliation</h2>
+        <h2 class="s-51f449">Settlement Reconciliation</h2>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div class="s-b32917">
         <button class="btn btn-outline" id="stl-import-btn">Import / View Settlement Lines</button>
         <button class="btn btn-primary" id="stl-reconcile-btn">Run Auto-Reconcile</button>
       </div>
     </div>
-    <div id="stl-recon-summary" style="margin-bottom:16px;"></div>
+    <div id="stl-recon-summary" class="s-87c136"></div>
     <div class="table-wrapper">
     <table>
       <thead>
@@ -1563,7 +1609,7 @@ async function renderSettlementReconciliationPanel(container) {
         </tr>
       </thead>
       <tbody id="stl-variance-body">
-        <tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Loading&hellip;</td></tr>
+        <tr><td colspan="10" class="s-306094">Loading&hellip;</td></tr>
       </tbody>
     </table>
     </div>
@@ -1580,27 +1626,27 @@ async function loadSettlementVarianceQueue() {
   if (!body) return;
   const res = await apiFetch('/api/v1/reports/run/oms-settlement-variance');
   if (!res || !res.ok) {
-    body.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Could not load the variance queue.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="s-306094">Could not load the variance queue.</td></tr>`;
     return;
   }
   const rows = await res.json();
   const list = Array.isArray(rows) ? rows : (rows.rows || []);
   if (list.length === 0) {
-    body.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">No open variance - every reconciled line matched or has been resolved.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="s-306094">No open variance - every reconciled line matched or has been resolved.</td></tr>`;
     return;
   }
   body.innerHTML = list.map(r => `
     <tr>
-      <td style="font-family: monospace;">${escapeHTMLText(r.line_id || '')}</td>
+      <td class="s-355794">${escapeHTMLText(r.line_id || '')}</td>
       <td>${escapeHTMLText(r.channel || '')}</td>
-      <td style="font-family: monospace;">${escapeHTMLText(r.channel_order_id || '')}</td>
-      <td style="font-family: monospace;">${escapeHTMLText(r.order_id || '')}</td>
+      <td class="s-355794">${escapeHTMLText(r.channel_order_id || '')}</td>
+      <td class="s-355794">${escapeHTMLText(r.order_id || '')}</td>
       <td>${escapeHTMLText(r.settlement_batch_id || '')}</td>
-      <td>${(r.gross_amount ?? 0).toLocaleString()}</td>
-      <td>${(r.expected_amount ?? 0).toLocaleString()}</td>
-      <td>${(r.variance_amount ?? 0).toLocaleString()}</td>
+      <td>${formatNumber(r.gross_amount)}</td>
+      <td>${formatNumber(r.expected_amount)}</td>
+      <td>${formatNumber(r.variance_amount)}</td>
       <td><span class="badge ${r.match_status === 'Disputed' ? 'badge-warning' : 'badge-danger'}">${escapeHTMLText(r.match_status || '')}</span></td>
-      <td style="white-space:nowrap;">
+      <td class="s-86abda">
         ${r.match_status === 'Variance' ? `<button class="action-btn" ${actionAttrs('raiseSettlementDisputeUI', [r.line_id])}>Dispute</button>` : ''}
         ${r.match_status === 'Disputed' ? `<button class="action-btn" ${actionAttrs('resolveSettlementDisputeUI', [r.line_id])}>Resolve</button>` : ''}
         <button class="action-btn" ${actionAttrs('writeOffSettlementVarianceUI', [r.line_id])}>Write Off</button>
@@ -1761,7 +1807,7 @@ window.viewShippingLabel = async function(bookingId) {
   overlay.innerHTML = `
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Shipping Label: ${escapeHTMLText(bookingId)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
-      <div class="modal-body"><pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px;">${escapeHTMLText(label)}</pre></div>
+      <div class="modal-body"><pre class="s-1f295a">${escapeHTMLText(label)}</pre></div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button><button type="button" class="btn btn-primary" data-label-send>Print</button></div>
     </div>`;
   document.body.appendChild(overlay);

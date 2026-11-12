@@ -18,7 +18,7 @@ superseded_by: none
 # Third-party risk register
 
 **Stage 49.16.6** — established 2026-09-16. Reuses
-[threat_model.md](threat_model.md) §1.2's integration list as the source of
+[threat-model.md](threat-model.md) §1.2's integration list as the source of
 truth for *what* is integrated — this register adds the operational
 dimensions §1.2 doesn't cover: data/access/criticality, contract/security
 evidence, and the exit/credential-revocation/data-deletion plan for each.
@@ -46,7 +46,7 @@ not just the calendar `review_by` date above.
 |---|---|---|---|---|---|
 | DigitalOcean | Hosting (the single production droplet, `deploy/README.md`) | **Critical** | Everything — full database, application logs, backups at rest on the box | Standard DO terms; no dedicated enterprise security review performed | Data: encrypted backups already flow to the box owner independently of DO; destroying/recreating the droplet is the "exit" — `deploy/deploy.ps1` can redeploy to a fresh host from source + backup. Credential: root SSH key rotation is a manual operator action, not yet scripted — **tracked gap**. |
 | Cloudflare | DNS for `wholeops.in` (zone exists per Stage 26.1.3b; edge proxy/WAF not yet activated — DNS-only today) | **Low today, High once WAF activation lands** | DNS queries only while proxy is off (grey-cloud) | Standard Cloudflare account terms | DNS is portable to any registrar/DNS host; no data lock-in. Revoking Cloudflare API access (if ever granted for automation) is a dashboard action, not yet needed since nothing here calls Cloudflare's API. |
-| GitHub | Source hosting, CI/CD (`.github/workflows/ci.yml`), Actions runners | **Critical** (compromise = supply-chain compromise, per [threat_model.md](threat_model.md) persona P7) | Full source, CI secrets configuration (none of substance configured yet — see [secure-development-lifecycle.md](secure-development-lifecycle.md) §49.9.3) | Public repository; branch protection/CODEOWNERS enforcement is `[needs decision: org owner]`, tracked in that same document | Git history is fully portable (clone elsewhere); no proprietary lock-in. Revoking a compromised PAT/deploy key is a GitHub settings action. |
+| GitHub | Source hosting, CI/CD (`.github/workflows/ci.yml`), Actions runners | **Critical** (compromise = supply-chain compromise, per [threat-model.md](threat-model.md) persona P7) | Full source, CI secrets configuration (none of substance configured yet — see [secure-development-lifecycle.md](secure-development-lifecycle.md) §49.9.3) | Public repository; branch protection/CODEOWNERS enforcement is `[needs decision: org owner]`, tracked in that same document | Git history is fully portable (clone elsewhere); no proprietary lock-in. Revoking a compromised PAT/deploy key is a GitHub settings action. |
 | Go module proxy (`proxy.golang.org`), `govulncheck` database | Build-time dependency resolution and vulnerability scanning | **Low** (build-time only, never reachable from the running production binary) | Nothing — public module names/versions only | `go.sum` pins every module's content hash; `internal/supplychain` tests enforce the ledger ([dependency-inventory.md](dependency-inventory.md)) | No exit needed — vendoring is a fallback already compatible with Go's toolchain if the proxy became untrusted. |
 
 ## Payments
@@ -60,13 +60,13 @@ not just the calendar `review_by` date above.
 | Provider | Role | Criticality | Data seen | Contract/security evidence | Exit/revocation/deletion plan |
 |---|---|---|---|---|---|
 | Operator-supplied SMTP (`SMTP_HOST` etc., `deploy/erp.env.example`) | Password reset, notifications | **High** (a compromised SMTP relay could intercept password-reset links) | Recipient email address + notification content (password-reset links are redacted from logs in production — `engines/telemetry_redaction.go`, Stage 49.6.7) | Operator brings their own provider; this project enforces no specific one, so evidence is whatever the deploying operator's SMTP provider offers | Changing SMTP provider is an env-var change; no data retained here beyond normal mail-send logs. |
-| CleverTap | Customer engagement/marketing messaging (per [threat_model.md](threat_model.md) §1.2) | **Medium** | Customer contact info for engagement campaigns, scoped to what the integration sends | Credential storage shares the same `CHANNEL_CREDENTIAL_KEY` encryption as channel connectors | Disconnecting the integration is a per-tenant credential removal; no separate data-deletion request has been exercised against CleverTap yet — **tracked as an open verification**. |
+| CleverTap | Customer engagement/marketing messaging (per [threat-model.md](threat-model.md) §1.2) | **Medium** | Customer contact info for engagement campaigns, scoped to what the integration sends | Credential storage shares the same `CHANNEL_CREDENTIAL_KEY` encryption as channel connectors | Disconnecting the integration is a per-tenant credential removal; no separate data-deletion request has been exercised against CleverTap yet — **tracked as an open verification**. |
 
 ## Channel connectors (e-commerce)
 
 | Provider | Role | Criticality | Data seen | Contract/security evidence | Exit/revocation/deletion plan |
 |---|---|---|---|---|---|
-| Shopify | Order/inventory sync; inbound webhooks | **High** | Order, customer and inventory data for the connected store | HMAC-verified inbound webhooks, fail-closed when `SHOPIFY_WEBHOOK_SECRET` is unset ([threat_model.md](threat_model.md) §1.2); credentials AES-256-GCM encrypted | Per-tenant credential deletion via `channel_credentials` row removal; Shopify-side app uninstall is the customer's own action. |
+| Shopify | Order/inventory sync; inbound webhooks | **High** | Order, customer and inventory data for the connected store | HMAC-verified inbound webhooks, fail-closed when `SHOPIFY_WEBHOOK_SECRET` is unset ([threat-model.md](threat-model.md) §1.2); credentials AES-256-GCM encrypted | Per-tenant credential deletion via `channel_credentials` row removal; Shopify-side app uninstall is the customer's own action. |
 | BigCommerce, Magento, Unicommerce | Same connector pattern as Shopify | **High** | Same category as Shopify | Same encryption; UI-driven credential save has zero UI callers outside Pine Labs/Unicommerce per the existing `channel-connectors.md` KB gap note — **tracked**, not hidden | Same per-tenant credential removal pattern. |
 
 ## Courier

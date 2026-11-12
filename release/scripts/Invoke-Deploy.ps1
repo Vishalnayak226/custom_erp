@@ -117,6 +117,39 @@ if ($ssl -notmatch 'OpenSSL [3-9]\.') {
 $pinState = (Remote "test -s /etc/erp/release-signing.pub && echo pinned || echo none") -join ''
 Note $(if ($pinState -eq 'pinned') { 'server trusts the release key in /etc/erp/release-signing.pub' } else { 'server has no release key yet - this deploy pins the one it brings' })
 
+# ------------------------------------------------------ D0d Upgrade channel
+# Item 162.8: the host's UPGRADE_CHANNEL (recorded by installcheck, 47.12.8)
+# against the build's channel (release/channel.txt, default stable). cmd/upgradegate
+# decides: hold takes nothing, a stable host takes no candidate build. Only that
+# one env line is read, never a secret.
+Write-Gate 'D0d Upgrade channel'
+$chEnv = ((Remote "grep -E '^[[:space:]]*(export[[:space:]]+)?UPGRADE_CHANNEL=' /etc/erp/erp.env || true") -join "`n")
+$buildCh = (@(& git -C $repo show "$($target):release/channel.txt" 2>$null) | Select-Object -First 1)
+if (-not $buildCh) { $buildCh = 'stable' }
+Push-Location $repo
+try { $chOut = @($chEnv | & $cfg.goBin run ./cmd/upgradegate -host-env - -build "$buildCh".Trim() 2>&1 | ForEach-Object { "$_" }); $chCode = $LASTEXITCODE } finally { Pop-Location }
+Note "upgrade channel: $($chOut -join ' ')"
+if ($chCode -ne 0) {
+    $why = "the host's upgrade channel does not take this build - $($chOut -join ' ')"
+    if (-not $Check) { Stop-Deploy $why }
+    Note "NOTE (would stop a real deploy): $why"
+}
+
+# ------------------------------------------------ D0e Release-candidate record
+# Items 47.17.3 / 49.17.2: Release's gate G10b wrote one evidence record for this exact
+# commit; `releasegate verify` (the Test-CandidateRecord helper in ReleaseCommon.ps1)
+# refuses a record for another commit or tree, a missing one, and one with a failing
+# blocking check (release/gate-policy.json, docs/operations/release-candidate-gate.md).
+# Runs before the backup, so a refused candidate changes nothing on the server.
+Write-Gate 'D0e Release-candidate record'
+$rcCheck = Test-CandidateRecord -Repo $repo -Target $target -ReportDir $reportDir -Go $cfg.goBin
+foreach ($l in $rcCheck.Lines) { Note "release-candidate: $l" }
+if (-not $rcCheck.Ok) {
+    $why = "the release-candidate gate does not clear this commit - $($rcCheck.Lines -join '; ')"
+    if (-not $Check) { Stop-Deploy $why }
+    Note "NOTE (would stop a real deploy): $why"
+}
+
 # ------------------------------------------------- D1 what changes client data
 Write-Gate 'D1 What this deploy changes in client data'
 $newMig = @((Invoke-Git @('diff', '--name-only', '--diff-filter=A', $liveCommit, $target, '--', 'db/')) | Where-Object { $_ -like '*.sql' })
@@ -175,6 +208,11 @@ if ($missingKeys.Count) {
     if (-not $Check) { Stop-Deploy $why }
     Note "NOTE (would stop a real deploy): $why"
 } else { Note "secret keys ($($keyFiles.Count)): each is set in erp.env or already has its key file on the server" }
+# 158.2: with no alert webhook, a panic, a failed or stale backup and a burst
+# of errors reach only the server log (engines/alerting.go) and nobody is told.
+# A warning, not a stop: the deploy itself is safe without it.
+if ($envNames -contains 'OPS_ALERT_WEBHOOK_URL') { Note 'alerts: OPS_ALERT_WEBHOOK_URL is set in erp.env - panics, backup failures and error bursts are sent out' }
+else { Note 'WARNING alerts: erp.env sets no OPS_ALERT_WEBHOOK_URL - panics, failed or stale backups and error bursts reach only the server log. Set it in /etc/erp/erp.env (docs/operations/incident-runbook.md section 3)' }
 if ($Check) {
     $report | Set-Content -LiteralPath $reportPath -Encoding utf8
     Write-Host ''
@@ -252,6 +290,11 @@ foreach ($h in $cfg.hosts) {
 if ($bad.Count) { Stop-Deploy "deployed, but: $($bad -join '; ') - check the site now (rollback copy: $rd/$rb)" }
 $disk = (Remote "df -P / | awk 'NR==2{print `$5}'")[0]
 Note "server disk after cleanup: $disk"
+# D5 (49.17.2): the restore drill's own record, for the next release's gate. A note, never a stop.
+try {
+    $drillLines = Remote "cat $rd/backups/restore-drill-evidence.json 2>/dev/null || true"
+    Note (Import-RestoreDrillEvidence -Repo $repo -Go $cfg.goBin -RemoteLines $drillLines -Commit $target)
+} catch { Note "restore-drill record not read: $($_.Exception.Message)" }
 $report | Set-Content -LiteralPath $reportPath -Encoding utf8
 Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'worktree', 'remove', '--force', $wt) -AllowFail | Out-Null
 Write-Host ''

@@ -138,7 +138,7 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+		w.Header().Set("Content-Disposition", attachmentDisposition(name))
 		_, _ = w.Write(body)
 		return
 	}
@@ -246,7 +246,7 @@ func handleVendorPOExcel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	w.Header().Set("Content-Disposition", attachmentDisposition(name))
 	_, _ = w.Write(body)
 }
 

@@ -368,6 +368,9 @@ func orderNextActions(detail map[string]interface{}) []map[string]interface{} {
 	switch status {
 	case "On Hold":
 		why := "Held: " + hold + ". Fix the cause, then release - the same checks run again."
+		if hold == HoldMargin {
+			why = "A line is below its floor rate. Release it with a reason."
+		}
 		if hold == HoldPaymentPending || payment == "Pending" {
 			out = append(out, action("edit", "Confirm payment", "Payment is "+payment+". Record it as Confirmed, then release the hold."))
 		}

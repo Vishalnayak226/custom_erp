@@ -138,6 +138,7 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 			return nil, fmt.Errorf("document %q has invalid stored data: %v", id, err)
 		}
 		data[field] = value
+		StampStewardshipSource(doctype, data, "ERP", editorUserID) // 47.13.4
 		if err := ValidateDocument(tenantID, doctype, data); err != nil {
 			return nil, fmt.Errorf("document %q: %v", id, err)
 		}

@@ -73,7 +73,7 @@ async function renderTransfersView(container) {
           <label class="form-label" for="transfer-purpose">Purpose</label>
           <select id="transfer-purpose" class="form-select"><option value="">Replenishment</option><option>New store</option><option>Launch allocation</option></select>
         </div>
-        <details id="transfer-charges" hidden style="flex-basis:100%;"><summary style="cursor:pointer;font-weight:600;">Freight</summary></details>
+        <details id="transfer-charges" hidden class="s-3717df"><summary class="s-160dd9">Freight</summary></details>
       </div>
       <div class="txn-entry">
         <div class="form-group txn-entry-main">
@@ -101,10 +101,10 @@ async function renderTransfersView(container) {
           </thead>
           <tbody>
             ${transfers.length === 0
-              ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet.</td></tr>`
+              ? `<tr><td colspan="6" class="s-306094">No transfers yet.</td></tr>`
               : transfers.map(t => `
                 <tr>
-                  <td style="font-family: monospace;">${escapeHTMLText(t.transfer_number || t.id)}</td>
+                  <td class="s-355794">${escapeHTMLText(t.transfer_number || t.id)}</td>
                   <td>${escapeHTMLText(t.from_warehouse || '')}</td>
                   <td>${escapeHTMLText(t.to_warehouse || '')}</td>
                   <td>${(() => { try { return JSON.parse(t.items || '[]').length; } catch (e) { return 0; } })()}</td>
@@ -330,7 +330,7 @@ function openTransferDialog({ title, body, submitLabel, wide, onSubmit, onOpen, 
         </button>
       </div>
       <form id="transfer-dialog-form" novalidate>
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="modal-body s-a4aea4">
           ${body}
           <div id="transfer-dialog-error" class="login-error hidden"></div>
         </div>
@@ -374,7 +374,13 @@ function openTransferDialog({ title, body, submitLabel, wide, onSubmit, onOpen, 
 async function postTransfer(path, payload) {
   const res = await apiFetch(path, { method: 'POST', body: JSON.stringify(payload) });
   if (!res) return 'No response from the server.';
-  if (res.ok) return '';
+  if (res.ok) {
+    try {
+      const done = await res.json();
+      if (done && done.pending_approval) showToast('Waiting for approval - the reason is high severity. Nothing has moved yet.', { variant: 'info' });
+    } catch (e) { /* the reply had no body */ }
+    return '';
+  }
   try {
     const body = await res.json();
     return body.detail || body.message || body.error || `Failed (${res.status}).`;
@@ -402,7 +408,7 @@ async function reasonCodeField(category, id, label) {
   }
   if (codes.length === 0) {
     return `<div class="form-group"><span class="form-label">${escapeHTMLText(label)}</span>
-      <p style="margin: 0; color: var(--text-muted);">No active reason codes of type <b>${escapeHTMLText(category)}</b> yet.
+      <p class="s-aeec17">No active reason codes of type <b>${escapeHTMLText(category)}</b> yet.
       <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add a reason code</button></p>
       <input type="hidden" id="${id}" value=""></div>`;
   }
@@ -420,7 +426,7 @@ async function transferItemNames(id) {
 
 function itemLabel(names, sku) {
   const name = names[sku];
-  return name && name !== sku ? `${escapeHTMLText(name)} <small style="color: var(--text-muted);">${escapeHTMLText(sku)}</small>` : escapeHTMLText(sku);
+  return name && name !== sku ? `${escapeHTMLText(name)} <small class="s-d59bb5">${escapeHTMLText(sku)}</small>` : escapeHTMLText(sku);
 }
 
 function transferRow(id) {
@@ -599,7 +605,7 @@ async function dispatchTransferOrder(id) {
         <textarea id="tdisp-serial-${i}" class="form-input" rows="3" data-sku="${escapeHTMLText(l.sku)}" data-kind="serial" data-qty="${l.qty}" placeholder="One per line"></textarea></div>` : `
       <div class="form-group"><label class="form-label" for="tdisp-lot-${i}">${escapeHTMLText(l.name || l.sku)} (${l.qty}) - lots</label>
         <input id="tdisp-lot-${i}" class="form-input" data-sku="${escapeHTMLText(l.sku)}" data-kind="lot" data-qty="${l.qty}" placeholder="Leave blank to pick earliest expiry first, or LOT-A:3, LOT-B:2">
-        <small style="color: var(--text-muted);">A store without bins has to name the lot.</small></div>`).join('')}`;
+        <small class="s-d59bb5">A store without bins has to name the lot.</small></div>`).join('')}`;
   openTransferDialog({
     title: 'Dispatch Transfer', body, submitLabel: 'Dispatch',
     onSubmit: async form => {
@@ -635,12 +641,12 @@ async function receiveTransferOrder(id) {
   if (balance.length === 0) { await showCustomAlert('Nothing is still in transit on this transfer.', 'Receive'); return; }
   const names = await transferItemNames(id);
   const reasonField = await reasonCodeField('Transfer Discrepancy', 'trcv-reason', 'Reason for damaged, lost or extra units');
-  const numberCell = (cls, i, value) => `<td><input type="number" min="0" class="form-input ${cls}" data-row="${i}" value="${value}" style="width: 72px;" aria-label="${cls.replace('trcv-', '')} quantity"></td>`;
+  const numberCell = (cls, i, value) => `<td><input type="number" min="0" class="form-input ${cls} s-23bf87" data-row="${i}" value="${value}" aria-label="${cls.replace('trcv-', '')} quantity"></td>`;
   const lineRows = balance.map((b, i) => {
     const serials = inTransitSerials(b);
     if (serials.length) {
       return `<tr data-row="${i}" data-sku="${escapeHTMLText(b.sku)}" data-serial="1">
-        <td>${itemLabel(names, b.sku)}<br><small style="color: var(--text-muted);">${openQty(b)} in transit</small></td>
+        <td>${itemLabel(names, b.sku)}<br><small class="s-d59bb5">${openQty(b)} in transit</small></td>
         <td colspan="4">
           <label class="form-label" for="trcv-sn-ok-${i}">Received (serial numbers)</label>
           <textarea id="trcv-sn-ok-${i}" class="form-input trcv-sn-ok" rows="2">${escapeHTMLText(serials.join('\n'))}</textarea>
@@ -652,21 +658,21 @@ async function receiveTransferOrder(id) {
     }
     const lots = (b.lots || []).filter(l => openQty(l) > 0);
     return `<tr data-row="${i}" data-sku="${escapeHTMLText(b.sku)}">
-      <td>${itemLabel(names, b.sku)}<br><small style="color: var(--text-muted);">${openQty(b)} in transit</small></td>
+      <td>${itemLabel(names, b.sku)}<br><small class="s-d59bb5">${openQty(b)} in transit</small></td>
       ${numberCell('trcv-good', i, openQty(b))}${numberCell('trcv-dmg', i, 0)}${numberCell('trcv-lost', i, 0)}${numberCell('trcv-excess', i, 0)}
-      <td>${lots.length ? `<select class="form-select trcv-lot" data-row="${i}" aria-label="Lot"><option value="">Oldest lot first</option>${lots.map(l => `<option value="${escapeHTMLText(l.batch_no)}">${escapeHTMLText(l.batch_no)} (${openQty(l)})</option>`).join('')}</select>` : '<small style="color: var(--text-muted);">-</small>'}</td>
+      <td>${lots.length ? `<select class="form-select trcv-lot" data-row="${i}" aria-label="Lot"><option value="">Oldest lot first</option>${lots.map(l => `<option value="${escapeHTMLText(l.batch_no)}">${escapeHTMLText(l.batch_no)} (${openQty(l)})</option>`).join('')}</select>` : '<small class="s-d59bb5">-</small>'}</td>
     </tr>`;
   }).join('');
   openTransferDialog({
     title: `Receive ${row.transfer_number || row.id}`, wide: true, submitLabel: 'Record Receipt', stockStore: row.to_warehouse,
-    body: `<div class="table-panel" style="overflow-x: auto;"><table>
+    body: `<div class="table-panel s-987eb2"><table>
         <thead><tr><th>Item</th><th>Good</th><th>Damaged</th><th>Lost</th><th>Extra</th><th>Lot</th></tr></thead>
         <tbody>${lineRows}</tbody></table></div>
       ${txnStockFromTo('Transfer In')}
       ${reasonField}
-      <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" id="trcv-keep-open" checked>
+      <label class="s-0da5f4"><input type="checkbox" id="trcv-keep-open" checked>
         Units not entered here stay in transit for a later delivery</label>
-      <small style="color: var(--text-muted);">Unticked: anything not entered is recorded as lost.</small>`,
+      <small class="s-d59bb5">Unticked: anything not entered is recorded as lost.</small>`,
     onSubmit: async form => {
       const key = form.dataset.key || (form.dataset.key = newKey());
       const reason = form.querySelector('#trcv-reason')?.value || '';
@@ -752,7 +758,7 @@ async function cancelTransferOrder(id) {
   const reasonField = await reasonCodeField('Cancellation', 'tcxl-reason', 'Reason');
   openTransferDialog({
     title: `Cancel ${row.transfer_number || row.id}`, submitLabel: 'Cancel Transfer',
-    body: `<p style="margin: 0;">No stock moves.</p>${reasonField}
+    body: `<p class="s-2a0ca8">No stock moves.</p>${reasonField}
       <div class="form-group"><label class="form-label" for="tcxl-note">Note</label><input id="tcxl-note" class="form-input" maxlength="200"></div>`,
     onSubmit: async form => {
       const reason = form.querySelector('#tcxl-reason')?.value || '';
@@ -778,14 +784,14 @@ async function showTransferDetails(id) {
   let events = [];
   try { events = JSON.parse(row.transfer_events || '[]'); } catch (e) { events = []; }
   const cell = n => `<td class="num">${n || 0}</td>`;
-  const balanceTable = balance.length ? `<div class="table-panel" style="overflow-x: auto;"><table>
+  const balanceTable = balance.length ? `<div class="table-panel s-987eb2"><table>
       <thead><tr><th>Item / lot</th><th class="num">Sent</th><th class="num">Received</th><th class="num">Damaged</th><th class="num">Lost</th><th class="num">Returned</th><th class="num">Extra</th><th class="num">In transit</th></tr></thead>
       <tbody>${balance.map(b => `<tr><td><b>${itemLabel(names, b.sku)}</b></td>${cell(b.dispatched)}${cell(b.received)}${cell(b.damaged)}${cell(b.lost)}${cell(b.returned)}${cell(b.excess)}${cell(openQty(b))}</tr>
-        ${(b.lots || []).map(l => `<tr><td style="padding-left: 20px;">Lot ${escapeHTMLText(l.batch_no)}${l.expiry_date ? ` <small>(exp ${escapeHTMLText(l.expiry_date)})</small>` : ''}</td>${cell(l.dispatched)}${cell(l.received)}${cell(l.damaged)}${cell(l.lost)}${cell(l.returned)}${cell(l.excess)}${cell(openQty(l))}</tr>`).join('')}
-        ${Object.keys(b.serials || {}).length ? `<tr><td colspan="8" style="padding-left: 20px;"><small>${Object.entries(b.serials).map(([sn, st]) => `${escapeHTMLText(sn)}: ${escapeHTMLText(st)}`).join(' · ')}</small></td></tr>` : ''}`).join('')}
+        ${(b.lots || []).map(l => `<tr><td class="s-8c78c1">Lot ${escapeHTMLText(l.batch_no)}${l.expiry_date ? ` <small>(exp ${escapeHTMLText(l.expiry_date)})</small>` : ''}</td>${cell(l.dispatched)}${cell(l.received)}${cell(l.damaged)}${cell(l.lost)}${cell(l.returned)}${cell(l.excess)}${cell(openQty(l))}</tr>`).join('')}
+        ${Object.keys(b.serials || {}).length ? `<tr><td colspan="8" class="s-8c78c1"><small>${Object.entries(b.serials).map(([sn, st]) => `${escapeHTMLText(sn)}: ${escapeHTMLText(st)}`).join(' · ')}</small></td></tr>` : ''}`).join('')}
       </tbody></table></div>`
-    : '<p style="color: var(--text-muted);">Not dispatched yet.</p>';
-  const eventList = events.length ? `<ul style="margin: 0; padding-left: 18px;">${events.map(ev => `<li>${escapeHTMLText(ev.kind)} ${ev.no} - ${escapeHTMLText(new Date(ev.at).toLocaleString())} by ${escapeHTMLText(ev.by || '')}:
+    : '<p class="s-d59bb5">Not dispatched yet.</p>';
+  const eventList = events.length ? `<ul class="s-d0e398">${events.map(ev => `<li>${escapeHTMLText(ev.kind)} ${ev.no} - ${escapeHTMLText(formatDateTime(ev.at))} by ${escapeHTMLText(ev.by || '')}:
       ${ev.lines.map(l => escapeHTMLText([names[l.sku] || l.sku, l.batch_no && `lot ${l.batch_no}`, l.received && `${l.received} good`, l.damaged && `${l.damaged} damaged`, l.lost && `${l.lost} lost`, l.excess && `${l.excess} extra`, l.returned && `${l.returned} returned`, l.reason_code && `(${l.reason_code})`, l.reason].filter(Boolean).join(' '))).join('; ')}</li>`).join('')}</ul>`
     : '';
   const facts = [
@@ -795,7 +801,7 @@ async function showTransferDetails(id) {
   ].filter(Boolean).join(' · ');
   openTransferDialog({
     title: `${row.transfer_number || row.id} - ${row.status}`, wide: true,
-    body: `<p style="margin: 0;">${escapeHTMLText(store(row.from_warehouse))} → ${escapeHTMLText(store(row.to_warehouse))}${facts ? ` · ${facts}` : ''}</p>
-      ${balanceTable}${eventList ? `<h4 style="margin: 4px 0 0;">Receipts and returns</h4>${eventList}` : ''}`
+    body: `<p class="s-2a0ca8">${escapeHTMLText(store(row.from_warehouse))} → ${escapeHTMLText(store(row.to_warehouse))}${facts ? ` · ${facts}` : ''}</p>
+      ${balanceTable}${eventList ? `<h4 class="s-d59d30">Receipts and returns</h4>${eventList}` : ''}`
   });
 }

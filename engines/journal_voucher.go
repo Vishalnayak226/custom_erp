@@ -14,7 +14,7 @@ import (
 // Stage 26.6.4: Journal Voucher - manual GL entry, reversal, recurring
 // templates. Posts through the existing PostDoubleEntry (engines/finance.go),
 // gated by the existing maker-checker approval engine (engines/approval.go)
-// via a seeded approval_rules row (db/migrations_stage26_6_finance_tax_close.sql)
+// via a seeded approval_rules row (db/migrations/migrations_stage26_6_finance_tax_close.sql)
 // rather than posting on create - a manual GL entry is exactly the kind of
 // action that engine exists to gate.
 
@@ -24,6 +24,14 @@ type JournalVoucherLine struct {
 	AccountCode string `json:"account_code"`
 	Debit       int    `json:"debit,omitempty"`
 	Credit      int    `json:"credit,omitempty"`
+	// Stage 148.20: the line's own dimensions (journal_dimensions.go).
+	// Empty keeps the voucher's, so a voucher without them posts as before.
+	CostCenter string `json:"cost_center,omitempty"`
+	Department string `json:"department,omitempty"`
+	Store      string `json:"store,omitempty"`
+	Employee   string `json:"employee,omitempty"`
+	Tag        string `json:"tag,omitempty"`
+	Narration  string `json:"narration,omitempty"`
 }
 
 func validateJournalVoucherLines(lines []JournalVoucherLine) (totalAmount int, err error) {
@@ -75,6 +83,15 @@ type JournalVoucherOptions struct {
 // (which already has the schema from its own tenant-schema scan and has no
 // tenantID to re-derive it from).
 func createJournalVoucherInSchema(schema, voucherDate, narration string, lines []JournalVoucherLine, userID string, opts JournalVoucherOptions) (string, error) {
+	return createJournalVoucherWith(db.DB, schema, voucherDate, narration, lines, userID, opts, nil)
+}
+
+// createJournalVoucherWith creates the Draft on a given connection or
+// transaction; extra fields (reversed_from) are written with the row, so the
+// voucher is complete the moment it exists (Stage 162.10).
+func createJournalVoucherWith(q interface {
+	Exec(string, ...interface{}) (sql.Result, error)
+}, schema, voucherDate, narration string, lines []JournalVoucherLine, userID string, opts JournalVoucherOptions, extra map[string]interface{}) (string, error) {
 	totalAmount, err := validateJournalVoucherLines(lines)
 	if err != nil {
 		return "", err
@@ -97,6 +114,10 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 	if err := validateProjectReferenceInSchema(schema, opts.Project); err != nil {
 		return "", err
 	}
+	// Stage 148.20: line dimensions usable, and the required ones present.
+	if err := checkJournalLineDimensions(schema, lines, opts.CostCenter, opts.Department); err != nil {
+		return "", err
+	}
 
 	linesJSON, err := json.Marshal(lines)
 	if err != nil {
@@ -109,6 +130,9 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 		"lines": string(linesJSON), "total_amount": totalAmount, "status": "Draft",
 		"cost_center": opts.CostCenter, "department": opts.Department, "entity": opts.Entity, "project": opts.Project,
 	}
+	for k, v := range extra {
+		docData[k] = v
+	}
 	// Stage 76.11: a company-level series (no store segment, migration 76_11).
 	// The recurring worker reaches here with only the schema.
 	if tenantID, err := tenantIDForSchema(schema); err == nil && tenantID != "" {
@@ -118,7 +142,7 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 	if err != nil {
 		return "", err
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(
+	if _, err := q.Exec(fmt.Sprintf(
 		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'JournalVoucher', $2, 'Draft', $3)`, schema),
 		voucherID, marshaled, userID); err != nil {
 		return "", err
@@ -277,6 +301,14 @@ func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data m
 	entity, _ := data["entity"].(string)
 	project, _ := data["project"].(string)
 	opt := PostingOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project}
+	// Stage 148.20: rules saved after the voucher still hold; a reversal only
+	// undoes what is posted. Lines that carry dimensions post row by row.
+	if orig, _ := data["reversed_from"].(string); orig == "" {
+		if err := checkJournalLineDimensions(schema, lines, costCenter, department); err != nil {
+			return fmt.Errorf("voucher %s: %w", voucherID, err)
+		}
+	}
+	opt.Lines = journalPostingLines(lines)
 
 	// Stage 37.1.2: a voucher entered in another currency posts functional
 	// amounts to the ledger and carries its own amounts alongside. The line
@@ -366,7 +398,15 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, status, err := fetchJournalVoucher(schema, voucherID)
+	// Stage 162.10: the reversal voucher and the original's reversed_by mark are
+	// ONE transaction under the original's row lock - a failure leaves no orphan
+	// Draft reversal, and two callers cannot raise two reversals.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	data, status, err := lockJournalVoucherTx(tx, schema, voucherID)
 	if err != nil {
 		return "", err
 	}
@@ -382,7 +422,8 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	}
 	reversed := make([]JournalVoucherLine, len(lines))
 	for i, l := range lines {
-		reversed[i] = JournalVoucherLine{AccountCode: l.AccountCode, Debit: l.Credit, Credit: l.Debit}
+		reversed[i] = l
+		reversed[i].Debit, reversed[i].Credit = l.Credit, l.Debit
 	}
 
 	narration := fmt.Sprintf("Reversal of %s", voucherID)
@@ -390,18 +431,11 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	department, _ := data["department"].(string)
 	entity, _ := data["entity"].(string)
 	project, _ := data["project"].(string)
-	newID, err := createJournalVoucherInSchema(schema, BusinessToday(), narration, reversed, userID, JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project})
+	newID, err := createJournalVoucherWith(tx, schema, BusinessToday(), narration, reversed, userID,
+		JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project},
+		map[string]interface{}{"reversed_from": voucherID})
 	if err != nil {
 		return "", err
-	}
-
-	newData, _, err := fetchJournalVoucher(schema, newID)
-	if err != nil {
-		return newID, err
-	}
-	newData["reversed_from"] = voucherID
-	if err := updateJournalVoucherData(schema, newID, "Draft", newData); err != nil {
-		return newID, err
 	}
 
 	// Stage 132.17: the voucher stays Posted - its amounts are still in the
@@ -410,8 +444,11 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	// rejected showed the voucher reversed while its amounts stood, and it
 	// could not be reversed again.
 	data["reversed_by"] = newID
-	if err := updateJournalVoucherData(schema, voucherID, "Posted", data); err != nil {
-		return newID, err
+	if err := updateJournalVoucherDataIn(tx, schema, voucherID, "Posted", data); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
 	}
 	return newID, nil
 }

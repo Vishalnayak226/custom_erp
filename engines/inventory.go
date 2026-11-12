@@ -1,51 +1,14 @@
 package engines
 
 import (
-	"crypto/rand"
 	"custom_erp/db"
 	"database/sql"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 )
-
-// GenerateBarcode returns a unique 10-digit barcode string prefixing 'BAR'.
-// 24.23: crypto/rand instead of a math/rand source seeded off the wall
-// clock, which produces a predictable sequence once an attacker knows
-// roughly when a barcode was generated. Barcodes aren't security tokens so
-// the practical risk was always low - this is a one-line stdlib swap with
-// no change to the output format.
-func GenerateBarcode() string {
-	var b [4]byte
-	_, _ = rand.Read(b[:])
-	num := binary.BigEndian.Uint32(b[:])%9000000 + 1000000
-	return fmt.Sprintf("BAR%d", num)
-}
-
-// GetStockBalance derives item current stock by summing ledger entries
-func GetStockBalance(tenantID string, itemID string, warehouseID string) (float64, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return 0, err
-	}
-
-	query := fmt.Sprintf(`
-		SELECT COALESCE(SUM((data->>'qty')::numeric), 0) 
-		FROM %s.documents 
-		WHERE doctype = 'StockLedgerEntry' 
-		  AND data->>'item_id' = $1 
-		  AND data->>'warehouse_id' = $2`, schema)
-
-	var balance float64
-	err = db.DB.QueryRow(query, itemID, warehouseID).Scan(&balance)
-	if err != nil {
-		return 0, err
-	}
-	return balance, nil
-}
 
 // StockLedgerEntry is one append-only inventory-movement record (26.10.1).
 // ItemID/WarehouseID/Qty/VoucherType/VoucherID are the original Phase 3
@@ -57,7 +20,7 @@ func GetStockBalance(tenantID string, itemID string, warehouseID string) (float6
 // breakdown of the same on-hand total); FromStatus/ToStatus name a
 // Good/Damaged/QC-Hold/RTV condition change. A pure location or condition
 // move that doesn't change on_hand/available (e.g. putaway, a bin-to-bin
-// shelf move) is recorded with Qty 0 - GetStockBalance's SUM stays correct
+// shelf move) is recorded with Qty 0 - a SUM over the entries stays correct
 // since a zero contributes nothing, while the movement itself is still on
 // the card.
 type StockLedgerEntry struct {
@@ -104,6 +67,21 @@ func insertStockLedgerEntry(q interface {
 		}
 	}
 
+	id, marshaled, err := stockLedgerEntryDoc(e)
+	if err != nil {
+		return err
+	}
+	query := fmt.Sprintf(`
+		INSERT INTO %s.documents (id, doctype, data, status, created_by)
+		VALUES ($1, $2, $3, $4, $5)`, schema)
+	_, err = q.Exec(query, id, "StockLedgerEntry", marshaled, "Active", "system")
+	return err
+}
+
+// stockLedgerEntryDoc is the document one ledger entry is stored as - its new
+// id and its JSON. The one place the shape lives: insertStockLedgerEntry writes
+// it a row at a time, the synthetic tenant's bulk loader (47.9.1) many at once.
+func stockLedgerEntryDoc(e StockLedgerEntry) (string, []byte, error) {
 	id := NewDocIDCompact("SLE")
 	docData := map[string]interface{}{
 		"id":           id,
@@ -147,15 +125,7 @@ func insertStockLedgerEntry(q interface {
 	}
 
 	marshaled, err := json.Marshal(docData)
-	if err != nil {
-		return err
-	}
-
-	query := fmt.Sprintf(`
-		INSERT INTO %s.documents (id, doctype, data, status, created_by)
-		VALUES ($1, $2, $3, $4, $5)`, schema)
-	_, err = q.Exec(query, id, "StockLedgerEntry", marshaled, "Active", "system")
-	return err
+	return id, marshaled, err
 }
 
 // PostInventoryLedger updates the available stock levels upon a transaction commit (e.g., GRN posting)

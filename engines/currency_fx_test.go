@@ -409,7 +409,7 @@ func TestFXGainLossRegisterReadsTheLedger(t *testing.T) {
 		t.Fatalf("inspect gl_accounts: %v", err)
 	}
 	if !hasAccount {
-		t.Skip("db/migrations_stage37_1_fx_revaluation.sql has not been applied to this database")
+		t.Skip("db/migrations/migrations_stage37_1_fx_revaluation.sql has not been applied to this database")
 	}
 
 	const docID = "TEST-FX-REG-0001"

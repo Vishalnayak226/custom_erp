@@ -188,7 +188,7 @@ func handleGetReportExport(w http.ResponseWriter, r *http.Request) {
 	}
 	if status == "Completed" && r.URL.Query().Get("download") == "1" {
 		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+jobID+".csv\"")
+		w.Header().Set("Content-Disposition", attachmentDisposition(jobID+".csv"))
 		_, _ = w.Write(csvBytes)
 		return
 	}

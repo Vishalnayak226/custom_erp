@@ -48,6 +48,7 @@ type APICredential struct {
 	// AuthMode is api_key (sent on every call) or oauth_client (exchanged at
 	// /api/public/v1/oauth/token for short-lived tokens, Stage 38.2d).
 	AuthMode string `json:"auth_mode"`
+	Purpose  string `json:"purpose,omitempty"`
 }
 
 type IssuedAPICredential struct {
@@ -258,7 +259,14 @@ func ListAPICredentials(tenantID string) ([]APICredential, error) {
 		}
 		out = append(out, credential)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	purposes := apiCredentialPurposes(schema)
+	for i := range out {
+		out[i].Purpose = purposes[out[i].ID]
+	}
+	return out, nil
 }
 
 // AuthenticateAPICredential always returns the same public error for an
@@ -398,6 +406,13 @@ func RotateAPICredential(tenantID, credentialID, rotatedBy string) (*IssuedAPICr
 		issued.Credential.AuthMode = authMode
 	} else {
 		issued.Credential.AuthMode = "api_key"
+	}
+	// Stage 49.2.6: the replacement does the same job, so it keeps the purpose.
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.api_credentials SET purpose = (SELECT purpose FROM %s.api_credentials WHERE id = $2) WHERE id = $1`, schema, schema), issued.Credential.ID, credentialID); err != nil {
+		return nil, err
+	}
+	if err := carryAIAccessLinkTx(tx, schema, credentialID, issued.Credential.ID); err != nil { // Stage 148.37
+		return nil, err
 	}
 	if err := revokeOAuthTokensTx(tx, schema, credentialID); err != nil {
 		return nil, err

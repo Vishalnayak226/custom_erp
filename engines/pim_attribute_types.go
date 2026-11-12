@@ -159,7 +159,13 @@ func CheckAttributeValue(tenantID, attribute, value string) (string, error) {
 func ValidateProductAttributeValueDocument(tenantID string, payload map[string]interface{}) error {
 	attribute := strField(payload, "attribute")
 	value := strings.TrimSpace(pimString(payload["value"]))
-	if attribute == "" || value == "" {
+	if attribute == "" {
+		return nil
+	}
+	if err := StewardshipGuard(tenantID, payload); err != nil { // 47.13.4: a blank wipes a value, so it is held too
+		return err
+	}
+	if value == "" {
 		return nil
 	}
 	norm, err := CheckAttributeValue(tenantID, attribute, value)

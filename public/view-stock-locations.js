@@ -37,27 +37,30 @@ function physicalNote(l) {
 
 // --- Stock Locations (setup) ----------------------------------------------
 
+// Stage 155.5: each pane is its own sidebar entry ("stock-locations:<pane>").
+const SL_PAGES = { locations: ['menu-stock-locations', 'Stock Locations'], stores: ['menu-stock-loc-stores', 'Locations by Store'], txns: ['menu-stock-loc-txns', 'Locations by Transaction'] };
 export async function renderStockLocationsView(container) {
+  const pg = SL_PAGES[currentViewTab] ? currentViewTab : 'locations';
+  currentViewTab = pg;
+  setActiveMenu(SL_PAGES[pg][0]);
   setup = await loadSetup();
-  if (!setup) { renderErrorPanel(container, 'Failed to load stock locations.', () => renderView('stock-locations')); return; }
+  if (!setup) { renderErrorPanel(container, 'Failed to load stock locations.', () => renderView(`stock-locations:${pg}`)); return; }
   const panel = document.createElement('div');
   panel.className = 'txn-screen';
   panel.id = 'stockloc-screen';
   panel.innerHTML = `
     <div class="txn-bar">
-      <h1 class="page-title txn-title">Stock Locations</h1>
-      ${txnTabs('txnShowPane', 'stockloc-screen:locations', [['stockloc-screen:locations', 'Locations'], ['stockloc-screen:stores', 'Stores'], ['stockloc-screen:txns', 'Transactions']])}
-      <div class="txn-actions txn-main-only"><button type="button" class="btn btn-primary" id="stockloc-new-btn">+ New Location</button></div>
+      <h1 class="page-title txn-title">${SL_PAGES[pg][1]}</h1>
+      ${pg === 'locations' ? '<div class="txn-actions txn-main-only"><button type="button" class="btn btn-primary" id="stockloc-new-btn">+ New Location</button></div>' : ''}
     </div>
-    <div class="txn-pane" data-pane="locations"><div class="txn-grid" id="stockloc-locations"></div></div>
-    <div class="txn-pane hidden" data-pane="stores"><div class="txn-grid" id="stockloc-stores"></div></div>
-    <div class="txn-pane hidden" data-pane="txns"><div class="txn-grid" id="stockloc-txns"></div></div>`;
+    <div class="txn-pane${pg === 'locations' ? '' : ' hidden'}" data-pane="locations"><div class="txn-grid" id="stockloc-locations"></div></div>
+    <div class="txn-pane${pg === 'stores' ? '' : ' hidden'}" data-pane="stores"><div class="txn-grid" id="stockloc-stores"></div></div>
+    <div class="txn-pane${pg === 'txns' ? '' : ' hidden'}" data-pane="txns"><div class="txn-grid" id="stockloc-txns"></div></div>`;
   container.appendChild(panel);
   drawLocations();
   drawStores();
   drawTxns();
-  panel.querySelector('#stockloc-new-btn').addEventListener('click', () => editLocation(null));
-  txnRestorePane('stockloc-screen');
+  panel.querySelector('#stockloc-new-btn')?.addEventListener('click', () => editLocation(null));
 }
 
 function drawLocations() {
@@ -85,12 +88,12 @@ function locationDialog(title, body, onSave) {
   overlay.className = 'modal-overlay open';
   overlay.id = 'stockloc-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 560px;" role="dialog" aria-modal="true" aria-labelledby="stockloc-dialog-title">
+    <div class="modal-container s-6a9c85" role="dialog" aria-modal="true" aria-labelledby="stockloc-dialog-title">
       <div class="modal-header"><h3 class="modal-title" id="stockloc-dialog-title">${esc(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-sl-close>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button></div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">${body}</div>
+      <div class="modal-body s-a4aea4">${body}</div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-sl-close>Cancel</button>
         <button type="button" class="btn btn-primary" data-sl-save>Save</button></div>
     </div>`;
@@ -125,8 +128,8 @@ function editLocation(l) {
     <div class="form-group">${physicalField}</div>
     <div class="form-group"><label class="form-label" for="sl-applies">Applies to</label>
       <select id="sl-applies" class="form-input">${['Both', 'Store', 'Warehouse'].map(v => `<option ${v === l.applies_to ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-    <label style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="sl-default" ${l.default_for_new ? 'checked' : ''}> Give this location to every new store</label>
-    ${l.bucket === 'available' ? '' : `<label style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="sl-active" ${l.active ? 'checked' : ''}> In use</label>`}
+    <label class="s-29ba4b"><input type="checkbox" id="sl-default" ${l.default_for_new ? 'checked' : ''}> Give this location to every new store</label>
+    ${l.bucket === 'available' ? '' : `<label class="s-29ba4b"><input type="checkbox" id="sl-active" ${l.active ? 'checked' : ''}> In use</label>`}
     <div class="form-group"><label class="form-label" for="sl-desc">What it is for</label>
       <input id="sl-desc" class="form-input" value="${esc(l.description)}" autocomplete="off"></div>`,
   async (o) => {
@@ -151,7 +154,7 @@ function drawStores() {
   const host = document.getElementById('stockloc-stores');
   if (!host) return;
   const locs = setup.locations.filter(l => l.active);
-  if (!setup.stores.length) { host.innerHTML = '<div class="empty-state-hint" style="padding: 24px;">No stores yet. Add them in Setup &rarr; Location.</div>'; return; }
+  if (!setup.stores.length) { host.innerHTML = '<div class="empty-state-hint s-ac532f">No stores yet. Add them in Setup &rarr; Location.</div>'; return; }
   host.innerHTML = `<table>
     <thead><tr><th>Store</th>${locs.map(l => `<th title="${esc(l.sellable ? 'Sellable' : 'Not sellable')}">${esc(l.name)}</th>`).join('')}<th></th></tr></thead>
     <tbody>${setup.stores.map(s => {
@@ -229,28 +232,28 @@ export async function renderStockMovesView(container) {
     <tbody>${(Array.isArray(moves) ? moves : []).map(m => `<tr>
       <td>${esc(m.id)}</td><td>${esc(storeName(m.location))}</td><td>${esc(m.item_name || m.sku)}<div class="txn-hint">${esc(m.sku)}</div></td>
       <td>${esc(m.qty)}</td><td>${esc(name(m.from_location))}</td><td>${esc(name(m.to_location))}</td><td>${esc(m.reason || '')}</td><td>${esc(m.moved_by || '')}</td>
-    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moves yet.</td></tr>'}</tbody></table>`;
+    </tr>`).join('') || '<tr><td colspan="8" class="s-306094">No stock moves yet.</td></tr>'}</tbody></table>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '24px';
   form.innerHTML = `
-    <p class="txn-hint" style="margin: 0 0 12px;">At <b>${esc(storeName(store))}</b>.</p>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end;">
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="sm-item-display">Item</label>
+    <p class="txn-hint s-1ff0dd">At <b>${esc(storeName(store))}</b>.</p>
+    <div class="s-270dd3">
+      <div class="form-group s-ef0b7a"><label class="form-label" for="sm-item-display">Item</label>
         <input type="text" id="sm-item-display" class="form-input" placeholder="Scan or search the item" autocomplete="off">
         <input type="hidden" id="sm-item"></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="sm-qty">Quantity</label>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="sm-qty">Quantity</label>
         <input type="number" id="sm-qty" class="form-input" min="1" step="1" value="1"></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="sm-from">From</label>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="sm-from">From</label>
         <select id="sm-from" class="form-input">${movable.map(l => `<option value="${esc(l.code)}" ${l.code === fromCode ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="sm-to">To</label>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="sm-to">To</label>
         <select id="sm-to" class="form-input">${movable.map(l => `<option value="${esc(l.code)}" ${l.code === toCode ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="sm-reason">Reason</label>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="sm-reason">Reason</label>
         <input type="text" id="sm-reason" class="form-input" placeholder="e.g. found torn on the shelf" autocomplete="off"></div>
     </div>
-    <div id="sm-balance" class="txn-hint" style="margin-top: 12px;"></div>
-    <div style="margin-top: 16px;"><button type="button" class="btn btn-primary" id="sm-save">Move Stock</button></div>`;
+    <div id="sm-balance" class="txn-hint s-4bb900"></div>
+    <div class="s-4c0544"><button type="button" class="btn btn-primary" id="sm-save">Move Stock</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'stock-moves-screen', title: 'Move Stock', page: 'New move', count: Array.isArray(moves) ? moves.length : 0, newLabel: 'New Move', form, list }));
   txnRestorePane('stock-moves-screen');

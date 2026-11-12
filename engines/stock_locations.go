@@ -22,7 +22,7 @@ import (
 //
 // Stock inside a store sits in the buckets inventory_availability already
 // has; this is the master that names them, says which sell, and says which
-// each store uses (db/migrations_stage85_2_stock_locations.sql has the full
+// each store uses (db/migrations/migrations_stage85_2_stock_locations.sql has the full
 // map). Two kinds of bucket:
 //
 //   pools outside `available` - inward, in_transit, qc_hold, damaged, rtv.

@@ -88,17 +88,8 @@ func AssignWarehouseOwner(tenantID, locationCode, ownerID, assignedBy, note stri
 	if err != nil {
 		return err
 	}
-
-	var otherOwners int
-	if err := db.DB.QueryRow(fmt.Sprintf(`
-		SELECT COUNT(*) FROM %s.bin_stock_owner
-		 WHERE location_code = $1 AND owner_id <> $2 AND qty > 0`, schema),
-		locationCode, ownerID).Scan(&otherOwners); err != nil {
+	if err := refuseOtherOwnersStock(schema, locationCode, ownerID); err != nil {
 		return err
-	}
-	if otherOwners > 0 {
-		return &ValidationError{Code: "INVENT-0494", SubFor: "",
-			Message: fmt.Sprintf("%s still holds stock for %d other owner slice(s); move or re-attribute that stock before dedicating the warehouse to %s", locationCode, otherOwners, ownerID)}
 	}
 
 	_, err = db.DB.Exec(fmt.Sprintf(`
@@ -113,6 +104,53 @@ func AssignWarehouseOwner(tenantID, locationCode, ownerID, assignedBy, note stri
 			fmt.Sprintf("%s dedicated to owner %s. %s", locationCode, ownerID, note))
 	}
 	return err
+}
+
+// refuseOtherOwnersStock stops a dedication while the location still holds
+// another owner's stock (INVENT-0494).
+func refuseOtherOwnersStock(schema, locationCode, ownerID string) error {
+	var otherOwners int
+	if err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s.bin_stock_owner
+		 WHERE location_code = $1 AND owner_id <> $2 AND qty > 0`, schema),
+		locationCode, ownerID).Scan(&otherOwners); err != nil {
+		return err
+	}
+	if otherOwners > 0 {
+		return &ValidationError{Code: "INVENT-0494", SubFor: "",
+			Message: fmt.Sprintf("%s still holds stock for %d other owner slice(s); move or re-attribute that stock before dedicating the warehouse to %s", locationCode, otherOwners, ownerID)}
+	}
+	return nil
+}
+
+// claimUnassignedWarehouse is the first-owner claim as one insert that only an
+// unassigned location accepts. Writes racing into an empty warehouse used to
+// each see no owner and each upsert their own (found by item 47.9.1's parallel
+// load, ask 164): the claim was logged once per writer and a second owner got
+// in. Now one insert wins; the others get false and check the winner.
+func claimUnassignedWarehouse(tenantID, locationCode, ownerID string) (bool, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return false, err
+	}
+	if err := refuseOtherOwnersStock(schema, locationCode, ownerID); err != nil {
+		return false, err
+	}
+	const note = "Auto-dedicated on first owner-stock assignment (Stage 47.5.1 single-owner rule)."
+	res, err := db.DB.Exec(fmt.Sprintf(`
+		INSERT INTO %s.warehouse_owner (location_code, owner_id, assigned_by, note)
+		VALUES ($1, $2, 'system', $3)
+		ON CONFLICT (location_code) DO NOTHING`, schema),
+		locationCode, ownerID, note)
+	if err != nil {
+		return false, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return false, nil
+	}
+	LogAuditEvent(tenantID, "system", "WAREHOUSE_OWNER_ASSIGNED", "Success",
+		fmt.Sprintf("%s dedicated to owner %s. %s", locationCode, ownerID, note))
+	return true, nil
 }
 
 // AssertSingleOwnerForLocation is the guard every owner-stock write passes
@@ -143,8 +181,14 @@ func AssertSingleOwnerForLocation(tenantID, locationCode, ownerID string) error 
 		// First owner into an unassigned warehouse claims it. Recorded rather
 		// than merely permitted, so the next write has something to check
 		// against and an operator can see why the warehouse is dedicated.
-		return AssignWarehouseOwner(tenantID, locationCode, ownerID, "system",
-			"Auto-dedicated on first owner-stock assignment (Stage 47.5.1 single-owner rule).")
+		claimed, err := claimUnassignedWarehouse(tenantID, locationCode, ownerID)
+		if err != nil || claimed {
+			return err
+		}
+		// Another write claimed it first: hold this one to that owner.
+		if existing, err = WarehouseOwnerOf(tenantID, locationCode); err != nil {
+			return err
+		}
 	}
 	if existing != ownerID {
 		return &ValidationError{Code: "INVENT-0491", SubFor: "",

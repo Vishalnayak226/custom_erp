@@ -101,3 +101,35 @@ On 2026-10-19 (checklist Stage 97) the docs folder was reorganised. Paths below 
 | `governance/migration-plan.json` | deleted: preview of a September migration that never ran; this table replaces it |
 | `governance/migration-review.md` | deleted: preview of a September migration that never ran; this table replaces it |
 | `micro_checklist.pdf` | deleted: a local PDF export, never in git |
+| `engineering/contributing.md` | merged into [`CONTRIBUTING.md`](../../CONTRIBUTING.md) at the repository root, the project constitution (2026-11-10, item 159.1) |
+| `brain/BRAIN.md` | renamed to [`brain/brain-map.md`](../brain/brain-map.md) (2026-11-11, item 160.1) |
+| `guides/ADMIN_GUIDE.md` | renamed to [`guides/admin-guide.md`](../guides/admin-guide.md) (2026-11-11, item 160.1) |
+| `guides/ADMIN_SOP.md` | renamed to [`guides/admin-sop.md`](../guides/admin-sop.md) (2026-11-11, item 160.1) |
+| `guides/ERROR_CODES.md` | renamed to [`guides/error-codes.md`](../guides/error-codes.md) (2026-11-11, item 160.1) |
+| `guides/QZ_PRINTING_SETUP.md` | renamed to [`guides/qz-printing-setup.md`](../guides/qz-printing-setup.md) (2026-11-11, item 160.1) |
+| `guides/REPORT_CATALOG.md` | renamed to [`guides/report-catalog.md`](../guides/report-catalog.md) (2026-11-11, item 160.1) |
+| `guides/UAT_CHECKLIST.md` | renamed to [`guides/uat-checklist.md`](../guides/uat-checklist.md) (2026-11-11, item 160.1) |
+| `guides/USER_GUIDE.md` | renamed to [`guides/user-guide.md`](../guides/user-guide.md) (2026-11-11, item 160.1) |
+| `guides/USER_SOP.md` | renamed to [`guides/user-sop.md`](../guides/user-sop.md) (2026-11-11, item 160.1) |
+| `guides/img/MANIFEST.md` | renamed to [`guides/img/screenshot-manifest.md`](../guides/img/screenshot-manifest.md) (2026-11-11, item 160.1) |
+| `operations/backup_restore.md` | renamed to [`operations/backup-restore.md`](../operations/backup-restore.md) (2026-11-11, item 160.1) |
+| `operations/connector_live_verification.md` | renamed to [`operations/connector-live-verification.md`](../operations/connector-live-verification.md) (2026-11-11, item 160.1) |
+| `operations/go_live_decisions.md` | renamed to [`operations/go-live-decisions.md`](../operations/go-live-decisions.md) (2026-11-11, item 160.1) |
+| `operations/hypercare_plan.md` | renamed to [`operations/hypercare-plan.md`](../operations/hypercare-plan.md) (2026-11-11, item 160.1) |
+| `operations/incident_runbook.md` | renamed to [`operations/incident-runbook.md`](../operations/incident-runbook.md) (2026-11-11, item 160.1) |
+| `operations/pentest_scope.md` | renamed to [`operations/pentest-scope.md`](../operations/pentest-scope.md) (2026-11-11, item 160.1) |
+| `operations/restore_drill_log.md` | renamed to [`operations/restore-drill-log.md`](../operations/restore-drill-log.md) (2026-11-11, item 160.1) |
+| `operations/uat_run_sheet.md` | renamed to [`operations/uat-run-sheet.md`](../operations/uat-run-sheet.md) (2026-11-11, item 160.1) |
+| `qa/audit-deploy-mock.py` | renamed to [`qa/audit_deploy_mock.py`](../qa/audit_deploy_mock.py) (2026-11-11, item 160.1) |
+| `qa/audit-http.py` | renamed to [`qa/audit_http.py`](../qa/audit_http.py) (2026-11-11, item 160.1) |
+| `qa/audit-restore.py` | renamed to [`qa/audit_restore.py`](../qa/audit_restore.py) (2026-11-11, item 160.1) |
+| `qa/run-maturity-audit.py` | renamed to [`qa/run_maturity_audit.py`](../qa/run_maturity_audit.py) (2026-11-11, item 160.1) |
+| `qa/run-maturity-suites.py` | renamed to [`qa/run_maturity_suites.py`](../qa/run_maturity_suites.py) (2026-11-11, item 160.1) |
+| `qa/summarize-maturity-audit.py` | renamed to [`qa/summarize_maturity_audit.py`](../qa/summarize_maturity_audit.py) (2026-11-11, item 160.1) |
+| `qa/stage55-shared-correctness.cjs` | renamed to [`qa/shared-correctness.cjs`](../qa/shared-correctness.cjs) (2026-11-11, item 160.1) |
+| `security/outside_in_verification_2026-09-08.md` | renamed to [`security/outside-in-verification-2026-09-08.md`](../security/outside-in-verification-2026-09-08.md) (2026-11-11, item 160.1) |
+| `security/risk_register.md` | renamed to [`security/risk-register.md`](../security/risk-register.md) (2026-11-11, item 160.1) |
+| `security/threat_model.md` | renamed to [`security/threat-model.md`](../security/threat-model.md) (2026-11-11, item 160.1) |
+| `../scripts/verify_connector_live.ps1` | renamed to [`../scripts/verify-connector-live.ps1`](../../scripts/verify-connector-live.ps1) (2026-11-11, item 160.1) |
+| `../db/*.sql` | the 388 migrations moved into [`../db/migrations/`](../../db/migrations/), names unchanged (2026-11-11, item 103.3) |
+| stage-named Go files | 454 renamed by what they do; old to new in [`archive/renamed-files-2026-11-11.md`](renamed-files-2026-11-11.md) (2026-11-11, item 103.3) |

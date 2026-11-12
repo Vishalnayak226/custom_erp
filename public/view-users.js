@@ -17,7 +17,7 @@ const esc = (s) => window.escapeHTMLText(String(s ?? ''));
 // Stage 49.2.1: blank until the account next signs in.
 const signInWhen = (v) => {
   const d = v ? new Date(v) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  return d && !Number.isNaN(d.getTime()) ? formatDateTime(d) : '';
 };
 
 // Stage 93.9 (user, 2026-10-18): "People should be mapped. I want to mapped
@@ -49,33 +49,33 @@ export async function renderUsersView(container) {
   form.className = 'table-panel';
   form.style.padding = '24px';
   form.innerHTML = `
-    <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-grid s-270dd3">
+      <div class="form-group s-50435f">
         <label class="form-label" for="user-username">Username</label>
         <input type="text" id="user-username" class="form-input" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="user-password">Password</label>
         <input type="password" id="user-password" class="form-input" autocomplete="new-password" minlength="12">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="user-email">Email</label>
         <input type="email" id="user-email" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="user-role">Role</label>
         <select id="user-role" class="form-select">
           ${roles.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="user-location">Home store</label>
         <select id="user-location" class="form-select">
           ${stores.length ? stores.map(o => `<option value="${esc(o.code)}" ${o.code === 'HO' ? 'selected' : ''}>${esc(o.name)}</option>`).join('')
             : '<option value="HO">HO</option>'}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="user-department">Department<span class="required">*</span></label>
         <select id="user-department" class="form-select">
           ${departments.length ? `<option value="" disabled selected>— Pick a department —</option>${deptOptions('')}`
@@ -83,8 +83,8 @@ export async function renderUsersView(container) {
         </select>
       </div>
     </div>
-    <div style="margin-top: 16px;"><button class="btn btn-primary" id="user-create-btn">Create User</button></div>
-    <div id="user-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div class="s-4c0544"><button class="btn btn-primary" id="user-create-btn">Create User</button></div>
+    <div id="user-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const list = document.createElement('div');
@@ -93,17 +93,17 @@ export async function renderUsersView(container) {
     <table>
       <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
       <tbody>${users.length === 0
-        ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No users yet.</td></tr>`
+        ? `<tr><td colspan="9" class="s-306094">No users yet.</td></tr>`
         : users.map(u => `
         <tr>
-          <td style="font-weight:600;">${esc(u.username)}</td>
+          <td class="s-eed0f8">${esc(u.username)}</td>
           <td>${esc(u.email || '')}</td>
           <td>${esc(u.role)}</td>
           <td>${esc(storeName(u.location_code))}</td>
-          <td>${u.department ? esc(deptName(u.department)) : (u.role === 'Supplier' ? '' : '<span class="badge badge-warning">Not set</span>')}${u.employee_id ? ' <span style="color:var(--text-muted);">· from HR</span>' : ''}</td>
+          <td>${u.department ? esc(deptName(u.department)) : (u.role === 'Supplier' ? '' : '<span class="badge badge-warning">Not set</span>')}${u.employee_id ? ' <span class="s-5872de">· from HR</span>' : ''}</td>
           <td>${isAdminRoleName(u.role) ? 'All stores' : esc(store.storeAccessSummary(u.store_access, u.stores))}</td>
           <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${esc(u.status)}</span></td>
-          <td style="white-space:nowrap;">${esc(signInWhen(u.last_sign_in_at))}</td>
+          <td class="s-86abda"${u.last_sign_in_ip ? ` title="${esc(u.last_sign_in_ip)}"` : ''}>${esc(signInWhen(u.last_sign_in_at))}${u.last_sign_in_ip ? ` <span class="s-5872de">· ${esc(u.last_sign_in_ip)}</span>` : ''}</td>
           <td>
             <button class="action-btn" ${actionAttrs('editUserStores', [u.id, u.username])}>Stores</button>
             ${u.role === 'Supplier' ? '' : `<button class="action-btn" ${actionAttrs('editUserDepartment', [u.id, u.username, u.department || '', u.employee_id || ''])}>Department</button>`}
@@ -163,6 +163,12 @@ async function createUserInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  if (data.status === 'pending_approval') {
+    showToast(`User ${username} is waiting for approval in Approvals.`, { variant: 'success' });
+    txnDone('users-screen');
+    renderView('users');
+    return;
+  }
   // Stage 57.17: the password just typed is the administrator's, so the
   // server will ask the user to choose their own at first sign-in.
   showToast(`User ${username} created. Give them this password - they will be asked to set their own when they first sign in.`, { variant: 'success' });
@@ -186,7 +192,7 @@ export async function editUserDepartment(id, username, current, employeeId) {
   overlay.className = 'modal-overlay open';
   overlay.id = 'user-dept-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 420px;" role="dialog" aria-modal="true" aria-labelledby="user-dept-title">
+    <div class="modal-container s-41d843" role="dialog" aria-modal="true" aria-labelledby="user-dept-title">
       <div class="modal-header"><h3 class="modal-title" id="user-dept-title">Department - ${esc(username)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-ud-close>&times;</button></div>
       <div class="modal-body"><div class="form-group">

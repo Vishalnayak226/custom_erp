@@ -77,8 +77,8 @@ Core kernel and multi-tenancy; POS/checkout; inventory and warehouse operations;
 ## 7. Stakeholders
 
 - **Business owner/operator (the tenant)**: needs reliability, low cost, and a system that matches how their specific industry actually works.
-- **End users at the tenant** (cashiers, warehouse staff, accountants, managers): need role-appropriate access and a UI they can use without extensive training — see [`../guides/USER_GUIDE.md`](../../guides/USER_GUIDE.md).
-- **Platform operator** (whoever runs this SaaS): needs multi-tenant isolation, a real deployment/rollback/backup pipeline, and incident visibility — see [`../guides/ADMIN_GUIDE.md`](../../guides/ADMIN_GUIDE.md) and [`../operations/incident_runbook.md`](../../operations/incident_runbook.md).
+- **End users at the tenant** (cashiers, warehouse staff, accountants, managers): need role-appropriate access and a UI they can use without extensive training — see [`../guides/USER_GUIDE.md`](../../guides/user-guide.md).
+- **Platform operator** (whoever runs this SaaS): needs multi-tenant isolation, a real deployment/rollback/backup pipeline, and incident visibility — see [`../guides/ADMIN_GUIDE.md`](../../guides/admin-guide.md) and [`../operations/incident_runbook.md`](../../operations/incident-runbook.md).
 - **3rd-party developers** (future): a scoped, read-only extension framework already exists (`extension-sdk/`) for hooking into the platform without full core access.
 
 ## 8. Operating Model (who owns what, once this is a going concern)
@@ -91,6 +91,6 @@ Per the planning references, this should be governed like a product, not a one-t
 | Engineering Head / Architect | Architecture, technical standards, code quality, data model, extensibility. |
 | Business Analyst | This BRD, process mapping, validations, reports, UAT scenarios. |
 | QA | Test cases, regression, UAT support, concurrency/integration testing. |
-| Implementation/Support | Configuration, migration, training, go-live, incident response (see [`../operations/incident_runbook.md`](../../operations/incident_runbook.md)). |
+| Implementation/Support | Configuration, migration, training, go-live, incident response (see [`../operations/incident_runbook.md`](../../operations/incident-runbook.md)). |
 
 Client/industry-specific customization is handled through configuration first, scoped extension hooks second, and core code changes only when a genuinely reusable platform capability is required — never a per-client fork.

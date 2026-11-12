@@ -1,13 +1,13 @@
 # Security Assurance Statement
 
 <!-- GENERATED FILE - DO NOT EDIT BY HAND.
-     Source: `internal/server/VERSION`, `docs/security/risk_register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`
+     Source: `internal/server/VERSION`, `docs/security/risk-register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`
      Regenerate: `pwsh docs/update-docs.ps1 -Group Content` -->
 
-> **Generated 2026-09-10.** This page is produced from `internal/server/VERSION`, `docs/security/risk_register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`, for this source revision.
+> **Generated 2026-09-10.** This page is produced from `internal/server/VERSION`, `docs/security/risk-register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of 2026-11-04 (Stage 49.17.8). Not a certification.
+What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of 2026-11-12 (Stage 49.17.8). Not a certification.
 
 ## Supported version and configuration
 
@@ -23,7 +23,7 @@ Report through the channel in [SECURITY.md](../../../SECURITY.md): a private Git
 
 - **11 open risks** in the risk register (1 critical, 6 high, 2 low, 2 medium). High and critical ones:
   - R-02 Four bootstrap credentials ship in the repository (critical)
-  - R-01 Re-running `db/migration.sql` resets every rotated bootstrap password (high)
+  - R-01 Re-running `db/migrations/migration.sql` resets every rotated bootstrap password (high)
   - R-03 Connector credential key can exist only on one host, outside every backup (high)
   - R-07 Runtime, migration and backup identities are the same account (high)
   - R-08 No governed break-glass or support-access evidence path (high)

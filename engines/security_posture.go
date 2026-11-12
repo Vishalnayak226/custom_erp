@@ -117,11 +117,14 @@ type SecurityPosture struct {
 	// LastVerify (49.11.1): the verifier's last run and what it found.
 	LastVerify         *PostureVerify      `json:"last_verify,omitempty"`
 	AdminsWithout2FA   []string            `json:"admins_without_2fa"`
+	MFATierPolicy      string              `json:"mfa_tier_policy"`     // 49.2.3
+	MFATierLogged14d   int                 `json:"mfa_tier_logged_14d"` // 49.2.3
 	Credentials        []PostureCredential `json:"credentials"`
 	DeadLetteredJobs   int                 `json:"dead_lettered_jobs_7d"`
 	ExportsFrozen      bool                `json:"exports_frozen"`
 	IntegrationsFrozen bool                `json:"integrations_frozen"`
 	AlertsDelivered    bool                `json:"alerts_delivered"`
+	TestAlert          TestAlertState      `json:"test_alert"`
 	AuditRowsEstimate  int64               `json:"audit_rows_estimate"`
 	AuditWritesLost    int64               `json:"audit_writes_lost"`
 	AuditLossReason    string              `json:"audit_loss_reason,omitempty"`
@@ -203,6 +206,8 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 		creds.Close()
 	}
 
+	p.MFATierPolicy = MFATierPolicy(tenantID)
+	p.MFATierLogged14d = MFATierWouldRefuse14d(tenantID)
 	p.DormantDays = GetSettingInt(tenantID, SettingDormantAccountDays)
 	p.DormantAutoDisable = p.DormantDays > 0
 	if !p.DormantAutoDisable {
@@ -217,6 +222,7 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 	p.ExportsFrozen = GetSettingBool(tenantID, SettingFreezeExports)
 	p.IntegrationsFrozen = GetSettingBool(tenantID, SettingFreezeIntegrations)
 	p.AlertsDelivered = OpsAlertDeliveryStatus().DeliveryWouldBeSent
+	p.TestAlert = testAlertState(tenantID, schema)
 	p.AuditWritesLost, p.AuditLossReason, _ = AuditWriteLoss()
 	_ = db.DB.QueryRow(`SELECT COALESCE(c.reltuples, 0)::bigint FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE n.nspname = $1 AND c.relname = 'audit_logs'`, schema).Scan(&p.AuditRowsEstimate)

@@ -18,9 +18,9 @@ superseded_by: none
 # Secure human operations, support, devices and anti-social-engineering controls
 
 **Stage 49.14** — established 2026-09-16. Companion to
-[threat_model.md](threat_model.md) (the adversary personas this item designs
+[threat-model.md](threat-model.md) (the adversary personas this item designs
 for: malicious cashier/employee/manager/tenant admin, hostile tenant, support
-engineer, accidental operator), [risk_register.md](risk_register.md) and
+engineer, accidental operator), [risk-register.md](risk-register.md) and
 **49.2** (identity lifecycle — 49.14.8 depends on 49.2.1, still open). This
 document is scoped to *people, process and device posture*; it does not
 duplicate **49.3** (authorization/tenant isolation, not yet built) or
@@ -54,7 +54,7 @@ failed only *that* it did:
   account, a wrong password and a dead session token all fail with the "same
   generic failure as a bad password," by explicit comment at each branch.
 - `internal/server/middleware.go` — an expired token and a revoked/demoted
-  live-state token both return the identical generic 401 (`stage29_8_test.go`
+  live-state token both return the identical generic 401 (`deactivated_user_test.go`
   pins this: "no leak about why").
 - `internal/server/middleware_public_api.go` — every public-API auth failure
   (`publicAPIAuthFailureMessage`) is one shared constant, not a
@@ -192,7 +192,7 @@ would be speculative.
 ## 49.14.6 — Secure device/browser baseline
 
 **Partially documented, not formalized.**
-[`docs/guides/QZ_PRINTING_SETUP.md`](../guides/QZ_PRINTING_SETUP.md) is the
+[`docs/guides/qz-printing-setup.md`](../guides/qz-printing-setup.md) is the
 one existing "declared POS/RF endpoint" document — QZ Tray install,
 version, and the CSP exception Stage 40.8 found and fixed
 (`connect-src` needed `ws://localhost:*`/`wss://localhost.qz.io:*` for any

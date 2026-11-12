@@ -233,7 +233,9 @@ func TestImageDrive(tenantID string, in ImageDriveSettings) error {
 	if err != nil {
 		return err
 	}
-	return newS3Client(&s).checkConnection()
+	c := newS3Client(&s)
+	c.tenantID = tenantID
+	return c.checkConnection()
 }
 
 // activeImageDrive is where new images go: the tenant's drive when it is
@@ -243,7 +245,9 @@ func activeImageDrive(tenantID string) (*s3Client, error) {
 	if err != nil || s == nil || !s.Enabled {
 		return nil, err
 	}
-	return newS3Client(s), nil
+	c := newS3Client(s)
+	c.tenantID = tenantID
+	return c, nil
 }
 
 // imageDriveForRead reaches the drive an image was stored on - switched off
@@ -256,7 +260,9 @@ func imageDriveForRead(tenantID string) (*s3Client, error) {
 	if s == nil {
 		return nil, &ValidationError{Code: "PIM-0952", Message: "this image is on the image drive, and no image drive is set up"}
 	}
-	return newS3Client(s), nil
+	c := newS3Client(s)
+	c.tenantID = tenantID
+	return c, nil
 }
 
 // --- the S3 client ---------------------------------------------------------
@@ -264,6 +270,7 @@ func imageDriveForRead(tenantID string) (*s3Client, error) {
 type s3Client struct {
 	settings *ImageDriveSettings
 	http     *http.Client
+	tenantID string // the client the drive belongs to; a sandbox client never reaches it (47.12.6)
 }
 
 // imageDriveAllowPrivate lets an on-premise install use storage on its own
@@ -371,6 +378,10 @@ func lockOwnerPhotos(tenantID, code string) func() {
 }
 
 func (c *s3Client) do(method, key string, body []byte, contentType string) (*http.Response, error) {
+	if c.tenantID != "" && tenantIsSandboxCached(c.tenantID) { // 47.12.6
+		noteSandboxSuppressedForTenant(c.tenantID, method+" "+sandboxHostOf(c.settings.Endpoint))
+		return nil, &ValidationError{Code: "PIM-0951", Message: "this client is a sandbox - the image drive is not called"}
+	}
 	target := c.settings.Endpoint + "/" + s3URIEncode(c.settings.Bucket, true) + "/" + s3URIEncode(key, false)
 	req, err := http.NewRequest(method, target, bytes.NewReader(body))
 	if err != nil {

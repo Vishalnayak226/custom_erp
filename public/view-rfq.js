@@ -46,33 +46,33 @@ async function renderRFQView(container) {
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      ${rfqEditingId ? `<div class="form-group" style="margin-bottom: 0;"><span class="form-label">RFQ</span><div style="font-family: monospace; padding: 8px 0;">${esc(rfqEditingId)}</div></div>` : autoNumberField('RFQ Number', 'RFQ', '160px')}
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-location">Deliver to</label>
-        <input type="text" id="rfq-location" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-due">Quotes due by</label>
+    <div class="s-608a43">
+      ${rfqEditingId ? `<div class="form-group s-50435f"><span class="form-label">RFQ</span><div class="s-30f82d">${esc(rfqEditingId)}</div></div>` : autoNumberField('RFQ Number', 'RFQ', '160px')}
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-location">Deliver to</label>
+        <input type="text" id="rfq-location" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-due">Quotes due by</label>
         <input type="date" id="rfq-due" class="form-input"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-target-date">Goods needed by</label>
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-target-date">Goods needed by</label>
         <input type="date" id="rfq-target-date" class="form-input"></div>
     </div>
-    <h3 style="font-size: 14px; font-weight: 700; margin: 18px 0 8px;">Items asked for</h3>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-line-item">Item (optional)</label>
-        <input type="text" id="rfq-line-item" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;"><label class="form-label" for="rfq-line-desc">Description</label>
+    <h3 class="s-884200">Items asked for</h3>
+    <div class="s-608a43">
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-line-item">Item (optional)</label>
+        <input type="text" id="rfq-line-item" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group s-2ded36"><label class="form-label" for="rfq-line-desc">Description</label>
         <input type="text" id="rfq-line-desc" class="form-input" placeholder="Filled from the item, or describe it"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-line-uom">Unit</label>
-        <input type="text" id="rfq-line-uom" class="form-input" style="width: 90px;" value="Nos"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-line-qty">Qty</label>
-        <input type="number" id="rfq-line-qty" class="form-input" style="width: 100px;" min="0"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-line-uom">Unit</label>
+        <input type="text" id="rfq-line-uom" class="form-input s-34deaa" value="Nos"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-line-qty">Qty</label>
+        <input type="number" id="rfq-line-qty" class="form-input s-da190a" min="0"></div>
       <button class="btn btn-outline" id="rfq-line-add" type="button">Add line</button>
     </div>
-    <div id="rfq-lines" style="margin-top: 12px;"></div>
-    <div style="display: flex; gap: 12px; margin-top: 16px;">
+    <div id="rfq-lines" class="s-4bb900"></div>
+    <div class="s-f68ae0">
       <button class="btn btn-primary" id="rfq-create-btn">${rfqEditingId ? 'Save lines' : 'Create RFQ'}</button>
       ${rfqEditingId ? `<button class="btn btn-outline" type="button" ${actionAttrs('cancelRFQEdit', [])}>Start a new RFQ instead</button>` : ''}
     </div>
-    <div id="rfq-form-error" class="login-error hidden" style="margin-top: 16px;"></div>`;
+    <div id="rfq-form-error" class="login-error hidden s-4c0544"></div>`;
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -80,20 +80,20 @@ async function renderRFQView(container) {
   listPanel.innerHTML = `<table>
     <thead><tr><th>RFQ Number</th><th>Source requisition</th><th>Items</th><th>Deliver to</th><th>Quotes due</th><th>Vendors</th><th>Status</th><th></th></tr></thead>
     <tbody>${rfqs.length === 0
-      ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No RFQs yet.</td></tr>`
+      ? `<tr><td colspan="8" class="s-306094">No RFQs yet.</td></tr>`
       : rfqs.map(r => {
         const lines = parseList(r.lines);
         const inv = parseList(r.vendor_invitations).length ? parseList(r.vendor_invitations) : parseList(r.invited_vendors).map(v => ({ vendor: v, status: 'Invited' }));
         const responded = inv.filter(i => i.status === 'Responded').length;
         return `<tr${r.id === selectedRFQId ? ' style="background: var(--hover-bg, rgba(0,0,0,0.03));"' : ''}>
-          <td style="font-family: monospace;">${esc(r.code || r.id)}</td>
+          <td class="s-355794">${esc(r.code || r.id)}</td>
           <td>${documentSearchLink('PurchaseRequisition', r.source_requisition_id)}</td>
-          <td>${esc(r.description || '')}${lines.length ? `<div style="font-size: 11.5px; color: var(--text-muted);">${lines.length} line${lines.length === 1 ? '' : 's'}</div>` : ''}</td>
+          <td>${esc(r.description || '')}${lines.length ? `<div class="s-fbbffe">${lines.length} line${lines.length === 1 ? '' : 's'}</div>` : ''}</td>
           <td>${esc(r.location || '')}</td>
           <td>${esc(r.response_due_date || r.target_date || '')}</td>
-          <td>${inv.length ? `${responded}/${inv.length} quoted` : '<span style="color: var(--text-muted);">none</span>'}</td>
-          <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : r.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}">${esc(r.status || '')}</span>${r.awarded_po_id ? `<div style="font-size: 11.5px;">PO ${esc(r.awarded_po_id)}</div>` : ''}</td>
-          <td style="white-space: nowrap;"><button class="action-btn" ${actionAttrs('viewRFQQuotes', [r.id])}>Open</button></td>
+          <td>${inv.length ? `${responded}/${inv.length} quoted` : '<span class="s-d59bb5">none</span>'}</td>
+          <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : r.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}">${esc(r.status || '')}</span>${r.awarded_po_id ? `<div class="s-957b2a">PO ${esc(r.awarded_po_id)}</div>` : ''}</td>
+          <td class="s-1cd2ee"><button class="action-btn" ${actionAttrs('viewRFQQuotes', [r.id])}>Open</button></td>
         </tr>`;
       }).join('')}</tbody></table>`;
 
@@ -129,7 +129,7 @@ function renderRFQDraftLines() {
   const el = document.getElementById('rfq-lines');
   if (!el) return;
   el.innerHTML = rfqDraftLines.length === 0
-    ? '<p style="color: var(--text-muted); margin: 0;">No lines yet.</p>'
+    ? '<p class="s-bcef30">No lines yet.</p>'
     : `<table><thead><tr><th>#</th><th>Item</th><th>Description</th><th>Unit</th><th class="num">Qty</th><th></th></tr></thead><tbody>
       ${rfqDraftLines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.sku || '—')}</td><td>${esc(l.description || '')}</td><td>${esc(l.uom)}</td><td class="num">${num(l.qty)}</td>
         <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeRFQDraftLine', [i])}>Remove</button></td></tr>`).join('')}
@@ -225,18 +225,18 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
   head.style.padding = '20px';
   head.style.marginBottom = '16px';
   head.innerHTML = `
-    <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline;">
-      <h2 style="font-size: 16px; font-weight: 700; margin: 0;">RFQ ${esc(cmp.number)} <span class="badge ${cmp.status === 'Closed' ? 'badge-success' : cmp.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}">${esc(cmp.status)}</span></h2>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+    <div class="s-e469eb">
+      <h2 class="s-51f449">RFQ ${esc(cmp.number)} <span class="badge ${cmp.status === 'Closed' ? 'badge-success' : cmp.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}">${esc(cmp.status)}</span></h2>
+      <div class="s-aea80b">
         ${cmp.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('editRFQLines', [rfqId])}>Edit lines</button><button class="action-btn" ${actionAttrs('setRFQStatus', [rfqId, 'Sent'])}>Mark as Sent</button>` : ''}
         ${open && !cmp.awarded_po_id ? `<button class="action-btn" ${actionAttrs('setRFQStatus', [rfqId, 'Closed'])}>Close without award</button>` : ''}
       </div>
     </div>
-    <p style="margin: 6px 0 12px; color: var(--text-muted);">${cmp.location ? `Deliver to ${esc(cmp.location)}` : 'No deliver-to location yet'}${rfqRow && rfqRow.response_due_date ? ` · quotes due ${esc(rfqRow.response_due_date)}` : ''}</p>
-    ${cmp.awarded_po_id ? `<div class="notice" style="margin-bottom: 12px;">Awarded: purchase order <b>${esc(cmp.awarded_po_id)}</b> was created from quote ${esc(cmp.awarded_quote_id)}. <button class="action-btn" ${actionAttrs('openAwardedPO', [cmp.awarded_po_id])}>Open purchase orders</button></div>` : ''}
+    <p class="s-7f1b2d">${cmp.location ? `Deliver to ${esc(cmp.location)}` : 'No deliver-to location yet'}${rfqRow && rfqRow.response_due_date ? ` · quotes due ${esc(rfqRow.response_due_date)}` : ''}</p>
+    ${cmp.awarded_po_id ? `<div class="notice s-5beb8f">Awarded: purchase order <b>${esc(cmp.awarded_po_id)}</b> was created from quote ${esc(cmp.awarded_quote_id)}. <button class="action-btn" ${actionAttrs('openAwardedPO', [cmp.awarded_po_id])}>Open purchase orders</button></div>` : ''}
     ${lines.length ? `<table><thead><tr><th>#</th><th>Item</th><th>Description</th><th>Unit</th><th class="num">Qty</th></tr></thead><tbody>
       ${lines.map(l => `<tr><td>${l.line_no}</td><td>${esc(l.sku || '—')}</td><td>${esc(l.description)}</td><td>${esc(l.uom)}</td><td class="num">${num(l.qty)}</td></tr>`).join('')}</tbody></table>`
-      : `<p style="margin: 0;">This RFQ has no item lines yet.</p>`}`;
+      : `<p class="s-2a0ca8">This RFQ has no item lines yet.</p>`}`;
   container.appendChild(head);
 
   // Invited vendors and their responses.
@@ -246,17 +246,17 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
   vend.style.padding = '20px';
   vend.style.marginBottom = '16px';
   vend.innerHTML = `
-    <h3 style="font-size: 15px; font-weight: 700; margin: 0 0 10px;">Vendors</h3>
+    <h3 class="s-174a62">Vendors</h3>
     ${inv.length ? `<table><thead><tr><th>Vendor</th><th>Response</th><th>Due</th><th>Quote</th><th></th></tr></thead><tbody>
-      ${inv.map(i => `<tr><td>${esc(i.vendor_name || i.vendor)}${i.vendor_name && i.vendor_name !== i.vendor ? `<div style="font-size: 11px; color: var(--text-muted);">${esc(i.vendor)}</div>` : ''}</td>
-        <td><span class="badge ${i.status === 'Responded' ? 'badge-success' : i.status === 'Declined' ? 'badge-danger' : 'badge-warning'}">${esc(i.status)}</span>${i.decline_reason ? `<div style="font-size: 11.5px;">${esc(i.decline_reason)}</div>` : ''}</td>
+      ${inv.map(i => `<tr><td>${esc(i.vendor_name || i.vendor)}${i.vendor_name && i.vendor_name !== i.vendor ? `<div class="s-428d6b">${esc(i.vendor)}</div>` : ''}</td>
+        <td><span class="badge ${i.status === 'Responded' ? 'badge-success' : i.status === 'Declined' ? 'badge-danger' : 'badge-warning'}">${esc(i.status)}</span>${i.decline_reason ? `<div class="s-957b2a">${esc(i.decline_reason)}</div>` : ''}</td>
         <td>${esc(i.due_date || '')}</td><td>${esc(i.quote_id || '')}</td>
-        <td>${open && i.status === 'Invited' ? `<button class="action-btn" ${actionAttrs('declineRFQVendor', [rfqId, i.vendor])}>Declined</button>` : ''}</td></tr>`).join('')}
-      </tbody></table>` : '<p style="margin: 0; color: var(--text-muted);">No vendors invited yet.</p>'}
-    ${open ? `<div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-invite-vendor">Vendor</label>
-        <input type="text" id="rfq-invite-vendor" class="form-input" style="width: 220px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="rfq-invite-due">Reply by</label>
+        <td>${open && i.status === 'Invited' ? `<button class="action-btn" ${actionAttrs('keyRFQReply', [i.vendor])}>Key reply</button> <button class="action-btn" ${actionAttrs('declineRFQVendor', [rfqId, i.vendor])}>Declined</button>` : ''}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="s-aeec17">No vendors invited yet.</p>'}
+    ${open ? `<div class="s-cdbe80">
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-invite-vendor">Vendor</label>
+        <input type="text" id="rfq-invite-vendor" class="form-input s-30080b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="rfq-invite-due">Reply by</label>
         <input type="date" id="rfq-invite-due" class="form-input" value="${esc((rfqRow && rfqRow.response_due_date) || '')}"></div>
       <button class="btn btn-outline" id="rfq-invite-btn" type="button">Invite</button></div>` : ''}`;
   container.appendChild(vend);
@@ -279,11 +279,11 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
   panel.style.overflowX = 'auto';
   const best = cmp.best_by_line || {};
   panel.innerHTML = quotes.length === 0
-    ? `<p style="margin: 0; color: var(--text-muted);">No quotes recorded yet.</p>`
-    : `<table><thead><tr><th>Line</th>${quotes.map(q => `<th class="num">${esc(q.vendor_name || q.vendor)}<div style="font-size: 11px; font-weight: 400;">${esc(q.number)}${q.recommended ? ' · <b>Recommended</b>' : ''}${q.status === 'Selected' ? ' · <b>Awarded</b>' : ''}</div></th>`).join('')}</tr></thead>
-      <tbody>${lines.map(l => `<tr><td>${l.line_no}. ${esc(l.description)} <span style="color: var(--text-muted);">(${num(l.qty)} ${esc(l.uom)})</span></td>
-        ${quotes.map(q => { const ql = (q.lines || []).find(x => x.line_no === l.line_no); if (!ql || ql.not_quoted) return '<td class="num" style="color: var(--text-muted);">not quoted</td>';
-          return `<td class="num">₹${money(ql.unit_price)}${ql.uom && ql.uom !== l.uom ? `/${esc(ql.uom)}` : ''}${ql.tax_rate ? ` +${num(ql.tax_rate)}%` : ''}<div style="font-size: 11.5px;">₹${money((q.landed_unit || {})[l.line_no])} landed${best[l.line_no] === q.quote_id ? ' <span class="badge badge-success">best</span>' : ''}</div></td>`; }).join('')}</tr>`).join('')}
+    ? `<p class="s-aeec17">No quotes recorded yet.</p>`
+    : `<table><thead><tr><th>Line</th>${quotes.map(q => `<th class="num">${esc(q.vendor_name || q.vendor)}<div class="s-4b79d0">${esc(q.number)}${q.recommended ? ' · <b>Recommended</b>' : ''}${q.status === 'Selected' ? ' · <b>Awarded</b>' : ''}</div></th>`).join('')}</tr></thead>
+      <tbody>${lines.map(l => `<tr><td>${l.line_no}. ${esc(l.description)} <span class="s-d59bb5">(${num(l.qty)} ${esc(l.uom)})</span></td>
+        ${quotes.map(q => { const ql = (q.lines || []).find(x => x.line_no === l.line_no); if (!ql || ql.not_quoted) return '<td class="num s-d59bb5">not quoted</td>';
+          return `<td class="num">₹${money(ql.unit_price)}${ql.uom && ql.uom !== l.uom ? `/${esc(ql.uom)}` : ''}${ql.tax_rate ? ` +${num(ql.tax_rate)}%` : ''}<div class="s-957b2a">₹${money((q.landed_unit || {})[l.line_no])} landed${best[l.line_no] === q.quote_id ? ' <span class="badge badge-success">best</span>' : ''}</div></td>`; }).join('')}</tr>`).join('')}
         <tr><td>Lines (ex tax)</td>${quotes.map(q => `<td class="num">₹${money(q.subtotal)}</td>`).join('')}</tr>
         <tr><td>Tax</td>${quotes.map(q => `<td class="num">₹${money(q.tax_total)}</td>`).join('')}</tr>
         <tr><td>Freight</td>${quotes.map(q => `<td class="num">₹${money(q.freight_amount)}</td>`).join('')}</tr>
@@ -292,7 +292,7 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
         <tr><td>Payment terms</td>${quotes.map(q => `<td class="num">${esc(q.payment_terms || '—')}</td>`).join('')}</tr>
         <tr><td>Valid until</td>${quotes.map(q => `<td class="num">${esc(q.valid_until || '—')}${q.expired ? ' <span class="badge badge-danger">expired</span>' : ''}</td>`).join('')}</tr>
         <tr><td>Lines quoted</td>${quotes.map(q => `<td class="num">${q.lines_quoted}/${lines.length}${q.complete ? '' : ' <span class="badge badge-warning">partial</span>'}</td>`).join('')}</tr>
-        <tr><td>Track record</td>${quotes.map(q => { const s = q.scorecard, p = x => x == null ? 'No data' : `${x}%`; return `<td class="num">${s ? `On time ${p(s.on_time_pct)} · Fill ${p(s.fill_pct)} · QC reject ${p(s.qc_reject_pct)}<div style="font-size: 11.5px;">Price ${s.price_variance_pct == null ? 'No data' : `${s.price_variance_pct > 0 ? '+' : ''}${s.price_variance_pct}%`} · Bill holds ${s.bill_mismatches}</div>` : '—'}</td>`; }).join('')}</tr>
+        <tr><td>Track record</td>${quotes.map(q => { const s = q.scorecard, p = x => x == null ? 'No data' : `${x}%`; return `<td class="num">${s ? `On time ${p(s.on_time_pct)} · Fill ${p(s.fill_pct)} · QC reject ${p(s.qc_reject_pct)}<div class="s-957b2a">Price ${s.price_variance_pct == null ? 'No data' : `${s.price_variance_pct > 0 ? '+' : ''}${s.price_variance_pct}%`} · Bill holds ${s.bill_mismatches}</div>` : '—'}</td>`; }).join('')}</tr>
         ${!cmp.awarded_po_id ? `<tr><td></td>${quotes.map(q => `<td class="num">${q.expired ? '' : `<button class="action-btn" ${actionAttrs('awardRFQQuote', [rfqId, q.quote_id])}>Award</button>`}</td>`).join('')}</tr>` : ''}
       </tbody></table>`;
 
@@ -305,31 +305,31 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
   form.className = 'table-panel';
   form.style.padding = '20px';
   form.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${autoNumberField('Quote Number', 'QTN', '160px')}
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="quote-vendor">Vendor</label>
-        <input type="text" id="quote-vendor" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="quote-valid">Valid until</label>
+      <div class="form-group s-50435f"><label class="form-label" for="quote-vendor">Vendor</label>
+        <input type="text" id="quote-vendor" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="quote-valid">Valid until</label>
         <input type="date" id="quote-valid" class="form-input"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="quote-freight">Freight (₹)</label>
-        <input type="number" id="quote-freight" class="form-input" style="width: 110px;" min="0" value="0"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="quote-terms">Payment terms</label>
-        <input type="text" id="quote-terms" class="form-input" style="width: 160px;" placeholder="e.g. 30 days"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="quote-lead">Lead time (days)</label>
-        <input type="number" id="quote-lead" class="form-input" style="width: 100px;" min="0"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="quote-freight">Freight (₹)</label>
+        <input type="number" id="quote-freight" class="form-input s-148b84" min="0" value="0"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="quote-terms">Payment terms</label>
+        <input type="text" id="quote-terms" class="form-input s-56cae7" placeholder="e.g. 30 days"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="quote-lead">Lead time (days)</label>
+        <input type="number" id="quote-lead" class="form-input s-da190a" min="0"></div>
     </div>
-    <table style="margin-top: 14px;"><thead><tr><th>Line</th><th>Vendor's unit</th><th>RFQ units in one</th><th class="num">Unit price (₹)</th><th class="num">Tax %</th><th class="num">Lead days</th><th>Not quoted</th></tr></thead>
+    <table class="s-dffc4d"><thead><tr><th>Line</th><th>Vendor's unit</th><th>RFQ units in one</th><th class="num">Unit price (₹)</th><th class="num">Tax %</th><th class="num">Lead days</th><th>Not quoted</th></tr></thead>
       <tbody>${lines.map(l => `<tr data-line="${l.line_no}">
-        <td>${l.line_no}. ${esc(l.description)} <span style="color: var(--text-muted);">(${num(l.qty)} ${esc(l.uom)})</span></td>
-        <td><input class="form-input ql-uom" style="width: 80px;" value="${esc(l.uom)}" aria-label="Vendor unit for line ${l.line_no}"></td>
-        <td><input type="number" class="form-input ql-per" style="width: 90px;" min="0" placeholder="same" aria-label="RFQ units in one vendor unit, line ${l.line_no}"></td>
-        <td><input type="number" class="form-input ql-price" style="width: 110px;" min="0" aria-label="Unit price, line ${l.line_no}"></td>
-        <td><input type="number" class="form-input ql-tax" style="width: 80px;" min="0" value="18" aria-label="Tax rate, line ${l.line_no}"></td>
-        <td><input type="number" class="form-input ql-lead" style="width: 80px;" min="0" aria-label="Lead days, line ${l.line_no}"></td>
+        <td>${l.line_no}. ${esc(l.description)} <span class="s-d59bb5">(${num(l.qty)} ${esc(l.uom)})</span></td>
+        <td><input class="form-input ql-uom s-dabaad" value="${esc(l.uom)}" aria-label="Vendor unit for line ${l.line_no}"></td>
+        <td><input type="number" class="form-input ql-per s-34deaa" min="0" placeholder="same" aria-label="RFQ units in one vendor unit, line ${l.line_no}"></td>
+        <td><input type="number" class="form-input ql-price s-148b84" min="0" aria-label="Unit price, line ${l.line_no}"></td>
+        <td><input type="number" class="form-input ql-tax s-dabaad" min="0" value="18" aria-label="Tax rate, line ${l.line_no}"></td>
+        <td><input type="number" class="form-input ql-lead s-dabaad" min="0" aria-label="Lead days, line ${l.line_no}"></td>
         <td><input type="checkbox" class="ql-skip" aria-label="Line ${l.line_no} not quoted"></td></tr>`).join('')}</tbody></table>
-    <p style="margin: 8px 0 0; color: var(--text-muted);">A newer quote from this vendor replaces their earlier one.</p>
-    <div style="display: flex; gap: 12px; margin-top: 14px;"><button class="btn btn-primary" id="quote-submit-btn">Record Quote</button></div>
-    <div id="quote-form-error" class="login-error hidden" style="margin-top: 12px;"></div>`;
+    <p class="s-a30b5f">A newer quote from this vendor replaces their earlier one.</p>
+    <div class="s-650bec"><button class="btn btn-primary" id="quote-submit-btn">Record Quote</button></div>
+    <div id="quote-form-error" class="login-error hidden s-4bb900"></div>`;
   const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
   container.appendChild(txnPagedSection({ id: 'rfq-quotes', title: `Quotes for ${esc(cmp.number)}`, page: 'Record quote', count: quotes.length,
     newLabel: 'Record Quote', form, list: panel, heading: 'h2' }));
@@ -366,6 +366,15 @@ async function submitVendorQuote(rfqId) {
   renderView('rfq');
 }
 
+// Stage 148.18: an offline vendor's reply (phone, paper) is keyed on the same
+// Record Quote page, with the vendor already chosen.
+function keyRFQReply(vendor) {
+  const input = document.getElementById('quote-vendor');
+  if (!input) return;
+  input.value = vendor;
+  window.txnShowPane('rfq-quotes:new');
+}
+
 async function declineRFQVendor(rfqId, vendor) {
   const reason = await showCustomPrompt(`Why is ${vendor} not quoting? (optional)`, '', 'Vendor declined');
   if (reason === null) return;
@@ -386,15 +395,15 @@ async function awardRFQQuote(rfqId, quoteId) {
   overlay.className = 'modal-overlay';
   overlay.id = 'rfq-award-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 620px;" role="dialog" aria-modal="true" aria-labelledby="rfq-award-title">
+    <div class="modal-container s-be6686" role="dialog" aria-modal="true" aria-labelledby="rfq-award-title">
       <div class="modal-header"><h3 class="modal-title" id="rfq-award-title">Award to ${esc(q.vendor_name || q.vendor)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-award-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
-        <p style="margin: 0;">Draft PO from quote ${esc(q.number)} - ₹${money(q.subtotal)} + tax, freight ₹${money(q.freight_amount)}, ${esc(q.payment_terms || 'no stated terms')}. Other quotes are rejected; cannot be undone.</p>
+      <div class="modal-body s-a4aea4">
+        <p class="s-2a0ca8">Draft PO from quote ${esc(q.number)} - ₹${money(q.subtotal)} + tax, freight ₹${money(q.freight_amount)}, ${esc(q.payment_terms || 'no stated terms')}. Other quotes are rejected; cannot be undone.</p>
         <div class="form-group"><label class="form-label" for="award-location">Deliver to</label><input id="award-location" class="form-input" autocomplete="off" value="${esc(cmp.location || '')}"></div>
         ${freeText.map(l => `<div class="form-group" data-freeline="${l.line_no}"><label class="form-label" for="award-item-${l.line_no}">Line ${l.line_no}: ${esc(l.description)} - item for the PO</label>
-          <div style="display: flex; gap: 10px; align-items: center;"><input id="award-item-${l.line_no}" class="form-input award-item" autocomplete="off" style="flex: 1;">
-          <label style="display: flex; gap: 6px; align-items: center; white-space: nowrap;"><input type="checkbox" class="award-skip"> Leave out</label></div></div>`).join('')}
+          <div class="s-4997cd"><input id="award-item-${l.line_no}" class="form-input award-item s-634a28" autocomplete="off">
+          <label class="s-3d559d"><input type="checkbox" class="award-skip"> Leave out</label></div></div>`).join('')}
         <div id="award-error" class="login-error hidden"></div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-award-close>Cancel</button><button type="button" class="btn btn-primary" id="award-submit">Create Purchase Order</button></div>
@@ -434,5 +443,5 @@ function openAwardedPO() {
 
 export {
   renderRFQView, viewRFQQuotes, removeRFQDraftLine, editRFQLines, cancelRFQEdit, setRFQStatus,
-  declineRFQVendor, awardRFQQuote, openAwardedPO, submitVendorQuote
+  declineRFQVendor, awardRFQQuote, openAwardedPO, submitVendorQuote, keyRFQReply
 };

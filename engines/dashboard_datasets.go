@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -785,14 +784,4 @@ func datasetValue(v interface{}) interface{} {
 		return x.Format("2006-01-02")
 	}
 	return v
-}
-
-// DatasetKeys lists the dataset keys in order (tests, ready-made checks).
-func DatasetKeys() []string {
-	out := make([]string, 0, len(dashboardDatasets))
-	for _, d := range dashboardDatasets {
-		out = append(out, d.Key)
-	}
-	sort.Strings(out)
-	return out
 }

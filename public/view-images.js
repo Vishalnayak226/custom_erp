@@ -233,7 +233,7 @@ export async function renderPOImages(screen, poId, { head }) {
   const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/images`);
   if (!res) return;
   if (!res.ok) {
-    screen.querySelector('.img-page').innerHTML = `<p style="color: var(--danger-color);">${esc(await getErrorMessage(res, 'The images for this purchase order could not be loaded.'))}</p>`;
+    screen.querySelector('.img-page').innerHTML = `<p class="s-aeae78">${esc(await getErrorMessage(res, 'The images for this purchase order could not be loaded.'))}</p>`;
     return;
   }
   const p = await res.json();
@@ -412,7 +412,7 @@ export async function renderImageDriveSection(host) {
   }
   const v = await res.json();
   const inputs = DRIVE_FIELDS.map(f => `
-    <div class="form-group${f.wide ? ' is-wide' : ''}" style="margin:0 0 12px;">
+    <div class="form-group${f.wide ? ' is-wide' : ''} s-249d01">
       <label class="form-label" for="imgdrive-${f.name}">${esc(f.label)}</label>
       <input type="${f.secret ? 'password' : 'text'}" class="form-input" id="imgdrive-${f.name}" autocomplete="off"
              value="${f.secret ? '' : esc(v[f.name] || '')}"

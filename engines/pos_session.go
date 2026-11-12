@@ -390,10 +390,25 @@ func closePOSSession(tenantID, sessionID, cashier string, countedCash float64, v
 	if err != nil {
 		return nil, err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`
-		UPDATE %s.documents SET data = $1, status = $3, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2`, schema), marshaled, sessionID, res.Status)
+	// Stage 162.9: a close within tolerance posts its variance in the same
+	// transaction as the status change (140.12.11), so the session is never
+	// Closed with its cash variance missing from the ledger.
+	closeTx, err := db.DB.Begin()
 	if err != nil {
+		return nil, err
+	}
+	defer closeTx.Rollback()
+	if _, err = closeTx.Exec(fmt.Sprintf(`
+		UPDATE %s.documents SET data = $1, status = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2`, schema), marshaled, sessionID, res.Status); err != nil {
+		return nil, err
+	}
+	if res.RequiredApprover == "" {
+		if err := postTillVarianceTx(closeTx, tenantID, schema, sessionID); err != nil {
+			return nil, fmt.Errorf("the till was not closed: its cash variance could not be posted: %w", err)
+		}
+	}
+	if err := closeTx.Commit(); err != nil {
 		return nil, err
 	}
 	if res.RequiredApprover != "" {
@@ -403,9 +418,6 @@ func closePOSSession(tenantID, sessionID, cashier string, countedCash float64, v
 			return nil, err
 		}
 		res.Status = "Pending Approval"
-	} else if err := postTillVariance(tenantID, sessionID); err != nil {
-		// 140.12.11: a close within tolerance posts its variance at once.
-		log.Printf("[WARN] till %s closed but its cash variance was not posted: %v", sessionID, err)
 	}
 
 	gap, gapErr := detectOfflineQueueGap(tenantID, schema, sessionID)

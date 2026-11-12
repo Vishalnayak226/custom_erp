@@ -60,30 +60,6 @@ func handleFXRevaluation(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(run)
 }
 
-// settlementOptionsFromRequest reads the optional settlement facts off a
-// request body. Shared by the AR and AP settlement handlers so the two cannot
-// spell the same two fields differently.
-//
-// Everything is optional and a malformed or absent body yields the zero value,
-// which reproduces the pre-37.1.3 behaviour exactly: settle at today's rate.
-// That is deliberate rather than lax - these endpoints are already called by
-// the existing frontend with no body at all, and a settlement that started
-// refusing requests it used to accept would be a regression dressed as a
-// feature.
-func settlementOptionsFromRequest(r *http.Request) engines.SettlementOptions {
-	var body struct {
-		SettlementDate string  `json:"settlement_date"`
-		ExchangeRate   float64 `json:"exchange_rate"`
-	}
-	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&body)
-	}
-	return engines.SettlementOptions{
-		SettlementDate: strings.TrimSpace(body.SettlementDate),
-		ExchangeRate:   body.ExchangeRate,
-	}
-}
-
 // handleTrialBalancePresentationCurrency serves the translated trial balance.
 // It exists alongside the registered report because the existing
 // /finance/trial-balance endpoint is what the Finance screen already calls, and

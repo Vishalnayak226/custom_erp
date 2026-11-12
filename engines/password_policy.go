@@ -22,7 +22,7 @@ import (
 // method": nothing about a candidate password ever leaves this process, at
 // the cost of covering a curated few hundred entries rather than billions.
 // It is not a claim of exhaustive breach-corpus coverage - see
-// docs/security/risk_register.md if a stronger source is ever adopted.
+// docs/security/risk-register.md if a stronger source is ever adopted.
 //
 //go:embed common_passwords.txt
 var commonPasswordsRaw string

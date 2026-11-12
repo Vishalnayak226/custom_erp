@@ -217,6 +217,8 @@ func handleMyModules(w http.ResponseWriter, r *http.Request) {
 			"url_prefix":   pkg.URLPrefix,
 		}
 	}
+	// Stage 47.14.5: the role's landing and the sidebar's maturity labels.
+	resp["nav"] = engines.NavForRole(tenantID, r.Header.Get("Resolved-Role"))
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
@@ -370,7 +372,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	locationCode := r.Header.Get("Resolved-Location")
 	newToken := engines.SignToken(userID, username, role, tenantID, locationCode, newCredentialVersion)
-	engines.RecordSignIn(tenantID, userID) // 49.2.1a
+	engines.RecordSignInFrom(r.Context(), tenantID, userID) // 49.2.1a
 	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
 	engines.RecordPrivilegedSession(r.Context(), tenantID, userID, username, role, newToken, newCredentialVersion)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "token": newToken})

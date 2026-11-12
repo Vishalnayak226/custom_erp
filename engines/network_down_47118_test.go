@@ -81,7 +81,7 @@ func TestNetworkDownCourierLeavesBookingUnchanged(t *testing.T) {
 	}
 	var ready bool
 	if err := db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM ` + schema + `.doctype_meta WHERE name='NDRCase')`).Scan(&ready); err != nil || !ready {
-		t.Skip("db/migrations_stage35_5_courier_integration.sql has not been applied")
+		t.Skip("db/migrations/migrations_stage35_5_courier_integration.sql has not been applied")
 	}
 	registerCourierAdapter(nd47118Courier{})
 	const bookingID = "TEST-NETDOWN-47118"

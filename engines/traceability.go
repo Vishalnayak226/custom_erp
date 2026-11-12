@@ -1571,22 +1571,6 @@ func ValidateLotForCustomer(tenantID, customer, sku, batchNo string) error {
 	return nil
 }
 
-// sortBatchStockByExpiry orders a batch-stock slice earliest-expiry-first with
-// undated lots last - the same ordering the SQL applies, available to callers
-// that have already got the rows in hand.
-func sortBatchStockByExpiry(rows []BatchStockRow) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		a, b := rows[i].ExpiryDate, rows[j].ExpiryDate
-		if (a == "") != (b == "") {
-			return b == ""
-		}
-		if a != b {
-			return a < b
-		}
-		return rows[i].BinCode < rows[j].BinCode
-	})
-}
-
 // ---------------------------------------------------------------------------
 // Batch lookup and ageing - "scan it and know which day it came in".
 //

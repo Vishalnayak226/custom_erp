@@ -43,14 +43,14 @@ export async function openPieceCorrection(doctype, id) {
   overlay.id = 'piece-correction-modal';
   const draw = (v) => {
     overlay.innerHTML = `
-      <div class="modal-container" style="max-width:920px;width:94vw;">
+      <div class="modal-container s-08760d">
         <div class="modal-header"><h3 class="modal-title">Correct ${esc(v.ref || id)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
-        <div class="modal-body" style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
-          <div style="flex:1 1 280px;min-width:260px;">
+        <div class="modal-body s-d1b80a">
+          <div class="s-15e3bf">
             ${v.fields.map(f => `<div class="form-group"><label class="form-label">${esc(f.label)}</label>${fieldInput(f, v.values[f.key] || '')}</div>`).join('')}
             <div class="form-group"><label class="form-label">Reason</label><input class="form-input" data-pc-reason type="text"></div>
           </div>
-          <div class="table-wrapper" style="flex:2 1 380px;min-width:300px;">
+          <div class="table-wrapper s-eff49b">
             <table><thead><tr><th>When</th><th>Who</th><th>Change</th><th>Reason</th></tr></thead><tbody>${historyRows(v.history)}</tbody></table>
           </div>
         </div>

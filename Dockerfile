@@ -45,7 +45,7 @@
 # only the container path is.
 ARG RUNTIME_BASE=gcr.io/distroless/static-debian12:debug
 
-FROM golang:1.27-bookworm AS builder
+FROM golang:1.27.4-bookworm AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

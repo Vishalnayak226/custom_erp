@@ -128,11 +128,19 @@ func SaveBrandLogo(tenantID string, content []byte) error {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, content, 0o640); err != nil {
-		return err
+	if err := writeBrandFile(tmp, content, 0o640); err != nil {
+		_ = os.Remove(tmp) // 49.10.5: never leave a half-written temp file
+		return mediaDiskError("brand logo", err)
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return mediaDiskError("brand logo", err)
+	}
+	return nil
 }
+
+// writeBrandFile is a variable so a test can stand in a full disk (49.10.5).
+var writeBrandFile = os.WriteFile
 
 // DeleteBrandLogo removes the logo; the standard one shows again.
 func DeleteBrandLogo(tenantID string) error {

@@ -277,11 +277,16 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		return nil, fmt.Errorf("inventory decrement failed: %w", err)
 	}
 	// Stage 148.1: named pieces and lots cost what they cost.
-	pieceDelta, err := settleNamedPiecesTx(tx, schema, saleCosts, cart.OfflineSynced)
+	pieceDelta, err := settleNamedPiecesTx(tx, schema, saleCosts, cart.OfflineSynced, cart.CustomerID)
 	if err != nil {
 		return nil, err
 	}
 	totalCostPaise += pieceDelta
+	memoDelta, err := settleMemoStockTx(tx, tenantID, schema, "POSCart", cartNumber, cashier, saleCosts) // 148.16
+	if err != nil {
+		return nil, err
+	}
+	totalCostPaise += memoDelta
 
 	// Stage 73.1.1: the bill's offer discount, line by line. Revenue, the
 	// points cap, gift cards and the earn base all work from the net - what
@@ -547,6 +552,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		// review/reconcile (e.g. against the next GRN), never silently lost.
 		recordOfflineSyncVariance(tenantID, cartNumber, negativeEvents)
 	}
+	AccrueSaleIncentivesLogged(tenantID, "POSCart", cartNumber) // 148.30: after the commit, never blocks the sale
 	for _, gap := range costingGaps {
 		RecordCostingGap(tenantID, cartNumber, gap.SKU, gap.Qty, gap.SaleValue)
 	}

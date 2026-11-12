@@ -157,7 +157,7 @@ one id and one invoice chain. At least one line has to stay behind.
 ## Money
 
 **The trial balance does not balance.**
-Something upstream failed to post. Check **Finance / GL** with **As Of Date**
+Something upstream failed to post. Check **Trial Balance** with **As Of Date**
 set to today, then work backwards through the day's receipts and invoices. The
 sooner you look, the smaller the search.
 

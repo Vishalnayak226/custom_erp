@@ -82,7 +82,7 @@ try {
     }
     Assert-ReadOnly 'pwsh' @('-NoProfile', '-File', 'docs/update-docs.ps1', '-Group', 'Content', '-Check') $null
     Assert-ReadOnly 'go' @('run', './cmd/brainmap', '-check') $null
-    foreach ($rel in @('docs/guides/ERROR_CODES.md', 'internal/kb/content/articles/report-catalog.html', 'docs/brain/BRAIN.md', 'docs/user/user-manual.html', 'docs/security/attack_surface.json')) {
+    foreach ($rel in @('docs/guides/error-codes.md', 'internal/kb/content/articles/report-catalog.html', 'docs/brain/brain-map.md', 'docs/user/user-manual.html', 'docs/security/attack_surface.json')) {
         Add-Content -LiteralPath $rel -Value 'Intentional drift fixture.'
     }
     Assert-ReadOnly 'pwsh' @('-NoProfile', '-File', 'docs/guides/update-guides.ps1', '-Check') $true

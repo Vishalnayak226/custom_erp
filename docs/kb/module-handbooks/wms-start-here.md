@@ -81,7 +81,7 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 
 ## Watching the floor
 
-- **Warehouse Cockpit**: one location's open tasks, exceptions, waves, inbound deliveries due, throughput and bin use, with Labour and Billing tabs. It changes no stock.
+- **Warehouse Cockpit**: one location's open tasks, exceptions, waves, inbound deliveries due, throughput and bin use, with **Labour** and **Warehouse Billing** as their own entries beside it. It changes no stock.
 - **Waves**: the list of every wave and its status. A status moves only one step forward at a time.
 - **Cross-Dock Plans**: say that a quantity of an item should go straight out to a destination. Putaway's **Stage Against Plan** uses the oldest open plan for that item and moves the stock into a cross-dock bin.
 

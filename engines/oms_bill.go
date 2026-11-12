@@ -54,6 +54,9 @@ func GenerateOMSBillForPackage(tenantID, packageID, userID string, opts PackInvo
 	if err := shippingPackageMutableStatus(p.Status); err != nil {
 		return "", "", err
 	}
+	if err := refuseSummaryPackageBill(tenantID, p.OrderID); err != nil { // Stage 148.31
+		return "", "", err
+	}
 	if len(p.Items) == 0 {
 		return "", "", fmt.Errorf("shipping package %s has nothing in it to bill", packageID)
 	}
@@ -91,16 +94,21 @@ func GenerateOMSBillForPackage(tenantID, packageID, userID string, opts PackInvo
 	if ref, _ := orderFieldString(schema, p.OrderID, "customer_reference"); ref != "" {
 		data["customer_reference"] = ref
 	}
-	encoded, err := json.Marshal(data)
-	if err != nil {
-		return "", "", err
-	}
-
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return "", "", err
 	}
 	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return "", "", err
+	}
+	if err := addOMSBillShipping(tx, schema, p.OrderID, data, bill); err != nil { // Stage 148.46
+		return "", "", err
+	}
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return "", "", err
+	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'OMSBill', $2, $3, 'system')`, schema),
 		billID, encoded, OMSBillIssued); err != nil {
@@ -118,7 +126,7 @@ func GenerateOMSBillForPackage(tenantID, packageID, userID string, opts PackInvo
 		return "", "", err
 	}
 	LogAuditEvent(tenantID, userID, "CREATE_OMS_BILL", "SUCCESS",
-		fmt.Sprintf("OMS bill %s (%s) for shipping package %s (order %s, total=%.2f, %s)", billID, billNumber, packageID, p.OrderID, bill.amounts.Total, bill.basis))
+		fmt.Sprintf("OMS bill %s (%s) for shipping package %s (order %s, total=%.2f, %s)", billID, billNumber, packageID, p.OrderID, data["total_amount"], bill.basis))
 	return billID, billNumber, nil
 }
 
@@ -154,7 +162,7 @@ func RaiseERPBillForPackage(tenantID, packageID, userID string) (string, error) 
 		// D5: the OMS bill's number is the GST invoice; this bill carries it.
 		"invoice_number": bill["bill_number"], "oms_bill_id": p.OMSBillID, "oms_bill_number": bill["bill_number"]}
 	for _, k := range []string{"sales_order_id", "shipping_package_id", "customer", "location", "total_amount", "taxable_amount",
-		"non_taxable", "cgst", "sgst", "igst", "total_tax", "interstate", "gst_basis", "items", "customer_reference"} {
+		"non_taxable", "cgst", "sgst", "igst", "total_tax", "interstate", "gst_basis", "items", "customer_reference", "shipping_charge", "shipping_gst_rate"} {
 		if v, ok := bill[k]; ok {
 			invoice[k] = v
 		}

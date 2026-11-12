@@ -67,6 +67,9 @@ func validHSN(hsn string) bool {
 // id = code invariant, its id) from the number. Runs before ValidateDocument
 // because code is mandatory and is supplied here, not by the user.
 func PrepareHSNCode(isCreate bool, payload map[string]interface{}) error {
+	if err := validateHSNBands(payload); err != nil { // Stage 148.42
+		return err
+	}
 	// An update that does not send the number keeps the stored one: the
 	// save merges the stored record in after this check (Stage 73.D.8), and
 	// a Setup Workbook row sends only the cells that changed.

@@ -6,7 +6,7 @@ import "strings"
 //
 // No general structured-security-event pipeline exists in this codebase yet
 // - the risk register's "Sensitive-read security event" and "manual-price
-// detection" entries (docs/security/risk_register.md M-01/M-02) are forward
+// detection" entries (docs/security/risk-register.md M-01/M-02) are forward
 // references to Stage 49.11, not built code. This file is deliberately the
 // REDACTION PRIMITIVE such a pipeline must call, not the pipeline itself -
 // built now so 49.11 has a tested choke point to attach to on day one,

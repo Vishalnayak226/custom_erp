@@ -98,3 +98,27 @@ func comparablePostedValue(v interface{}) interface{} {
 	}
 	return normaliseEditValue(v)
 }
+
+// changedPOMoneyBasis names the first of a PO's currency and exchange rate
+// that the save changes ("" when neither). A field the save does not send, or
+// the stored record never had, is not a change (the same reading as
+// validatePostedAmountsFrozen).
+func changedPOMoneyBasis(prior, payload map[string]interface{}) string {
+	for _, f := range []string{"currency", "exchange_rate"} {
+		after, sent := payload[f]
+		before := comparablePostedValue(prior[f])
+		if !sent || before == "" {
+			continue
+		}
+		a := comparablePostedValue(after)
+		if f == "currency" {
+			if strings.EqualFold(fmt.Sprint(before), fmt.Sprint(a)) {
+				continue
+			}
+		} else if reflect.DeepEqual(before, a) {
+			continue
+		}
+		return strings.ReplaceAll(f, "_", " ")
+	}
+	return ""
+}

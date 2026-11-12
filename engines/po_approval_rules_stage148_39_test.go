@@ -31,7 +31,10 @@ func poRulesTenant(t *testing.T) (tenantID, schema string, insert poInsertFn) {
 	ins("V-LOCAL", "Vendor", "Active", map[string]interface{}{"code": "V-LOCAL", "name": "Local", "vendor_group": "Local", "state": "Karnataka"})
 	ins("V-FAR", "Vendor", "Active", map[string]interface{}{"code": "V-FAR", "name": "Far", "vendor_group": "Import", "state": "Karnataka"})
 	ins("I-FAB", "Item", "Active", map[string]interface{}{"sku": "I-FAB", "name": "Cloth", "category": "Fabric"})
-	// A new client is not cloned the default client's reason codes, so the ones the tests use are added.
+	// A new client gets the starter reason codes (163.1); the fixture replaces the two the tests use.
+	if _, err := db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id IN ('GBP-URGENT', 'GRN-REJ-QUALITY')`, schema)); err != nil {
+		t.Fatal(err)
+	}
 	ins("GBP-URGENT", "ReasonCode", "Active", map[string]interface{}{"code": "GBP-URGENT", "description": "Urgent", "category": ReasonReceivedBeforePO, "status": "Active"})
 	ins("GRN-REJ-QUALITY", "ReasonCode", "Active", map[string]interface{}{"code": "GRN-REJ-QUALITY", "description": "Quality", "category": ReasonGRNRejection, "status": "Active"})
 	ins("I-MISC", "Item", "Active", map[string]interface{}{"sku": "I-MISC", "name": "Misc", "category": "Misc"})

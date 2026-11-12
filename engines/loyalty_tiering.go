@@ -10,7 +10,7 @@ import (
 )
 
 // Stage 26.7.3: Loyalty tiering + accrual/expiry. loyalty_tier_rules
-// (db/migrations_stage26_7_crm_loyalty.sql) is a small self-service admin
+// (db/migrations/migrations_stage26_7_crm_loyalty.sql) is a small self-service admin
 // config table, the same pattern as approval_rules (Stage 24.8): a tier's
 // min_spend threshold and its earn_multiplier. Customer.loyalty_tier is an
 // additive field, recomputed after every earn (RecomputeLoyaltyTier) off

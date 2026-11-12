@@ -7,7 +7,7 @@
 
 const BP_API = '/api/v1/procurement/bulk-upload';
 const bpEsc = s => escapeHTMLText(String(s == null ? '' : s));
-const bpMoney = n => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const bpMoney = n => `₹${formatNumber(n || 0)}`;
 
 const BP_BADGES = {
   new: ['badge-success', 'New'],
@@ -55,33 +55,33 @@ export async function renderBulkPurchase(screen, { head }) {
   bpFile = null;
   bpPhotos = new Map();
   screen.innerHTML = `<div class="txn-bar">${head}</div>
-    <div style="display:grid; gap:18px; max-width:1100px; padding:4px 0 24px;">
+    <div class="s-c20e4d">
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">1. Template</h4>
+        <h4 class="s-00f1b9">1. Template</h4>
         <button type="button" class="btn btn-outline" data-bp="template">Download template</button>
       </section>
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">2. Upload and check</h4>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <label class="btn btn-outline" style="cursor:pointer; margin:0;">Choose file
-            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-bp="file" style="display:none;">
+        <h4 class="s-00f1b9">2. Upload and check</h4>
+        <div class="s-8ed0b3">
+          <label class="btn btn-outline s-a633c1">Choose file
+            <input type="file" hidden accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-bp="file">
           </label>
-          <span data-bp="file-name" class="text-muted" style="font-size:13px;">No file chosen</span>
+          <span data-bp="file-name" class="text-muted s-5e0faa">No file chosen</span>
         </div>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-          <label class="btn btn-outline" style="cursor:pointer; margin:0;">Choose photos
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-bp="photos" style="display:none;">
+        <div class="s-8656f4">
+          <label class="btn btn-outline s-a633c1">Choose photos
+            <input type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/gif" data-bp="photos">
           </label>
-          <label class="btn btn-outline" style="cursor:pointer; margin:0;">Choose a photo folder
-            <input type="file" multiple webkitdirectory data-bp="photo-folder" style="display:none;">
+          <label class="btn btn-outline s-a633c1">Choose a photo folder
+            <input type="file" hidden multiple webkitdirectory data-bp="photo-folder">
           </label>
-          <span data-bp="photo-count" class="text-muted" style="font-size:13px;">No photos (optional)</span>
+          <span data-bp="photo-count" class="text-muted s-5e0faa">No photos (optional)</span>
           <button type="button" class="btn btn-primary" data-bp="preview" disabled>Preview</button>
         </div>
       </section>
       <div data-bp="result"></div>
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">Past uploads</h4>
+        <h4 class="s-00f1b9">Past uploads</h4>
         <div data-bp="runs"><p class="text-muted">Loading…</p></div>
       </section>
     </div>`;
@@ -108,7 +108,7 @@ export async function renderBulkPurchase(screen, { head }) {
 function bpPhotoCell(names) {
   return (names || []).map(n => bpPhotos.has(n.toLowerCase())
     ? bpEsc(n)
-    : `<span style="color:var(--danger-color);" title="Not among the chosen photos">${bpEsc(n)} ✗</span>`).join(', ');
+    : `<span class="s-25f4ca" title="Not among the chosen photos">${bpEsc(n)} ✗</span>`).join(', ');
 }
 
 // bpPhotoJobs: every photo to upload after Apply - to the row's Combination
@@ -142,7 +142,7 @@ async function bpUploadPhotos(box, result) {
     const j = jobs[i];
     const file = bpPhotos.get(j.name.toLowerCase());
     if (!file) { if (j.doctype === 'Item') missing.push(j.name); continue; }
-    box.innerHTML = `<p style="font-size:14px;">Adding photos… ${i + 1} of ${jobs.length}</p>`;
+    box.innerHTML = `<p class="s-433de3">Adding photos… ${i + 1} of ${jobs.length}</p>`;
     let res = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       const fd = new FormData();
@@ -157,10 +157,10 @@ async function bpUploadPhotos(box, result) {
     else failed.push(`${j.name} → ${j.code}: ${res ? await getErrorMessage(res, 'not added') : 'not added'}`);
   }
   box.innerHTML = `
-    <h4 style="font-size:14px; font-weight:600; margin:0 0 6px;">Photos</h4>
-    <p style="font-size:13px; margin:0;">${bpBadge('done')} ${done} added${failed.length ? ` &nbsp; ${bpBadge('failed')} ${failed.length}` : ''}${missing.length ? ` &nbsp; <span style="color:var(--danger-color);">${missing.length} named in the file but not chosen</span>` : ''}</p>
-    ${failed.length ? `<ul style="font-size:13px; color:var(--danger-color); margin:6px 0 0;">${failed.map(f => `<li>${bpEsc(f)}</li>`).join('')}</ul>` : ''}
-    ${missing.length ? `<p class="text-muted" style="font-size:13px; margin:6px 0 0;">Not chosen: ${bpEsc([...new Set(missing)].join(', '))} - choose them and upload the same file again, or add them on the PO's Images page.</p>` : ''}`;
+    <h4 class="s-592e1b">Photos</h4>
+    <p class="s-06ed28">${bpBadge('done')} ${done} added${failed.length ? ` &nbsp; ${bpBadge('failed')} ${failed.length}` : ''}${missing.length ? ` &nbsp; <span class="s-25f4ca">${missing.length} named in the file but not chosen</span>` : ''}</p>
+    ${failed.length ? `<ul class="s-27f3a0">${failed.map(f => `<li>${bpEsc(f)}</li>`).join('')}</ul>` : ''}
+    ${missing.length ? `<p class="text-muted s-1881be">Not chosen: ${bpEsc([...new Set(missing)].join(', '))} - choose them and upload the same file again, or add them on the PO's Images page.</p>` : ''}`;
 }
 
 async function bpPreview(screen, btn) {
@@ -174,7 +174,7 @@ async function bpPreview(screen, btn) {
   const res = await apiUpload(`${BP_API}/preview`, fd);
   btn.disabled = false;
   if (!res) { out.innerHTML = ''; return; }
-  if (!res.ok) { out.innerHTML = `<p style="color:var(--danger-color); font-size:14px;">${bpEsc(await getErrorMessage(res, 'The file could not be read.'))}</p>`; return; }
+  if (!res.ok) { out.innerHTML = `<p class="s-196e02">${bpEsc(await getErrorMessage(res, 'The file could not be read.'))}</p>`; return; }
   const { result } = await res.json();
   const t = result.totals || {};
   const pos = result.pos || [];
@@ -188,13 +188,13 @@ async function bpPreview(screen, btn) {
     pos.filter(p => p.action === 'existing' && (p.status === 'Draft' || p.status === 'Pending Approval')).length;
   out.innerHTML = `
     <section>
-      <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">3. Preview - nothing has changed yet</h4>
+      <h4 class="s-00f1b9">3. Preview - nothing has changed yet</h4>
       ${bpTotalsHtml(t, false)}
       ${bpPhotoSummary(result)}
       ${bpResultHtml(result, false)}
-      <div style="display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+      <div class="s-a1de6b">
         <button type="button" class="btn btn-primary" data-bp="apply"${work ? '' : ' disabled'}>${work ? bpApplyLabel(newPOs, toReceive, photos) : 'Nothing to do'}</button>
-        ${t.errors ? `<span style="font-size:13px; color:var(--danger-color);">${t.errors} problem${t.errors === 1 ? '' : 's'}: what has a problem is left out - fix the file and upload it again.</span>` : ''}
+        ${t.errors ? `<span class="s-129b93">${t.errors} problem${t.errors === 1 ? '' : 's'}: what has a problem is left out - fix the file and upload it again.</span>` : ''}
       </div>
     </section>`;
   const apply = out.querySelector('[data-bp="apply"]');
@@ -223,7 +223,7 @@ async function bpApply(screen, pos, bills, problems, photos) {
   fd.append('file', bpFile, bpFile.name);
   const res = await apiUpload(`${BP_API}/apply`, fd);
   if (!res) { out.innerHTML = ''; return; }
-  if (!res.ok) { out.innerHTML = `<p style="color:var(--danger-color); font-size:14px;">${bpEsc(await getErrorMessage(res, 'The file could not be applied.'))}</p>`; return; }
+  if (!res.ok) { out.innerHTML = `<p class="s-196e02">${bpEsc(await getErrorMessage(res, 'The file could not be applied.'))}</p>`; return; }
   const { run_id: runID } = await res.json();
   bpFollow(screen, runID, true);
 }
@@ -236,7 +236,7 @@ async function bpFollow(screen, runID, withPhotos) {
   if (!res || !res.ok) { out.innerHTML = '<p class="text-muted">The upload could not be read - see Past uploads.</p>'; return; }
   const run = await res.json();
   if (run.status === 'Running') {
-    out.innerHTML = `<p style="font-size:14px;">Working${run.progress_sheet ? `: <b>${bpEsc(run.progress_sheet)}</b>` : ''}…</p>`;
+    out.innerHTML = `<p class="s-433de3">Working${run.progress_sheet ? `: <b>${bpEsc(run.progress_sheet)}</b>` : ''}…</p>`;
     bpPoll = setTimeout(() => bpFollow(screen, runID, withPhotos), 1200);
     return;
   }
@@ -244,10 +244,10 @@ async function bpFollow(screen, runID, withPhotos) {
   const t = run.totals || {};
   out.innerHTML = `
     <section>
-      <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">${run.status === 'Completed' ? 'Done' : bpEsc(run.status || 'Finished')}${run.file_name ? ` - ${bpEsc(run.file_name)}` : ''}</h4>
-      ${run.message ? `<p style="font-size:13px;">${bpEsc(run.message)}</p>` : ''}
+      <h4 class="s-00f1b9">${run.status === 'Completed' ? 'Done' : bpEsc(run.status || 'Finished')}${run.file_name ? ` - ${bpEsc(run.file_name)}` : ''}</h4>
+      ${run.message ? `<p class="s-5e0faa">${bpEsc(run.message)}</p>` : ''}
       ${bpTotalsHtml(t, true)}
-      ${(t.failed || t.errors || t.waiting) ? '<p style="font-size:13px; margin:0 0 10px;">Fix Failed or Problem rows (or approve Waiting ones), then upload the same file again - nothing is made twice.</p>' : ''}
+      ${(t.failed || t.errors || t.waiting) ? '<p class="s-0006b9">Fix Failed or Problem rows (or approve Waiting ones), then upload the same file again - nothing is made twice.</p>' : ''}
       ${run.result ? bpResultHtml(run.result, true) : ''}
     </section>`;
   bpWireStickers(out);
@@ -265,8 +265,8 @@ function bpPhotoSummary(result) {
   (result.pos || []).forEach(p => (p.lines || []).forEach(l => (l.photos || []).forEach(n => names.push(n))));
   if (!names.length && !bpPhotos.size) return '';
   const missing = names.filter(n => !bpPhotos.has(n.toLowerCase()));
-  return `<p style="font-size:13px; margin:0 0 10px;">Photos: ${names.length} named in the file, ${bpPhotos.size} chosen${missing.length
-    ? ` - <span style="color:var(--danger-color);">${missing.length} not chosen (marked ✗)</span>` : ''}. They are added after Apply.</p>`;
+  return `<p class="s-0006b9">Photos: ${names.length} named in the file, ${bpPhotos.size} chosen${missing.length
+    ? ` - <span class="s-25f4ca">${missing.length} not chosen (marked ✗)</span>` : ''}. They are added after Apply.</p>`;
 }
 
 function bpTotalsHtml(t, applied) {
@@ -280,7 +280,7 @@ function bpTotalsHtml(t, applied) {
   const badges = (applied
     ? [['done', t.done], ['waiting', t.waiting], ['failed', t.failed], ['error', t.errors]]
     : [['error', t.errors]]).filter(([, n]) => n).map(([k, n]) => `<span>${bpBadge(k)} ${bpEsc(n)}</span>`);
-  return `<div style="display:flex; gap:14px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">${parts.concat(badges).join('')}</div>`;
+  return `<div class="s-0e8c55">${parts.concat(badges).join('')}</div>`;
 }
 
 function bpKind(r, applied) {
@@ -295,18 +295,18 @@ function bpMsg(r) {
 
 function bpSection(title, counts, body, open) {
   return `
-    <details class="table-panel" style="margin:0 0 10px; padding:0; min-height:0; display:block;"${open ? ' open' : ''}>
-      <summary style="padding:10px 14px; cursor:pointer; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <b style="min-width:140px;">${bpEsc(title)}</b>${counts}
+    <details class="table-panel s-da9f54"${open ? ' open' : ''}>
+      <summary class="s-c8814b">
+        <b class="s-4592c7">${bpEsc(title)}</b>${counts}
       </summary>
-      <div style="overflow-x:auto;">${body}</div>
+      <div class="s-0ddf06">${body}</div>
     </details>`;
 }
 
 function bpCount(list, applied) {
   const by = {};
   list.forEach(r => { const k = bpKind(r, applied); by[k] = (by[k] || 0) + 1; });
-  return Object.keys(by).map(k => `<span style="font-size:13px;">${bpBadge(k)} ${by[k]}</span>`).join('');
+  return Object.keys(by).map(k => `<span class="s-5e0faa">${bpBadge(k)} ${by[k]}</span>`).join('');
 }
 
 function bpResultHtml(r, applied) {
@@ -317,14 +317,14 @@ function bpResultHtml(r, applied) {
   const bills = r.bills || [];
   let html = '';
   if (vendors.length || leftOut) {
-    html += bpSection('Vendors', bpCount(vendors, applied) + (leftOut ? `<span class="text-muted" style="font-size:13px;">${leftOut} not used, left out</span>` : ''), vendors.length ? `
-      <table><thead><tr><th style="width:60px;">Row</th><th>Vendor</th><th style="width:130px;"></th><th></th></tr></thead><tbody>
+    html += bpSection('Vendors', bpCount(vendors, applied) + (leftOut ? `<span class="text-muted s-5e0faa">${leftOut} not used, left out</span>` : ''), vendors.length ? `
+      <table><thead><tr><th class="s-bd09c4">Row</th><th>Vendor</th><th class="s-c6fffd"></th><th></th></tr></thead><tbody>
       ${vendors.map(v => `<tr><td>${bpEsc(v.row || '')}</td><td>${bpEsc(v.key)}</td><td>${bpBadge(bpKind(v, applied))}</td><td>${bpMsg(v)}</td></tr>`).join('')}
       </tbody></table>` : '', vendors.some(v => v.action === 'error' || v.result === 'failed'));
   }
   if (masters.length) {
     html += bpSection('New setup records', bpCount(masters, applied), `
-      <table><thead><tr><th>What</th><th style="width:130px;"></th><th></th></tr></thead><tbody>
+      <table><thead><tr><th>What</th><th class="s-c6fffd"></th><th></th></tr></thead><tbody>
       ${masters.map(m => `<tr><td>${bpEsc(m.key)}</td><td>${bpBadge(bpKind(m, applied))}</td><td>${bpMsg(m)}</td></tr>`).join('')}
       </tbody></table>`, masters.some(m => m.result === 'failed'));
   }
@@ -332,22 +332,22 @@ function bpResultHtml(r, applied) {
     const kind = bpKind(p, applied);
     const title = `${p.ref} · ${p.vendor}`;
     const counts = `${bpBadge(kind)}
-      <span style="font-size:13px;">${bpEsc(p.store)} · ${p.qty} pcs · ${bpMoney(p.amount)}</span>
-      ${p.po_number ? `<span style="font-size:13px;"><b>${bpEsc(p.po_number)}</b>${p.status ? ` ${bpEsc(p.status)}` : ''}</span>` : ''}
+      <span class="s-5e0faa">${bpEsc(p.store)} · ${p.qty} pcs · ${bpMoney(p.amount)}</span>
+      ${p.po_number ? `<span class="s-5e0faa"><b>${bpEsc(p.po_number)}</b>${p.status ? ` ${bpEsc(p.status)}` : ''}</span>` : ''}
       ${p.message ? bpMsg(p) : ''}`;
     html += bpSection(title, counts, `
-      <table><thead><tr><th style="width:60px;">Row</th><th>Design</th><th>Item</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">MRP</th><th>Bill</th><th>Photo</th><th style="width:140px;"></th><th>Combination ID</th><th></th></tr></thead><tbody>
-      ${(p.lines || []).map(l => `<tr><td>${bpEsc(l.row)}</td><td>${bpEsc(l.design || '')}${l.design_code ? ` <span class="text-muted">→ ${bpEsc(l.design_code)}</span>` : ''}</td><td style="font-size:13px;">${bpEsc(l.variant || '')}</td>
-        <td style="text-align:right;">${bpEsc(l.qty)}</td><td style="text-align:right;">${bpEsc(l.rate)}</td><td style="text-align:right;">${bpEsc(l.mrp)}</td>
-        <td>${bpEsc(l.bill || '')}</td><td style="font-size:12px;">${bpPhotoCell(l.photos)}</td><td>${bpBadge(l.action)}</td><td>${bpEsc(l.sku || '')}</td><td>${bpMsg(l)}</td></tr>`).join('')}
+      <table><thead><tr><th class="s-bd09c4">Row</th><th>Design</th><th>Item</th><th class="s-54c2af">Qty</th><th class="s-54c2af">Rate</th><th class="s-54c2af">MRP</th><th>Bill</th><th>Photo</th><th class="s-830eb9"></th><th>Combination ID</th><th></th></tr></thead><tbody>
+      ${(p.lines || []).map(l => `<tr><td>${bpEsc(l.row)}</td><td>${bpEsc(l.design || '')}${l.design_code ? ` <span class="text-muted">→ ${bpEsc(l.design_code)}</span>` : ''}</td><td class="s-5e0faa">${bpEsc(l.variant || '')}</td>
+        <td class="s-54c2af">${bpEsc(l.qty)}</td><td class="s-54c2af">${bpEsc(l.rate)}</td><td class="s-54c2af">${bpEsc(l.mrp)}</td>
+        <td>${bpEsc(l.bill || '')}</td><td class="s-6cb285">${bpPhotoCell(l.photos)}</td><td>${bpBadge(l.action)}</td><td>${bpEsc(l.sku || '')}</td><td>${bpMsg(l)}</td></tr>`).join('')}
       </tbody></table>`, p.action === 'error' || p.result === 'failed');
   });
   if (bills.length) {
     html += bpSection('Bills (goods receipts)', bpCount(bills, applied), `
-      <table><thead><tr><th style="width:60px;">Row</th><th>Bill no</th><th>Vendor</th><th>Date</th><th style="text-align:right;">Total</th><th style="text-align:right;">Pcs</th><th style="width:130px;"></th><th>Goods receipt</th><th></th></tr></thead><tbody>
+      <table><thead><tr><th class="s-bd09c4">Row</th><th>Bill no</th><th>Vendor</th><th>Date</th><th class="s-54c2af">Total</th><th class="s-54c2af">Pcs</th><th class="s-c6fffd"></th><th>Goods receipt</th><th></th></tr></thead><tbody>
       ${bills.map(b => `<tr><td>${bpEsc(b.row)}</td><td>${bpEsc(b.invoice)}</td><td>${bpEsc(b.vendor)}</td><td>${bpEsc(b.date)}</td>
-        <td style="text-align:right;">${bpMoney(b.total)}</td><td style="text-align:right;">${bpEsc(b.qty)}</td><td>${bpBadge(bpKind(b, applied))}</td>
-        <td style="white-space:nowrap;">${bpEsc(b.grn_code || '')}${b.step && b.step !== 'Posted' ? ` <span class="text-muted" style="font-size:12px;">${bpEsc(b.step)}</span>` : ''}
+        <td class="s-54c2af">${bpMoney(b.total)}</td><td class="s-54c2af">${bpEsc(b.qty)}</td><td>${bpBadge(bpKind(b, applied))}</td>
+        <td class="s-86abda">${bpEsc(b.grn_code || '')}${b.step && b.step !== 'Posted' ? ` <span class="text-muted s-6cb285">${bpEsc(b.step)}</span>` : ''}
           ${applied && b.step === 'Posted' && (b.skus || []).length ? ` <button type="button" class="btn btn-outline btn-sm" data-bp-stickers="${bpEsc(b.grn_id)}" data-skus="${bpEsc((b.skus || []).join(','))}">Print stickers</button>` : ''}</td>
         <td>${bpMsg(b)}</td></tr>`).join('')}
       </tbody></table>`, applied || bills.some(b => b.action === 'error'));
@@ -372,20 +372,20 @@ async function bpRenderRuns(screen) {
   const runs = await res.json();
   if (!runs.length) { box.innerHTML = '<p class="text-muted">No file has been uploaded here yet.</p>'; return; }
   box.innerHTML = `
-    <div class="table-panel" style="overflow-x:auto; min-height:0;">
+    <div class="table-panel s-7152b7">
       <table>
         <thead><tr><th>When</th><th>File</th><th>By</th><th>Status</th><th>New POs</th><th>Bills</th><th></th></tr></thead>
         <tbody>${runs.map(r => {
           // started_at is UTC; created_at is the database's local clock without a zone.
           const at = r.started_at || r.created_at;
-          const when = at ? new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          const when = at ? formatDateTime(at) : '';
           const t = r.totals || {};
           const bad = r.status === 'Failed' || r.status === 'Interrupted' || r.status === 'Completed with errors';
           return `<tr>
             <td>${bpEsc(when)}</td><td>${bpEsc(r.file_name || '')}</td><td>${bpEsc(r.created_by || '')}</td>
             <td><span class="badge ${bad ? 'badge-warning' : r.status === 'Running' ? 'badge-secondary' : 'badge-success'}">${bpEsc(r.status || '')}</span></td>
             <td>${bpEsc(t.new_pos || 0)}</td><td>${bpEsc(t.bills || 0)}</td>
-            <td style="white-space:nowrap;">
+            <td class="s-86abda">
               <button type="button" class="btn btn-outline btn-sm" data-bp-run="${bpEsc(r.id)}">Details</button>
               <button type="button" class="btn btn-outline btn-sm" data-bp-file="${bpEsc(r.id)}">Download file</button>
             </td></tr>`;

@@ -134,6 +134,14 @@ func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
 		LogAuditEvent(tenantID, "system", "PERSONAL_DATA_RETENTION", "Success",
 			fmt.Sprintf("audit_logs.source_ip and device cleared on %d event(s) older than %d days (49.11.2)", n, auditSourceRetentionDays))
 	}
+	// Stage 47.16.3: the address a user last signed in from, on the same tick.
+	if n, err := clearUserSignInAddress(tenantID, schema, auditSourceRetentionDays); err != nil {
+		return out, err
+	} else if n > 0 {
+		out["users.last_sign_in_ip"] = n
+		LogAuditEvent(tenantID, "system", "PERSONAL_DATA_RETENTION", "Success",
+			fmt.Sprintf("users.last_sign_in_ip cleared on %d account(s) last signed in more than %d days ago (47.16.3)", n, auditSourceRetentionDays))
+	}
 	return out, nil
 }
 
@@ -151,11 +159,28 @@ var personalDataSystemColumns = map[string]PersonalDataField{
 		BasisStatutory, retainAuditSource, readersAudit),
 	"audit_logs.device": pdField("identity", "The browser or tool family and operating system of a security event - no versions, never the raw user agent",
 		BasisStatutory, retainAuditSource, readersAudit),
+	"users.last_sign_in_ip": pdField("identity", "The address a person last signed in from, shown beside the last sign-in so an unfamiliar one stands out (CERT-In log directions, 47.16.3)",
+		BasisStatutory, retainSignInAddress, readersAudit),
+	"golive_records.created_by": pdField("identity", "Who answered, evidenced, waived or signed a go-live line - a sign-off must name a person (47.12.7, 49.17.3)",
+		BasisEmployment, retainGoLiveRecord, readersGoLive),
+	"notification_decisions.decided_by": pdField("identity", "Who decided whether to tell a regulator or customer about an incident - the record must name a person (49.12.5)",
+		BasisStatutory, retainIncidentRecord, readersIncident),
+	"notification_decisions.approver": pdField("identity", "The named legal or privacy approver of that decision, and who approved it (49.12.5)",
+		BasisStatutory, retainIncidentRecord, readersIncident),
 }
 
 const (
+	retainGoLiveRecord   = "kept with the go-live record as evidence; never swept"
+	readersGoLive        = "the client's administrators (Go-live) and the platform operator"
+	retainIncidentRecord = "kept with the incident record as evidence; never swept"
+	readersIncident      = "the client's administrators (Settings > Monitoring > Security Events: Notification decisions) and the platform operator"
+)
+
+const retainSignInAddress = "cleared 180 days after that sign-in (auditSourceRetentionDays, the hourly retention sweep); kept while the client is under legal hold; the account row itself stays"
+
+const (
 	retainAuditSource = "cleared 180 days after the event (auditSourceRetentionDays, the hourly retention sweep); kept while the client is under legal hold; never archived"
-	readersAudit      = "the client's administrators (Activity Log > Security: Trace a request, the evidence pack) and the platform operator"
+	readersAudit      = "the client's administrators (Settings > Monitoring > Security Events: Trace a request, the evidence pack) and the platform operator"
 )
 
 // PersonalDataSystemColumns returns the system-column register, sorted by key.
@@ -210,7 +235,23 @@ func businessField(purpose string) PersonalDataField {
 
 // personalDataRegister is doctype -> field -> row.
 var personalDataRegister = map[string]map[string]PersonalDataField{
+	"CustomOrderQuote": {
+		"customer_name": pdField("identity", "Name on a custom order quote", BasisVoluntary, retainRecord, readersPOS),
+	},
+	"PurchaseOrder": {
+		"ship_to_address": pdField("address", "Tell the vendor where to ship a drop-ship order", BasisVoluntary, retainShipment, readersOps),
+	},
 	"Customer": {
+		// 148.43: brands this buyer may buy.
+		"allowed_brands":         pdField("preference", "Brands this buyer may buy", BasisVoluntary, retainCustomer, readersPOS),
+		"brand_restriction":      pdField("preference", "Whether another brand warns or is refused", BasisVoluntary, retainCustomer, readersPOS),
+		"brand_restriction_from": pdField("preference", "First day the brand rule applies", BasisVoluntary, retainCustomer, readersPOS),
+		"brand_restriction_to":   pdField("preference", "Last day the brand rule applies", BasisVoluntary, retainCustomer, readersPOS),
+		// 148.31: how this buyer's orders roll up into a summary invoice.
+		"summary_invoice":          pdField("preference", "Bill this buyer's orders on one summary invoice", BasisVoluntary, retainCustomer, readersPOS),
+		"bill_to_customer":         pdField("preference", "Whose account the summary invoice bills", BasisVoluntary, retainCustomer, readersPOS),
+		"group_by_customer_po":     pdField("preference", "Separate summary invoice per customer PO", BasisVoluntary, retainCustomer, readersPOS),
+		"group_by_place_of_supply": pdField("preference", "Separate summary invoice per place of supply", BasisVoluntary, retainCustomer, readersPOS),
 		// 148.4: which revenue account the buyer's sales post to.
 		"customer_group": pdField("preference", "Posting group that picks the revenue account", BasisVoluntary, retainCustomer, readersPOS),
 		// 148.3: credit-control settings on the buyer; the buyer's own terms, held with the master.
@@ -321,6 +362,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 	"PIMExportSchedule":    {"recipient_email": pdField("contact", "Deliver the scheduled export", BasisEmployment, retainUser, "the schedule's owner and Super Admin")},
 	"PIMFeed":              {"recipient_email": pdField("contact", "Deliver the feed file", BasisEmployment, retainUser, "the feed's owner and Super Admin")},
 	"PasswordResetRequest": {"target_username": pdField("identity", "Whose password a dual-control reset is for", BasisEmployment, retainUser, readersAdmin)},
+	"AccessChangeRequest":  {"target_username": pdField("identity", "Whose access a maker-checker access change is for (49.2.1)", BasisEmployment, retainUser, readersAdmin)},
 
 	// --- Suppliers (a sole proprietor's details are personal data) --------
 	"Vendor": {
@@ -403,4 +445,23 @@ func PersonalDataReviewQuestions() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// clearUserSignInAddress (Stage 47.16.3) nulls users.last_sign_in_ip on
+// accounts whose last sign-in is older than days. The sign-in time stays; never
+// under a legal hold.
+func clearUserSignInAddress(tenantID, schema string, days int) (int64, error) {
+	if days <= 0 {
+		return 0, nil
+	}
+	if held, err := tenantLegalHold(tenantID); err != nil || held {
+		return 0, err
+	}
+	res, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET last_sign_in_ip = NULL
+		WHERE last_sign_in_ip IS NOT NULL AND (last_sign_in_at IS NULL OR last_sign_in_at < NOW() - make_interval(days => $1))`, schema), days)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }

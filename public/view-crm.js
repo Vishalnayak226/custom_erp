@@ -27,8 +27,8 @@ export function crmDate(v, withTime) {
   if (!v || String(v).startsWith('0001-')) return '';
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return crmEsc(v);
-  return withTime ? d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-    : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return withTime ? formatDateTime(d)
+    : formatDateTime(d, true);
 }
 
 // crmApi calls the CRM API; an error is shown in the shell's own way and
@@ -41,7 +41,11 @@ export async function crmApi(path, opts = {}) {
   }
   const res = await apiFetch(path.startsWith('/api/') ? path : '/api/v1/crm/' + path, init);
   if (!res) { showToast('Could not reach the server. Check your connection and try again.', { variant: 'danger' }); return null; }
-  if (!res.ok) { if (!opts.quiet) await showApiError(res, opts.fail || 'That did not work.'); return null; }
+  if (!res.ok) {
+    if (opts.onRefused) await res.clone().json().then(opts.onRefused, () => {});
+    if (!opts.quiet) await showApiError(res, opts.fail || 'That did not work.');
+    return null;
+  }
   try { return await res.json(); } catch (_) { return {}; }
 }
 
@@ -149,12 +153,12 @@ export async function renderCRMView(root) {
 }
 
 async function crmPaint() {
-  const tab = crmState.tab;
-  const tabs = crmTabs.filter(([k]) => (k !== 'settings' || (crmMeta && crmMeta.can_manage)) && (k !== 'tickets' || canReadDoctype('ServiceTicket')) && (k !== 'pipeline' || canReadDoctype('SalesQuotation'))); // 140.14.3
-  crmRoot.innerHTML = `<div class="page-header crm-page-header"><div class="page-title-section"><h1 class="page-title">CRM</h1></div></div>
-    <nav class="crm-tabs" aria-label="CRM">${tabs.map(([k, l]) => `<button type="button" class="crm-tab${k === tab ? ' active' : ''}" data-crm-tab="${k}" aria-current="${k === tab}">${l}</button>`).join('')}</nav>
+  // Stage 155.6: each tab is its own sidebar entry; a page this role cannot open falls back to Overview.
+  const open = k => (k !== 'settings' || (crmMeta && crmMeta.can_manage)) && (k !== 'tickets' || canReadDoctype('ServiceTicket')) && (k !== 'pipeline' || canReadDoctype('SalesQuotation')); // 140.14.3
+  const tab = crmTabs.some(([k]) => k === crmState.tab) && open(crmState.tab) ? crmState.tab : 'overview';
+  setActiveMenu(({ overview: 'menu-crm', customers: 'menu-customers', campaigns: 'menu-campaigns' })[tab] || `menu-crm-${tab}`);
+  crmRoot.innerHTML = `<div class="page-header crm-page-header"><div class="page-title-section"><h1 class="page-title">${crmTabs.find(([k]) => k === tab)[1]}</h1></div></div>
     <div class="table-panel crm-panel" id="crm-page"></div>`;
-  crmRoot.querySelectorAll('[data-crm-tab]').forEach(b => b.addEventListener('click', () => crmGo(b.dataset.crmTab)));
   const host = crmRoot.querySelector('#crm-page');
   host.innerHTML = '<p class="text-muted">Loading…</p>';
   const local = { overview: crmOverview, customers: crmCustomers, segments: crmSegments };

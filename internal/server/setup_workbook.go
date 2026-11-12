@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -2422,17 +2421,7 @@ func handleSetupWorkbookApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		totals := swTotals(results)
-		var buf bytes.Buffer
-		cw := csv.NewWriter(&buf)
-		_ = cw.Write([]string{"sheet", "row_number", "key", "message"})
-		for _, s := range results {
-			for _, row := range s.Rows {
-				if row.Action == "error" || row.Result == "failed" {
-					_ = cw.Write([]string{s.Sheet, strconv.Itoa(row.Row), row.Key, row.Message})
-				}
-			}
-		}
-		cw.Flush()
+		errorCSV := swErrorCSV(results)
 		status := "Completed"
 		if totals.Failed > 0 || totals.Errors > 0 {
 			status = "Completed with errors"
@@ -2441,7 +2430,7 @@ func handleSetupWorkbookApply(w http.ResponseWriter, r *http.Request) {
 			"status": status, "sheets": results, "totals": totals, "same_organisation": run.sameOrg,
 			"total_rows":   totals.New + totals.Change + totals.Same + totals.Errors + totals.Notes,
 			"success_rows": totals.Done, "failed_rows": totals.Failed + totals.Errors,
-			"error_csv": buf.String(), "finished_at": time.Now().UTC().Format(time.RFC3339),
+			"error_csv": errorCSV, "finished_at": time.Now().UTC().Format(time.RFC3339),
 		})
 		engines.LogAuditEvent(c.tenantID, c.username, "SETUP_WORKBOOK", "APPLIED",
 			fmt.Sprintf("%s: %d new, %d changed, %d failed, %d with errors (run %s)", name, totals.New, totals.Change, totals.Failed, totals.Errors, runID))
@@ -2502,7 +2491,7 @@ func handleSetupWorkbookRunFile(w http.ResponseWriter, r *http.Request) {
 
 func swWriteXLSX(w http.ResponseWriter, name string, file []byte) {
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, strings.ReplaceAll(name, `"`, "")))
+	w.Header().Set("Content-Disposition", attachmentDisposition(name))
 	_, _ = w.Write(file)
 }
 
@@ -2534,4 +2523,21 @@ func handleSetupWorkbookExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	swWriteXLSX(w, fmt.Sprintf("setup-workbook-%s-%s.xlsx", c.tenantID, engines.BusinessToday()), file)
+}
+
+// swErrorCSV is the failed-rows file of a run. The keys come from the
+// uploaded workbook, so every cell is made safe to open in a spreadsheet.
+func swErrorCSV(results []*swSheetResult) string {
+	var buf bytes.Buffer
+	cw := engines.NewSafeCSVWriter(&buf)
+	_ = cw.Write([]string{"sheet", "row_number", "key", "message"})
+	for _, s := range results {
+		for _, row := range s.Rows {
+			if row.Action == "error" || row.Result == "failed" {
+				_ = cw.Write([]string{s.Sheet, strconv.Itoa(row.Row), row.Key, row.Message})
+			}
+		}
+	}
+	cw.Flush()
+	return buf.String()
 }

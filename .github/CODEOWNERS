@@ -47,7 +47,7 @@
 
 # Migrations (crown jewel #9 - release artifact and migrations; every
 # incremental file here becomes part of every future tenant's schema).
-/db/*.sql @Vishalnayak226
+/db/migrations/ @Vishalnayak226
 /db/migrate.go @Vishalnayak226
 
 # Deploy and CI/CD (crown jewel #9; Stage 49.9.6-49.9.8's own controls).
@@ -55,6 +55,10 @@
 /.github/workflows/          @Vishalnayak226
 /.github/CODEOWNERS          @Vishalnayak226
 /Dockerfile                  @Vishalnayak226
+
+# The project constitution and the test that enforces its layout rules.
+/CONTRIBUTING.md         @Vishalnayak226
+/internal/repolayout/    @Vishalnayak226
 
 # Security program itself (this stage, the threat model, the scanners).
 /docs/security/          @Vishalnayak226

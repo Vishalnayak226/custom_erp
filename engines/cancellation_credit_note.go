@@ -47,7 +47,7 @@ func IssueCancellationCreditNotes(tenantID, orderID, reasonCode, userID string) 
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data, status FROM %s.documents
 		 WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL
-		   AND data->>'sales_order_id' = $1
+		   AND (data->>'sales_order_id' = $1 OR $1 = ANY(string_to_array(COALESCE(data->>'summary_order_ids',''), ',')))
 		 ORDER BY created_at, id`, schema), orderID)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,16 @@ func IssueCancellationCreditNotes(tenantID, orderID, reasonCode, userID string) 
 			continue
 		}
 
-		existing, err := existingCreditNoteForInvoice(schema, inv.id)
+		// 148.54: a summary invoice carries many orders, so its notes are per order,
+		// each for that order's share. A Draft one was voided whole above: its other
+		// orders can be billed again.
+		summary := strField(inv.data, "summary_order_ids") != ""
+		var existing string
+		if summary {
+			existing, err = existingCreditNoteForInvoiceOrder(schema, inv.id, orderID)
+		} else {
+			existing, err = existingCreditNoteForInvoice(schema, inv.id)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +111,11 @@ func IssueCancellationCreditNotes(tenantID, orderID, reasonCode, userID string) 
 			continue
 		}
 
-		amount := int(numFromInterface(inv.data["total_amount"]))
+		amount := round2(numFromInterface(inv.data["total_amount"])) // 148.58: the paise too
+		if summary {
+			shares, _ := inv.data["summary_order_amounts"].(map[string]interface{})
+			amount = round2(numFromInterface(shares[orderID]))
+		}
 		if amount <= 0 {
 			continue
 		}
@@ -128,7 +141,7 @@ func IssueCancellationCreditNotes(tenantID, orderID, reasonCode, userID string) 
 			return nil, err
 		}
 		LogAuditEvent(tenantID, userID, "CREATE_CREDIT_NOTE", "SUCCESS",
-			fmt.Sprintf("Raised draft credit note %s for %d against invoice %s (order %s cancelled: %s)", noteID, amount, inv.id, orderID, reasonCode))
+			fmt.Sprintf("Raised draft credit note %s for %v against invoice %s (order %s cancelled: %s)", noteID, amount, inv.id, orderID, reasonCode))
 		created = append(created, noteID)
 	}
 	return created, nil
@@ -143,6 +156,20 @@ func existingCreditNoteForInvoice(schema, invoiceID string) (string, error) {
 		 WHERE doctype = 'CreditNote' AND deleted_at IS NULL
 		   AND data->>'sales_invoice_id' = $1 AND status <> 'Cancelled'
 		 ORDER BY created_at, id LIMIT 1`, schema), invoiceID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return id, err
+}
+
+// existingCreditNoteForInvoiceOrder is the same for one order of a summary invoice.
+func existingCreditNoteForInvoiceOrder(schema, invoiceID, orderID string) (string, error) {
+	var id string
+	err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.documents
+		 WHERE doctype = 'CreditNote' AND deleted_at IS NULL
+		   AND data->>'sales_invoice_id' = $1 AND data->>'sales_order_id' = $2 AND status <> 'Cancelled'
+		 ORDER BY created_at, id LIMIT 1`, schema), invoiceID, orderID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}

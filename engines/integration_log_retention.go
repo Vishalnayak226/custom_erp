@@ -103,6 +103,10 @@ func StartIntegrationLogRetentionSweeper(ctx context.Context, interval time.Dura
 					if _, err := SweepPrivilegedSessions(tenantID); err != nil {
 						LogBackgroundJobError("PRIVILEGED-SESSION-SWEEP", "sweep", schema, err)
 					}
+					// 162.15: session rows, a day after their token expired.
+					if _, err := SweepUserSessions(tenantID); err != nil {
+						LogBackgroundJobError("USER-SESSION-SWEEP", "sweep", schema, err)
+					}
 					// 47.18.3: raw import files on the same hourly tick.
 					if _, err := SweepImportFileRetention(tenantID); err != nil {
 						LogBackgroundJobError("IMPORT-FILE-SWEEP", "sweep", schema, err)

@@ -23,11 +23,11 @@ graphify extracts from the source. It is meant to be the fastest way to answer *
 does it touch?"* without reading a few hundred files.
 
 Every count in this README is deliberately approximate; the exact, current numbers are in
-[BRAIN.md](BRAIN.md)'s header table, which is regenerated with the map.
+[brain-map.md](brain-map.md)'s header table, which is regenerated with the map.
 
 | File | What it is |
 |---|---|
-| **[BRAIN.md](BRAIN.md)** | The brain as a document: six Mermaid diagrams, a region index, and a detail card per region. Renders in GitHub and in VS Code. **Generated.** |
+| **[brain-map.md](brain-map.md)** | The brain as a document: six Mermaid diagrams, a region index, and a detail card per region. Renders in GitHub and in VS Code. **Generated.** |
 | **[brain.html](brain.html)** | The brain as an interactive map: click a region, hover to light up its wiring, filter by lobe or connection strength, search by file or symbol. Open it in any browser — no server, no internet. **Generated.** |
 | **[brain.map.json](brain.map.json)** | **The only file you edit.** Which regions exist, which files each one owns, and the connections no call graph can see. |
 | **[update-brain.ps1](update-brain.ps1)** | Redraws the two generated files. |
@@ -78,7 +78,7 @@ brainmap: 1 file not claimed by any region:
   engines/leasing.go
 ```
 
-That list is also written into [§6 of BRAIN.md](BRAIN.md#6-what-the-brain-does-not-know-yet), so an unfiled file
+That list is also written into [§6 of brain-map.md](brain-map.md#6-what-the-brain-does-not-know-yet), so an unfiled file
 cannot quietly hide. Add a pattern to whichever region owns it:
 
 ```jsonc
@@ -176,7 +176,7 @@ Being clear about this is the point — a diagram that overstates its own accura
 
 ```
 brain.map.json  ─┐
-the working tree ├─→  cmd/brainmap  ─→  BRAIN.md + brain.html
+the working tree ├─→  cmd/brainmap  ─→  brain-map.md + brain.html
 graph.json      ─┘
 ```
 

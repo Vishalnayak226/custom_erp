@@ -9,7 +9,7 @@ import (
 
 // Stage 47.1.4. Two kinds of test here:
 //
-//   - a completeness test that re-parses the doctype_fields seeds in db/*.sql
+//   - a completeness test that re-parses the doctype_fields seeds in db/migrations/*.sql
 //     and fails if doctypeScopes has drifted from them (the same
 //     self-checking shape route_capabilities_test.go uses against routes.go);
 //   - the cross-location / cross-owner / employee-self negative tests the
@@ -27,9 +27,9 @@ type seededScopeField struct {
 
 func seededScopeFields(t *testing.T) []seededScopeField {
 	t.Helper()
-	paths, err := filepath.Glob(filepath.Join("..", "db", "*.sql"))
+	paths, err := filepath.Glob(filepath.Join("..", "db", "migrations", "*.sql"))
 	if err != nil || len(paths) == 0 {
-		t.Fatalf("could not read db/*.sql (err=%v, %d files)", err, len(paths))
+		t.Fatalf("could not read db/migrations/*.sql (err=%v, %d files)", err, len(paths))
 	}
 	var out []seededScopeField
 	for _, path := range paths {
@@ -42,7 +42,7 @@ func seededScopeFields(t *testing.T) []seededScopeField {
 		}
 	}
 	if len(out) < 40 {
-		t.Fatalf("only %d scope fields parsed out of db/*.sql - the seed format changed and this test is no longer checking anything", len(out))
+		t.Fatalf("only %d scope fields parsed out of db/migrations/*.sql - the seed format changed and this test is no longer checking anything", len(out))
 	}
 	return out
 }
@@ -87,7 +87,7 @@ func TestNoStaleDoctypeScopeEntries(t *testing.T) {
 	}
 	for _, doctype := range ScopedDoctypes() {
 		if !seeded[doctype] {
-			t.Errorf("doctypeScopes has %q, but no db/*.sql seed declares a scope field on it - stale entry", doctype)
+			t.Errorf("doctypeScopes has %q, but no db/migrations/*.sql seed declares a scope field on it - stale entry", doctype)
 		}
 	}
 }

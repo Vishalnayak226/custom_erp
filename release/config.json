@@ -5,6 +5,7 @@
   "hosts": ["app.wholeops.in", "minn.wholeops.in"],
   "goBin": "%USERPROFILE%\\go-portable\\go\\bin\\go.exe",
   "psql": "%USERPROFILE%\\pg-portable\\pgsql\\bin\\psql.exe",
+  "guide": "%USERPROFILE%\\dev-tools\\guide\\Guide.ps1",
   "pgHost": "localhost",
   "pgPort": 5490,
   "pgUser": "postgres",

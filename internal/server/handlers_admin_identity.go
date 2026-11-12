@@ -19,7 +19,7 @@ import (
 // Admin-only user and role-permission management (Stage 21 QA fix): the
 // "Users" and "Roles" sidebar items routed to view names the frontend
 // router had no case for, always falling through to a "Module Setup
-// Pending" placeholder despite ADMIN_GUIDE.md explicitly documenting a
+// Pending" placeholder despite admin-guide.md explicitly documenting a
 // working Users screen ("New users are created as records in the system
 // itself, via the Users screen"). None of this existed anywhere - no
 // endpoint reads or writes tenant_default.users/role_permissions outside
@@ -128,7 +128,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		COALESCE(to_jsonb(u)->>'department', ''),
 		COALESCE((SELECT e.id FROM %s.documents e WHERE e.doctype = 'Employee' AND e.deleted_at IS NULL AND e.data->>'user_id' = u.id
 		          ORDER BY (e.status = 'Active') DESC LIMIT 1), ''),
-		COALESCE(to_jsonb(u)->>'last_sign_in_at', '')
+		COALESCE(to_jsonb(u)->>'last_sign_in_at', ''), COALESCE(to_jsonb(u)->>'last_sign_in_ip', '')
 		FROM %s.users u WHERE %s ORDER BY username LIMIT %d`, schema, schema, engines.NotSupportUserSQL("u"), adminUserListCap))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
@@ -138,8 +138,8 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users := []map[string]interface{}{}
 	for rows.Next() {
-		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON, department, employeeID, lastSignIn string
-		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON, &department, &employeeID, &lastSignIn); err != nil {
+		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON, department, employeeID, lastSignIn, lastSignInIP string
+		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON, &department, &employeeID, &lastSignIn, &lastSignInIP); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -153,6 +153,8 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 			"department": department, "employee_id": employeeID,
 			// Stage 49.2.1: "" until the account next signs in.
 			"last_sign_in_at": lastSignIn,
+			// Stage 47.16.3: where that sign-in came from, "" once cleared.
+			"last_sign_in_ip": lastSignInIP,
 		})
 	}
 	_ = json.NewEncoder(w).Encode(users)
@@ -421,9 +423,14 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	// security.default_idle_timeout_minutes); the user can change their own on
 	// the Profile screen afterwards. Falls back to the column DEFAULT behavior
 	// (30) via the setting's own registered default.
+	// 49.2.1: with the joiner approval on, the account starts Inactive.
+	joinerStatus := "Active"
+	if engines.IdentityChangeApprovalOn(tenantID) {
+		joinerStatus = "Inactive"
+	}
 	_, err = db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes, must_change_password, department) VALUES ($1, $1, $2, $3, $4, 'Active', $5, $6, TRUE, $7)`, schema),
-		req.Username, string(hash), req.Email, req.Role, req.LocationCode, engines.GetSettingInt(tenantID, "security.default_idle_timeout_minutes"), department)
+		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes, must_change_password, department) VALUES ($1, $1, $2, $3, $4, $8, $5, $6, TRUE, $7)`, schema),
+		req.Username, string(hash), req.Email, req.Role, req.LocationCode, engines.GetSettingInt(tenantID, "security.default_idle_timeout_minutes"), department, joinerStatus)
 	if err != nil {
 		msg := "Failed to create user."
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
@@ -434,6 +441,15 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "USER_MANAGEMENT", "USER_CREATED", fmt.Sprintf("Created user %s with role %s", req.Username, req.Role))
+	if joinerStatus == "Inactive" {
+		reqID, reqErr := engines.RequestAccessChange(tenantID, engines.AccessChangeJoiner, req.Username, "new "+req.Role+" account", "", r.Header.Get("Resolved-User-ID"), role)
+		if reqErr != nil {
+			writeEngineError(w, r, reqErr, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending_approval", "request_id": reqID})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -531,6 +547,21 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 		engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "USER_MANAGEMENT", "USER_DEPARTMENT_CHANGED", fmt.Sprintf("Set user %s department to %s", req.ID, dept))
 		if req.LocationCode == "" {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "department": dept})
+			return
+		}
+	}
+
+	// 49.2.1: with the joiner / mover approval on, a store change waits for a second admin.
+	if engines.IdentityChangeApprovalOn(tenantID) {
+		var current string
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(location_code, '') FROM %s.users WHERE id = $1`, schema), req.ID).Scan(&current)
+		if current != req.LocationCode {
+			reqID, reqErr := engines.RequestAccessChange(tenantID, engines.AccessChangeMover, req.ID, "store "+current+" to "+req.LocationCode, req.LocationCode, r.Header.Get("Resolved-User-ID"), role)
+			if reqErr != nil {
+				writeEngineError(w, r, reqErr, http.StatusUnprocessableEntity)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending_approval", "request_id": reqID})
 			return
 		}
 	}
@@ -877,7 +908,7 @@ func handleExportAuditArchive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=audit_archive_%s.json", archiveID))
+	w.Header().Set("Content-Disposition", attachmentDisposition("audit_archive_"+archiveID+".json"))
 	_ = json.NewEncoder(w).Encode(manifest)
 }
 
@@ -954,4 +985,48 @@ func handleRoleGrantRollback(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "change_id": result.ChangeID,
 		"sessions_ended": result.SessionsEnded, "restored": outcome.Restored, "superseded": outcome.Superseded,
 		"withheld": outcome.Withheld, "gone": outcome.Gone})
+}
+
+// handleRoleLanding (Stage 47.14.5): GET lists the screens a role can land
+// on and every role's landing (stored, else its template's); POST sets or
+// clears one role's.
+func handleRoleLanding(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method == http.MethodPost {
+		var req struct {
+			Role string `json:"role"`
+			View string `json:"view"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+			return
+		}
+		if err := engines.SetRoleLanding(tenantID, req.Role, req.View, r.Header.Get("Resolved-Username")); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	names, err := tenantRoleNames(schema)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type entry struct {
+		View     string `json:"view"`
+		Template bool   `json:"template,omitempty"`
+	}
+	roles := map[string]entry{}
+	for _, n := range names {
+		v, fromTemplate := engines.ResolveRoleLanding(tenantID, n)
+		roles[n] = entry{View: v, Template: fromTemplate}
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "options": engines.LandingChoices(), "roles": roles})
 }

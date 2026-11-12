@@ -37,7 +37,7 @@ import (
 // The same separation is applied to two dimensions the old clause had no
 // notion of at all:
 //
-//   - self (employee): an employee's own HR records. db/migration.sql grants
+//   - self (employee): an employee's own HR records. db/migrations/migration.sql grants
 //     ('Cashier', 'Payslip', TRUE, ...) and ('Cashier', 'EmployeeLoan',
 //     TRUE, ...) doctype-level read, so before this a Cashier could list
 //     every colleague's payslip. Field-level redaction (47.1.3) hides the
@@ -108,7 +108,7 @@ func locScope(field string, mandatory bool) DoctypeScope {
 }
 
 // doctypeScopes is derived mechanically from the doctype_fields seeds in
-// db/*.sql: every doctype declaring a location/location_code, employee_id or
+// db/migrations/*.sql: every doctype declaring a location/location_code, employee_id or
 // owner_id field, with LocationMandatory taken from that seed row's own
 // mandatory column. scope_policy_test.go re-parses those seeds and fails the
 // build if the two ever disagree - the same self-checking shape
@@ -130,6 +130,8 @@ var doctypeScopes = map[string]DoctypeScope{
 	"FulfillmentTask":        locScope("location_code", true),
 	"GRN":                    locScope("location", true),
 	"GateEntry":              locScope("location_code", true),
+	"InspectionLot":          locScope("location", false),
+	"StockAgeInspection":     locScope("location", false),
 	"GatePass":               locScope("location_code", true),
 	"Hold":                   locScope("location_code", true),
 	"Manifest":               locScope("location_code", true),
@@ -213,6 +215,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	// listed with it so one map holds every dimension a doctype has.
 	"Appraisal":           {SelfField: "employee_id"},
 	"EmployeeLoan":        {SelfField: "employee_id"},
+	"IncentiveProfile":    {SelfField: "employee_id"}, // Stage 148.30
 	"ExpenseClaim":        {LocationFields: []string{"location"}, LocationMandatory: true, SelfField: "employee_id"},
 	"Grievance":           {SelfField: "employee_id"},
 	"Leave":               {SelfField: "employee_id"},
@@ -531,7 +534,7 @@ func ResolveSessionScope(tenantID, doctype string, session SessionScope) (Sessio
 
 // EmployeeCodeForUser returns the Employee code linked to an ERP user, or ""
 // when the user has no Employee record. The link is the Employee doctype's
-// own user_id field ("Linked ERP User ID" in db/migration.sql) - there is no
+// own user_id field ("Linked ERP User ID" in db/migrations/migration.sql) - there is no
 // employee column on the users table.
 //
 // "" is not an error: plenty of accounts (an integration user, a store's

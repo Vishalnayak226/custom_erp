@@ -139,13 +139,6 @@ func encodeJPEG(img image.Image) (jpegBytes []byte, ok bool) {
 	return buf.Bytes(), true
 }
 
-// thumbnailStorePath is the deterministic on-disk location for a media
-// asset's thumbnail, derived from its checksum the same content-addressed
-// way the original file is - never a second row/id to keep in sync.
-func thumbnailStorePath(checksum string) string {
-	return filepath.Join(mediaStoreDir, checksum+"_thumb.jpg")
-}
-
 // nextMediaVersion (Stage 26.4.4) returns the next version number for an
 // item+role - real per-role incrementing version history (counting every
 // prior version, including ones since deactivated), replacing the old

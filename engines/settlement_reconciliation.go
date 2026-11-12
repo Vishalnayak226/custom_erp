@@ -13,7 +13,7 @@ import (
 // Stage 35.8 (Settlement/payment reconciliation, the "UniReco" gap).
 // MarketplaceSettlementLine rows arrive via the existing generic
 // POST /api/v1/import/{doctype} + BulkImportCSV path (engines/import.go,
-// db/migrations_stage35_8_settlement_reconciliation.sql registers the
+// db/migrations/migrations_stage35_8_settlement_reconciliation.sql registers the
 // doctype) - one row per channel order in a marketplace's settlement/payout
 // file. ReconcileMarketplaceSettlements below is the matching engine: it
 // resolves each line to an internal order via the existing

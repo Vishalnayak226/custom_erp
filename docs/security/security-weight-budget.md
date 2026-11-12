@@ -88,13 +88,13 @@ configuration first. A CDN, WAF, managed secrets service, SIEM or EDR may be an
 optional deployment defence when a threat or contract warrants it, but:
 
 - the application's security never depends on one: every control on this page
-  and in [threat_model.md](threat_model.md) works on the minimum topology;
+  and in [threat-model.md](threat-model.md) works on the minimum topology;
 - the minimum secure production topology stays **Go + PostgreSQL + the
   existing reverse proxy and OS facilities**, as the
   [assurance statement](../qa/generated/security-assurance-statement.md) says;
 - adding a required service, dependency or outbound call is a high-risk line
   in the release's G6b security-impact report and needs an evidence-based,
-  approved exception recorded in [risk_register.md](risk_register.md).
+  approved exception recorded in [risk-register.md](risk-register.md).
 
 ## 49.18.6 Security cost cannot be "optimized away"
 

@@ -25,23 +25,23 @@ function documentTypes() {
 export async function renderReprintView(container) {
   container.innerHTML = `
     <div class="page-header"><div class="page-title-section"><h1 class="page-title">Reprint</h1></div></div>
-    <div class="table-panel" style="padding: 16px; margin-bottom: 16px;">
-      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-        <label class="form-label" style="margin-bottom: 0;">Document
-          <select id="rp-doctype" class="form-input" style="width: 230px;">
+    <div class="table-panel s-7438e6">
+      <div class="s-608a43">
+        <label class="form-label s-50435f">Document
+          <select id="rp-doctype" class="form-input s-63f14f">
             <option value="">All documents</option>
             ${documentTypes().map(d => `<option value="${esc(d.name)}">${esc(d.label)}</option>`).join('')}
           </select>
         </label>
-        <label class="form-label" style="margin-bottom: 0; flex: 1; min-width: 220px;">Number or text
+        <label class="form-label s-879221">Number or text
           <input id="rp-q" class="form-input" type="search" placeholder="Number, name or who printed it" autocomplete="off">
         </label>
         <button class="btn btn-outline" id="rp-search" type="button">Search</button>
         <button class="btn btn-primary" id="rp-print-any" type="button">Print this number</button>
       </div>
-      <div id="rp-error" class="hidden" role="alert" style="color: var(--danger-color, #b3261e); margin-top: 8px;"></div>
+      <div id="rp-error" class="hidden s-f94740" role="alert"></div>
     </div>
-    <div class="table-panel" style="overflow-x: auto;">
+    <div class="table-panel s-987eb2">
       <table>
         <thead><tr><th>When</th><th>Document</th><th>Number</th><th>Store</th><th>How</th><th>By</th><th>Reprint reason</th><th></th></tr></thead>
         <tbody id="rp-rows"><tr><td colspan="8" class="text-muted">Loading…</td></tr></tbody>
@@ -84,7 +84,7 @@ async function loadReprintRows() {
   rpRows = await res.json();
   const label = (r) => r.title || (typeof getDoctypeLabel === 'function' ? getDoctypeLabel(r.doctype) : r.doctype);
   body.innerHTML = rpRows.length ? rpRows.map((r, i) => `<tr>
-      <td style="white-space: nowrap;">${esc(when(r.printed_at))}</td><td>${esc(label(r))}</td><td>${esc(r.number || r.doc_id)}</td>
+      <td class="s-1cd2ee">${esc(when(r.printed_at))}</td><td>${esc(label(r))}</td><td>${esc(r.number || r.doc_id)}</td>
       <td>${esc(r.store)}</td><td>${esc(r.action)}${r.reprinted && r.action !== 'Reprint' ? ' (again)' : ''}${printRunNote(r)}</td><td>${esc(r.printed_by)}</td><td>${esc(r.reprint_reason || '')}</td>
       <td><button class="action-btn" type="button" data-rp="${i}">Reprint</button></td></tr>`).join('')
     : '<tr><td colspan="8" class="text-muted">Nothing printed yet matches.</td></tr>';
@@ -95,7 +95,7 @@ async function loadReprintRows() {
 function printRunNote(r) {
   const bits = [r.revision > 1 ? `revision ${r.revision}` : '', r.copies > 1 ? `${r.copies} copies${r.copy_labels ? ` (${r.copy_labels})` : ''}` : '',
     r.outcome || '', r.approved_by ? `approved by ${r.approved_by}` : ''].filter(Boolean);
-  return bits.length ? `<div class="text-muted" style="font-size:12px;">${esc(bits.join(' · '))}</div>` : '';
+  return bits.length ? `<div class="text-muted s-6cb285">${esc(bits.join(' · '))}</div>` : '';
 }
 
 // printByNumber finds one document of the chosen type by its number - printed

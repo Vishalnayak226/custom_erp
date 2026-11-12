@@ -383,7 +383,7 @@ func TestBLD017BalancedPostingInvariant(t *testing.T) {
 		_, _ = db.DB.Exec("DELETE FROM " + schema + ".gl_postings WHERE document_type = 'BLD017Property'")
 	})
 
-	// Real seeded gl_accounts codes (db/migration.sql) - account_code carries
+	// Real seeded gl_accounts codes (db/migrations/migration.sql) - account_code carries
 	// a foreign key to gl_accounts, so this can't be arbitrary random text.
 	accounts := []string{"1100", "1200", "2100", "4100", "5100"}
 

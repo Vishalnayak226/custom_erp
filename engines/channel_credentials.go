@@ -61,6 +61,9 @@ func SaveChannelCredential(tenantID, channelCode string, fields map[string]strin
 // optional expiry: nil keeps the expiry on file, "" clears it, a date or
 // RFC3339 time sets it.
 func SaveChannelCredentialBy(tenantID, channelCode string, fields map[string]string, savedBy string, expiresAt *string) error {
+	if err := checkConnectorRehearsal(tenantID, "channel", channelCode, savedBy); err != nil {
+		return err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err

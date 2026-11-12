@@ -43,19 +43,19 @@ Center** have no flyout and open straight away.
 | Entry | What is inside |
 |---|---|
 | **Home** | Opens directly. Where you land when you first sign in: your own quick actions (only the day-to-day screens your role can actually use), anything waiting on you, what you last touched, and - on a tenant that is still mostly empty - a "Get started" nudge toward the first master record to set up. |
-| **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
-| **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
+| **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps · Offline Sales |
+| **Financial Accounting** | Approvals, then **General ledger** (Work to review · Trial Balance · Chart of Accounts · Accounting Periods · Journal Vouchers), **Payables** (Vendor Invoice · Payment Proposals · Debit Notes · Vendor Credit Notes), **Receivables** (Sales Invoice · Customer Credit Notes · E-Invoice (IRN) · E-Invoice Settings) and **Bank** (Bank Reconciliation) |
 | **OMS** | Orders · Pending Orders · Pick · Pack · Ship · Returns · Settlements |
-| **CRM** | Customers · Loyalty · Campaigns · Vouchers · Service Tickets |
+| **CRM** | CRM overview · Customers · Segments · Templates · Campaigns · Journeys · Messages · Inbox · Tickets · Feedback · Worklist · Pipeline · Settings · Vouchers · Service Tickets, then **Loyalty** (Customer Points · Tiers · Points Movement · Vouchers & Campaigns) |
 | **Reports** | A dashboard of live figures, then one entry per area (Sales, Procurement, Inventory, WMS, OMS, CRM, Finance and the rest) whose reports open beside it, then Schedules. |
-| **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
-| **Inventory** | Dashboard · Stock on Hand · Inventory Ledger · Stock Movement · Stock Adjustment · MRP Change · Move Stock · Stock Locations · Sticker Printing |
-| **WMS** | Warehouse Cockpit, then **Inbound** (Appointment Calendar, Dock Doors, Yard Board, Trailers, RF Receiving, Putaway, Cross-Dock Plans), **Storage & Control** (Bin, Bin Conditions, LPN, Replenishment, Location Movement, Cycle Count, RF Lot & Serial, Holds) and **Outbound** (Waves, Picking, Sortation, Loading) |
+| **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Gate Entry · Purchase Return · Vendors · RFQ / Quotes |
+| **Inventory** | Dashboard · Stock on Hand · Inventory Ledger · Stock Movement · Allocation · Stock Adjustment · MRP Change · Material Issue · Delivery Challans · Move Stock · Stock Locations · Locations by Store · Locations by Transaction · Sticker Printing |
+| **WMS** | Warehouse Cockpit, Labour and Warehouse Billing, then **Inbound** (Appointment Calendar, Dock Doors, Yard Board, Trailers, RF Receiving, Putaway, Cross-Dock Plans), **Storage & Control** (Bin, Bin Conditions, LPN, Replenishment, Location Movement, Cycle Count, RF Lot & Serial, Holds) and **Outbound** (Waves, Picking, Sortation, Loading) |
 | **HRM** | My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets · Expenses |
 | **Manufacturing** | Production Orders · Production Schedule · Subcontracting · MRP Suggestions · Supply Proposals · Quality Inspections · Certificates · Non-conformance · Maintenance Orders |
-| **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · PIM Reports |
+| **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · Templates · Feeds · Design Values · Stewardship · Checklists · PIM Reports |
 | **Setup** | The module names; point at one and its reference lists (Items, Locations, Bins, Brands, Currencies and the rest) open beside it. |
-| **Settings** | Administrator screens in four groups: Users & Access (Users · Roles · Approval Rules) · Customize (Configuration · Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks) · Monitoring (Activity Log · System Status) · Platform |
+| **Settings** | Administrator screens: Configuration · Credentials, then four groups: Users & Access (Users · Roles · Approval Rules) · Customize (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks) · Monitoring (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · System Status) · Platform |
 
 **You see only what your role can use.** A module missing from your menu is a
 permission, not a fault. A whole group disappears when you have access to

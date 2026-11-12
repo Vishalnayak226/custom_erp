@@ -114,6 +114,8 @@ async function loadReturnsView() {
       id: d.id || data.code,
       number: data.code || d.id, // Stage 76.11: the SR series number; id stays the key
       requestType: data.request_type || '',
+      reason: data.reason || data.reason_code || '', // Stage 148.28
+      drafts: (Array.isArray(data.drafts) ? data.drafts : []).filter(x => x.id).length,
       originalOrderID: data.original_order_id || '',
       returnLocation: data.return_location || '',
       status: data.status || d.status || '',
@@ -158,13 +160,13 @@ function renderReturnsTable() {
     const qtySummary = r.items.reduce((n, it) => n + (Number(it.qty) || 0), 0);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="font-weight:600;">${cfgEsc(r.number)}</td>
-      <td>${cfgEsc(r.requestType)}</td>
+      <td class="s-eed0f8">${cfgEsc(r.number)}</td>
+      <td title="${cfgEsc(r.reason)}">${cfgEsc(r.requestType)}</td>
       <td>${cfgEsc(r.originalOrderID)}</td>
       <td>${cfgEsc(r.returnLocation)}</td>
       <td>${qtySummary} unit(s) across ${r.items.length} line(s)</td>
       <td>${r.refundEligible ? r.refundEligible.toFixed(2) : (r.expectedRefund ? `<span title="Expected - the money this bill's lines were paid. Fixed at inspection.">${r.expectedRefund.toFixed(2)} expected</span>` : '-')}</td>
-      <td>${cfgEsc(r.status)}</td>
+      <td>${cfgEsc(r.status)}${r.drafts ? ` · ${r.drafts} draft${r.drafts === 1 ? "" : "s"}` : ""}</td>
       <td>${actions.map(a => returnActionButton(r.id, a)).join(' ')} <button class="action-btn" ${actionAttrs('printTransactionDocument', ['ReturnRequest', r.id])}>Print</button></td>
     `;
     body.appendChild(tr);
@@ -271,7 +273,7 @@ async function openReturnQCDialog(row) {
   const html = row.items.map((it, i) => `<div class="form-group">
       <label class="form-label" for="qc-disposition-${i}">${cfgEsc(names[i])} (${cfgEsc(it.sku)}) - ${Number(it.qty) || 0} unit(s)</label>
       <select id="qc-disposition-${i}" class="form-input" data-qc-sku="${cfgEsc(it.sku)}">${RETURN_DISPOSITIONS.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
-      <input type="text" class="form-input" style="margin-top:6px;" data-qc-exchange="${cfgEsc(it.sku)}" aria-label="Exchange ${cfgEsc(names[i])} for (item code, optional)" placeholder="Exchange for item code (optional - blank refunds it)">
+      <input type="text" class="form-input s-fe7b49" data-qc-exchange="${cfgEsc(it.sku)}" aria-label="Exchange ${cfgEsc(names[i])} for (item code, optional)" placeholder="Exchange for item code (optional - blank refunds it)">
     </div>`).join('');
   // Stage 106.5: where the goods checked Sellable land, for this return only.
   let stockTo = {};

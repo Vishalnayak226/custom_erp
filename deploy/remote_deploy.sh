@@ -87,7 +87,7 @@ alert_ops() {
 # restart` itself silently failed (see the guarded calls below), the OLD
 # process can still be the one answering 200, and this would have reported
 # DEPLOY-OK for a deploy that never actually took effect (found via
-# docs/qa/audit-deploy-mock.py's restart-fails case - a real false success,
+# docs/qa/audit_deploy_mock.py's restart-fails case - a real false success,
 # not a hypothetical). /api/v1/health now echoes git_commit; when an expected
 # commit is given, a live 200 from a DIFFERENT commit keeps polling/fails
 # exactly like an unhealthy response would, instead of being counted as

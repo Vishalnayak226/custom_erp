@@ -33,6 +33,8 @@ type ImportResult struct {
 	// Stage 47.13.3: what the file held against what was posted.
 	Controls *ImportControlTotals `json:"control_totals,omitempty"`
 	controls *importControls
+	// 148.53: edits of a run on a caller's transaction, logged after it commits.
+	pendingEdits []importEdit
 	// Stage 47.13.3: the rules the run used and the file it came from.
 	RulesVersion string        `json:"rules_version,omitempty"`
 	Source       *ImportSource `json:"source,omitempty"`
@@ -54,7 +56,7 @@ type RowValidationError struct {
 // or exported ERP text as a formula. A leading apostrophe is their standard
 // text escape and deliberately remains part of the stored/exported value.
 func sanitizeCSVCell(value string) string {
-	trimmed := strings.TrimLeft(value, " \t")
+	trimmed := strings.TrimLeft(value, " \t\r\n")
 	if trimmed == "" {
 		return value
 	}
@@ -275,6 +277,19 @@ func runDocDataImport(tenantID, doctype, userID, role string, dryRun bool, docRo
 // the templated import go through, so the cancellation point below covers
 // both without either path checking for itself.
 func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
+	return runDocDataImportOn(ctx, nil, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
+}
+
+// runDocDataImportInTx writes the rows on the caller's transaction (148.53), for
+// a file whose other parts must land with them. It stops at the first failed
+// batch, since that leaves the transaction aborted. The caller commits or rolls
+// back, and logs result.pendingEdits once it has committed.
+func runDocDataImportInTx(ctx context.Context, tx *sql.Tx, tenantID, doctype, userID, role string, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
+	return runDocDataImportOn(ctx, tx, tenantID, doctype, userID, role, false, docRows, preErrors)
+}
+
+// runDocDataImportOn is the core; shared nil gives each batch its own transaction.
+func runDocDataImportOn(ctx context.Context, shared *sql.Tx, tenantID, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -325,9 +340,12 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 		if batchEnd > len(docRows) {
 			batchEnd = len(docRows)
 		}
-		if err := importBatch(tenantID, schema, doctype, userID, role, dryRun,
+		if err := importBatch(shared, tenantID, schema, doctype, userID, role, dryRun,
 			docRows[batchStart:batchEnd], preErrors[batchStart:batchEnd], batchStart+2, result, seenIDs, lk); err != nil {
 			return nil, err
+		}
+		if shared != nil && result.FailedRows > 0 {
+			break
 		}
 	}
 
@@ -757,12 +775,16 @@ func importPriorData(tx *sql.Tx, doctype string, ids []string) map[string]map[st
 	return out
 }
 
-func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool, lk *importLookups) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
+func importBatch(shared *sql.Tx, tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool, lk *importLookups) error {
+	tx := shared
+	if tx == nil {
+		own, err := db.DB.Begin()
+		if err != nil {
+			return err
+		}
+		defer own.Rollback()
+		tx = own
 	}
-	defer tx.Rollback()
 
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return err
@@ -887,6 +909,8 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 				docData["code"] = "PENDING-NUMBER"
 			}
 		}
+
+		StampStewardshipSource(doctype, docData, "Import", userID) // 47.13.4
 
 		// Perform field structure validation
 		valErr := validateDocumentWith(tenantID, doctype, docData, lk.validation)
@@ -1060,6 +1084,11 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 				}
 			}
 		}
+	}
+
+	if shared != nil {
+		result.pendingEdits = append(result.pendingEdits, edits...)
+		return nil
 	}
 
 	// Commit this batch if it has any successful rows - unless this is a

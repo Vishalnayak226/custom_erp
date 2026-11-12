@@ -62,8 +62,12 @@ func AcceptPendingOrder(tenantID, orderID, userID string) (string, error) {
 	if err := enforceCreditAtAccept(tenantID, schema, orderID, order, userID); err != nil { // Stage 148.3
 		return "", err
 	}
-	if _, _, err := ReleaseOrderToFulfillment(tenantID, orderID, userID); err != nil {
-		return "", err
+	if handled, derr := acceptDropShipOrder(tenantID, order, orderID, userID); derr != nil { // Stage 148.32: no pick, the vendor ships
+		return "", derr
+	} else if !handled {
+		if _, _, err := ReleaseOrderToFulfillment(tenantID, orderID, userID); err != nil {
+			return "", err
+		}
 	}
 	already := strField(order, "acceptance_status") == AcceptanceAccepted
 	if err := mergeSalesOrderData(schema, orderID, map[string]interface{}{

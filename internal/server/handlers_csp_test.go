@@ -88,3 +88,21 @@ func TestCSPReportHandlerBoundsAndRedactsBrowserReport(t *testing.T) {
 		t.Fatalf("oversized report must be silently dropped: status=%d log=%q", oversizedResponse.Code, logs.String())
 	}
 }
+
+// 49.4.3: the report-only candidate also runs the Trusted Types trial and the strict style-src, while
+// the enforced policy has neither yet (it changes only once a browser sweep shows zero violations).
+func TestSecurityHeadersTrustedTypesTrialIsReportOnly(t *testing.T) {
+	response := httptest.NewRecorder()
+	securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	enforced := response.Header().Get("Content-Security-Policy")
+	reportOnly := response.Header().Get("Content-Security-Policy-Report-Only")
+	if !strings.Contains(reportOnly, "require-trusted-types-for 'script'") {
+		t.Errorf("the report-only policy must carry the Trusted Types trial: %q", reportOnly)
+	}
+	if strings.Contains(reportOnly, "unsafe-inline") || !strings.Contains(reportOnly, "style-src 'self';") {
+		t.Errorf("the report-only policy must carry the strict style-src: %q", reportOnly)
+	}
+	if strings.Contains(enforced, "require-trusted-types-for") {
+		t.Errorf("Trusted Types must not be enforced until a sweep shows zero violations: %q", enforced)
+	}
+}

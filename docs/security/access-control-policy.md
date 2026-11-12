@@ -40,5 +40,5 @@ not this normative policy or effective authorization. New permission evidence ex
 require explicit environment, schema and output root; they remain dated records. Field,
 route and workflow controls must also be tested before accepting migration evidence.
 
-The [security threat model](threat_model.md) and [risk register](risk_register.md) own threats
+The [security threat model](threat-model.md) and [risk register](risk-register.md) own threats
 and treatment. This draft provides no blanket security/privacy/compliance certification.

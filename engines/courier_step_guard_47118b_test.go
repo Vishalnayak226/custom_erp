@@ -136,7 +136,7 @@ func courier47118bSetup(t *testing.T) (string, *fakeStepCourier, func(id string,
 	}
 	var ready bool
 	if err := db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM ` + schema + `.doctype_meta WHERE name='NDRCase')`).Scan(&ready); err != nil || !ready {
-		t.Skip("db/migrations_stage35_5_courier_integration.sql has not been applied")
+		t.Skip("db/migrations/migrations_stage35_5_courier_integration.sql has not been applied")
 	}
 	f := newFakeStepCourier(t)
 	registerCourierAdapter(step47118bCourier{f: f})

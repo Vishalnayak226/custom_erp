@@ -24,5 +24,7 @@ func handleListReasonCodes(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"codes":    codes,
 		"required": engines.ReasonCodesRequired(r.Header.Get("Resolved-Tenant-ID")),
+		// Stage 148.28: a Sales Return needs one when the business says so.
+		"return_required": category == engines.ReasonSalesReturn && engines.GetSettingBool(r.Header.Get("Resolved-Tenant-ID"), engines.SettingReturnReasonRequired),
 	})
 }

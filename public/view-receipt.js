@@ -21,23 +21,23 @@ export async function renderReceiptEntry(container, onDone) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group" style="margin:0;"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
-  panel.innerHTML = `<div class="page-header" style="margin:0 0 12px;"><div class="page-title-section"><h1 class="page-title">New Receipt</h1></div>
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  panel.innerHTML = `<div class="page-header s-249d01"><div class="page-title-section"><h1 class="page-title">New Receipt</h1></div>
       <div><button type="button" class="btn btn-ghost" data-rc="back">Back to invoices</button></div></div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+    <div class="s-d9da29">
       ${field('rc-customer', 'Customer', 220)}
       ${field('rc-store', 'Store', 150, `value="${esc(sessionStore())}"`)}
       ${field('rc-date', 'Date', 150, `type="date" value="${new Date().toISOString().slice(0, 10)}"`)}
-      <div class="form-group" style="margin:0;"><label class="form-label" for="rc-mode">Mode</label><select class="form-input" id="rc-mode" style="width:150px;">${S.modes.map(m => `<option>${esc(m)}</option>`).join('')}</select></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="rc-bank">Bank account</label><select class="form-input" id="rc-bank" style="width:200px;"><option value="">-</option>${banks.map(b => `<option value="${esc(b.id)}">${esc(b.bank_name || '')} ${esc(String(b.account_number || '').slice(-4))}</option>`).join('')}</select></div>
+      <div class="form-group s-116966"><label class="form-label" for="rc-mode">Mode</label><select class="form-input s-7c07cd" id="rc-mode">${S.modes.map(m => `<option>${esc(m)}</option>`).join('')}</select></div>
+      <div class="form-group s-116966"><label class="form-label" for="rc-bank">Bank account</label><select class="form-input s-2acaf3" id="rc-bank"><option value="">-</option>${banks.map(b => `<option value="${esc(b.id)}">${esc(b.bank_name || '')} ${esc(String(b.account_number || '').slice(-4))}</option>`).join('')}</select></div>
       ${field('rc-ref', 'Reference', 150, 'placeholder="UTR / cheque no"')}
       ${field('rc-amount', 'Amount received', 130, 'type="number" inputmode="decimal" min="0" step="0.01"')}
       ${field('rc-tds', 'TDS deducted', 110, 'type="number" inputmode="decimal" min="0" step="0.01"')}
     </div>
     <div data-rc="items"><p class="text-muted">Choose the customer.</p></div>
-    <div data-rc="totals" style="margin-top:14px;max-width:360px;margin-left:auto;"></div>
-    <div class="login-error hidden" data-rc="error" style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-rc="save">Save receipt</button></div>`;
+    <div data-rc="totals" class="s-7cc550"></div>
+    <div class="login-error hidden s-56f435" data-rc="error"></div>
+    <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-rc="save">Save receipt</button></div>`;
   container.appendChild(panel);
   const q = (k) => panel.querySelector(`[data-rc="${k}"]`);
   const v = (sel) => panel.querySelector(sel).value.trim();
@@ -53,7 +53,7 @@ export async function renderReceiptEntry(container, onDone) {
     const advUsed = S.advances.reduce((s, a) => s + num(a.use), 0);
     const allocated = S.invoices.reduce((s, i) => s + num(i.pay), 0);
     const onAccount = r2(money + tds + advUsed - allocated);
-    q('totals').innerHTML = `<table class="table-compact" style="width:100%;"><tbody>
+    q('totals').innerHTML = `<table class="table-compact s-046678"><tbody>
       <tr><td>Received</td><td class="num">${formatMoney(money)}</td></tr>
       ${tds ? `<tr><td>TDS</td><td class="num">${formatMoney(tds)}</td></tr>` : ''}
       ${advUsed ? `<tr><td>Advances used</td><td class="num">${formatMoney(advUsed)}</td></tr>` : ''}
@@ -69,11 +69,11 @@ export async function renderReceiptEntry(container, onDone) {
     }
     host.innerHTML = `${S.invoices.length ? `<div class="table-wrapper"><table><thead><tr><th>Invoice</th><th>Date</th><th>Due</th><th class="num">Outstanding</th><th class="num">Pay</th></tr></thead><tbody>
       ${S.invoices.map((i, n) => `<tr><td>${esc(i.number)}</td><td>${esc(i.date)}</td><td>${esc(i.due_date || '')}</td><td class="num">${formatMoney(i.outstanding)}</td>
-        <td class="num"><input class="form-input" data-rc-pay="${n}" type="number" inputmode="decimal" min="0" step="0.01" style="width:110px;text-align:right;" value="${i.pay || ''}"></td></tr>`).join('')}
+        <td class="num"><input class="form-input s-b54ee3" data-rc-pay="${n}" type="number" inputmode="decimal" min="0" step="0.01" value="${i.pay || ''}"></td></tr>`).join('')}
       </tbody></table></div>` : ''}
-      ${S.advances.length ? `<div class="table-wrapper" style="margin-top:12px;"><table><thead><tr><th>Advance</th><th>Taken</th><th class="num">Left</th><th class="num">Use</th></tr></thead><tbody>
+      ${S.advances.length ? `<div class="table-wrapper s-56f435"><table><thead><tr><th>Advance</th><th>Taken</th><th class="num">Left</th><th class="num">Use</th></tr></thead><tbody>
       ${S.advances.map((a, n) => `<tr><td>${esc(a.number)}</td><td>${esc(String(a.taken_at || '').slice(0, 10))}</td><td class="num">${formatMoney(a.balance)}</td>
-        <td class="num"><input class="form-input" data-rc-adv="${n}" type="number" inputmode="decimal" min="0" step="0.01" style="width:110px;text-align:right;" value="${a.use || ''}"></td></tr>`).join('')}
+        <td class="num"><input class="form-input s-b54ee3" data-rc-adv="${n}" type="number" inputmode="decimal" min="0" step="0.01" value="${a.use || ''}"></td></tr>`).join('')}
       </tbody></table></div>` : ''}`;
     host.querySelectorAll('[data-rc-pay]').forEach(el => el.addEventListener('input', () => { S.invoices[+el.dataset.rcPay].pay = num(el.value); draw(); }));
     host.querySelectorAll('[data-rc-adv]').forEach(el => el.addEventListener('input', () => {

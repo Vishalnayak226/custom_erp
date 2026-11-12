@@ -86,7 +86,7 @@ func TestLoyaltyTieringAndExpiry(t *testing.T) {
 	t.Run("RecomputeLoyaltyTier picks the highest threshold met and EarnLoyaltyPoints applies its multiplier", func(t *testing.T) {
 		cleanup()
 		seedCustomer("")
-		// Gold's seeded threshold is 20000 (db/migrations_stage26_7_crm_loyalty.sql).
+		// Gold's seeded threshold is 20000 (db/migrations/migrations_stage26_7_crm_loyalty.sql).
 		seedPaidCart("TEST-TIER-CART-1", 25000)
 
 		tier, err := RecomputeLoyaltyTier(tenantID, custID)

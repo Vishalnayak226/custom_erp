@@ -20,8 +20,10 @@ extension-sdk/
 bin/
 
 # Local credentials — never bake into an image
+.local/
 *.local.txt
 *.local.json
+*.local.md
 DEV_CREDENTIALS.local.txt
 CONNECTOR_CREDENTIALS.local.json
 

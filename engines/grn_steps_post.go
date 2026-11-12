@@ -163,7 +163,9 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 		g.data["grn_step"] = GRNStepPosted
 		g.data["status"] = "Approved"
 		g.data["posted_at"] = stamp
-		g.data["payment_status"] = "Due"
+		if !isMemoReceipt(tenantID, grnID, g.data) { // 148.16: it owes nothing itself
+			g.data["payment_status"] = "Due"
+		}
 	}
 	if err := g.save(tenantID, userID, GRNStepPosted, fmt.Sprintf("Child %s posted", childKey)); err != nil {
 		return nil, err
@@ -293,12 +295,13 @@ func finalizeStepGRN(tenantID, userID, storeCode, grnID string) {
 	billID, billGST, err := ensureStepGRNVendorBill(tenantID, userID, grnID, data)
 	if err != nil {
 		warnings = append(warnings, err.Error())
-	} else {
+	} else if billID != "" {
 		patch["vendor_bill_id"] = billID
 	}
 
 	diff := numFromInterface(data["note_difference"])
-	if math.Abs(diff) >= 0.005 {
+	// 148.16: a memo receipt owes nothing yet, so there is no difference to note.
+	if math.Abs(diff) >= 0.005 && !isMemoReceipt(tenantID, grnID, data) {
 		noteLines, taxable, gst := grnNoteLines(data, lines)
 		doctype, series := "DebitNote", "DN"
 		if diff < 0 {
@@ -308,7 +311,16 @@ func finalizeStepGRN(tenantID, userID, storeCode, grnID string) {
 				noteLines[i].Taxable, noteLines[i].GST = -noteLines[i].Taxable, -noteLines[i].GST
 			}
 		}
-		noteID, nerr := raiseStepGRNNote(tenantID, userID, storeCode, grnID, data, doctype, series, noteLines, taxable, gst, math.Abs(diff))
+		// Input credit moves from the bill's GST to ours: for a new vendor credit
+		// note the leg posts in the transaction that inserts the note (162.9).
+		var legWithNote noteLegFunc
+		if doctype == "VendorCreditNote" && billID != "" {
+			gstDelta := numFromInterface(data["our_gst"]) - billGST
+			legWithNote = func(tx *sql.Tx, schema, noteID string) error {
+				return postVCNGSTLegTx(tx, tenantID, schema, noteID, gstDelta)
+			}
+		}
+		noteID, nerr := raiseStepGRNNote(tenantID, userID, storeCode, grnID, data, doctype, series, noteLines, taxable, gst, math.Abs(diff), legWithNote)
 		if nerr != nil {
 			warnings = append(warnings, nerr.Error())
 		}
@@ -349,6 +361,10 @@ func finalizeStepGRN(tenantID, userID, storeCode, grnID string) {
 // ensureStepGRNVendorBill makes the vendor bill from the Receive figures and
 // matches it - or returns the one already made for this GRN.
 func ensureStepGRNVendorBill(tenantID, userID, grnID string, grn map[string]interface{}) (string, float64, error) {
+	// 148.16: the sale raises a memo receipt's bill. One here would be owed twice.
+	if isMemoReceipt(tenantID, grnID, grn) {
+		return "", 0, nil
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", 0, err
@@ -443,7 +459,7 @@ func readStepGRNBilling(grn map[string]interface{}, lines []map[string]interface
 
 // raiseStepGRNNote raises the invoice-vs-GRN note, Posted (its GL, where it
 // has any, is booked by the caller against the bill). Idempotent per GRN.
-func raiseStepGRNNote(tenantID, userID, storeCode, grnID string, grn map[string]interface{}, doctype, series string, lines []grnNoteLine, taxable, gst, total float64) (string, error) {
+func raiseStepGRNNote(tenantID, userID, storeCode, grnID string, grn map[string]interface{}, doctype, series string, lines []grnNoteLine, taxable, gst, total float64, leg noteLegFunc) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -473,7 +489,7 @@ func raiseStepGRNNote(tenantID, userID, storeCode, grnID string, grn map[string]
 		"source_doctype": "GRN", "source_doc_id": grnID,
 	}
 	b, _ := json.Marshal(note)
-	if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, 'Posted', $4)`, schema), id, doctype, b, userID); err != nil {
+	if err := insertPostedNoteTx(schema, id, doctype, b, userID, leg); err != nil {
 		return "", fmt.Errorf("could not raise the %s for GRN %s: %v", label, grnID, err)
 	}
 	LogAuditEvent(tenantID, userID, "CREATE_GRN_INVOICE_NOTE", "SUCCESS", fmt.Sprintf("Raised %s %s for %.2f on GRN %s", label, id, total, grnID))
@@ -549,9 +565,31 @@ func applyDebitNoteToBill(tenantID, userID, billID, noteID string, noteTotal, ou
 	return tx.Commit()
 }
 
-// postVCNGSTLeg moves input credit by the GST difference a vendor credit
-// note carries (our GST - the bill's GST).
-func postVCNGSTLeg(tenantID, noteID string, gstDelta float64) error {
+// noteLegFunc is the GL leg a GRN note posts in the transaction that inserts it.
+type noteLegFunc func(tx *sql.Tx, schema, noteID string) error
+
+// insertPostedNoteTx inserts a Posted note and, when leg is set, its GL leg in
+// the same transaction (Stage 162.9): the note and its ledger cannot disagree.
+func insertPostedNoteTx(schema, id, doctype string, data []byte, userID string, leg noteLegFunc) error {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, 'Posted', $4)`, schema), id, doctype, data, userID); err != nil {
+		return err
+	}
+	if leg != nil {
+		if err := leg(tx, schema, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// postVCNGSTLegTx moves input credit by the GST difference a vendor credit
+// note carries (our GST - the bill's GST), in the caller's transaction.
+func postVCNGSTLegTx(tx *sql.Tx, tenantID, schema, noteID string, gstDelta float64) error {
 	p := RupeesToPaise(gstDelta)
 	if p == 0 {
 		return nil
@@ -560,10 +598,28 @@ func postVCNGSTLeg(tenantID, noteID string, gstDelta float64) error {
 	if p < 0 {
 		debits, credits = map[string]int64{"2100": -p}, map[string]int64{"1500": -p}
 	}
-	if err := PostDoubleEntry(tenantID, "VendorCreditNote", noteID, debits, credits, "", fmt.Sprintf("VendorCreditNote:%s:GRN_GST", noteID)); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorCreditNote", noteID, debits, credits, "", fmt.Sprintf("VendorCreditNote:%s:GRN_GST", noteID)); err != nil {
 		return fmt.Errorf("vendor credit note %s: its GST of %.2f could not be booked: %v", noteID, gstDelta, err)
 	}
 	return nil
+}
+
+// postVCNGSTLeg is the standalone form, for a note raised before the leg joined
+// its transaction (a repeat is a no-op: the posting is keyed).
+func postVCNGSTLeg(tenantID, noteID string, gstDelta float64) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := postVCNGSTLegTx(tx, tenantID, schema, noteID, gstDelta); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // --- the quick path (94.10) ------------------------------------------------------
@@ -692,6 +748,9 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	}
 	if !IsGRNStepFlow(data) || strField(data, "grn_step") != GRNStepPosted {
 		return nil, &ValidationError{Code: "GOODSR-0944", Message: "post the goods receipt before paying the vendor"}
+	}
+	if isMemoReceipt(tenantID, grnID, data) {
+		return nil, memoNoBillOnReceipt()
 	}
 	billID := strField(data, "vendor_bill_id")
 	if billID == "" {
@@ -940,6 +999,10 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 	if g.step() != GRNStepPosted {
 		return nil, &ValidationError{Code: "GOODSR-0944", Message: "this receipt is not posted yet - go back to the step and change it there"}
 	}
+	// 148.16: a correction posts value and raises notes; a memo receipt has neither.
+	if isMemoReceipt(tenantID, grnID, g.data) {
+		return nil, memoNoBillOnReceipt()
+	}
 	if in.Apply && strings.TrimSpace(in.Reason) == "" {
 		return nil, &ValidationError{Code: "GLOBAL-0001", SubFor: "Reason", Message: "say why the posted receipt is being corrected"}
 	}
@@ -1032,9 +1095,9 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 	if eff.NoteKind == "VendorCreditNote" {
 		g.data["vcn_total"] = round2(numFromInterface(g.data["vcn_total"]) + eff.NoteAmount)
 	}
-	if err := g.save(tenantID, userID, "Correct", in.Reason); err != nil {
-		return nil, err
-	}
+	// Stage 162.9: the stock change, the cost move, the value posting and the
+	// saved GRN are ONE transaction (g.tx): a failure at any of them leaves the
+	// GRN, the stock and the ledger exactly as they were.
 	voucher := fmt.Sprintf("%s-C%d", grnID, n)
 	for _, m := range moves {
 		line := map[string]interface{}{"sku": m.sku, "qty": m.qty}
@@ -1042,13 +1105,17 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 			line["batch_no"] = m.batch
 		}
 		if math.Abs(m.qty) > 1e-9 {
-			if _, err := PostInventoryLedgerWithVoucher(tenantID, location, []interface{}{line}, false, "GRNCorrection", voucher, userID); err != nil {
-				return nil, fmt.Errorf("the correction was saved but its stock change for %s could not post (%v) - adjust the stock by hand", m.sku, err)
+			_, ledgerLines, err := PostInventoryLedgerWithVoucherTx(g.tx, g.schema, location, []interface{}{line}, false)
+			if err == nil {
+				err = writeStockLedgerLinesInTx(g.tx, g.schema, location, "GRNCorrection", voucher, userID, ledgerLines)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("the correction's stock change for %s could not post: %w", m.sku, err)
 			}
 		}
 		// Stage 148.1: the rate moves by the value this correction books to stock below.
-		if err := correctReceiptCost(tenantID, m.sku, grnID, m.qty, m.value, m.priceChange); err != nil {
-			LogSystemError(tenantID, "", "WARN", "CorrectGRNStep", fmt.Sprintf("GRN %s correction: cost of %s not moved: %v", grnID, m.sku, err), "")
+		if err := correctReceiptCostTx(g.tx, g.schema, m.sku, grnID, m.qty, m.value, m.priceChange); err != nil {
+			return nil, fmt.Errorf("the correction's cost move for %s failed: %w", m.sku, err)
 		}
 	}
 	if p := RupeesToPaise(eff.ValueDelta); p != 0 {
@@ -1056,9 +1123,12 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		if p < 0 {
 			debits, credits = map[string]int64{"2100": -p}, map[string]int64{"1200": -p}
 		}
-		if err := PostDoubleEntry(tenantID, "GRN", grnID, debits, credits, "", fmt.Sprintf("GRN:%s:CORR:%d", grnID, n)); err != nil {
-			return nil, fmt.Errorf("the correction was saved but its stock value change could not be booked: %v", err)
+		if err := PostDoubleEntryTx(g.tx, tenantID, g.schema, "GRN", grnID, debits, credits, "", fmt.Sprintf("GRN:%s:CORR:%d", grnID, n)); err != nil {
+			return nil, fmt.Errorf("the correction's stock value change could not be booked: %w", err)
 		}
+	}
+	if err := g.save(tenantID, userID, "Correct", in.Reason); err != nil {
+		return nil, err
 	}
 	for _, m := range mrpChanges {
 		sku, batch, mrp := m["sku"].(string), m["batch"].(string), m["mrp"].(float64)
@@ -1079,7 +1149,13 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		}
 		gstDelta := round2(newGST - oldGST)
 		series := map[string]string{"DebitNote": "DN", "VendorCreditNote": "VCN"}[eff.NoteKind]
-		noteID, err := raiseCorrectionNote(tenantID, userID, storeCode, grnID, data, eff.NoteKind, series, n, noteLines, math.Abs(eff.ValueDelta), math.Abs(gstDelta), eff.NoteAmount, in.Reason)
+		var legWithNote noteLegFunc
+		if eff.NoteKind == "VendorCreditNote" && strField(data, "vendor_bill_id") != "" {
+			legWithNote = func(tx *sql.Tx, schema, noteID string) error {
+				return postVCNGSTLegTx(tx, tenantID, schema, noteID, gstDelta)
+			}
+		}
+		noteID, err := raiseCorrectionNote(tenantID, userID, storeCode, grnID, data, eff.NoteKind, series, n, noteLines, math.Abs(eff.ValueDelta), math.Abs(gstDelta), eff.NoteAmount, in.Reason, legWithNote)
 		if err != nil {
 			return nil, err
 		}
@@ -1126,7 +1202,7 @@ func appendJSONList(raw string, item map[string]interface{}) string {
 
 // raiseCorrectionNote raises the adjusting note a correction makes, keyed to
 // the correction so a retry never raises two.
-func raiseCorrectionNote(tenantID, userID, storeCode, grnID string, grn map[string]interface{}, doctype, series string, n int, lines []grnNoteLine, taxable, gst, total float64, reason string) (string, error) {
+func raiseCorrectionNote(tenantID, userID, storeCode, grnID string, grn map[string]interface{}, doctype, series string, n int, lines []grnNoteLine, taxable, gst, total float64, reason string, leg noteLegFunc) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -1151,7 +1227,7 @@ func raiseCorrectionNote(tenantID, userID, storeCode, grnID string, grn map[stri
 		"source_doctype": "GRN", "source_doc_id": grnID,
 	}
 	b, _ := json.Marshal(note)
-	if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, 'Posted', $4)`, schema), id, doctype, b, userID); err != nil {
+	if err := insertPostedNoteTx(schema, id, doctype, b, userID, leg); err != nil {
 		return "", err
 	}
 	return id, nil

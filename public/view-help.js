@@ -49,7 +49,7 @@ function flattenHelpArticles(index) {
 async function renderHelpView(container) {
   const index = await loadHelpIndex();
   if (!index) {
-    container.innerHTML = `<div class="table-panel" style="padding:24px;"><p>The Knowledge Center could not be loaded.</p></div>`;
+    container.innerHTML = `<div class="table-panel s-ddaf9e"><p>The Knowledge Center could not be loaded.</p></div>`;
     return;
   }
   const flat = flattenHelpArticles(index);
@@ -65,7 +65,7 @@ async function renderHelpView(container) {
       </div>
       <nav id="kb-nav" aria-label="Knowledge Center sections"></nav>
     </aside>
-    <article class="kb-article table-panel" id="kb-article" style="padding:24px;"></article>`;
+    <article class="kb-article table-panel s-ddaf9e" id="kb-article"></article>`;
   container.appendChild(layout);
 
   const nav = layout.querySelector('#kb-nav');
@@ -279,9 +279,9 @@ async function openHelpDrawer(screenID) {
   const others = slugs.slice(1);
   const titleOf = slug => (flattenHelpArticles(index).find(a => a.slug === slug) || {}).title || slug;
   body.innerHTML = `
-    <h4 style="margin:0 0 12px;">${escapeHTMLText(article.title)}</h4>
+    <h4 class="s-249d01">${escapeHTMLText(article.title)}</h4>
     <div class="kb-body">${article.html}</div>
-    ${others.length > 0 ? `<p class="text-muted" style="margin-top:16px;">Also for this screen: ${others.map(slug => `<a href="/help/${encodeURIComponent(slug)}">${escapeHTMLText(titleOf(slug))}</a>`).join(', ')}</p>` : ''}`;
+    ${others.length > 0 ? `<p class="text-muted s-1b0f49">Also for this screen: ${others.map(slug => `<a href="/help/${encodeURIComponent(slug)}">${escapeHTMLText(titleOf(slug))}</a>`).join(', ')}</p>` : ''}`;
 }
 window.openHelpDrawer = openHelpDrawer;
 

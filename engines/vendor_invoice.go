@@ -141,6 +141,13 @@ func MatchVendorInvoiceAs(tenantID, userID, invoiceID, poID, grnID string, toler
 	if err := json.Unmarshal([]byte(invDataStr), &invData); err != nil {
 		return out, err
 	}
+	// 148.16: a bill keyed against a memo receipt would be owed on top of the ones
+	// its sales raise.
+	if g := firstNonEmpty(grnID, strField(invData, "grn_id")); g != "" {
+		if grn, _, gerr := fetchDocData(tenantID, "GRN", g); gerr == nil && isMemoReceipt(tenantID, g, grn) {
+			return out, memoNoBillOnReceipt()
+		}
+	}
 	// Stage 73.D.13: matching sets the status, so a bill that is paid, part-
 	// paid or waiting on an approval must not be matched again - it could
 	// flip a Paid bill back to Matched or MismatchHold (the ledger was safe,
@@ -278,6 +285,13 @@ func MatchVendorInvoiceAs(tenantID, userID, invoiceID, poID, grnID string, toler
 	gstPart := 0.0
 	if goods := invoiceAmount - chargeHere; taxRatio > 1 && goods > 0 {
 		gstPart = round2(goods - goods/taxRatio)
+	}
+	// Stage 148.42: the blocked share of the goods GST is not input credit.
+	if blocked := blockedGSTShare(tenantID, poData, gstPart); blocked > 0 {
+		gstPart = round2(gstPart - blocked)
+		invData["itc_blocked_amount"] = blocked
+	} else {
+		delete(invData, "itc_blocked_amount")
 	}
 	delete(invData, "charge_net")
 	delete(invData, "charge_gst")
@@ -449,12 +463,9 @@ func payVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 		return 0, true, nil
 	}
 
-	// GL posted before the status flip is committed below - PostDoubleEntry
-	// manages its own transaction (can't be nested into this one), so the
-	// row lock above is held across the call to prevent a concurrent second
-	// pay attempt on the same invoice, and a GL failure here leaves the
-	// invoice's status untouched (this tx is rolled back via defer) rather
-	// than marking it Paid with no posting behind it.
+	// Stage 49.5.2: the GL rows post in THIS transaction (PostDoubleEntryTx), so
+	// the payment and the status flip commit together or not at all; the row
+	// lock above stops a concurrent second pay of the same invoice.
 	// Stage 37.1.3. The liability is cleared at what the ledger carries for it;
 	// the cash leaving the bank is the invoice amount at the payment-date rate.
 	// A payable settled after the foreign currency strengthened costs more
@@ -475,7 +486,7 @@ func payVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 		return 0, false, perr
 	}
 	payKey := fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID)
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
 		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,
@@ -538,6 +549,13 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return 0, err
+	}
+	// Stage 148.19: a bill without a PO waiting on approval books now; no money moves.
+	if isExpenseBill(data) && data["expense_pending"] == true {
+		if err := finalizeExpenseBillApproval(tx, tenantID, schema, invoiceID, data); err != nil {
+			return 0, err
+		}
+		return 0, tx.Commit()
 	}
 	// Stage 148.1: the held bill's difference books as the money goes.
 	if err := settleOverriddenBillTx(tx, tenantID, schema, invoiceID, data); err != nil {

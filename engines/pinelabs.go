@@ -21,6 +21,9 @@ func SavePineLabsCredential(tenantID, terminalID, apiKey, merchantID, baseURL st
 // SavePineLabsCredentialBy (49.8.5) also records who saved it and an
 // optional expiry (a date or RFC3339; blank = none).
 func SavePineLabsCredentialBy(tenantID, terminalID, apiKey, merchantID, baseURL, savedBy, expiresAt string) error {
+	if err := checkConnectorRehearsal(tenantID, "pinelabs", terminalID, savedBy); err != nil {
+		return err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err

@@ -3,7 +3,7 @@
 // tooltip, the whole contract behind the ⓘ button.
 function ago(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : new Date(iso).toLocaleDateString();
+  return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : formatDateTime(iso, true);
 }
 export function kpiContractLines(c) {
   if (!c) return [];
@@ -150,9 +150,9 @@ async function runWidgets(cd, f) {
 export async function renderDashboardsTab(panel, openId) {
   await loadMeta();
   if (openId) return openDashboard(panel, openId);
-  panel.innerHTML = '<p class="dash-empty" style="padding:16px;">Loading dashboards…</p>';
+  panel.innerHTML = '<p class="dash-empty s-287f77">Loading dashboards…</p>';
   const res = await apiFetch('/api/v1/dashboards/custom');
-  if (!res || !res.ok) { panel.innerHTML = `<p class="dash-error" style="padding:16px;">${esc(res ? await getErrorMessage(res, 'Dashboards could not be loaded.') : 'Dashboards could not be loaded.')}</p>`; return; }
+  if (!res || !res.ok) { panel.innerHTML = `<p class="dash-error s-287f77">${esc(res ? await getErrorMessage(res, 'Dashboards could not be loaded.') : 'Dashboards could not be loaded.')}</p>`; return; }
   const { dashboards = [] } = await res.json();
   const card = d => `<button type="button" class="dash-card" data-dash-open="${esc(d.id)}">
       <strong>${esc(d.name)}</strong>
@@ -160,13 +160,13 @@ export async function renderDashboardsTab(panel, openId) {
   const mine = dashboards.filter(d => d.mine);
   const shared = dashboards.filter(d => !d.mine && d.owner);
   const ready = dashboards.filter(d => !d.owner);
-  panel.innerHTML = `<div style="padding:16px 20px;">
+  panel.innerHTML = `<div class="s-01b927">
     <div class="dash-bar">
       <div class="dash-actions">${meta.can_build ? '<button type="button" class="btn btn-primary" id="dash-new">+ New dashboard</button>' : ''}</div></div>
     ${mine.length ? `<h3 class="dash-section-title">Yours</h3><div class="dash-list">${mine.map(card).join('')}</div>` : ''}
     ${shared.length ? `<h3 class="dash-section-title">Shared with you</h3><div class="dash-list">${shared.map(card).join('')}</div>` : ''}
     <h3 class="dash-section-title">Ready-made</h3><div class="dash-list">${ready.map(card).join('')}</div>
-    ${!meta.can_build ? '<p class="dash-note" style="margin-top:16px;">To build your own, ask an administrator for Create on Dashboard Layout (Roles).</p>' : ''}</div>`;
+    ${!meta.can_build ? '<p class="dash-note s-1b0f49">To build your own, ask an administrator for Create on Dashboard Layout (Roles).</p>' : ''}</div>`;
   panel.querySelectorAll('[data-dash-open]').forEach(b => b.addEventListener('click', () => openDashboard(panel, b.dataset.dashOpen)));
   panel.querySelector('#dash-new')?.addEventListener('click', () => openDashboard(panel, null, { edit: true,
     draft: { id: '', name: 'New dashboard', widgets: [], filters: { range: 'mtd' }, share_users: [], share_roles: [], share_stores: [], home_roles: [] } }));
@@ -244,18 +244,18 @@ async function openDashboard(panel, id, { edit = false, draft = null } = {}) {
   try {
     cd = draft || await fetchDashboard(id);
   } catch (e) {
-    panel.innerHTML = `<p class="dash-error" style="padding:16px;">${esc(e.message)}</p>`;
+    panel.innerHTML = `<p class="dash-error s-287f77">${esc(e.message)}</p>`;
     return;
   }
   cd = JSON.parse(JSON.stringify(cd));
   const stores = await loadMyStores();
   let f = { range: 'mtd', ...(cd.filters || {}) };
   const editing = edit;
-  panel.innerHTML = `<div style="padding:16px 20px;" class="${editing ? 'dash-editing' : ''}">
+  panel.innerHTML = `<div class="${editing ? 'dash-editing' : ''} s-01b927">
     <div class="dash-bar">
       <button type="button" class="btn btn-outline btn-sm" id="dash-back">← Dashboards</button>
       ${editing ? `<div class="form-group"><label class="form-label" for="dash-name">Name</label><input id="dash-name" class="form-input" value="${esc(cd.name)}" maxlength="80"></div>`
-        : `<h2 style="margin:0;font-size:18px;">${esc(cd.name)}</h2>`}
+        : `<h2 class="s-d52c8d">${esc(cd.name)}</h2>`}
       <div class="dash-actions">${editing
         ? `<button type="button" class="btn btn-outline" id="dash-add">+ Add widget</button><button type="button" class="btn btn-outline" id="dash-share">Share and home</button>
            <button type="button" class="btn btn-secondary" id="dash-cancel">Cancel</button><button type="button" class="btn btn-primary" id="dash-save">Save</button>`
@@ -274,7 +274,7 @@ async function openDashboard(panel, id, { edit = false, draft = null } = {}) {
   const repaint = () => {
     grid.innerHTML = cd.widgets.map((w, i) => widgetBox(w, i, editing)).join('') || '<p class="dash-empty">No widgets yet - add one.</p>';
     wireGrid();
-    paintWidgets(grid, cd, f, editing).then(() => { const a = root.querySelector('#dash-asof'); if (a) a.textContent = `As of ${new Date().toLocaleTimeString()}.`; });
+    paintWidgets(grid, cd, f, editing).then(() => { const a = root.querySelector('#dash-asof'); if (a) a.textContent = `As of ${formatDateTime(new Date()).slice(-5)}.`; });
   };
   const wireGrid = () => {
     grid.querySelectorAll('[data-dash-move]').forEach(b => b.addEventListener('click', () => {
@@ -396,7 +396,7 @@ async function drill(w, row, f) {
   const { fmtValue } = await charts();
   const docCol = result.columns[0];
   const rows = result.rows.map(r => `<tr><td>${documentSearchLink(ds.doctype, r[docCol.key])}</td>${result.columns.slice(1).map(c => `<td class="num">${esc(fmtValue(r[c.key], c))}</td>`).join('')}</tr>`).join('');
-  dialog(title, `<div class="dash-table" style="max-height:60vh;overflow:auto;"><table><thead><tr>${result.columns.map(c => `<th class="${c.type === 'number' ? 'num' : ''}">${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${rows || '<tr><td>None.</td></tr>'}</tbody></table></div>
+  dialog(title, `<div class="dash-table s-64db3d"><table><thead><tr>${result.columns.map(c => `<th class="${c.type === 'number' ? 'num' : ''}">${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${rows || '<tr><td>None.</td></tr>'}</tbody></table></div>
     ${result.truncated ? '<p class="dash-note">The first 100 are shown.</p>' : ''}${ds.list ? `<p><a href="#" data-dash-list>Open ${esc(ds.label)}</a></p>` : ''}`, (box, close) => {
     box.querySelectorAll('a.doc-link').forEach(a => a.addEventListener('click', close));
     box.querySelector('[data-dash-list]')?.addEventListener('click', (e) => { e.preventDefault(); close(); setActiveMenu(`menu-${ds.list}`); renderView(ds.list); });
@@ -473,16 +473,16 @@ function openWidgetEditor(widget, f) {
           <div class="form-group"><span class="form-label">Only where</span>${(q.filters || []).map((x, i) => `<div class="dash-editor-row">
             <select class="form-select" data-dwe-ffield="${i}" aria-label="Field">${opt(cats.concat(nums), x.field)}</select>
             <select class="form-select" data-dwe-fop="${i}" aria-label="Test">${opt([['eq', 'is'], ['ne', 'is not'], ['in', 'is one of (a,b)'], ['contains', 'contains'], ['gte', 'at least'], ['lte', 'at most']], x.op)}</select>
-            <input class="form-input" data-dwe-fval="${i}" value="${esc(x.value)}" aria-label="Value" style="width:120px;"><button type="button" class="action-btn" data-dwe-fdel="${i}" aria-label="Remove">✕</button></div>`).join('')}
+            <input class="form-input s-465bfe" data-dwe-fval="${i}" value="${esc(x.value)}" aria-label="Value"><button type="button" class="action-btn" data-dwe-fdel="${i}" aria-label="Remove">✕</button></div>`).join('')}
             ${(q.filters || []).length < 4 ? '<button type="button" class="action-btn" id="dwe-fadd">+ Condition</button>' : ''}</div>
-          ${n >= 1 ? `<div class="dash-editor-row"><label class="form-label" for="dwe-sort" style="margin:0;">Order</label><select id="dwe-sort" class="form-select">${opt([['', 'Highest first'], ['asc', 'Lowest first'], ['group', 'By name / date']], q.sort || '')}</select>
-            <label class="form-label" for="dwe-limit" style="margin:0;">Show</label><input id="dwe-limit" class="form-input" type="number" min="1" max="1000" value="${esc(q.limit || 10)}" style="width:80px;"></div>` : ''}
+          ${n >= 1 ? `<div class="dash-editor-row"><label class="form-label s-116966" for="dwe-sort">Order</label><select id="dwe-sort" class="form-select">${opt([['', 'Highest first'], ['asc', 'Lowest first'], ['group', 'By name / date']], q.sort || '')}</select>
+            <label class="form-label s-116966" for="dwe-limit">Show</label><input id="dwe-limit" class="form-input s-8573ba" type="number" min="1" max="1000" value="${esc(q.limit || 10)}"></div>` : ''}
           ${w.kind === 'number' ? `<label class="dash-editor-row"><input type="checkbox" id="dwe-compare"${q.compare ? ' checked' : ''}> Show the change on the period before</label>` : ''}
           <label class="dash-editor-row"><input type="checkbox" id="dwe-own"${w.own_filters ? ' checked' : ''}> Keep its own dates and store (ignore the dashboard's)</label>
           ${w.own_filters ? `<div class="dash-editor-row"><input type="date" id="dwe-from" class="form-input" value="${esc(q.date_from || '')}" aria-label="From"><input type="date" id="dwe-to" class="form-input" value="${esc(q.date_to || '')}" aria-label="To">
             ${stores.length > 1 ? `<select id="dwe-store" class="form-select" aria-label="Store">${opt(stores.map(s => [s.code, s.name || s.code]), q.store || '', 'All my stores')}</select>` : ''}</div>` : ''}`}
-        <div class="dash-editor-row"><label class="form-label" for="dwe-w" style="margin:0;">Width</label><select id="dwe-w" class="form-select">${opt([['3', 'Quarter'], ['4', 'Third'], ['6', 'Half'], ['8', 'Two thirds'], ['12', 'Full']], String(w.w || 6))}</select>
-          <label class="form-label" for="dwe-h" style="margin:0;">Height</label><select id="dwe-h" class="form-select">${opt([['1', 'Short'], ['2', 'Medium'], ['3', 'Tall'], ['4', 'Taller']], String(w.h || 2))}</select></div>
+        <div class="dash-editor-row"><label class="form-label s-116966" for="dwe-w">Width</label><select id="dwe-w" class="form-select">${opt([['3', 'Quarter'], ['4', 'Third'], ['6', 'Half'], ['8', 'Two thirds'], ['12', 'Full']], String(w.w || 6))}</select>
+          <label class="form-label s-116966" for="dwe-h">Height</label><select id="dwe-h" class="form-select">${opt([['1', 'Short'], ['2', 'Medium'], ['3', 'Tall'], ['4', 'Taller']], String(w.h || 2))}</select></div>
       </div><div><div class="form-label">Preview</div><div class="dash-preview" id="dwe-preview"><p class="dash-empty">…</p></div></div></div>`;
     };
     const read = (box) => {
@@ -645,7 +645,7 @@ async function exportPDF(cd, f) {
     '--text-main:#111827;--text-muted:#6b7280;--border-color:#e5e7eb;--panel-bg:#ffffff;--surface-subtle:#f3f4f6;--success-color:#15803d;--danger-color:#b91c1c;' +
     '--chart-1:#4f6bed;--chart-2:#16a34a;--chart-3:#f59e0b;--chart-4:#dc2626;--chart-5:#0891b2;--chart-6:#9333ea;--chart-7:#db2777;--chart-8:#65a30d;';
   const [from, to] = rangeDates(f);
-  box.innerHTML = `<h2 style="margin:0 0 4px;">${esc(cd.name)}</h2><p style="margin:0 0 14px;color:#6b7280;">${from ? `${esc(from)} to ${esc(to)}` : 'All dates'}${f.store ? ` · ${esc(f.store)}` : ''}</p>
+  box.innerHTML = `<h2 class="s-58d955">${esc(cd.name)}</h2><p class="s-878369">${from ? `${esc(from)} to ${esc(to)}` : 'All dates'}${f.store ? ` · ${esc(f.store)}` : ''}</p>
     <div class="dash-grid">${cd.widgets.map((w, i) => `<div class="dash-widget" style="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};"><div class="dash-widget-head"><span class="dash-widget-title">${esc(w.title)}</span></div><div class="dash-widget-body" data-p="${i}"></div></div>`).join('')}</div>`;
   document.body.appendChild(box);
   results.forEach((r, i) => {
@@ -692,8 +692,8 @@ function scheduleDigest(cd) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   dialog('Email me this dashboard', `<div class="form-group"><label class="form-label" for="dmail-to">Email to</label><input id="dmail-to" class="form-input" type="email" placeholder="you@example.com"></div>
-    <div class="dash-editor-row"><label class="form-label" for="dmail-freq" style="margin:0;">How often</label><select id="dmail-freq" class="form-select"><option>Daily</option><option>Weekly</option><option>Monthly</option></select>
-      <label class="form-label" for="dmail-first" style="margin:0;">First email on</label><input id="dmail-first" class="form-input" type="date" value="${localDay(tomorrow)}"></div>`, null, { wide: false, ok: 'Schedule', onOk: async (b) => {
+    <div class="dash-editor-row"><label class="form-label s-116966" for="dmail-freq">How often</label><select id="dmail-freq" class="form-select"><option>Daily</option><option>Weekly</option><option>Monthly</option></select>
+      <label class="form-label s-116966" for="dmail-first">First email on</label><input id="dmail-first" class="form-input" type="date" value="${localDay(tomorrow)}"></div>`, null, { wide: false, ok: 'Schedule', onOk: async (b) => {
     const res = await apiFetch(`/api/v1/dashboards/custom/${encodeURIComponent(cd.id)}/digest`, { method: 'POST', body: JSON.stringify({
       email: b.querySelector('#dmail-to').value, frequency: b.querySelector('#dmail-freq').value, first_run: b.querySelector('#dmail-first').value }) });
     if (!res || !res.ok) return res ? getErrorMessage(res, 'It was not scheduled.') : 'It was not scheduled.';
@@ -720,7 +720,7 @@ export async function mountHomeExtras(host) {
   const slot = host.appendChild(document.createElement('div'));
   slot.className = 'table-panel';
   slot.style.cssText = 'padding:16px 20px;margin-bottom:20px;';
-  slot.innerHTML = `<div class="dash-bar"><h2 class="card-title" style="margin:0;">${esc(cd.name)}</h2>
+  slot.innerHTML = `<div class="dash-bar"><h2 class="card-title s-116966">${esc(cd.name)}</h2>
     <div class="dash-actions"><button type="button" class="btn btn-outline btn-sm" id="home-dash-open">Open in Dashboards</button></div></div>
     <div class="dash-grid">${cd.widgets.map((w, i) => widgetBox(w, i, false).replace(/<button[^>]*data-dash-(csv|xlsx)[^>]*>[^<]*<\/button>/g, '')).join('')}</div>`;
   slot.querySelector('#home-dash-open').addEventListener('click', () => { sessionStorage.setItem('erp_open_dashboard', cd.id); setActiveMenu('menu-reports'); renderView('reports:dashboards'); });

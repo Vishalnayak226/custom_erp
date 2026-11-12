@@ -9,7 +9,7 @@ import (
 )
 
 // Stage 49.10.8: finding discipline. Every security finding is one row of
-// the finding register in docs/security/risk_register.md, and a row is never
+// the finding register in docs/security/risk-register.md, and a row is never
 // closed on a code change alone: a Closed row names the fix, a regression
 // test that still exists in the tree and a dated, passing retest. Severity is
 // never quietly relabelled - a changed rating keeps the old one and says why.
@@ -135,9 +135,9 @@ func definedTestNames(root string) map[string]bool {
 
 func TestStage49108FindingRegisterNeverClosesOnCodeAlone(t *testing.T) {
 	root := filepath.Join("..", "..")
-	raw, ok := readRepo(root, "docs/security/risk_register.md")
+	raw, ok := readRepo(root, "docs/security/risk-register.md")
 	if !ok {
-		t.Fatal("docs/security/risk_register.md is missing")
+		t.Fatal("docs/security/risk-register.md is missing")
 	}
 	rows := findingRegister(strings.ReplaceAll(raw, "\r\n", "\n"))
 	if len(rows) < 10 {

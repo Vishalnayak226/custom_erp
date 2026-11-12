@@ -24,7 +24,7 @@ import (
 //
 // Severity decides delivery, not colour: URGENT also pages through
 // SendOpsAlert; REVIEW only queues for the client's administrator
-// (Activity Log -> Security). Every rule names an owner, a first response
+// (Settings -> Monitoring -> Security Events). Every rule names an owner, a first response
 // and the runbook section to open, so an alert is never just a red word.
 
 const (
@@ -74,7 +74,7 @@ type SecurityDetection struct {
 	Details  string `json:"details"`
 }
 
-const runbookDoc = "docs/operations/incident_runbook.md"
+const runbookDoc = "docs/operations/incident-runbook.md"
 
 var securityDetectionRules = []SecurityDetectionRule{
 	{Key: "password_spray", Title: "Password spray or distributed guessing", Severity: DetectionUrgent,
@@ -111,7 +111,7 @@ var securityDetectionRules = []SecurityDetectionRule{
 		Runbook:       runbookDoc + " §7.7", actions: []string{"POS_BILL_CANCELLED", "POS_SALE_VOIDED", "POS_PRICE_OVERRIDE"}, byActor: true},
 	{Key: "job_dead_letter_storm", Title: "Background jobs giving up", Severity: DetectionReview,
 		Owner: "Platform operator", Threshold: 5, WindowMinutes: 60, DedupMinutes: 240,
-		FirstResponse: "Open Activity Log -> Async Jobs; fix the cause before retrying, never retry a poison job in a loop.",
+		FirstResponse: "Open Settings -> Monitoring -> Async Jobs; fix the cause before retrying, never retry a poison job in a loop.",
 		Runbook:       runbookDoc + " §7.5", actions: []string{"JOB"}, statuses: []string{"DEAD_LETTERED"}},
 	// Stage 49.11.4: inbound webhooks (inbound_webhook.go's WEBHOOK_INBOUND
 	// rows), counted per client - a forger can vary the channel it names.
@@ -184,6 +184,10 @@ var securityDetectionRules = []SecurityDetectionRule{
 		FirstResponse: "Confirm the changes with the person who made them; undo any you did not expect.",
 		Runbook:       runbookDoc + " §7.13", actions: []string{"SETTINGS", "SAVE_APPROVAL_RULE", "UPDATE_PREFIX_CONFIG",
 			"API_CREDENTIAL_ISSUED", "API_CREDENTIAL_ROTATED", "API_CREDENTIAL_LIMITS_SET"}, byActor: true},
+	{Key: "test_alert_failed", Title: "The scheduled test alert was not delivered", Severity: DetectionReview,
+		Owner: "Platform operator", Threshold: 1, WindowMinutes: 3 * 24 * 60, DedupMinutes: 24 * 60,
+		FirstResponse: "Check the alert webhook address and the channel behind it; until a test gets through, urgent alerts may not reach anyone.",
+		Runbook:       runbookDoc + " §7.8", actions: []string{TestAlertAction}, statuses: []string{testAlertFailed}},
 }
 
 // SecurityDetectionRules returns the rule catalog (for the Security pane and
@@ -221,6 +225,7 @@ func RunSecurityDetections(tenantID string, now time.Time) ([]SecurityDetection,
 		return nil, err
 	}
 	var fired []SecurityDetection
+	tuning := loadDetectionTuning(schema, now)
 	for _, rule := range securityDetectionRules {
 		var hits []detectionHit
 		if rule.special != nil {
@@ -232,7 +237,7 @@ func RunSecurityDetections(tenantID string, now time.Time) ([]SecurityDetection,
 			hits = countWatchedRows(rows, rule, now)
 		}
 		for _, hit := range hits {
-			if hit.Count < rule.Threshold {
+			if hit.Count < tuning.limit(rule, hit.Subject, now) {
 				continue
 			}
 			det, isNew, err := fireDetection(tenantID, schema, rule, hit, now)
@@ -494,6 +499,9 @@ func StartSecurityDetectionSweep(ctx context.Context, interval time.Duration) {
 					}
 					if _, err := RunSecurityDetections(tenantID, time.Now()); err != nil {
 						log.Printf("[SECURITY-DETECT] %s: %v", schema, err)
+					}
+					if _, err := RunScheduledTestAlert(tenantID, time.Now()); err != nil {
+						log.Printf("[SECURITY-DETECT] %s test alert: %v", schema, err)
 					}
 				}
 				securitySweepState.Lock()

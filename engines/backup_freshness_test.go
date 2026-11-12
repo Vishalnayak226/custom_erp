@@ -31,7 +31,7 @@ func backupRunsTestDB(t *testing.T) {
 	t.Cleanup(clear)
 	var foreign int
 	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM public.backup_runs WHERE host <> $1`, backupTestHost).Scan(&foreign); err != nil {
-		t.Fatalf("public.backup_runs is not readable - apply db/migrations_stage56_9_backup_runs.sql: %v", err)
+		t.Fatalf("public.backup_runs is not readable - apply db/migrations/migrations_stage56_9_backup_runs.sql: %v", err)
 	}
 	if foreign > 0 {
 		t.Skipf("public.backup_runs holds %d run(s) not written by this test; these cases need a table with no other runs", foreign)

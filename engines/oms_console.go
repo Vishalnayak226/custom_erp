@@ -326,19 +326,23 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 	lines, err := queryDocs(schema, `
 		SELECT d.id, d.status, COALESCE(d.data->>'sku', ''), COALESCE((d.data->>'qty')::int, 0),
 		       COALESCE((d.data->>'unit_price')::numeric, 0), COALESCE(d.data->>'location_code', ''),
-		       COALESCE(d.data->>'line_status', ''), COALESCE(d.data->>'hold_reason', '')
+		       COALESCE(d.data->>'line_status', ''), COALESCE(d.data->>'hold_reason', ''),
+		       COALESCE(d.data->>'promise_date', ''), COALESCE(d.data->>'promise_reason', ''),
+		       COALESCE(d.data->>'price_reason', ''), COALESCE(d.data->>'floor_reason', '')
 		FROM `+schema+`.documents d
 		WHERE d.doctype = 'SalesOrderLine' AND d.data->>'order_id' = $1 AND d.deleted_at IS NULL
 		ORDER BY d.id`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
-		var id, status, sku, location, lineStatus, holdReason string
+		var id, status, sku, location, lineStatus, holdReason, promiseDate, promiseReason, priceReason, floorReason string
 		var qty int
 		var unitPrice float64
-		if err := scan(&id, &status, &sku, &qty, &unitPrice, &location, &lineStatus, &holdReason); err != nil {
+		if err := scan(&id, &status, &sku, &qty, &unitPrice, &location, &lineStatus, &holdReason, &promiseDate, &promiseReason, &priceReason, &floorReason); err != nil {
 			return nil, err
 		}
 		return map[string]interface{}{
 			"line_id": id, "status": status, "sku": sku, "qty": qty, "unit_price": unitPrice,
 			"location_code": location, "line_status": lineStatus, "hold_reason": holdReason,
+			"promise_date": promiseDate, "promise_reason": promiseReason,
+			"price_reason": priceReason, "floor_reason": floorReason,
 			"line_total": unitPrice * float64(qty),
 		}, nil
 	})

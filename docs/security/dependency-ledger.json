@@ -28,13 +28,13 @@
       "name": "go",
       "type": "go_toolchain",
       "grandfathered": "in the ledger when the architecture gate opened (2026-10-27, Stage 47.18.4)",
-      "version": "1.27.1",
+      "version": "1.27.4",
       "checksum": "n/a - toolchain integrity is verified by GOSUMDB during `go install`/toolchain download, not a single static hash recorded here",
       "owner": "infrastructure",
       "purpose": "Compiler and stdlib used to build, vet and test the application, and to build cmd/releasemanifest itself.",
       "license": "BSD-3-Clause",
       "provenance": "go.dev official distribution. CI installs this exact patch via a pinned actions/setup-go (see below); deploy.ps1 uses a pinned go-portable install on the operator's machine (CLAUDE.md / deploy/README.md).",
-      "note": "The one place this ledger cannot yet prove a match by itself: nothing currently fails CI if the operator's local go-portable install and CI's actions/setup-go version drift apart. cmd/releasemanifest records go_version (runtime.Version(), i.e. what actually compiled a given build) in every release manifest, which is how a drift would be caught after the fact rather than never. KNOWN DRIFT as of 2026-09-17/BLD-014: go.mod, CI (.github/workflows/ci.yml, documentation-health.yml) and the Dockerfile were bumped 1.22.12 -> 1.27.1 (govulncheck: 6 reachable stdlib CVEs on 1.26.5 -> 0 on 1.27.1) this pass; deploy.ps1's operator-machine go-portable install at %USERPROFILE%/go-portable/go was deliberately NOT touched (still 1.22.12) since it is the real production build toolchain and this pass only verified the change with local builds/vet/govulncheck, not a full deploy - upgrading it is the next operator action before the next real deploy, tracked in micro_checklist.md Stage 50/BLD-014."
+      "note": "The one place this ledger cannot yet prove a match by itself: nothing currently fails CI if the operator's local go-portable install and CI's actions/setup-go version drift apart. cmd/releasemanifest records go_version (runtime.Version(), i.e. what actually compiled a given build) in every release manifest, which is how a drift would be caught after the fact rather than never. KNOWN DRIFT as of 2026-09-17/BLD-014: go.mod, CI (.github/workflows/ci.yml, documentation-health.yml) and the Dockerfile were bumped 1.22.12 -> 1.27.4 (govulncheck: 6 reachable stdlib CVEs on 1.26.5 -> 0 on 1.27.4) this pass; deploy.ps1's operator-machine go-portable install at %USERPROFILE%/go-portable/go was deliberately NOT touched (still 1.22.12) since it is the real production build toolchain and this pass only verified the change with local builds/vet/govulncheck, not a full deploy - upgrading it is the next operator action before the next real deploy, tracked in micro_checklist.md Stage 50/BLD-014."
     },
     {
       "name": "actions/checkout",
@@ -54,7 +54,7 @@
       "version": "v5.6.0",
       "checksum": "40f1582b2485089dde7abd97c1529aa768e1baff",
       "owner": "CI/infrastructure",
-      "purpose": "Installs the pinned Go toolchain (go-version: 1.27.1, matching go.mod's `go` directive exactly) for build/vet/test.",
+      "purpose": "Installs the pinned Go toolchain (go-version: 1.27.4, matching go.mod's `go` directive exactly) for build/vet/test.",
       "license": "MIT",
       "provenance": "Official actions/ GitHub org. Pinned to a full commit SHA."
     },
@@ -121,7 +121,7 @@
       "version": "16 (floating minor/patch)",
       "checksum": "n/a - not pinned to a digest",
       "owner": "CI/infrastructure",
-      "purpose": "Ephemeral database CI applies every db/*.sql migration against and runs the test suite over. No production data ever touches this container.",
+      "purpose": "Ephemeral database CI applies every db/migrations/*.sql migration against and runs the test suite over. No production data ever touches this container.",
       "license": "PostgreSQL License",
       "provenance": "Official postgres image, Docker Hub library/postgres.",
       "note": "Deliberately not fixed this session: pinning to a digest for a low-severity, ephemeral, no-production-data test fixture needs periodic maintenance (a stale digest eventually fails to receive security patches) for marginal benefit compared to the runner image and the Go toolchain, which actually execute reachable code. Recorded here rather than silently left off the inventory - see docs/security/secure-development-lifecycle.md."

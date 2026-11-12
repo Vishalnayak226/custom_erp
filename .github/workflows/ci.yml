@@ -41,7 +41,7 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned; see above)
         with:
-          go-version: '1.27.1' # exact patch, matching go.mod's `go 1.27.1` directive - see docs/security/dependency-ledger.json's "go" entry
+          go-version: '1.27.4' # exact patch, matching go.mod's `go 1.27.4` directive - see docs/security/dependency-ledger.json's "go" entry
 
       - name: Verify module integrity
         # `go mod verify` re-hashes every downloaded module against go.sum -
@@ -50,7 +50,7 @@ jobs:
         run: go mod verify
 
       - name: Build migration runner
-        # Stage 50/BLD-004: this step used to glob db/*.sql and pipe each file
+        # Stage 50/BLD-004: this step used to glob db/migrations/*.sql and pipe each file
         # to psql in `sort` order - deliberately not a hand-maintained list
         # (see git history for why), but plain `sort` is a byte-wise
         # lexicographic order, NOT db/migrate.go's numeric-aware
@@ -58,7 +58,7 @@ jobs:
         # ASCII, so a numbered sub-item like migrations_stage47_7_6_*.sql
         # always sorted before the unnumbered file it depends on,
         # migrations_stage47_7_*.sql - exactly AUD-02's defect, reproduced
-        # independently here: `ls db/*.sql | sort` puts _7_6_ before _7_ for
+        # independently here: `ls db/migrations/*.sql | sort` puts _7_6_ before _7_ for
         # that exact pair). A second, drifted reimplementation of "what order
         # do migrations run in" is precisely the failure mode this step's own
         # prior comment warned about for a hand-maintained file list - it
@@ -179,7 +179,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   docker-build-check:
-    # The Dockerfile is dormant (docs/operations/go_live_decisions.md §4a.1) -
+    # The Dockerfile is dormant (docs/operations/go-live-decisions.md §4a.1) -
     # dev/test/live all run the plain binary today, not a container. This job
     # only proves the image still builds on every push, so it can't silently
     # rot before the day it's actually needed. Deliberately does not push or
@@ -207,7 +207,7 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.4'
 
       - name: Verify module integrity
         run: go mod verify

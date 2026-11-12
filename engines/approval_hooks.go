@@ -67,3 +67,29 @@ func isDualControlDoctype(doctype string) bool {
 	defer approvalHooksMu.RUnlock()
 	return dualControlDoctypes[doctype]
 }
+
+// ApprovalSubmitLockKey names what a submission must hold exclusively while
+// its submit checks run and the document moves to Pending Approval, or "" for
+// no lock. A check that reads other documents ("is another one already
+// waiting?") is only true if nobody else can submit in the same gap.
+type ApprovalSubmitLockKey func(tenantID, docID string, data map[string]interface{}) string
+
+var approvalSubmitLocks = map[string]ApprovalSubmitLockKey{}
+
+// RegisterApprovalSubmitLock makes SubmitForApproval serialise doctype's
+// submissions per the key fn returns (Stage 47.13.4: per record and attribute).
+func RegisterApprovalSubmitLock(doctype string, fn ApprovalSubmitLockKey) {
+	approvalHooksMu.Lock()
+	defer approvalHooksMu.Unlock()
+	approvalSubmitLocks[doctype] = fn
+}
+
+func approvalSubmitLockFor(tenantID, doctype, docID string, data map[string]interface{}) string {
+	approvalHooksMu.RLock()
+	fn := approvalSubmitLocks[doctype]
+	approvalHooksMu.RUnlock()
+	if fn == nil {
+		return ""
+	}
+	return fn(tenantID, docID, data)
+}

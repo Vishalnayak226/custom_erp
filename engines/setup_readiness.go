@@ -31,7 +31,7 @@ import (
 // readiness answer kept as evidence says which rules produced it.
 // v2 (47.16.4d): the tax step's e-invoice turnover warning.
 // v3 (47.16.4h.1): that warning counts the till's sales too.
-const SetupValidatorVersion = "47.12.4-v3"
+const SetupValidatorVersion = "47.12.4-v4"
 
 // Readiness states.
 const (

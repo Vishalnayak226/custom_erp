@@ -257,11 +257,11 @@ func grnLineInclPrice(l map[string]interface{}, ex float64, keys ...string) (flo
 func grnLineAmount(l map[string]interface{}, qty, ex float64, inclKeys ...string) (value, gst float64) {
 	rate := numFromInterface(l["gst_rate"])
 	if inc, ok := grnLineInclPrice(l, ex, inclKeys...); ok {
-		total := round2(qty * inc)
+		total := round2(qty * grnExactPrice(l, inc))
 		value = round2(total / (1 + rate/100))
 		return value, round2(total - value)
 	}
-	value = qty * ex
+	value = qty * grnExactPrice(l, ex)
 	return value, value * rate / 100
 }
 
@@ -1430,7 +1430,9 @@ type GRNStepLineView struct {
 	InvoicePrice float64  `json:"invoice_price"`
 	GRNQty       float64  `json:"grn_qty"`
 	GRNPrice     float64  `json:"grn_price"`
-	GSTRate      float64  `json:"gst_rate"`
+	// Stage 148.35: a pack line's price a piece before rounding.
+	ExactUnitPrice float64 `json:"exact_unit_price,omitempty"`
+	GSTRate        float64 `json:"gst_rate"`
 	// GSTInclusive: the line's PO prices include GST, so the screen shows
 	// and takes its prices that way (Stage 110.1); the figures here stay ex-GST.
 	GSTInclusive bool `json:"gst_inclusive,omitempty"`
@@ -1511,6 +1513,7 @@ type GRNStepView struct {
 	VendorCreditNoteID string            `json:"vendor_credit_note_id,omitempty"`
 	VendorBillID       string            `json:"vendor_bill_id,omitempty"`
 	VendorBillStatus   string            `json:"vendor_bill_status,omitempty"`
+	MemoStock          bool              `json:"memo_stock,omitempty"` // 148.16: no bill here, the sales raise them
 	NetPayable         float64           `json:"net_payable"`
 	PaidAmount         float64           `json:"paid_amount"`
 	PaymentStatus      string            `json:"payment_status,omitempty"`
@@ -1676,12 +1679,13 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 			lv.PORate = &r
 		}
 		gstF := 1 + lv.GSTRate/100
-		lv.InvoiceValue = round2(lv.InvoiceQty * lv.InvoicePrice * gstF)
-		lv.OurValue = round2(lv.AcceptedQty * lv.GRNPrice * gstF)
+		lv.ExactUnitPrice = numFromInterface(l["exact_unit_price"])
+		lv.InvoiceValue = round2(lv.InvoiceQty * grnExactPrice(l, lv.InvoicePrice) * gstF)
+		lv.OurValue = round2(lv.AcceptedQty * grnExactPrice(l, lv.GRNPrice) * gstF)
 		lv.QtyDiff = round2(lv.GRNQty - lv.InvoiceQty)
 		lv.PriceDiff = round2(lv.GRNPrice - lv.InvoicePrice)
-		v.QtyDiffTotal += (lv.InvoiceQty - lv.AcceptedQty) * lv.InvoicePrice * gstF
-		v.PriceDiffTotal += lv.AcceptedQty * (lv.InvoicePrice - lv.GRNPrice) * gstF
+		v.QtyDiffTotal += (lv.InvoiceQty - lv.AcceptedQty) * grnExactPrice(l, lv.InvoicePrice) * gstF
+		v.PriceDiffTotal += lv.AcceptedQty * (grnExactPrice(l, lv.InvoicePrice) - grnExactPrice(l, lv.GRNPrice)) * gstF
 		if lineNumberSet(l, "prev_price") {
 			p := numFromInterface(l["prev_price"])
 			lv.PrevPrice = &p
@@ -1728,6 +1732,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 	v.PriceDiffTotal = round2(v.PriceDiffTotal)
 	v.QuickPath, v.QuickPathReasons = grnQuickPathCheck(v, math.Max(GetSettingFloat(tenantID, SettingGRNSamePriceTolerance), 0.004))
 	v.NetPayable = grnNetPayable(tenantID, data)
+	v.MemoStock = isMemoReceipt(tenantID, grnID, data)
 	if v.VendorBillID != "" {
 		if _, st, err := fetchDocData(tenantID, "VendorInvoice", v.VendorBillID); err == nil {
 			v.VendorBillStatus = st
@@ -1894,6 +1899,10 @@ func GRNInboxTab(data map[string]interface{}, status string) string {
 		if s := strField(data, "payment_status"); s == "Paid" {
 			return "done"
 		}
+		// 148.16: a memo receipt has no bill of its own; its sales raise the bills.
+		if strings.EqualFold(strField(data, memoReceiptField), memoYes) && strField(data, "vendor_bill_id") == "" {
+			return "done"
+		}
 		return "pay"
 	}
 	return "done"
@@ -1940,10 +1949,14 @@ func ListGRNInbox(tenantID string) ([]GRNInboxRow, error) {
 			vd, _, _ := fetchDocData(tenantID, "Vendor", vendor)
 			vendorNames[vendor] = strField(vd, "name")
 		}
+		tab := GRNInboxTab(data, status)
+		if tab == "pay" && grnBillWaitsForPO(tenantID, data) {
+			tab = grnInboxTabWaitingPO // 148.49: not Ready to pay
+		}
 		out = append(out, GRNInboxRow{
 			ID: id, Code: firstNonEmpty(strField(data, "code"), id), Vendor: vendor, VendorName: vendorNames[vendor], Location: strField(data, "location"),
 			InvoiceNo: strField(data, "vendor_invoice_no"), InvoiceTotal: numFromInterface(data["vendor_invoice_amount"]),
-			Step: strField(data, "grn_step"), Status: status, Tab: GRNInboxTab(data, status),
+			Step: strField(data, "grn_step"), Status: status, Tab: tab,
 			PaymentStatus: strField(data, "payment_status"), ExcessPending: pending,
 			AgeHours: math.Round(math.Max(ageHours, 0)*10) / 10, CreatedAt: at.Format("2006-01-02T15:04:05"),
 		})

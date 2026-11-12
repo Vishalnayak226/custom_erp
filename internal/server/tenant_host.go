@@ -362,7 +362,7 @@ func tenantHostGate(next http.Handler) http.Handler {
 // means someone downgraded, and is never legitimate here), no port, no path,
 // and the same single-label rule tenant hostnames themselves follow.
 func originAllowed(origin string) bool {
-	if origin == "" {
+	if origin == "" || origin == "null" || strings.Contains(origin, "*") {
 		return false
 	}
 	if corsAllowedOrigins[origin] {

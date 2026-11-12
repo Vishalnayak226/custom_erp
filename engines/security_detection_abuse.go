@@ -129,10 +129,32 @@ func detectDuplicateVendorInvoice(schema string, now time.Time, rule SecurityDet
 func detectThresholdSplit(schema string, now time.Time, rule SecurityDetectionRule) ([]detectionHit, error) {
 	since := now.Add(-time.Duration(rule.WindowMinutes) * time.Minute)
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		WITH tiers AS (
+		WITH %s
+		SELECT m.created_by || ' ' || m.doctype || CASE WHEN m.party <> '' THEN ' ' || m.party ELSE '' END
+		       || ' under ' || t.min_amount::text, COUNT(*)
+		FROM money m JOIN tiers t ON t.doctype = m.doctype
+		WHERE m.amount >= t.min_amount / 2 AND m.amount < t.min_amount
+		GROUP BY m.created_by, m.doctype, m.party, t.min_amount
+		HAVING COUNT(*) >= 2 AND SUM(m.amount) >= t.min_amount`,
+		thresholdSplitCTE(schema, "d.created_at > "+docSince(1))), since)
+	if err != nil {
+		return nil, err
+	}
+	return scanHits(rows, false)
+}
+
+// thresholdSplitCTE is the one definition of "a document that could be one
+// piece of a split": the tiers (every approval slab's lower bound above
+// zero), and each live document of a tiered type with its maker, its
+// counterparty and the amount the approval engine reads, narrowed by where (a
+// SQL condition on d). The detection rule above and the approval engine's
+// split guard (approval_threshold_split.go) both read it, so they cannot
+// drift apart.
+func thresholdSplitCTE(schema, where string) string {
+	return fmt.Sprintf(`tiers AS (
 			SELECT DISTINCT doctype, min_amount FROM %[1]s.approval_rules WHERE min_amount > 0
 		), docs AS (
-			SELECT d.doctype, d.created_by,
+			SELECT d.id, d.doctype, d.created_by,
 			       COALESCE(NULLIF(d.data->>'vendor_id', ''), NULLIF(d.data->>'vendor', ''),
 			                NULLIF(d.data->>'customer_id', ''), NULLIF(d.data->>'customer', ''), '') AS party,
 			       d.data, k.amount_key
@@ -145,21 +167,11 @@ func detectThresholdSplit(schema string, now time.Time, rule SecurityDetectionRu
 				WHEN jsonb_typeof(d.data->'invoice_amount') = 'number' THEN 'invoice_amount'
 				WHEN jsonb_typeof(d.data->'points_value') = 'number' THEN 'points_value' END AS amount_key) k
 			WHERE d.doctype IN (SELECT doctype FROM tiers) AND d.deleted_at IS NULL AND d.status <> 'Cancelled'
-			  AND d.created_at > %[2]s
+			  AND %[2]s
 		), money AS (
-			SELECT doctype, created_by, party, (data->>amount_key)::numeric AS amount
+			SELECT id, doctype, created_by, party, (data->>amount_key)::numeric AS amount
 			FROM docs WHERE amount_key IN ('total_amount', 'amount', 'invoice_amount')
-		)
-		SELECT m.created_by || ' ' || m.doctype || CASE WHEN m.party <> '' THEN ' ' || m.party ELSE '' END
-		       || ' under ' || t.min_amount::text, COUNT(*)
-		FROM money m JOIN tiers t ON t.doctype = m.doctype
-		WHERE m.amount >= t.min_amount / 2 AND m.amount < t.min_amount
-		GROUP BY m.created_by, m.doctype, m.party, t.min_amount
-		HAVING COUNT(*) >= 2 AND SUM(m.amount) >= t.min_amount`, schema, docSince(1)), since)
-	if err != nil {
-		return nil, err
-	}
-	return scanHits(rows, false)
+		)`, schema, where)
 }
 
 // countRecentDocs counts one doctype's live documents created inside the

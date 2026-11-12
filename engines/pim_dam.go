@@ -154,7 +154,7 @@ func ReadMediaTransform(tenantID, mediaID, preset string) ([]byte, string, error
 // --- 36.6.2 / 36.6.4: bulk zip up/download, filename auto-association ----
 
 // pimMediaRoles is the closed set of ProductMedia.media_role values (the
-// Select field's own option list, db/migration.sql section 15.2) - the
+// Select field's own option list, db/migrations/migration.sql section 15.2) - the
 // single place both the filename slug map and its reverse below are built
 // from, so the two can never drift out of sync with each other.
 var pimMediaRoles = []string{"Main Image", "Gallery", "Variant Image", "Lifestyle", "Certificate", "Internal QC", "Video/Other"}

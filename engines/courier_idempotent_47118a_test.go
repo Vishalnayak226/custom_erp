@@ -149,7 +149,7 @@ func courier47118aSetup(t *testing.T) (string, func(id string, extra map[string]
 	}
 	var ready bool
 	if err := db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM ` + schema + `.doctype_meta WHERE name='NDRCase')`).Scan(&ready); err != nil || !ready {
-		t.Skip("db/migrations_stage35_5_courier_integration.sql has not been applied")
+		t.Skip("db/migrations/migrations_stage35_5_courier_integration.sql has not been applied")
 	}
 	registerCourierAdapter(nd47118aCourier{})
 	registerCourierAdapter(noLookup47118a{})
@@ -447,7 +447,7 @@ func TestCourierParcelHoldsOneLiveAWB(t *testing.T) {
 	var guarded bool
 	_ = db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname=$1 AND indexname='idx_logistics_booking_package_live_awb')`, schema).Scan(&guarded)
 	if !guarded {
-		t.Skip("db/migrations_stage47_11_8a_courier_booking_guard.sql has not been applied")
+		t.Skip("db/migrations/migrations_stage47_11_8a_courier_booking_guard.sql has not been applied")
 	}
 	// The database refuses it too, whatever writes it.
 	if _, err := db.DB.Exec(`UPDATE `+schema+`.documents SET data = data || '{"provider_awb":"OTHER-AWB"}'::jsonb WHERE id=$1`, second); err == nil || !strings.Contains(err.Error(), "idx_logistics_booking_package_live_awb") {

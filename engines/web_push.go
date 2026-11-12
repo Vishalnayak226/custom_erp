@@ -422,6 +422,7 @@ func deliverWebPush(ctx context.Context, schema string, job Job) (map[string]int
 		return nil, err
 	}
 	if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
+		noteSandboxSuppressed(schema, "browser alert")
 		recordWebPushOutcome(schema, subID, false, "sandbox client - not sent")
 		return map[string]interface{}{"simulated": true}, nil
 	}

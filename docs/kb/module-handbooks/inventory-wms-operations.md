@@ -64,7 +64,7 @@ created here, and there is no separate "capture" step before it.
 
 1. The **GRN Number** fills in automatically on save. Enter the **PO
    Reference** (required — a GRN is a Transaction doctype tied to a
-   `PurchaseOrder`, `db/migrations_phase3.sql`) and click **Load Items from
+   `PurchaseOrder`, `db/migrations/migrations_phase3.sql`) and click **Load Items from
    PO** to pull in its ordered lines, or type a **Receiving Location**
    yourself.
 2. **Receiving Location defaults from the PO's target warehouse** if you
@@ -421,10 +421,10 @@ them: a bin's condition Good / Damaged / QC-Hold / RTV is the store's Main /
 Damage / QC Hold / Purchase Return, and changing a bin's condition moves the
 units into that location.
 
-- **Stock → Stock Locations** (Super Admin) has three tabs. **Locations**:
+- **Stock → Stock Locations** (Super Admin) is three pages. **Stock Locations**:
   each one's name, whether it sells, which kinds of store use it, and whether
-  new stores get it. **Stores**: which locations each store uses.
-  **Transactions**: where a Goods Receipt or Transfer In lands (e.g. Inward)
+  new stores get it. **Locations by Store**: which locations each store uses.
+  **Locations by Transaction**: where a Goods Receipt or Transfer In lands (e.g. Inward)
   and where a damage move goes. Main always sells; QC Hold and Damage sell
   only when you mark them; the others never do. A location still holding
   stock cannot be switched off (`STKLOC-0861`).

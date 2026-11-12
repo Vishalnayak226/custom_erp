@@ -289,7 +289,7 @@ func TestBLD031PineLabsRejectsDuplicateTransactionID(t *testing.T) {
 // genuinely concurrent version of the same replay: RecordPineLabsTransaction
 // does an existence-check-then-insert with no application-level lock, which
 // is a TOCTOU race in principle. This proves the DB's own UNIQUE constraint
-// on transaction_id (db/migration.sql section 35) is the real backstop that
+// on transaction_id (db/migrations/migration.sql section 35) is the real backstop that
 // makes it safe anyway - exactly one caller may ever succeed, whichever
 // order they interleave in, and the table never ends up with two rows for
 // one terminal transaction.

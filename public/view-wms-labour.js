@@ -14,7 +14,7 @@
 
 const esc = v => escapeHTMLText(v == null ? '' : String(v));
 const num = (v, d = 2) => { const x = Number(v) || 0; return x === Math.round(x) ? String(x) : x.toFixed(d); };
-const muted = t => `<div style="font-size: 11px; color: var(--text-muted);">${t}</div>`;
+const muted = t => `<div class="s-428d6b">${t}</div>`;
 const today = () => localISODate(new Date());
 const monthStart = () => today().slice(0, 8) + '01';
 
@@ -40,13 +40,13 @@ async function renderLabourTab(container, location) {
   plan.style.padding = '20px';
   plan.style.marginBottom = '16px';
   plan.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 12px;">Labour plan</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="lp-start">From</label><input type="date" id="lp-start" class="form-input" value="${today()}"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="lp-end">To</label><input type="date" id="lp-end" class="form-input" value="${today()}"></div>
+    <h2 class="s-9f8437">Labour plan</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f"><label class="form-label" for="lp-start">From</label><input type="date" id="lp-start" class="form-input" value="${today()}"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="lp-end">To</label><input type="date" id="lp-end" class="form-input" value="${today()}"></div>
       <button class="btn btn-primary" id="lp-run" type="button">Plan${location ? ' for ' + esc(location) : ' (all locations)'}</button>
     </div>
-    <div id="lp-result" style="margin-top: 12px;"></div>`;
+    <div id="lp-result" class="s-4bb900"></div>`;
   container.appendChild(plan);
   plan.querySelector('#lp-run').addEventListener('click', async () => {
     const el = plan.querySelector('#lp-result');
@@ -55,12 +55,12 @@ async function renderLabourTab(container, location) {
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'The plan could not be worked out.', 'Labour plan'); return; }
     const rows = (await r.json()).rows || [];
-    el.innerHTML = rows.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">No open warehouse tasks (Pending, Assigned or In Progress) to plan for.</p>' : `<div style="overflow-x: auto;"><table>
+    el.innerHTML = rows.length === 0 ? '<p class="s-aeec17">No open warehouse tasks (Pending, Assigned or In Progress) to plan for.</p>' : `<div class="s-987eb2"><table>
       <thead><tr><th>Department</th><th class="num">Open tasks</th><th class="num">No standard</th><th class="num">Planned hours</th><th class="num">Hours per worker</th><th class="num">Headcount</th></tr></thead>
       <tbody>${rows.map(p => `<tr><td>${esc(p.department)}</td><td class="num">${p.open_tasks}</td>
-        <td class="num">${p.uncovered_tasks ? `<b style="color: var(--danger, #b91c1c);">${p.uncovered_tasks}</b>` : 0}</td>
+        <td class="num">${p.uncovered_tasks ? `<b class="s-cd6621">${p.uncovered_tasks}</b>` : 0}</td>
         <td class="num">${num(p.planned_hours, 3)}</td><td class="num">${num(p.available_hours_per_worker, 2)}</td><td class="num"><b>${p.forecast_headcount}</b></td></tr>`).join('')}</tbody></table></div>
-      <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 0;">Tasks under <b>No standard</b> are not in the hours.</p>`;
+      <p class="s-d52848">Tasks under <b>No standard</b> are not in the hours.</p>`;
   });
 
   const [standards, operations] = await Promise.all([listOf('LaborStandard'), listOf('LaborOperation')]);
@@ -68,18 +68,18 @@ async function renderLabourTab(container, location) {
   std.className = 'table-panel';
   std.style.padding = '20px';
   std.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
-      <h2 style="font-size: 16px; font-weight: 700; margin: 0; flex: 1;">Labour standards</h2>
+    <div class="s-85be8b">
+      <h2 class="s-1c0c36">Labour standards</h2>
       <button class="btn btn-primary" id="ls-new" type="button">+ New labour standard</button>
     </div>
-    ${standards.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">No labour standards yet.</p>' : `<div style="overflow-x: auto;"><table>
+    ${standards.length === 0 ? '<p class="s-aeec17">No labour standards yet.</p>' : `<div class="s-987eb2"><table>
       <thead><tr><th>Standard</th><th>Operation</th><th>Elements</th><th>Travel</th><th>Allowances</th><th>Worked example</th></tr></thead>
       <tbody>${standards.map(s => {
         const op = operations.find(o => o.code === s.operation_code);
         return `<tr><td><b>${esc(s.code)}</b>${muted(esc(s.name || ''))}</td>
           <td>${esc(s.operation_code)}${op ? muted(`${esc(op.task_type)} · ${op.labor_rate_per_hour ? esc(num(op.labor_rate_per_hour)) + ' per hour' : 'no hourly cost'}`) : muted('operation missing')}</td>
           <td>${esc(s.element_codes || '')}</td><td>${esc(s.travel_section_code || '-')}</td><td>${esc(s.allowance_codes || '-')}</td>
-          <td style="white-space: nowrap;"><input type="number" class="form-input ls-qty" data-code="${esc(s.code)}" value="10" min="1" step="any" style="width: 80px;" aria-label="Quantity for ${esc(s.code)}">
+          <td class="s-1cd2ee"><input type="number" class="form-input ls-qty s-dabaad" data-code="${esc(s.code)}" value="10" min="1" step="any" aria-label="Quantity for ${esc(s.code)}">
             <button class="action-btn" data-ls-preview="${esc(s.code)}" type="button">Preview</button></td></tr>
           <tr class="hidden" id="ls-detail-${esc(s.code)}"><td colspan="6"></td></tr>`;
       }).join('')}</tbody></table></div>`}`;
@@ -99,7 +99,7 @@ async function previewStandard(code, qty) {
     <thead><tr><th>Part</th><th>Code</th><th>How it is worked out</th><th class="num">Seconds</th></tr></thead>
     <tbody>${(p.lines || []).map(l => `<tr><td>${esc(l.component)}</td><td>${esc(l.code)}</td><td>${esc(l.basis)}</td><td class="num">${num(l.seconds)}</td></tr>`).join('')}
       <tr><td colspan="3"><b>Total for ${esc(num(p.quantity))} unit(s)</b></td><td class="num"><b>${num(p.total_seconds)}</b></td></tr></tbody></table>
-    <p style="margin: 8px 0 0;">= ${esc(num(p.minutes))} minutes${p.labor_rate_per_hour ? ` · cost ${esc(num(p.estimated_labor_cost))} at ${esc(num(p.labor_rate_per_hour))} per hour` : ' · no hourly cost on the operation'}
+    <p class="s-f27e18">= ${esc(num(p.minutes))} minutes${p.labor_rate_per_hour ? ` · cost ${esc(num(p.estimated_labor_cost))} at ${esc(num(p.labor_rate_per_hour))} per hour` : ' · no hourly cost on the operation'}
       ${p.agrees ? '<span class="badge badge-success">matches the planning engine</span>' : '<span class="badge badge-danger">differs from the planning engine - check the masters</span>'}</p>`;
   row.classList.remove('hidden');
 }
@@ -112,32 +112,32 @@ function openStandardWizard(operations) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'ls-wizard';
-  const n = (id, label, unit, w = 110) => `<div class="form-group" style="margin: 0;"><label class="form-label" for="${id}">${label}${unit ? ` <span style="color: var(--text-muted);">(${unit})</span>` : ''}</label><input type="number" id="${id}" class="form-input" min="0" step="any" style="width: ${w}px;"></div>`;
-  const t = (id, label, w = 160) => `<div class="form-group" style="margin: 0;"><label class="form-label" for="${id}">${label}</label><input type="text" id="${id}" class="form-input" style="width: ${w}px;"></div>`;
+  const n = (id, label, unit, w = 110) => `<div class="form-group s-2a0ca8"><label class="form-label" for="${id}">${label}${unit ? ` <span class="s-d59bb5">(${unit})</span>` : ''}</label><input type="number" id="${id}" class="form-input" min="0" step="any" style="width: ${w}px;"></div>`;
+  const t = (id, label, w = 160) => `<div class="form-group s-2a0ca8"><label class="form-label" for="${id}">${label}</label><input type="text" id="${id}" class="form-input" style="width: ${w}px;"></div>`;
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 860px;" role="dialog" aria-modal="true" aria-labelledby="ls-wizard-title">
+    <div class="modal-container s-c127b9" role="dialog" aria-modal="true" aria-labelledby="ls-wizard-title">
       <div class="modal-header"><h3 class="modal-title" id="ls-wizard-title">New labour standard</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-ls-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+      <div class="modal-body s-89dbb6">
         <section><b>1. Operation</b> - the kind of task and what an hour of it costs
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px;">
-            <div class="form-group" style="margin: 0;"><label class="form-label" for="lw-op">Operation</label>
+          <div class="s-b20590">
+            <div class="form-group s-2a0ca8"><label class="form-label" for="lw-op">Operation</label>
               <select id="lw-op" class="form-select"><option value="">New operation...</option>${operations.map(o => `<option value="${esc(o.code)}">${esc(o.code)} - ${esc(o.task_type)}</option>`).join('')}</select></div>
-            <div id="lw-op-new" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+            <div id="lw-op-new" class="s-d3ed5a">
               ${t('lw-op-code', 'Code', 120)}${t('lw-op-name', 'Name')}
-              <div class="form-group" style="margin: 0;"><label class="form-label" for="lw-op-type">Task type</label><select id="lw-op-type" class="form-select">${['Putaway', 'Pick', 'Replenish', 'Count', 'Move', 'VAS', 'Load', 'Unload'].map(x => `<option>${x}</option>`).join('')}</select></div>
+              <div class="form-group s-2a0ca8"><label class="form-label" for="lw-op-type">Task type</label><select id="lw-op-type" class="form-select">${['Putaway', 'Pick', 'Replenish', 'Count', 'Move', 'VAS', 'Load', 'Unload'].map(x => `<option>${x}</option>`).join('')}</select></div>
               ${t('lw-op-dept', 'Department', 130)}${n('lw-op-rate', 'Cost per hour', 'money')}
             </div></div></section>
         <section><b>2. Work elements</b> - the steps of one task
-          <table style="margin-top: 8px;"><thead><tr><th>Code</th><th>Description</th><th class="num">Fixed (seconds per task)</th><th class="num">Per unit (seconds)</th><th></th></tr></thead><tbody id="lw-elements"></tbody></table>
-          <button type="button" class="btn btn-outline btn-sm" id="lw-add-el" style="margin-top: 6px;">+ Add element</button></section>
+          <table class="s-0d69e4"><thead><tr><th>Code</th><th>Description</th><th class="num">Fixed (seconds per task)</th><th class="num">Per unit (seconds)</th><th></th></tr></thead><tbody id="lw-elements"></tbody></table>
+          <button type="button" class="btn btn-outline btn-sm s-a5595d" id="lw-add-el">+ Add element</button></section>
         <section><b>3. Travel</b> (optional) - walking or driving to the work
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px;">${t('lw-tr-code', 'Code', 120)}${n('lw-tr-task', 'Per task', 'seconds')}${n('lw-tr-unit', 'Per unit', 'seconds')}</div></section>
+          <div class="s-b20590">${t('lw-tr-code', 'Code', 120)}${n('lw-tr-task', 'Per task', 'seconds')}${n('lw-tr-unit', 'Per unit', 'seconds')}</div></section>
         <section><b>4. Allowance</b> (optional) - rest and delay on top of the work and travel
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px;">${t('lw-al-code', 'Code', 120)}${n('lw-al-pct', 'Allowance', '% of work + travel')}${n('lw-al-fixed', 'Fixed', 'seconds per task')}</div></section>
+          <div class="s-b20590">${t('lw-al-code', 'Code', 120)}${n('lw-al-pct', 'Allowance', '% of work + travel')}${n('lw-al-fixed', 'Fixed', 'seconds per task')}</div></section>
         <section><b>5. The standard</b>
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px;">${t('lw-code', 'Standard code', 140)}${t('lw-name', 'Name', 220)}</div></section>
-        <div id="lw-status" style="font-size: 13px;"></div>
+          <div class="s-b20590">${t('lw-code', 'Standard code', 140)}${t('lw-name', 'Name', 220)}</div></section>
+        <div id="lw-status" class="s-a54188"></div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-ls-close>Close</button><button type="button" class="btn btn-primary" id="lw-save">Save standard</button></div>
     </div>`;
@@ -149,9 +149,9 @@ function openStandardWizard(operations) {
   opSel.addEventListener('change', () => { overlay.querySelector('#lw-op-new').style.display = opSel.value ? 'none' : 'flex'; });
   const addEl = () => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="form-input lw-el-code" style="width: 100px;" aria-label="Element code"></td><td><input type="text" class="form-input lw-el-desc" aria-label="Element description"></td>
-      <td class="num"><input type="number" class="form-input lw-el-fixed" min="0" step="any" style="width: 90px;" aria-label="Fixed seconds"></td>
-      <td class="num"><input type="number" class="form-input lw-el-unit" min="0" step="any" style="width: 90px;" aria-label="Seconds per unit"></td>
+    tr.innerHTML = `<td><input type="text" class="form-input lw-el-code s-da190a" aria-label="Element code"></td><td><input type="text" class="form-input lw-el-desc" aria-label="Element description"></td>
+      <td class="num"><input type="number" class="form-input lw-el-fixed s-34deaa" min="0" step="any" aria-label="Fixed seconds"></td>
+      <td class="num"><input type="number" class="form-input lw-el-unit s-34deaa" min="0" step="any" aria-label="Seconds per unit"></td>
       <td><button type="button" class="action-btn">Remove</button></td>`;
     tr.querySelector('button').addEventListener('click', () => tr.remove());
     overlay.querySelector('#lw-elements').appendChild(tr);
@@ -185,7 +185,7 @@ function openStandardWizard(operations) {
     }
     close();
     showToast(`Labour standard ${v('lw-code')} saved.`, { variant: 'success' });
-    renderView('warehouse-cockpit');
+    renderView('warehouse-cockpit:labour');
   }));
 }
 
@@ -196,13 +196,13 @@ async function renderBillingTab(container) {
   panel.className = 'table-panel';
   panel.style.padding = '20px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="bl-owner">Owner (client)</label><input type="text" id="bl-owner" class="form-input" style="width: 180px;"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="bl-start">From</label><input type="date" id="bl-start" class="form-input" value="${monthStart()}"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="bl-end">To</label><input type="date" id="bl-end" class="form-input" value="${today()}"></div>
+    <div class="s-608a43">
+      <div class="form-group s-50435f"><label class="form-label" for="bl-owner">Owner (client)</label><input type="text" id="bl-owner" class="form-input s-f9de92"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="bl-start">From</label><input type="date" id="bl-start" class="form-input" value="${monthStart()}"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="bl-end">To</label><input type="date" id="bl-end" class="form-input" value="${today()}"></div>
       <button class="btn btn-primary" id="bl-run" type="button">Review</button>
     </div>
-    <div id="bl-result" style="margin-top: 16px;"></div>`;
+    <div id="bl-result" class="s-4c0544"></div>`;
   container.appendChild(panel);
   panel.querySelector('#bl-run').addEventListener('click', () => loadBillingReview(panel));
 }
@@ -215,20 +215,20 @@ async function loadBillingReview(panel) {
   if (!r.ok) { await showApiError(r, 'The review could not be run.', 'Billing'); return; }
   const b = await r.json();
   el.innerHTML = `
-    <p style="margin: 0 0 12px;">Captured ${esc(num(b.captured_total))} · not yet invoiced <b>${esc(num(b.not_invoiced_total))}</b> · storage still to capture ${esc(num(b.storage_to_capture_total))}</p>
-    ${b.exceptions.length ? `<div class="table-panel" style="padding: 12px; margin-bottom: 12px; border-left: 3px solid var(--warning, #b45309);"><b>Check before invoicing</b>
-      <ul style="margin: 6px 0 0; padding-left: 18px;">${b.exceptions.map(x => `<li><b>${esc(x.kind)}</b> - ${esc(x.detail)}</li>`).join('')}</ul></div>` : '<p style="margin: 0 0 12px;"><span class="badge badge-success">Nothing to check</span></p>'}
-    <h3 style="font-size: 14px; margin: 0 0 6px;">Captured charges</h3>
-    ${b.charges.length === 0 ? '<p style="color: var(--text-muted);">No charges captured for this owner in the period.</p>' : `<div style="overflow-x: auto;"><table>
+    <p class="s-1ff0dd">Captured ${esc(num(b.captured_total))} · not yet invoiced <b>${esc(num(b.not_invoiced_total))}</b> · storage still to capture ${esc(num(b.storage_to_capture_total))}</p>
+    ${b.exceptions.length ? `<div class="table-panel s-6b13ae"><b>Check before invoicing</b>
+      <ul class="s-d8d142">${b.exceptions.map(x => `<li><b>${esc(x.kind)}</b> - ${esc(x.detail)}</li>`).join('')}</ul></div>` : '<p class="s-1ff0dd"><span class="badge badge-success">Nothing to check</span></p>'}
+    <h3 class="s-a4d604">Captured charges</h3>
+    ${b.charges.length === 0 ? '<p class="s-d59bb5">No charges captured for this owner in the period.</p>' : `<div class="s-987eb2"><table>
       <thead><tr><th>Charge</th><th>From</th><th>Date</th><th>How it is worked out</th><th class="num">Total</th><th>Invoice</th></tr></thead>
       <tbody>${b.charges.map(c => `<tr><td>${esc(c.charge_code)}${muted(esc(c.id))}</td><td>${esc(c.trigger_event)}${muted(esc(c.event_key))}</td><td>${esc(c.occurred_on)}</td>
-        <td style="font-size: 12px;">${esc(c.explanation)}</td><td class="num">${esc(num(c.total_amount))}</td><td>${c.invoice_id ? esc(c.invoice_id) : '<span class="badge badge-warning">not invoiced</span>'}</td></tr>`).join('')}</tbody></table></div>`}
-    <h3 style="font-size: 14px; margin: 16px 0 6px;">Storage for the period</h3>
-    ${b.storage.length === 0 ? '<p style="color: var(--text-muted);">No storage rates for this owner.</p>' : `<div style="overflow-x: auto;"><table>
+        <td class="s-11fcdc">${esc(c.explanation)}</td><td class="num">${esc(num(c.total_amount))}</td><td>${c.invoice_id ? esc(c.invoice_id) : '<span class="badge badge-warning">not invoiced</span>'}</td></tr>`).join('')}</tbody></table></div>`}
+    <h3 class="s-d8437d">Storage for the period</h3>
+    ${b.storage.length === 0 ? '<p class="s-d59bb5">No storage rates for this owner.</p>' : `<div class="s-987eb2"><table>
       <thead><tr><th>Rate</th><th>Location</th><th class="num">Days with a snapshot</th><th>How it is worked out</th><th class="num">Total</th></tr></thead>
       <tbody>${b.storage.map(s => `<tr><td>${esc(s.rate_code)}${s.item ? muted(esc(s.item)) : ''}</td><td>${esc(s.location_code)}</td><td class="num">${s.snapshot_days} / ${s.period_days}</td>
-        <td style="font-size: 12px;">${esc(s.explanation)}</td><td class="num">${esc(num(s.total_amount))}</td></tr>`).join('')}</tbody></table></div>`}
-    <div style="display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
+        <td class="s-11fcdc">${esc(s.explanation)}</td><td class="num">${esc(num(s.total_amount))}</td></tr>`).join('')}</tbody></table></div>`}
+    <div class="s-1ff3a4">
       <button class="btn btn-outline" id="bl-capture" type="button" ${b.storage.length ? '' : 'disabled'}>Capture storage charges for the period</button>
       <button class="btn btn-primary" id="bl-invoice" type="button" ${b.not_invoiced_total > 0 ? '' : 'disabled'}>Raise invoice for ${esc(num(b.not_invoiced_total))}</button>
     </div>`;

@@ -98,7 +98,7 @@ func ValidateBarcodeCheckDigit(barcode string) error {
 // distinction the doc comment above states. The sequence is drawn from the
 // existing document-numbering counter (engines/numbering.go) rather than a
 // second counter mechanism, keyed by a dedicated "PIMBarcodeSeq" series
-// (db/migrations_stage36_7_enrichment_quality.sql) configured with an
+// (db/migrations/migrations_stage36_7_enrichment_quality.sql) configured with an
 // empty prefix/separator and reset_frequency NEVER, so GenerateSequence's
 // own formatting collapses to exactly nine zero-padded digits with nothing
 // else - the one thing that reuse gives for free is the same row-locked

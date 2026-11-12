@@ -24,7 +24,7 @@ import "sort"
 // It also names data flows entirely outside sensitive_fields.go's scope -
 // login credentials, signing/encryption keys, audit evidence, backups -
 // because a classification registry that only covered document fields would
-// miss most of what threat_model.md §2's crown-jewel ranking actually cares
+// miss most of what threat-model.md §2's crown-jewel ranking actually cares
 // about. TestSensitiveFieldCategoriesAreAllClassified
 // (data_classification_test.go) fails the build if sensitive_fields.go ever
 // names a category this file does not carry a row for, so the two files

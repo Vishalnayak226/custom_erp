@@ -75,7 +75,7 @@ function Initialize-Database($dbName) {
 
 function Invoke-PendingMigrations($dbName, $sourcePath) {
     # Stage 30.2.2: this used to be a second, independent implementation of
-    # "apply pending migrations" - a psql loop over db/*.sql in plain
+    # "apply pending migrations" - a psql loop over db/migrations/*.sql in plain
     # lexicographic order, recording each in public.schema_migrations. It now
     # delegates to the runner in the application itself (db/migrate.go), so
     # there is exactly one implementation of the ordering rules, the ledger
@@ -101,7 +101,7 @@ function Add-Deployment($environment, $commit, $appVersion, $status, $notes) {
 
 function Start-Environment($envName, $worktreePath) {
     $cfg = $envConfig.$envName
-    $exe = Join-Path $worktreePath "erp-server.exe"
+    $exe = Join-Path $worktreePath "bin\erp-server.exe"
     if (-not (Test-Path $exe)) { throw "Built binary not found at $exe" }
 
     $env:PORT = "$($cfg.erpPort)"
@@ -145,7 +145,7 @@ if ($Rollback) {
     Stop-Environment $Env
     & git -C $worktreePath checkout --detach $prevCommit
     Push-Location $worktreePath
-    try { & "$GoBin\go.exe" build -ldflags="-s -w" -o erp-server.exe ./cmd/server } finally { Pop-Location }
+    try { & "$GoBin\go.exe" build -ldflags="-s -w" -o bin/erp-server.exe ./cmd/server } finally { Pop-Location }
     Start-Environment $Env $worktreePath
     Add-Deployment -environment $Env -commit $prevCommit -appVersion "" -status "rolled_back" -notes "Rollback to previous deployment"
     exit
@@ -209,7 +209,7 @@ Invoke-PendingMigrations $toCfg.database $toPath
 Push-Location $toPath
 try {
     $buildTimestamp = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
-    & "$GoBin\go.exe" build -ldflags="-s -w -X custom_erp/internal/server.gitCommit=$shortCommit -X custom_erp/internal/server.buildTime=$buildTimestamp" -o erp-server.exe ./cmd/server
+    & "$GoBin\go.exe" build -ldflags="-s -w -X custom_erp/internal/server.gitCommit=$shortCommit -X custom_erp/internal/server.buildTime=$buildTimestamp" -o bin/erp-server.exe ./cmd/server
     if ($LASTEXITCODE -ne 0) { throw "release build failed in target worktree" }
 } finally {
     Pop-Location

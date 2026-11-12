@@ -48,7 +48,7 @@ Domain code lives in `engines/`; the metadata engine and dedicated handlers coex
 The Dockerfile is a dormant packaging option, not evidence that the current installation
 runs containers. Its final image contains the server and `public/`; `.dockerignore` excludes
 the source docs tree. The current deployment choice remains documented in
-[go-live decisions](../operations/go_live_decisions.md).
+[go-live decisions](../operations/go-live-decisions.md).
 
 ## Data and authority
 
@@ -92,7 +92,7 @@ Returns use a sale-linked request and cumulative eligibility lock in
 [returns_atomic.go](../../engines/returns_atomic.go), followed by QC and refund transitions
 in [returns.go](../../engines/returns.go). The legacy instant-return endpoint is retired.
 Stock disposition, original-tax reversal and final refund are separate observable outcomes.
-[Return reconciliation tests](../../internal/server/returns_stage47_4_test.go) are evidence
+[Return reconciliation tests](../../internal/server/returns_test.go) are evidence
 locations; production verification remains release-specific.
 
 ## Jobs, security and operational recovery
@@ -100,11 +100,11 @@ locations; production verification remains release-specific.
 In-process workers and PostgreSQL-backed jobs/outbox retain durable work and retry state.
 [Environment controls](../../engines/environment.go) distinguish simulated from real external
 side effects. Do not infer that every custom extension honors a control without testing it.
-The [security threat model](../security/threat_model.md) owns threats and boundaries;
-[risk register](../security/risk_register.md) owns treatment. General documentation adds no
+The [security threat model](../security/threat-model.md) owns threats and boundaries;
+[risk register](../security/risk-register.md) owns treatment. General documentation adds no
 parallel certification or security approval.
 
-[Backup](../operations/backup_restore.md), [incident response](../operations/incident_runbook.md)
+[Backup](../operations/backup-restore.md), [incident response](../operations/incident-runbook.md)
 and [tenant lifecycle tooling](../../cmd/tenantctl/main.go) address distinct recovery scopes.
 RTO/RPO, retention, legal hold and restore validation require configuration-specific owners.
 

@@ -41,7 +41,7 @@ manual journal entries — is a caller of that one function.
 
 ## The Finance screen
 
-Reached from the sidebar, three tabs: **Trial Balance**, **Chart of
+One sidebar entry each: **Work to review**, **Trial Balance**, **Chart of
 Accounts**, **Accounting Periods**. This is deliberately a small screen —
 most of what a controller actually reads regularly lives in **Reports →
 Finance** instead (25 registered reports as of this writing; see
@@ -122,7 +122,7 @@ is no blanket override — each one is scoped to one specific posting.
 
 ## Trial Balance
 
-The Trial Balance tab is **as-of-a-date**, not "since the beginning of
+The Trial Balance page (Financial Accounting → General ledger) is **as-of-a-date**, not "since the beginning of
 time" — pick a date and it shows every account's balance as it stood then,
 optionally filtered by Cost Center/Department/Entity. A balanced ledger
 shows total debits equal to total credits; if they don't, that's exactly

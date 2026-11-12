@@ -52,19 +52,19 @@ export async function renderAttributeLibrary(container, client, industry = '') {
   const row = a => `
     <tr${a.client ? ' class="text-muted"' : ''}>
       <td><input type="checkbox" data-al-pick="${escapeHTMLText(a.id)}" aria-label="Add ${escapeHTMLText(a.name)}"${ticked(a) ? ' checked' : ''}${a.client ? ' disabled' : ''}></td>
-      <td><strong>${escapeHTMLText(a.name)}</strong><div class="text-muted" style="font-size:12px;">${escapeHTMLText(a.group || '')}${a.industry === 'CORE' ? ' · shared' : ''}</div></td>
-      <td><select class="form-select" style="min-width:150px;" data-al-use="${escapeHTMLText(a.id)}"${a.client ? ' disabled' : ''}>
+      <td><strong>${escapeHTMLText(a.name)}</strong><div class="text-muted s-6cb285">${escapeHTMLText(a.group || '')}${a.industry === 'CORE' ? ' · shared' : ''}</div></td>
+      <td><select class="form-select s-c6cca5" data-al-use="${escapeHTMLText(a.id)}"${a.client ? ' disabled' : ''}>
         ${[USE_VARIANT, USE_PRODUCT].map(u => `<option${(a.client ? (a.client.used_for || offerUse(a)) : offerUse(a)) === u ? ' selected' : ''}>${u}</option>`).join('')}
       </select></td>
-      <td style="max-width:360px;">${valuesCell(a)}</td>
-      <td style="max-width:260px; font-size:12px;" class="text-muted">${escapeHTMLText(a.note || '')}</td>
+      <td class="s-4a724c">${valuesCell(a)}</td>
+      <td class="text-muted s-891f21">${escapeHTMLText(a.note || '')}</td>
       <td>${clientCell(a)}</td>
     </tr>`;
   const table = (title, rows, id) => `
-    <div class="table-panel" style="margin-bottom:16px;" data-al-section="${id}">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 16px 0;">
-        <h3 style="font-size:16px; font-weight:600; margin:0;">${title} <span class="text-muted" style="font-weight:400;">(${rows.length})</span></h3>
-        <span style="display:flex; gap:6px;">
+    <div class="table-panel s-87c136" data-al-section="${id}">
+      <div class="s-20ad78">
+        <h3 class="s-dc34d8">${title} <span class="text-muted s-7e3a94">(${rows.length})</span></h3>
+        <span class="s-ab9fcd">
           <button type="button" class="btn btn-ghost btn-sm" data-al-all="${id}">Tick all</button>
           <button type="button" class="btn btn-ghost btn-sm" data-al-none="${id}">Untick all</button>
         </span>
@@ -80,39 +80,39 @@ export async function renderAttributeLibrary(container, client, industry = '') {
   root.innerHTML = `
     <div class="page-header">
       <div class="page-title-section"><h1 class="page-title">Product attributes - ${escapeHTMLText(name)}</h1></div>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div class="s-29ba4b">
         <button type="button" class="btn btn-outline" data-al-back>&larr; Control Panel</button>
       </div>
     </div>
-    <div class="table-panel" style="padding:16px; margin-bottom:16px; display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;">
-      <label class="form-label" style="display:flex; flex-direction:column; gap:4px;">Industry
-        <select class="form-select" data-al-industry style="min-width:260px;">
+    <div class="table-panel s-0194a2">
+      <label class="form-label s-9770bb">Industry
+        <select class="form-select s-bec7b1" data-al-industry>
           ${(lib.industries || []).map(i => `<option value="${escapeHTMLText(i.code)}"${i.code === lib.industry ? ' selected' : ''}>${escapeHTMLText(i.name)}</option>`).join('')}
         </select></label>
-      <div style="font-size:13px; line-height:1.6;">
+      <div class="s-3d991f">
         <div>Client's industry: <b>${escapeHTMLText(lib.client_industry || 'not chosen')}</b> · PIM module: <b>${lib.pim_enabled ? 'on' : 'off'}</b></div>
         <div>Already has <b>${attrs.filter(a => a.client).length}</b> of these, and <b>${(lib.others || []).length}</b> attribute(s) of its own.</div>
       </div>
     </div>
     ${table(`Variant attributes - ERP item attributes${lib.pim_enabled ? ', mapped into PIM too' : ''}`, variantRows, 'variant')}
     ${table(lib.pim_enabled ? 'Product information - PIM only' : 'Product information - PIM only (this client has no PIM, so none are added)', productRows, 'product')}
-    <details class="table-panel" style="margin-bottom:16px;">
-      <summary style="padding:16px; cursor:pointer; font-weight:600;">Not added (${otherRows.length})</summary>
+    <details class="table-panel s-87c136">
+      <summary class="s-b35d73">Not added (${otherRows.length})</summary>
       <div class="table-wrapper"><table>
         <thead><tr><th>Attribute</th><th>Why</th></tr></thead>
         <tbody>${otherRows.map(a => `<tr><td>${escapeHTMLText(a.name)}</td><td class="text-muted">${a.use === 'covered' ? `Already in the ERP: ${escapeHTMLText(a.covered_by)}` : `Recorded per ${escapeHTMLText(String(a.scope || '').toLowerCase())} (batch / serial unit), not per item`}</td></tr>`).join('')}</tbody>
       </table></div>
     </details>
     ${(lib.others || []).length ? `
-    <details class="table-panel" style="margin-bottom:16px;">
-      <summary style="padding:16px; cursor:pointer; font-weight:600;">${escapeHTMLText(name)}'s other attributes (${lib.others.length})</summary>
+    <details class="table-panel s-87c136">
+      <summary class="s-b35d73">${escapeHTMLText(name)}'s other attributes (${lib.others.length})</summary>
       <div class="table-wrapper"><table>
         <thead><tr><th>Code</th><th>Attribute</th><th>List</th><th>Status</th></tr></thead>
         <tbody>${lib.others.map(c => `<tr><td>${escapeHTMLText(c.code)}</td><td>${escapeHTMLText(c.label)}</td><td>${escapeHTMLText(c.list)}</td><td>${escapeHTMLText(c.status)}</td></tr>`).join('')}</tbody>
       </table></div>
     </details>` : ''}
-    <div class="table-panel" style="position:sticky; bottom:0; z-index:2;">
-      <div style="padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+    <div class="table-panel s-ef113b">
+      <div class="s-e20428">
         <span data-al-count></span>
         <button type="button" class="btn btn-primary" data-al-apply>Add to ${escapeHTMLText(name)}</button>
       </div>

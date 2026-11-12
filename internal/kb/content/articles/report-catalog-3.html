@@ -1,8 +1,19 @@
 <h1 id="report-catalog-part-3">Report catalog (part 3) <a class="kb-anchor" href="#report-catalog-part-3" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>94</strong> reports, from Procurement to Stock Transfer.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>102</strong> reports, from Procurement to Stock Transfer.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#procurement">Procurement</a> - 24 reports</li><li><a href="#procurement-grn">Procurement &amp; GRN</a> - 27 reports</li><li><a href="#sales">Sales</a> - 11 reports</li><li><a href="#sales-pos">Sales &amp; POS</a> - 22 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#stock-transfer">Stock Transfer</a> - 9 reports</li></ul>
+<ul><li><a href="#procurement">Procurement</a> - 27 reports</li><li><a href="#procurement-grn">Procurement &amp; GRN</a> - 27 reports</li><li><a href="#quality">Quality</a> - 2 reports</li><li><a href="#sales">Sales</a> - 14 reports</li><li><a href="#sales-pos">Sales &amp; POS</a> - 22 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#stock-transfer">Stock Transfer</a> - 9 reports</li></ul>
 <h2 id="procurement">Procurement <a class="kb-anchor" href="#procurement" aria-label="Copy link to this section">#</a></h2>
+<h3 id="r2060-back-orders">R2060 Back orders <a class="kb-anchor" href="#r2060-back-orders" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>backorder-list</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Location</strong> (<code>location_code</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> SKU · Item · Location · Waiting · Orders · Oldest · In stock · Inward · On PO · In transit · To buy</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r3091-drop-ship-lines-open">R3091 Drop-ship lines open <a class="kb-anchor" href="#r3091-drop-ship-lines-open" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>dropship-open-lines</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Order · Customer · Ship to · Item · Qty · Vendor · Purchase order · PO status · Expected</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="r9045-expected-arrivals">R9045 Expected arrivals <a class="kb-anchor" href="#r9045-expected-arrivals" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>expected-arrivals</code></p>
 <p><strong>Parameters:</strong></p>
@@ -75,6 +86,11 @@
 <p><strong>Report id:</strong> <code>grn-receipt-timing</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Goods receipt · PO · Vendor · Expected · Received · Timing</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r2054-memo-stock">R2054 Memo stock <a class="kb-anchor" href="#r2054-memo-stock" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>memo-stock</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Vendor · SKU · Receipt · Received · Sold · Returned · Lost · Open · Rate</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r2045-open-purchase-commitments">R2045 Open Purchase Commitments <a class="kb-anchor" href="#r2045-open-purchase-commitments" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>po-commitments</code></p>
@@ -303,6 +319,17 @@
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Pending Approval,Approved,Partially Received,Received,Closed,Rejected,Cancelled</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Vendor Code · Vendor Name · PO Qty · Received Qty · Rejected Qty · Pending Qty · Amount Variance · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h2 id="quality">Quality <a class="kb-anchor" href="#quality" aria-label="Copy link to this section">#</a></h2>
+<h3 id="r9060-inspection-lots">R9060 Inspection lots <a class="kb-anchor" href="#r9060-inspection-lots" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>inspection-lots</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Lot · Receipt · Vendor · Item · Store · Qty · Sample · Asked by · Passed · Failed · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r9061-inspections-due-by-stock-age">R9061 Inspections due by stock age <a class="kb-anchor" href="#r9061-inspections-due-by-stock-age" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stock-age-inspections-due</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Inspection · Store · Rule · Age · Age from · Outcome · Markdown · Due · Days left · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h2 id="sales">Sales <a class="kb-anchor" href="#sales" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r1026-competitor-price-gap">R1026 Competitor Price Gap <a class="kb-anchor" href="#r1026-competitor-price-gap" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>competitor-price-gap</code></p>
@@ -333,6 +360,11 @@
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · Bill · Store · Customer · Gift · Qty · Offer</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="r1034-late-promise-lines">R1034 Late promise lines <a class="kb-anchor" href="#r1034-late-promise-lines" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>late-promise-lines</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Item · Customer · Order · Qty · Promised · Days late · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="r1031-post-sale-edit-history">R1031 Post-Sale Edit History <a class="kb-anchor" href="#r1031-post-sale-edit-history" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>post-sale-edit-history</code></p>
 <p><strong>Parameters:</strong></p>
@@ -350,11 +382,23 @@
 <ul><li><strong>From</strong> (<code>from_date</code>) - date, optional</li><li><strong>To</strong> (<code>to_date</code>) - date, optional</li><li><strong>Customer PO / Ref</strong> (<code>customer_reference</code>) - text, optional</li><li><strong>Customer</strong> (<code>customer</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Customer PO / Ref · Document · Number · Date · Customer · From order · Amount · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="r3095-sales-incentives">R3095 Sales incentives <a class="kb-anchor" href="#r3095-sales-incentives" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>sales-incentives</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Salesman · Accrued · Clawed back · Paid · Balance</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="r1030-salesman-wise-sales">R1030 Salesman-wise Sales <a class="kb-anchor" href="#r1030-salesman-wise-sales" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>salesman-sales</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Salesman · Bills · Sales</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r3090-summary-invoice-groups">R3090 Summary invoice groups <a class="kb-anchor" href="#r3090-summary-invoice-groups" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>summary-invoice-groups</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Bill-to · Currency · Place of supply · Customer PO · Orders · Total · GST basis · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r1029-tender-wise-sales">R1029 Tender-wise Sales <a class="kb-anchor" href="#r1029-tender-wise-sales" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>tender-sales</code></p>

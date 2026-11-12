@@ -4,7 +4,6 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -241,7 +240,7 @@ func handleShippingLabelPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=shipping-label-%s.pdf", bookingID))
+	w.Header().Set("Content-Disposition", attachmentDisposition("shipping-label-"+bookingID+".pdf"))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
 	_, _ = w.Write(pdf)
 }

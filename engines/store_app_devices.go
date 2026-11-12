@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"custom_erp/db"
@@ -363,6 +364,12 @@ type StoreAppPINSession struct {
 
 // StoreAppPINSignIn signs a person in on a registered phone with their PIN.
 func StoreAppPINSignIn(tenantID, deviceToken, username, pin string) (*StoreAppPINSession, error) {
+	return StoreAppPINSignInFrom(context.Background(), tenantID, deviceToken, username, pin)
+}
+
+// StoreAppPINSignInFrom is StoreAppPINSignIn for a request: its client address
+// goes on the sign-in record and the audit row (Stage 47.16.3).
+func StoreAppPINSignInFrom(ctx context.Context, tenantID, deviceToken, username, pin string) (*StoreAppPINSession, error) {
 	device, err := StoreAppDeviceForToken(tenantID, deviceToken)
 	if err != nil {
 		return nil, err
@@ -409,8 +416,8 @@ func StoreAppPINSignIn(tenantID, deviceToken, username, pin string) (*StoreAppPI
 	}
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.store_app_pins SET failed_count = 0, locked_until = NULL WHERE user_id = $1`, schema), id)
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.store_app_devices SET last_used_at = NOW(), last_user = $2 WHERE id = $1`, schema), device.ID, uname)
-	RecordSignIn(tenantID, id) // 49.2.1
-	LogAuditEvent(tenantID, uname, "LOGIN", "PIN_SUCCESS", fmt.Sprintf("Signed in with a PIN on phone %s at store %s", device.ID, device.Store))
+	RecordSignInFrom(ctx, tenantID, id) // 49.2.1
+	LogAuditEventCtx(ctx, tenantID, uname, "LOGIN", "PIN_SUCCESS", fmt.Sprintf("Signed in with a PIN on phone %s at store %s", device.ID, device.Store))
 	idle := GetSettingInt(tenantID, SettingStoreAppPinIdle)
 	if idle <= 0 {
 		idle = 5

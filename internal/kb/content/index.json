@@ -4026,6 +4026,11 @@
             },
             {
               "level": 3,
+              "text": "R3083 Held pieces",
+              "slug": "r3083-held-pieces"
+            },
+            {
+              "level": 3,
               "text": "R3012 Inventory Matrix Summary",
               "slug": "r3012-inventory-matrix-summary"
             },
@@ -4106,13 +4111,13 @@
             },
             {
               "level": 3,
-              "text": "R3005 Stock Ledger",
-              "slug": "r3005-stock-ledger"
+              "text": "R3078 Stock Ledger",
+              "slug": "r3078-stock-ledger"
             },
             {
               "level": 3,
-              "text": "R3078 Stock Ledger",
-              "slug": "r3078-stock-ledger"
+              "text": "R3005 Stock Ledger",
+              "slug": "r3005-stock-ledger"
             },
             {
               "level": 3,
@@ -4668,6 +4673,16 @@
             },
             {
               "level": 3,
+              "text": "R2060 Back orders",
+              "slug": "r2060-back-orders"
+            },
+            {
+              "level": 3,
+              "text": "R3091 Drop-ship lines open",
+              "slug": "r3091-drop-ship-lines-open"
+            },
+            {
+              "level": 3,
               "text": "R9045 Expected arrivals",
               "slug": "r9045-expected-arrivals"
             },
@@ -4730,6 +4745,11 @@
               "level": 3,
               "text": "R2030 Late and early receipts",
               "slug": "r2030-late-and-early-receipts"
+            },
+            {
+              "level": 3,
+              "text": "R2054 Memo stock",
+              "slug": "r2054-memo-stock"
             },
             {
               "level": 3,
@@ -4928,6 +4948,21 @@
             },
             {
               "level": 2,
+              "text": "Quality",
+              "slug": "quality"
+            },
+            {
+              "level": 3,
+              "text": "R9060 Inspection lots",
+              "slug": "r9060-inspection-lots"
+            },
+            {
+              "level": 3,
+              "text": "R9061 Inspections due by stock age",
+              "slug": "r9061-inspections-due-by-stock-age"
+            },
+            {
+              "level": 2,
               "text": "Sales",
               "slug": "sales"
             },
@@ -4958,6 +4993,11 @@
             },
             {
               "level": 3,
+              "text": "R1034 Late promise lines",
+              "slug": "r1034-late-promise-lines"
+            },
+            {
+              "level": 3,
               "text": "R1031 Post-Sale Edit History",
               "slug": "r1031-post-sale-edit-history"
             },
@@ -4973,8 +5013,18 @@
             },
             {
               "level": 3,
+              "text": "R3095 Sales incentives",
+              "slug": "r3095-sales-incentives"
+            },
+            {
+              "level": 3,
               "text": "R1030 Salesman-wise Sales",
               "slug": "r1030-salesman-wise-sales"
+            },
+            {
+              "level": 3,
+              "text": "R3090 Summary invoice groups",
+              "slug": "r3090-summary-invoice-groups"
             },
             {
               "level": 3,
@@ -5459,6 +5509,26 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-11-12",
+              "slug": "2026-11-12"
+            },
+            {
+              "level": 2,
+              "text": "2026-11-11",
+              "slug": "2026-11-11"
+            },
+            {
+              "level": 2,
+              "text": "2026-11-10",
+              "slug": "2026-11-10"
+            },
+            {
+              "level": 2,
+              "text": "2026-11-05",
+              "slug": "2026-11-05"
+            },
+            {
+              "level": 2,
               "text": "2026-11-04",
               "slug": "2026-11-04"
             },
@@ -5541,7 +5611,26 @@
               "level": 2,
               "text": "2026-10-17",
               "slug": "2026-10-17"
-            },
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-2",
+          "title": "Release notes (part 2)",
+          "section": "Reference",
+          "order": 26,
+          "summary": "Earlier releases, 2026-08-04 to 2026-10-16, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-2.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-10-16",
@@ -5582,30 +5671,6 @@
               "text": "2026-09-29",
               "slug": "2026-09-29"
             },
-            {
-              "level": 2,
-              "text": "2026-09-28",
-              "slug": "2026-09-28"
-            }
-          ]
-        },
-        {
-          "slug": "release-notes-2",
-          "title": "Release notes (part 2)",
-          "section": "Reference",
-          "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-28, continued from the release notes.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Release notes (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/release-notes-2.md",
-          "headings": [
             {
               "level": 2,
               "text": "2026-09-28",
@@ -5816,6 +5881,30 @@
               "text": "2026-08-05",
               "slug": "2026-08-05"
             },
+            {
+              "level": 2,
+              "text": "2026-08-04",
+              "slug": "2026-08-04"
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-3",
+          "title": "Release notes (part 3)",
+          "section": "Reference",
+          "order": 27,
+          "summary": "Earlier releases, 2026-07-27 to 2026-08-04, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-3.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-08-04",
@@ -6304,6 +6393,30 @@
               "level": 2,
               "text": "Goods Receipt / GRN",
               "slug": "goods-receipt-grn"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-2",
+          "title": "Error code reference (part 2)",
+          "section": "Troubleshooting",
+          "order": 21,
+          "summary": "Error codes for HR \u0026 Payroll to Procurement / RFQ, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-2.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -6324,30 +6437,6 @@
               "level": 2,
               "text": "Integrations",
               "slug": "integrations"
-            }
-          ]
-        },
-        {
-          "slug": "error-code-reference-2",
-          "title": "Error code reference (part 2)",
-          "section": "Troubleshooting",
-          "order": 21,
-          "summary": "Error codes for Inventory to Purchase Return, continued from the error code reference.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Error code reference (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "troubleshooting/error-code-reference-2.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -6436,23 +6525,13 @@
             },
             {
               "level": 2,
+              "text": "Procurement",
+              "slug": "procurement"
+            },
+            {
+              "level": 2,
               "text": "Procurement / RFQ",
               "slug": "procurement-rfq"
-            },
-            {
-              "level": 2,
-              "text": "Purchase Order",
-              "slug": "purchase-order"
-            },
-            {
-              "level": 2,
-              "text": "Purchase Requisition",
-              "slug": "purchase-requisition"
-            },
-            {
-              "level": 2,
-              "text": "Purchase Return",
-              "slug": "purchase-return"
             }
           ]
         },
@@ -6461,7 +6540,7 @@
           "title": "Error code reference (part 3)",
           "section": "Troubleshooting",
           "order": 22,
-          "summary": "Error codes for Purchase Return / RTV to WMS / Logistics, continued from the error code reference.",
+          "summary": "Error codes for Purchase Order to WMS / Logistics, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6477,6 +6556,21 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Purchase Order",
+              "slug": "purchase-order"
+            },
+            {
+              "level": 2,
+              "text": "Purchase Requisition",
+              "slug": "purchase-requisition"
+            },
+            {
+              "level": 2,
+              "text": "Purchase Return",
+              "slug": "purchase-return"
             },
             {
               "level": 2,
@@ -6517,6 +6611,11 @@
               "level": 2,
               "text": "Sales Return",
               "slug": "sales-return"
+            },
+            {
+              "level": 2,
+              "text": "Security / AI assistant access",
+              "slug": "security-ai-assistant-access"
             },
             {
               "level": 2,
@@ -7004,5 +7103,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 61
+  "article_count": 62
 }

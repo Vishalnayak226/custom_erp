@@ -12,7 +12,7 @@ These requirements apply to every capability and configuration below: [docs/requ
 
 - Requirements: [docs/requirements/modules/pos.md#fr-pos-001](../../docs/requirements/modules/pos.md#fr-pos-001), [docs/requirements/modules/pos.md#fr-pos-002](../../docs/requirements/modules/pos.md#fr-pos-002), [docs/requirements/modules/pos.md#fr-pos-003](../../docs/requirements/modules/pos.md#fr-pos-003)
 - Design/control: [engines/pos_checkout.go](../../engines/pos_checkout.go)
-- Automated tests: [internal/server/pos_atomic_checkout_stage47_3_test.go](../../internal/server/pos_atomic_checkout_stage47_3_test.go), [internal/server/pos_pricing_stage47_2_test.go](../../internal/server/pos_pricing_stage47_2_test.go)
+- Automated tests: [internal/server/pos_atomic_checkout_test.go](../../internal/server/pos_atomic_checkout_test.go), [internal/server/pos_pricing_test.go](../../internal/server/pos_pricing_test.go)
 - User help: [docs/kb/module-handbooks/pos-operations.md](../../docs/kb/module-handbooks/pos-operations.md)
 - Work items: 47.2, 47.3
 - Verification/review: 2026-09-09 / 2026-10-09
@@ -27,7 +27,7 @@ These requirements apply to every capability and configuration below: [docs/requ
 
 - Requirements: [docs/requirements/modules/returns.md#fr-ret-001](../../docs/requirements/modules/returns.md#fr-ret-001), [docs/requirements/modules/returns.md#fr-ret-002](../../docs/requirements/modules/returns.md#fr-ret-002), [docs/requirements/modules/returns.md#fr-ret-003](../../docs/requirements/modules/returns.md#fr-ret-003)
 - Design/control: [engines/returns_atomic.go](../../engines/returns_atomic.go)
-- Automated tests: [internal/server/returns_stage47_4_test.go](../../internal/server/returns_stage47_4_test.go)
+- Automated tests: [internal/server/returns_test.go](../../internal/server/returns_test.go)
 - User help: [docs/kb/module-handbooks/returns-and-refunds.md](../../docs/kb/module-handbooks/returns-and-refunds.md)
 - Work items: 47.4
 - Verification/review: 2026-09-09 / 2026-10-09
@@ -42,7 +42,7 @@ These requirements apply to every capability and configuration below: [docs/requ
 
 - Requirements: [docs/requirements/modules/wms.md#fr-wms-001](../../docs/requirements/modules/wms.md#fr-wms-001), [docs/requirements/modules/wms.md#fr-wms-002](../../docs/requirements/modules/wms.md#fr-wms-002), [docs/requirements/modules/wms.md#fr-wms-003](../../docs/requirements/modules/wms.md#fr-wms-003)
 - Design/control: [engines/wms_owner_stock.go](../../engines/wms_owner_stock.go), [engines/wms_single_owner.go](../../engines/wms_single_owner.go), [engines/wms_owner_isolation.go](../../engines/wms_owner_isolation.go)
-- Automated tests: [engines/stage47_a05_owner_allocation_redteam_test.go](../../engines/stage47_a05_owner_allocation_redteam_test.go), [engines/wms_single_owner_test.go](../../engines/wms_single_owner_test.go), [engines/wms_owner_isolation_test.go](../../engines/wms_owner_isolation_test.go)
+- Automated tests: [engines/redteam_owner_allocation_test.go](../../engines/redteam_owner_allocation_test.go), [engines/wms_single_owner_test.go](../../engines/wms_single_owner_test.go), [engines/wms_owner_isolation_test.go](../../engines/wms_owner_isolation_test.go)
 - User help: [docs/kb/module-handbooks/inventory-wms-operations.md](../../docs/kb/module-handbooks/inventory-wms-operations.md)
 - Work items: 47.5, 47.6, 42, 59
 - Verification/review: 2026-09-10 / 2026-10-09
@@ -57,7 +57,7 @@ These requirements apply to every capability and configuration below: [docs/requ
 
 - Requirements: [docs/requirements/modules/oms.md#fr-oms-001](../../docs/requirements/modules/oms.md#fr-oms-001), [docs/requirements/modules/oms.md#fr-oms-002](../../docs/requirements/modules/oms.md#fr-oms-002), [docs/requirements/modules/oms.md#fr-oms-003](../../docs/requirements/modules/oms.md#fr-oms-003)
 - Design/control: [engines/fulfillment.go](../../engines/fulfillment.go)
-- Automated tests: [engines/oms_console_stage35_test.go](../../engines/oms_console_stage35_test.go)
+- Automated tests: [engines/oms_console_test.go](../../engines/oms_console_test.go)
 - User help: [docs/kb/module-handbooks/oms-order-management.md](../../docs/kb/module-handbooks/oms-order-management.md)
 - Work items: 35, 47.5
 - Verification/review: 2026-09-09 / 2026-10-09

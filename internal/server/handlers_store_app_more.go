@@ -180,7 +180,7 @@ func handleStoreAppPINLogin(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Wrong name or PIN.")
 		return
 	}
-	session, err := engines.StoreAppPINSignIn(tenantID, in.DeviceToken, in.Username, in.PIN)
+	session, err := engines.StoreAppPINSignInFrom(r.Context(), tenantID, in.DeviceToken, in.Username, in.PIN)
 	switch {
 	case errors.Is(err, engines.ErrStoreAppDeviceUnknown):
 		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "This phone is no longer registered to a store. Sign in with your password, or ask a store manager to register it again.")
@@ -384,4 +384,17 @@ func handleStoreAppOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	storeAppJSON(w, res)
+}
+
+// handleStoreAppEarnings - GET /api/v1/store-app/earnings (148.30). A salesman
+// sees only their own incentive statement: the rows of the salesman profile
+// whose login is the caller's, never a salesman picked by the request.
+func handleStoreAppEarnings(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, username, _, _ := storeAppCaller(r)
+	st, err := engines.IncentiveStatementForUser(tenantID, username)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	storeAppJSON(w, st)
 }

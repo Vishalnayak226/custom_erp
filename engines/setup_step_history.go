@@ -15,7 +15,7 @@ import (
 // from what to what, what was failing - and AddSetupStepNote lets a person
 // add a note (and an optional attachment reference) to a step. Rows are only
 // ever added: a database trigger refuses UPDATE and DELETE
-// (db/migrations_stage47_12_4_setup_step_history.sql).
+// (db/migrations/migrations_stage47_12_4_setup_step_history.sql).
 //
 // A state change shows up when the setup screen or any reader of the path
 // next loads it, and is credited to that reader; the "who" of the data change

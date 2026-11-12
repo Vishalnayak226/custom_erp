@@ -329,7 +329,7 @@ func grnWaitingReport(tenantID string, params map[string]string) ([]map[string]i
 	if err != nil {
 		return nil, err
 	}
-	label := map[string]string{"verify": "Verify", "price": "Price check / MRP and post", "pay": "Payment"}
+	label := map[string]string{"verify": "Verify", "price": "Price check / MRP and post", "pay": "Payment", "po": "PO to raise"}
 	out := []map[string]interface{}{}
 	for _, r := range rows {
 		if r.Tab == "done" {

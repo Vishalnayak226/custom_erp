@@ -68,26 +68,38 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 	if pending, err := ListPendingApprovals(tenantID, scope.Role, scope.Location); err != nil {
 		inbox.Errors["approvals"] = err.Error()
 	} else {
+		batch, berr := loadInboxApprovalFacts(schema, scope.UserID, pending)
+		if berr != nil {
+			inbox.Errors["approvals"] = berr.Error()
+			pending = nil
+		}
+		splitGuard := len(pending) > 0 && GetSettingBool(tenantID, SettingApprovalSplitGuard)
 		for _, doc := range pending {
 			doctype, _ := doc["doctype"].(string)
 			id, _ := doc["id"].(string)
-			var createdBy string
-			var waiting time.Time
-			_ = db.DB.QueryRow(fmt.Sprintf(
-				`SELECT COALESCE(created_by, ''), updated_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE id = $1 AND doctype = $2`, schema),
-				id, doctype).Scan(&createdBy, &waiting)
+			f := batch.facts[inboxFactKey(doctype, id)]
+			createdBy, waiting := f.createdBy, f.waiting
 			if createdBy != "" && createdBy == scope.UserID && !SubmitterMayDecideOwn(tenantID, doctype, scope.Role) {
 				continue // maker-checker: someone else decides this one
 			}
 			// Stage 49.3.5: nor one they changed or sent for approval.
-			if scope.UserID != "" && !SubmitterMayDecideOwn(tenantID, doctype, scope.Role) {
-				if made, _ := madeApprovalRound(db.DB, schema, doctype, id, scope.UserID); made {
-					continue
-				}
+			if scope.UserID != "" && f.made && !SubmitterMayDecideOwn(tenantID, doctype, scope.Role) {
+				continue
 			}
 			amount := DocumentBaseAmount(doc)
-			required, err := requiredApproverRoleFor(tenantID, doctype, doc, amount) // Stage 148.39
-			if err != nil || (!HasFullAccess(scope.Role) && required != scope.Role && !mayAlsoDecide(tenantID, doctype, id, doc, createdBy, scope.UserID, scope.Role, required)) {
+			// Stage 49.3.5: routed at the split-adjusted amount, as submit and
+			// decide are (requiredApproverRoleForDoc); the guard is read once for
+			// the page, so with it Off this stays two queries however many items.
+			approvedAt := amount
+			if splitGuard {
+				adjusted, err := splitAdjustedAmount(tenantID, doctype, id, amount)
+				if err != nil {
+					continue
+				}
+				approvedAt = adjusted
+			}
+			required := batch.requiredRole(tenantID, doctype, doc, approvedAt) // Stage 148.39; the slab was read once for the page
+			if !HasFullAccess(scope.Role) && required != scope.Role && !mayAlsoDecide(tenantID, doctype, id, doc, createdBy, scope.UserID, scope.Role, required) {
 				continue
 			}
 			code := id

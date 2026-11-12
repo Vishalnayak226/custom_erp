@@ -75,7 +75,7 @@ func lessons(root string) []lesson {
 }
 
 func openRisks(root string) []openRisk {
-	raw, ok := readRepo(root, "docs/security/risk_register.md")
+	raw, ok := readRepo(root, "docs/security/risk-register.md")
 	if !ok {
 		return nil
 	}
@@ -136,8 +136,8 @@ func cadenceRows(root string, days func(string) int) []scoreRow {
 		name, date, evidence string
 		every                int
 	}{
-		{"threat model review", verified("docs/security/threat_model.md"), "`docs/security/threat_model.md`", 100},
-		{"risk register review", verified("docs/security/risk_register.md"), "`docs/security/risk_register.md`", 100},
+		{"threat model review", verified("docs/security/threat-model.md"), "`docs/security/threat-model.md`", 100},
+		{"risk register review", verified("docs/security/risk-register.md"), "`docs/security/risk-register.md`", 100},
 		{"vendor review", verified("docs/security/third-party-risk-register.md"), "`docs/security/third-party-risk-register.md`", 100},
 		{"access and detection review", latestKind["internal-review"], "`docs/security/assessment-register.md`", 35},
 		{"tabletop exercise", latestKind["tabletop"], "`docs/security/assessment-register.md`", 100},
@@ -170,7 +170,7 @@ func assuranceFiles(root, stamp string) map[string][]byte {
 
 	var b strings.Builder
 	b.WriteString(generatedHeader("Security Assurance Statement", stamp,
-		"`internal/server/VERSION`, `docs/security/risk_register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`",
+		"`internal/server/VERSION`, `docs/security/risk-register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`",
 		"`pwsh docs/update-docs.ps1 -Group Content`"))
 	fmt.Fprintf(&b, "What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of %s (Stage 49.17.8). Not a certification.\n\n", asOf)
 

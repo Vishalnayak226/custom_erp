@@ -75,12 +75,14 @@ var syncMetaTables = []metaTable{
 // public, so one trigger definition serves every schema. Put on a table only
 // once its function exists, so a binary ahead of its migration still syncs.
 var guardTriggers = []struct{ table, name, fn string }{
-	// Stage 47.16.4b: posted ledger rows never change or go (db/migrations_stage47_16_4b_gl_postings_guard.sql).
+	// Stage 47.16.4b: posted ledger rows never change or go (db/migrations/migrations_stage47_16_4b_gl_postings_guard.sql).
 	{"gl_postings", "gl_postings_guard", "public.gl_postings_guard()"},
-	// Stage 47.16.4f: an IRP acknowledgement is never changed (db/migrations_stage75_2_irp_evidence_47_16_4f.sql).
+	// Stage 47.16.4f: an IRP acknowledgement is never changed (db/migrations/migrations_stage75_2_irp_evidence_47_16_4f.sql).
 	{"irp_documents", "irp_documents_ack_immutable", "public.irp_documents_ack_immutable()"},
-	// Stage 47.12.4: the guided setup's state history is never changed (db/migrations_stage47_12_4_setup_step_history.sql).
+	// Stage 47.12.4: the guided setup's state history is never changed (db/migrations/migrations_stage47_12_4_setup_step_history.sql).
 	{"setup_step_history", "setup_step_history_guard", "public.setup_step_history_guard()"},
+	// Stage 47.12.1-7 / 49.17.3: the go-live records are never changed (db/migrations/migrations_stage47_12_golive.sql).
+	{"golive_records", "golive_records_guard", "public.golive_records_guard()"},
 }
 
 var schemaNameRE = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
@@ -583,7 +585,7 @@ func indexDefs(tx *sql.Tx, schema, alsoIn string) ([]indexDef, error) {
 // DocumentEditLogTrigger is the Stage 47.16.4a edit-log trigger on a schema's
 // documents table: one audit_logs row per save that changes `data`, with the
 // old and new value of each changed field
-// (db/migrations_stage47_16_4a_edit_log_every_client.sql).
+// (db/migrations/migrations_stage47_16_4a_edit_log_every_client.sql).
 const DocumentEditLogTrigger = "trg_log_document_changes"
 
 const documentEditLogFunction = "public.erp_log_document_edit"

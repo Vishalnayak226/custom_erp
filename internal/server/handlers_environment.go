@@ -21,10 +21,20 @@ func handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
 	if env == "" {
 		env = "development"
 	}
+	// Stage 47.12.6: a sandbox client reads as a simulated environment named
+	// "SANDBOX" - the shell's existing banner then says so, with no new UI.
+	sideEffects := engines.ExternalSideEffectsEnabled()
+	sandbox, _ := engines.IsSandboxTenant(r.Header.Get("Resolved-Tenant-ID"))
+	banner := engines.EnvironmentBanner()
+	if sandbox {
+		env, sideEffects = "SANDBOX", false
+		banner = "SANDBOX - nothing leaves the server"
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"env":                            env,
-		"external_side_effects":          engines.ExternalSideEffectsEnabled(),
-		"banner":                         engines.EnvironmentBanner(),
+		"sandbox":                        sandbox,
+		"external_side_effects":          sideEffects,
+		"banner":                         banner,
 		"supported_configuration_notice": engines.SupportedConfigurationNotice(),
 	})
 }

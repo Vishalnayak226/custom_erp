@@ -53,7 +53,7 @@ func handlePIMProductGroupExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename="+csvAttachmentName("product_group", groupID))
+	w.Header().Set("Content-Disposition", attachmentDisposition(csvAttachmentName("product_group", groupID)))
 	_, _ = w.Write(csvBytes)
 }
 

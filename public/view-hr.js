@@ -118,20 +118,20 @@ async function renderAttendanceTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${autoNumberField('Attendance Code', 'ATT', '160px')}
 ${employeePickerField('att-employee', '200px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="att-date">Date</label>
         <input type="date" id="att-date" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="att-location">Location</label>
-        <input type="text" id="att-location" class="form-input" style="width: 100px;">
+        <input type="text" id="att-location" class="form-input s-da190a">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="att-status">Status</label>
-        <select id="att-status" class="form-input" style="width: 130px;">
+        <select id="att-status" class="form-input s-27652d">
           <option value="Present">Present</option>
           <option value="Absent">Absent</option>
           <option value="Late">Late</option>
@@ -142,7 +142,7 @@ ${employeePickerField('att-employee', '200px')}
       </div>
       <button class="btn btn-primary" id="att-save-btn">Save</button>
     </div>
-    <div id="att-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="att-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const listPanel = document.createElement('div');
@@ -153,10 +153,10 @@ ${employeePickerField('att-employee', '200px')}
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet. Click <b>+ Mark Attendance</b> to record one.</td></tr>`
+    ? `<tr><td colspan="5" class="s-306094">No attendance records yet. Click <b>+ Mark Attendance</b> to record one.</td></tr>`
     : records.map(r => `
         <tr>
-          <td style="font-family: monospace;">${hrEsc(r.code || r.id)}</td>
+          <td class="s-355794">${hrEsc(r.code || r.id)}</td>
           <td>${hrEsc(r.employee_id)}</td>
           <td>${hrEsc(r.date)}</td>
           <td>${hrEsc(r.location)}</td>
@@ -213,34 +213,34 @@ async function renderLeaveTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${autoNumberField('Leave Code', 'LV', '160px')}
 ${employeePickerField('leave-employee', '200px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="leave-type">Leave Type</label>
-        <select id="leave-type" class="form-input" style="width: 130px;">
+        <select id="leave-type" class="form-input s-27652d">
           <option value="Casual">Casual</option>
           <option value="Sick">Sick</option>
           <option value="Earned">Earned</option>
           <option value="Unpaid">Unpaid</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="leave-from">From Date</label>
         <input type="date" id="leave-from" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="leave-to">To Date</label>
         <input type="date" id="leave-to" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="leave-days">Days</label>
-        <input type="number" id="leave-days" class="form-input" style="width: 90px;" min="1">
+        <input type="number" id="leave-days" class="form-input s-34deaa" min="1">
       </div>
       <button class="btn btn-primary" id="leave-save-btn">Apply</button>
     </div>
-    <div id="leave-info" class="page-subtitle" style="margin-top: 12px;"></div>
-    <div id="leave-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="leave-info" class="page-subtitle s-4bb900"></div>
+    <div id="leave-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const listPanel = document.createElement('div');
@@ -251,10 +251,10 @@ ${employeePickerField('leave-employee', '200px')}
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet. Click <b>+ Apply Leave</b> to record one on an employee's behalf.</td></tr>`
+    ? `<tr><td colspan="8" class="s-306094">No leave applications yet. Click <b>+ Apply Leave</b> to record one on an employee's behalf.</td></tr>`
     : records.map(r => `
         <tr>
-          <td style="font-family: monospace;">${hrEsc(r.code || r.id)}</td>
+          <td class="s-355794">${hrEsc(r.code || r.id)}</td>
           <td>${hrEsc(r.employee_id)}</td>
           <td>${hrEsc(r.leave_type)}</td>
           <td>${hrEsc(r.from_date)}</td>
@@ -392,18 +392,18 @@ function renderPayrollExportTab(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-06a46b">
+      <div class="form-group s-50435f">
         <label class="form-label" for="payroll-from">From</label>
         <input type="date" id="payroll-from" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="payroll-to">To</label>
         <input type="date" id="payroll-to" class="form-input">
       </div>
       <button class="btn btn-primary" id="payroll-export-btn">Export</button>
     </div>
-    <div id="payroll-export-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="payroll-export-error" class="login-error hidden s-29b798"></div>
     <div id="payroll-export-results"></div>
   `;
   container.appendChild(panel);
@@ -439,7 +439,7 @@ async function runPayrollExport() {
       <tbody>
   `;
   html += data.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No records in this period. Mark attendance for the month under the <b>Attendance</b> tab, then run the export again.</td></tr>`
+    ? `<tr><td colspan="5" class="s-306094">No records in this period. Mark attendance for the month under the <b>Attendance</b> tab, then run the export again.</td></tr>`
     : data.map(e => `
         <tr>
           <td>${hrEsc(e.employee_id)}</td>
@@ -464,19 +464,19 @@ async function renderPayrollTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
 ${employeePickerField('payroll-run-employee', '200px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="payroll-run-from">Period From</label>
         <input type="date" id="payroll-run-from" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="payroll-run-to">Period To</label>
         <input type="date" id="payroll-run-to" class="form-input">
       </div>
       <button class="btn btn-primary" id="payroll-run-btn">Run Payroll</button>
     </div>
-    <div id="payroll-run-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="payroll-run-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const payslipsRes = await apiFetch('/api/v1/doc/Payslip');
@@ -493,10 +493,10 @@ ${employeePickerField('payroll-run-employee', '200px')}
   const dedParts = p => [['PF', p.pf_deduction], ['ESI', p.esi_deduction], ['PT', p.pt_deduction], ['TDS', p.tds_deduction], ['Loan', p.loan_deduction]]
     .filter(([, v]) => Number(v) > 0);
   html += payslips.length === 0
-    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No payslips yet. Click <b>+ Run Payroll</b> &mdash; each employee needs a Salary Structure first.</td></tr>`
+    ? `<tr><td colspan="8" class="s-306094">No payslips yet. Click <b>+ Run Payroll</b> &mdash; each employee needs a Salary Structure first.</td></tr>`
     : payslips.map(p => `
         <tr>
-          <td style="font-family: monospace;">${hrEsc(p.code || p.id)}</td>
+          <td class="s-355794">${hrEsc(p.code || p.id)}</td>
           <td>${hrEsc(p.employee_id)}</td>
           <td>${hrEsc(p.period_from)} to ${hrEsc(p.period_to)}</td>
           <td>${p.gross_pay ?? ''}</td>
@@ -581,20 +581,20 @@ async function renderEmployeeLoansTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${autoNumberField('Loan Code', 'LOAN', '160px')}
 ${employeePickerField('loan-employee', '200px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="loan-principal">Principal Amount</label>
-        <input type="number" id="loan-principal" class="form-input" style="width: 140px;">
+        <input type="number" id="loan-principal" class="form-input s-21b277">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="loan-monthly">Monthly Deduction</label>
-        <input type="number" id="loan-monthly" class="form-input" style="width: 140px;">
+        <input type="number" id="loan-monthly" class="form-input s-21b277">
       </div>
       <button class="btn btn-primary" id="loan-create-btn">Create Loan</button>
     </div>
-    <div id="loan-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="loan-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const loansRes = await apiFetch('/api/v1/doc/EmployeeLoan');
@@ -608,10 +608,10 @@ ${employeePickerField('loan-employee', '200px')}
       <tbody>
   `;
   html += loans.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet. Click <b>+ New Loan/Advance</b>, then <b>Disburse</b> it here to post it to the ledger.</td></tr>`
+    ? `<tr><td colspan="7" class="s-306094">No loans yet. Click <b>+ New Loan/Advance</b>, then <b>Disburse</b> it here to post it to the ledger.</td></tr>`
     : loans.map(l => `
         <tr>
-          <td style="font-family: monospace;">${hrEsc(l.code || l.id)}</td>
+          <td class="s-355794">${hrEsc(l.code || l.id)}</td>
           <td>${hrEsc(l.employee_id)}</td>
           <td>${l.principal_amount ?? ''}</td>
           <td>${l.monthly_deduction ?? ''}</td>
@@ -695,7 +695,7 @@ async function renderMyRequestsTab(container) {
     const panel = document.createElement('div');
     panel.className = 'table-panel';
     panel.style.padding = '24px';
-    panel.innerHTML = `<p style="color: var(--text-muted);">Your login is not linked to an Employee record, so there is nothing to self-service here. Ask a Super Admin to set the Employee master's "Linked ERP User ID" field.</p>`;
+    panel.innerHTML = `<p class="s-d59bb5">Your login is not linked to an Employee record, so there is nothing to self-service here. Ask a Super Admin to set the Employee master's "Linked ERP User ID" field.</p>`;
     container.appendChild(panel);
     return;
   }
@@ -705,35 +705,35 @@ async function renderMyRequestsTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Request Leave</h2>
-    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Employee: ${hrEsc(employee.code || employee.id)} - ${hrEsc(employee.name)}</p>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <h2 class="s-79bd22">Request Leave</h2>
+    <p class="s-9dfde8">Employee: ${hrEsc(employee.code || employee.id)} - ${hrEsc(employee.name)}</p>
+    <div class="s-608a43">
       ${autoNumberField('Leave Code', 'LV', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-leave-type">Leave Type</label>
-        <select id="myreq-leave-type" class="form-input" style="width: 130px;">
+        <select id="myreq-leave-type" class="form-input s-27652d">
           <option value="Casual">Casual</option>
           <option value="Sick">Sick</option>
           <option value="Earned">Earned</option>
           <option value="Unpaid">Unpaid</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-leave-from">From Date</label>
         <input type="date" id="myreq-leave-from" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-leave-to">To Date</label>
         <input type="date" id="myreq-leave-to" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-leave-days">Days</label>
-        <input type="number" id="myreq-leave-days" class="form-input" style="width: 80px;">
+        <input type="number" id="myreq-leave-days" class="form-input s-dabaad">
       </div>
       <button class="btn btn-primary" id="myreq-leave-btn">Submit Leave Request</button>
     </div>
-    <div id="myreq-leave-info" class="page-subtitle" style="margin-top: 12px;"></div>
-    <div id="myreq-leave-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="myreq-leave-info" class="page-subtitle s-4bb900"></div>
+    <div id="myreq-leave-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const expensePanel = document.createElement('div');
@@ -741,16 +741,16 @@ async function renderMyRequestsTab(container) {
   expensePanel.style.padding = '24px';
   expensePanel.style.marginBottom = '24px';
   expensePanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Submit Expense Claim</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <h2 class="s-bfc163">Submit Expense Claim</h2>
+    <div class="s-608a43">
       ${autoNumberField('Claim Number', 'EXP', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-exp-date">Expense Date</label>
         <input type="date" id="myreq-exp-date" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-exp-category">Category</label>
-        <select id="myreq-exp-category" class="form-input" style="width: 140px;">
+        <select id="myreq-exp-category" class="form-input s-21b277">
           <option value="Conveyance">Conveyance</option>
           <option value="Travel">Travel</option>
           <option value="Food">Food</option>
@@ -763,17 +763,17 @@ async function renderMyRequestsTab(container) {
           <option value="Other">Other</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-exp-amount">Amount</label>
-        <input type="number" id="myreq-exp-amount" class="form-input" style="width: 110px;">
+        <input type="number" id="myreq-exp-amount" class="form-input s-148b84">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-exp-purpose">Purpose</label>
-        <input type="text" id="myreq-exp-purpose" class="form-input" style="width: 180px;">
+        <input type="text" id="myreq-exp-purpose" class="form-input s-f9de92">
       </div>
       <button class="btn btn-primary" id="myreq-exp-btn">Submit Expense Claim</button>
     </div>
-    <div id="myreq-exp-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="myreq-exp-error" class="login-error hidden s-4c0544"></div>
   `;
 
   // Stage 26.8.10 (P2, go-ahead 2026-07-27): Grievance submission, same
@@ -785,12 +785,12 @@ async function renderMyRequestsTab(container) {
   grievancePanel.style.padding = '24px';
   grievancePanel.style.marginBottom = '24px';
   grievancePanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Submit Grievance</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <h2 class="s-bfc163">Submit Grievance</h2>
+    <div class="s-608a43">
       ${autoNumberField('Grievance Number', 'GRV', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="myreq-griev-category">Category</label>
-        <select id="myreq-griev-category" class="form-input" style="width: 160px;">
+        <select id="myreq-griev-category" class="form-input s-56cae7">
           <option value="Harassment">Harassment</option>
           <option value="Compensation">Compensation</option>
           <option value="Workplace Safety">Workplace Safety</option>
@@ -798,14 +798,14 @@ async function renderMyRequestsTab(container) {
           <option value="Other">Other</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex:1; min-width:220px;">
+      <div class="form-group s-308847">
         <label class="form-label" for="myreq-griev-desc">Description</label>
         <input type="text" id="myreq-griev-desc" class="form-input">
       </div>
       <button class="btn btn-primary" id="myreq-griev-btn">Submit Grievance</button>
     </div>
-    <div id="myreq-griev-access" class="page-subtitle" style="margin-top: 12px;"></div>
-    <div id="myreq-griev-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="myreq-griev-access" class="page-subtitle s-4bb900"></div>
+    <div id="myreq-griev-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const [leavesRes, expensesRes, grievancesRes] = await Promise.all([
@@ -826,7 +826,7 @@ async function renderMyRequestsTab(container) {
         ${myLeaves.map(l => `<tr><td>Leave</td><td>${hrEsc(l.leave_type)} ${hrEsc(l.from_date)} to ${hrEsc(l.to_date)}</td><td><span class="badge badge-secondary">${hrEsc(l.status)}</span></td></tr>`).join('')}
         ${myExpenses.map(e => `<tr><td>Expense</td><td>${hrEsc(e.category)} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${hrEsc(e.status)}</span></td></tr>`).join('')}
         ${myGrievances.map(g => `<tr><td>Grievance</td><td>${hrEsc(g.category || '')} ${hrEsc(g.description || '')}${g.resolution_notes ? `<div class="text-muted">Resolution: ${hrEsc(g.resolution_notes)}</div>` : ''}</td><td><span class="badge badge-secondary">${hrEsc((HR_GRV_STATE[g.status] || [g.status])[0])}</span></td></tr>`).join('')}
-        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet. Use <b>+ Request Leave</b>, <b>+ Expense Claim</b> or <b>+ Grievance</b>.</td></tr>` : ''}
+        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" class="s-306094">No requests submitted yet. Use <b>+ Request Leave</b>, <b>+ Expense Claim</b> or <b>+ Grievance</b>.</td></tr>` : ''}
       </tbody>
     </table>
   `;
@@ -974,7 +974,7 @@ async function submitMyExpenseClaimInner(employee) {
 
 // ---------------------------------------------------------------------------
 // Stage 55.14: guided journeys - onboarding/offboarding, appraisal cycles,
-// training and grievances - on each doctype's own fields (db/migrations_
+// training and grievances - on each doctype's own fields (db/migrations/migrations_
 // stage26_8_hr_payroll.sql, migrations_stage26_8_hr_process.sql) and the
 // approval engine, in the list-first shape: the list, + New as a page of its
 // own, and a record opening on its own page ("open", no + button). The server
@@ -1027,16 +1027,16 @@ function hrParseList(raw) {
 function hrWhen(s) {
   if (!s) return '';
   const d = new Date(String(s).replace(' ', 'T'));
-  return isNaN(d) ? String(s) : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return isNaN(d) ? String(s) : formatDateTime(d);
 }
 
 function hrProgress(done, total) {
   const pct = total ? Math.round(done * 100 / total) : 0;
-  return `<span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-block;width:90px;height:6px;border-radius:3px;background:var(--surface-subtle);overflow:hidden;"><span style="display:block;height:100%;width:${pct}%;background:${total && done === total ? 'var(--success-color)' : 'var(--primary-color)'};"></span></span><span style="font-size:12px;">${done} of ${total}</span></span>`;
+  return `<span class="s-1d5290"><span class="s-62ca27"><span style="display:block;height:100%;width:${pct}%;background:${total && done === total ? 'var(--success-color)' : 'var(--primary-color)'};"></span></span><span class="s-6cb285">${done} of ${total}</span></span>`;
 }
 
 function hrSelect(id, label, options, value, width = '180px') {
-  return `<div class="form-group" style="margin-bottom:0;"><label class="form-label" for="${id}">${label}</label>
+  return `<div class="form-group s-ef0b7a"><label class="form-label" for="${id}">${label}</label>
     <select id="${id}" class="form-input" style="width:${width};">${options.map(([v, l]) =>
       `<option value="${hrEsc(v)}"${v === value ? ' selected' : ''}>${hrEsc(l)}</option>`).join('')}</select></div>`;
 }
@@ -1092,7 +1092,7 @@ const hrRoleName = role => (/^hr\s*\/\s*admin$/i.test(role || '') ? 'Super Admin
 function hrHistory(log, showComments) {
   if (!log || log.length === 0) return '';
   const verb = { Submitted: 'Submitted', Approved: 'Approved', Rejected: 'Returned', Modified: 'Edited after approval' };
-  return `<h3 style="font-size:14px;font-weight:700;margin:16px 0 8px;">History</h3><ul style="margin:0 0 0 20px;padding:0;${hrMuted}">${log.map(e =>
+  return `<h3 class="s-e583f8">History</h3><ul style="margin:0 0 0 20px;padding:0;${hrMuted}">${log.map(e =>
     `<li>${hrEsc(verb[e.action] || e.action)} by ${hrEsc(e.actor_user_id)} (${hrEsc(hrRoleName(e.actor_role))}) · ${hrEsc(hrWhen(e.created_at))}${showComments && e.comment ? ` - ${hrEsc(e.comment)}` : ''}</li>`).join('')}</ul>`;
 }
 
@@ -1141,9 +1141,9 @@ async function renderOnboardingTab(container) {
         ${hrSelect('hr-onb-fstatus', 'Status', [['', 'All'], ['In Progress', 'In Progress'], ['Completed', 'Completed']], hrOnbFilter.status, '150px')}
       </div>
       <table><thead><tr><th>Checklist</th><th>Employee</th><th>Type</th><th>Progress</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>
-      ${rows.length === 0 ? `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">${empty}</td></tr>` : rows.map(r => {
+      ${rows.length === 0 ? `<tr><td colspan="7" class="s-306094">${empty}</td></tr>` : rows.map(r => {
         const p = progressOf(r);
-        return `<tr><td style="font-family:monospace;">${hrEsc(r.code || r.id)}</td><td>${hrEsc(emps.name(r.employee_id))}</td>
+        return `<tr><td class="s-72126d">${hrEsc(r.code || r.id)}</td><td>${hrEsc(emps.name(r.employee_id))}</td>
           <td>${hrEsc(r.checklist_type)}</td><td>${p ? hrProgress(p.done, p.total) : `<span style="${hrMuted}">steps not readable</span>`}</td>
           <td>${hrBadge(r.status, r.status === 'Completed' ? 'success' : 'warning')}</td><td>${hrEsc(String(r.updated_at || '').slice(0, 10))}</td>
           <td><button class="action-btn" data-hr-onb-open="${hrEsc(r.id)}">Open</button></td></tr>`;
@@ -1160,19 +1160,19 @@ async function renderOnboardingTab(container) {
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
   formPanel.innerHTML = `
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+    <div class="s-97380c">
       ${hrSelect('hr-onb-type', 'Type', [['Onboarding', 'Onboarding'], ['Offboarding', 'Offboarding']], 'Onboarding', '150px')}
 ${employeePickerField('hr-onb-employee', '220px')}
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-onb-code">Checklist Code</label>
-        <input type="text" id="hr-onb-code" class="form-input" style="width:200px;" data-auto="1"></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-onb-copy">Copy steps from</label>
-        <select id="hr-onb-copy" class="form-input" style="width:280px;"></select></div>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-code">Checklist Code</label>
+        <input type="text" id="hr-onb-code" class="form-input s-2acaf3" data-auto="1"></div>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-copy">Copy steps from</label>
+        <select id="hr-onb-copy" class="form-input s-bb082f"></select></div>
     </div>
-    <div style="margin-top:16px;"><span class="form-label">Steps</span>
-      <ol id="hr-onb-steps" style="margin:4px 0 8px 20px;padding:0;"></ol>
+    <div class="s-1b0f49"><span class="form-label">Steps</span>
+      <ol id="hr-onb-steps" class="s-00edec"></ol>
       <button type="button" class="btn btn-outline btn-sm" id="hr-onb-addstep">+ Add step</button></div>
-    <div style="margin-top:16px;"><button class="btn btn-primary" id="hr-onb-save">Create checklist</button></div>
-    <div id="hr-onb-error" class="login-error hidden" style="margin-top:16px;"></div>`;
+    <div class="s-1b0f49"><button class="btn btn-primary" id="hr-onb-save">Create checklist</button></div>
+    <div id="hr-onb-error" class="login-error hidden s-1b0f49"></div>`;
 
   const { section, open } = hrSection({ id: 'hr-onb', title: 'Onboarding / Offboarding', heading: 'h2', count: records.length, list: listPanel,
     forms: canCreate ? { new: ['New checklist', formPanel] } : {} });
@@ -1187,30 +1187,30 @@ ${employeePickerField('hr-onb-employee', '220px')}
       const url = String((d && d.url) || ''), name = (d && (d.name || d.url)) || '';
       return /^https?:\/\//i.test(url) ? `<a href="${hrEsc(url)}" target="_blank" rel="noopener noreferrer">${hrEsc(name)}</a>` : `${hrEsc(name)}${url && url !== name ? ` (${hrEsc(url)})` : ''}`;
     };
-    open.innerHTML = `<div class="table-panel" style="padding:24px;">
-      <h2 style="font-size:16px;font-weight:700;margin:0 0 12px;">${hrEsc(r.checklist_type)} · ${hrEsc(emps.name(r.employee_id))}</h2>
-      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
-        <span style="font-family:monospace;">${hrEsc(r.code || r.id)}</span>${hrBadge(r.status, r.status === 'Completed' ? 'success' : 'warning')}${p ? hrProgress(p.done, p.total) : ''}</div>
-      ${steps ? `<ol style="margin:0 0 12px 20px;padding:0;">${steps.length === 0 ? `<li style="${hrMuted}">No steps yet.</li>` : steps.map((s, i) => `
-        <li style="margin-bottom:8px;"><label style="display:inline-flex;gap:8px;align-items:center;">
+    open.innerHTML = `<div class="table-panel s-ddaf9e">
+      <h2 class="s-db89ac">${hrEsc(r.checklist_type)} · ${hrEsc(emps.name(r.employee_id))}</h2>
+      <div class="s-93c58b">
+        <span class="s-72126d">${hrEsc(r.code || r.id)}</span>${hrBadge(r.status, r.status === 'Completed' ? 'success' : 'warning')}${p ? hrProgress(p.done, p.total) : ''}</div>
+      ${steps ? `<ol class="s-53277b">${steps.length === 0 ? `<li style="${hrMuted}">No steps yet.</li>` : steps.map((s, i) => `
+        <li class="s-fdf33f"><label class="s-c4a525">
           <input type="checkbox" data-hr-onb-tick="${i}"${hrStepDone(s) ? ' checked' : ''}${canUpdate ? '' : ' disabled'}>
           <span>${hrEsc(s && (s.task ?? s.name ?? ''))}</span></label>
           ${hrStepDone(s) ? `<span style="${hrMuted}margin-left:8px;">${s.done_by ? `Done by ${hrEsc(s.done_by)}${s.done_at ? ` · ${hrEsc(hrWhen(s.done_at))}` : ''}` : 'Done (who and when not recorded)'}</span>` : ''}</li>`).join('')}</ol>`
-        : `<p style="${hrMuted}">These steps are not a step list:</p><pre style="white-space:pre-wrap;">${hrEsc(r.items)}</pre>
+        : `<p style="${hrMuted}">These steps are not a step list:</p><pre class="s-a548ea">${hrEsc(r.items)}</pre>
           ${canUpdate ? '<button class="btn btn-outline btn-sm" id="hr-onb-convert">Use as steps (one per line)</button>' : ''}`}
-      ${steps && canUpdate ? `<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-onb-newstep">Add a step</label>
-        <input type="text" id="hr-onb-newstep" class="form-input" autocomplete="off" style="width:360px;"></div>
+      ${steps && canUpdate ? `<div class="s-229350">
+        <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-newstep">Add a step</label>
+        <input type="text" id="hr-onb-newstep" class="form-input s-83d1d8" autocomplete="off"></div>
         <button class="btn btn-outline" id="hr-onb-newstep-btn">Add step</button></div>` : ''}
-      <h3 style="font-size:14px;font-weight:700;margin:16px 0 8px;">Documents</h3>
-      ${docs.length ? `<ul style="margin:0 0 8px 20px;padding:0;">${docs.map(d => `<li>${docLink(d)}</li>`).join('')}</ul>` : `<p style="${hrMuted}">No documents attached.</p>`}
-      ${canUpdate ? `<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-onb-docname">Document</label>
-        <input type="text" id="hr-onb-docname" class="form-input" autocomplete="off" style="width:200px;"></div>
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-onb-docurl">Link (https://...)</label>
-        <input type="text" id="hr-onb-docurl" class="form-input" autocomplete="off" style="width:300px;"></div>
+      <h3 class="s-e583f8">Documents</h3>
+      ${docs.length ? `<ul class="s-b71f2e">${docs.map(d => `<li>${docLink(d)}</li>`).join('')}</ul>` : `<p style="${hrMuted}">No documents attached.</p>`}
+      ${canUpdate ? `<div class="s-e42572">
+        <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-docname">Document</label>
+        <input type="text" id="hr-onb-docname" class="form-input s-2acaf3" autocomplete="off"></div>
+        <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-docurl">Link (https://...)</label>
+        <input type="text" id="hr-onb-docurl" class="form-input s-981459" autocomplete="off"></div>
         <button class="btn btn-outline" id="hr-onb-doc-btn">Add document</button></div>` : ''}
-      <div id="hr-onb-open-error" class="login-error hidden" style="margin-top:12px;"></div></div>`;
+      <div id="hr-onb-open-error" class="login-error hidden s-56f435"></div></div>`;
 
     open.querySelectorAll('[data-hr-onb-tick]').forEach(box => box.addEventListener('change', async () => {
       const done = box.checked;
@@ -1273,7 +1273,7 @@ function wireOnboardingForm(records, emps) {
   const addStep = task => {
     const li = document.createElement('li');
     li.style.marginBottom = '6px';
-    li.innerHTML = `<input type="text" class="form-input" data-hr-onb-step style="width:420px;" aria-label="Step">
+    li.innerHTML = `<input type="text" class="form-input s-f5294d" data-hr-onb-step aria-label="Step">
       <button type="button" class="action-btn action-btn-danger" data-hr-onb-remove>Remove</button>`;
     li.querySelector('input').value = task || '';
     li.querySelector('[data-hr-onb-remove]').addEventListener('click', () => li.remove());
@@ -1374,14 +1374,14 @@ async function renderAppraisalsTab(container) {
     </div>
     ${cycle ? `<div style="padding:0 16px 12px;${hrMuted}">${mine ? '' : `KRAs: ${kras.length ? kras.map(k => `${hrEsc(k.kra)} (${hrEsc(k.weight)})`).join(', ') : 'none set on this cycle'} · `}${counts}</div>` : ''}
     <table><thead><tr><th>Employee</th><th>Department</th><th>Status</th><th>Overall</th><th>Appraisal</th><th></th></tr></thead><tbody>
-    ${!cycle ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">${mine ? 'No appraisal of yours has been started yet.' : canCreateDoctype('AppraisalCycle') ? 'No appraisal cycles yet. Use <b>Manage cycles</b> to set one up with its KRAs.' : 'No appraisal cycle has been set up yet.'}</td></tr>`
-      : shown.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'No appraisal of yours in this cycle yet.') : 'No employee matches this status.'}</td></tr>`
+    ${!cycle ? `<tr><td colspan="6" class="s-306094">${mine ? 'No appraisal of yours has been started yet.' : canCreateDoctype('AppraisalCycle') ? 'No appraisal cycles yet. Use <b>Manage cycles</b> to set one up with its KRAs.' : 'No appraisal cycle has been set up yet.'}</td></tr>`
+      : shown.length === 0 ? `<tr><td colspan="6" class="s-306094">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'No appraisal of yours in this cycle yet.') : 'No employee matches this status.'}</td></tr>`
       : shown.map(r => {
         const [label, kind] = HR_APR_STATE[stateOf(r)] || [stateOf(r), 'secondary'];
         const action = r.a ? `<button class="action-btn" data-hr-apr-open="${hrEsc(r.a.id)}">Open</button>`
           : (canCreate ? `<button class="action-btn" data-hr-apr-start="${hrEsc(r.code)}">Start</button>` : '');
         return `<tr><td>${hrEsc(emps.name(r.code))}</td><td>${hrEsc(emps.dept(r.emp))}</td><td>${hrBadge(label, kind)}</td>
-          <td>${hrEsc(r.a ? (r.a.overall_rating ?? '') : '')}</td><td style="font-family:monospace;">${hrEsc(r.a ? (r.a.code || '') : '')}</td><td>${action}</td></tr>`;
+          <td>${hrEsc(r.a ? (r.a.overall_rating ?? '') : '')}</td><td class="s-72126d">${hrEsc(r.a ? (r.a.code || '') : '')}</td><td>${action}</td></tr>`;
       }).join('')}</tbody></table>`;
 
   const newPanel = document.createElement('div');
@@ -1426,34 +1426,34 @@ async function drawAppraisalEditor(pane, ctx, a, employee) {
   const ownSubmission = reviewing && submitted && (submitted.actor_user_id === me.id || submitted.actor_user_id === me.user);
   const returned = status === 'Rejected' ? [...log].reverse().find(e => e.action === 'Rejected') : null;
   const [label, kind] = HR_APR_STATE[status] || [status, 'secondary'];
-  const num = (v, on, attr) => (on ? `<input type="number" class="form-input" style="width:90px;" min="1" max="5" step="0.5" ${attr} value="${hrEsc(v)}">` : hrEsc(v ?? ''));
+  const num = (v, on, attr) => (on ? `<input type="number" class="form-input s-581be4" min="1" max="5" step="0.5" ${attr} value="${hrEsc(v)}">` : hrEsc(v ?? ''));
   const reviewer1 = hrRoleName(reviewer) || 'Super Admin';
-  pane.innerHTML = `<div class="table-panel" style="padding:24px;">
-    <h2 style="font-size:16px;font-weight:700;margin:0 0 12px;">${a ? `Appraisal · ${hrEsc(emps.name(a.employee_id))}` : 'Start appraisal'}</h2>
-    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+  pane.innerHTML = `<div class="table-panel s-ddaf9e">
+    <h2 class="s-db89ac">${a ? `Appraisal · ${hrEsc(emps.name(a.employee_id))}` : 'Start appraisal'}</h2>
+    <div class="s-93c58b">
       <span>${hrEsc(cycle.code || cycle.id)}${cycle.period_start ? ` · ${hrEsc(cycle.period_start)} to ${hrEsc(cycle.period_end)}` : ''}</span>
-      ${a ? `<span style="font-family:monospace;">${hrEsc(a.code || a.id)}</span>${hrBadge(label, kind)}` : ''}</div>
-    ${a ? '' : `<div style="margin-bottom:16px;">${employeePickerField('hr-apr-employee', '240px')}</div>`}
-    ${returned ? `<p style="color:var(--danger-color);font-size:13px;">Returned by ${hrEsc(returned.actor_user_id)}: ${hrEsc(returned.comment)}</p>` : ''}
+      ${a ? `<span class="s-72126d">${hrEsc(a.code || a.id)}</span>${hrBadge(label, kind)}` : ''}</div>
+    ${a ? '' : `<div class="s-87c136">${employeePickerField('hr-apr-employee', '240px')}</div>`}
+    ${returned ? `<p class="s-eab676">Returned by ${hrEsc(returned.actor_user_id)}: ${hrEsc(returned.comment)}</p>` : ''}
     <table><thead><tr><th>KRA / KPI</th><th>Weight</th><th>Self rating (1-5)</th><th>Manager rating (1-5)</th></tr></thead><tbody>
-    ${ratings.length === 0 ? `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">This cycle has no KRAs - add them to the cycle under Manage cycles.</td></tr>`
+    ${ratings.length === 0 ? `<tr><td colspan="4" class="s-306094">This cycle has no KRAs - add them to the cycle under Manage cycles.</td></tr>`
       : ratings.map((r, i) => `<tr><td>${hrEsc(r.kra)}</td><td>${hrEsc(r.weight ?? '')}</td>
         <td>${num(r.self_rating, drafting, `data-hr-apr-self="${i}"`)}</td><td>${num(r.manager_rating, drafting || reviewing, `data-hr-apr-mgr="${i}"`)}</td></tr>`).join('')}
     </tbody></table>
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:16px;">
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-apr-overall">Overall Rating (1-5)</label>
-        ${drafting || reviewing ? `<input type="number" id="hr-apr-overall" class="form-input" style="width:110px;" min="1" max="5" step="0.1" value="${a && a.overall_rating != null ? hrEsc(a.overall_rating) : ''}"${a && a.overall_rating != null ? '' : ' data-auto="1"'}>` : `<div>${hrEsc(a && a.overall_rating)}</div>`}</div>
-      <div class="form-group" style="margin-bottom:0;flex:1;min-width:260px;"><label class="form-label" for="hr-apr-comments">Manager Comments</label>
+    <div class="s-8e0f5b">
+      <div class="form-group s-ef0b7a"><label class="form-label" for="hr-apr-overall">Overall Rating (1-5)</label>
+        ${drafting || reviewing ? `<input type="number" id="hr-apr-overall" class="form-input s-607468" min="1" max="5" step="0.1" value="${a && a.overall_rating != null ? hrEsc(a.overall_rating) : ''}"${a && a.overall_rating != null ? '' : ' data-auto="1"'}>` : `<div>${hrEsc(a && a.overall_rating)}</div>`}</div>
+      <div class="form-group s-19f924"><label class="form-label" for="hr-apr-comments">Manager Comments</label>
         ${drafting || reviewing ? `<textarea id="hr-apr-comments" class="form-input" rows="2">${hrEsc(a && a.comments)}</textarea>` : `<div>${hrEsc(a && a.comments)}</div>`}</div>
     </div>
     <div id="hr-apr-weighted" style="${hrMuted}margin-top:8px;"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+    <div class="s-72e25a">
       ${drafting ? `<button class="btn btn-outline" data-hr-apr-act="draft">Save draft</button><button class="btn btn-primary" data-hr-apr-act="submit">Submit for review</button>` : ''}
       ${reviewing && !ownSubmission ? `<button class="btn btn-outline" data-hr-apr-act="save">Save review</button><button class="btn btn-primary" data-hr-apr-act="approve">Approve review</button><button class="btn btn-outline" data-hr-apr-act="return">Return for changes</button>` : ''}
     </div>
     ${a && status === 'Pending Approval' && (!reviewing || ownSubmission) ? `<p style="${hrMuted}margin-top:12px;">${ownSubmission ? `You submitted this appraisal, so another reviewer (${hrEsc(reviewer1)} or Super Admin) approves it.` : `Waiting for review by ${hrEsc(reviewer1)}.`}</p>` : ''}
     ${hrHistory(log, true)}
-    <div id="hr-apr-error-${a ? 'open' : 'new'}" class="login-error hidden" style="margin-top:16px;"></div></div>`;
+    <div id="hr-apr-error-${a ? 'open' : 'new'}" class="login-error hidden s-1b0f49"></div></div>`;
 
   const errId = `hr-apr-error-${a ? 'open' : 'new'}`;
   const field = sel => pane.querySelector(sel);
@@ -1582,9 +1582,9 @@ async function renderTrainingTab(container) {
       ${canCreate && program ? '<button type="button" class="btn btn-outline" id="hr-trn-bulk" disabled>Enrol selected</button>' : ''}
     </div>
     ${program ? `<div style="padding:0 16px 12px;${hrMuted}">${program.description ? `${hrEsc(program.description)} · ` : ''}${Object.keys(HR_TRN_STATE).map(s => `${HR_TRN_STATE[s][0]} ${rows.filter(r => stateOf(r) === s).length}`).join(' · ')}</div>` : ''}
-    <table><thead><tr>${canCreate ? '<th style="width:32px;"></th>' : ''}<th>Employee</th><th>Department</th><th>Status</th><th>Completed on</th><th>Score</th><th></th></tr></thead><tbody>
-    ${!program ? `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">${mine ? 'You are not enrolled in any training yet.' : canCreateDoctype('TrainingProgram') ? 'No training programs yet. Use <b>Manage programs</b> to add one.' : 'No training program has been set up yet.'}</td></tr>`
-      : shown.length === 0 ? `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'You are not enrolled in this program.') : 'No employee matches this status.'}</td></tr>`
+    <table><thead><tr>${canCreate ? '<th class="s-82b9d8"></th>' : ''}<th>Employee</th><th>Department</th><th>Status</th><th>Completed on</th><th>Score</th><th></th></tr></thead><tbody>
+    ${!program ? `<tr><td colspan="7" class="s-306094">${mine ? 'You are not enrolled in any training yet.' : canCreateDoctype('TrainingProgram') ? 'No training programs yet. Use <b>Manage programs</b> to add one.' : 'No training program has been set up yet.'}</td></tr>`
+      : shown.length === 0 ? `<tr><td colspan="7" class="s-306094">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'You are not enrolled in this program.') : 'No employee matches this status.'}</td></tr>`
       : shown.map(row => {
         const [label, kind] = HR_TRN_STATE[stateOf(row)] || [stateOf(row), 'secondary'];
         const action = !row.r ? (canCreate ? `<button class="action-btn" data-hr-trn-enrol="${hrEsc(row.code)}">Enrol</button>` : '')
@@ -1598,11 +1598,11 @@ async function renderTrainingTab(container) {
   const enrolPanel = document.createElement('div');
   enrolPanel.className = 'table-panel';
   enrolPanel.style.padding = '24px';
-  enrolPanel.innerHTML = `<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0;"><span class="form-label">Training program</span><div>${hrEsc(program ? program.code || program.id : '')}</div></div>
+  enrolPanel.innerHTML = `<div class="s-97380c">
+      <div class="form-group s-ef0b7a"><span class="form-label">Training program</span><div>${hrEsc(program ? program.code || program.id : '')}</div></div>
 ${employeePickerField('hr-trn-employee', '240px')}
       <button class="btn btn-primary" id="hr-trn-enrol-btn">Enrol</button></div>
-    <div id="hr-trn-enrol-error" class="login-error hidden" style="margin-top:16px;"></div>`;
+    <div id="hr-trn-enrol-error" class="login-error hidden s-1b0f49"></div>`;
 
   const { section, open } = hrSection({ id: 'hr-trn', title: 'Training', heading: 'h2', count: records.length, list: listPanel,
     forms: canCreate && program ? { new: ['Enrol employee', enrolPanel] } : {} });
@@ -1624,17 +1624,17 @@ ${employeePickerField('hr-trn-employee', '240px')}
   const drawOpen = () => {
     const r = records.find(x => x.id === hrTrnResultId && x.status === 'Enrolled');
     if (!r) return false;
-    open.innerHTML = `<div class="table-panel" style="padding:24px;">
-      <h2 style="font-size:16px;font-weight:700;margin:0 0 12px;">Record result · ${hrEsc(emps.name(r.employee_id))}</h2>
-      <div style="${hrMuted}margin-bottom:16px;">${hrEsc(program.code || program.id)} · <span style="font-family:monospace;">${hrEsc(r.code || r.id)}</span></div>
-      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+    open.innerHTML = `<div class="table-panel s-ddaf9e">
+      <h2 class="s-db89ac">Record result · ${hrEsc(emps.name(r.employee_id))}</h2>
+      <div style="${hrMuted}margin-bottom:16px;">${hrEsc(program.code || program.id)} · <span class="s-72126d">${hrEsc(r.code || r.id)}</span></div>
+      <div class="s-97380c">
         ${hrSelect('hr-trn-outcome', 'Result', [['Completed', 'Completed'], ['Failed', 'Failed']], 'Completed', '150px')}
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-trn-date">Completion Date</label>
+        <div class="form-group s-ef0b7a"><label class="form-label" for="hr-trn-date">Completion Date</label>
           <input type="date" id="hr-trn-date" class="form-input" value="${localISODate(new Date())}"></div>
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="hr-trn-score">Score (optional)</label>
-          <input type="number" id="hr-trn-score" class="form-input" style="width:110px;"></div>
+        <div class="form-group s-ef0b7a"><label class="form-label" for="hr-trn-score">Score (optional)</label>
+          <input type="number" id="hr-trn-score" class="form-input s-607468"></div>
         <button class="btn btn-primary" id="hr-trn-save">Save result</button></div>
-      <div id="hr-trn-result-error" class="login-error hidden" style="margin-top:16px;"></div></div>`;
+      <div id="hr-trn-result-error" class="login-error hidden s-1b0f49"></div></div>`;
     const btn = open.querySelector('#hr-trn-save');
     btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Saving...', async () => {
       const date = open.querySelector('#hr-trn-date').value;
@@ -1728,10 +1728,10 @@ async function renderGrievancesTab(container) {
       ${hrSelect('hr-grv-filter', 'Status', [['', 'All'], ...Object.keys(HR_GRV_STATE).map(s => [s, HR_GRV_STATE[s][0]])], hrGrvFilter, '200px')}</div>
     ${access ? `<div id="hr-grv-access" style="padding:0 16px 12px;${hrMuted}">${hrEsc(hrGrievanceAccessText(access))}<br>${hrEsc(hrGrievanceYouText(access))}</div>` : ''}
     <table><thead><tr><th>Case</th><th>Employee</th><th>Category</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>
-    ${shown.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">${records.length === 0 ? (you.all_cases ? 'No grievances have been raised.' : 'You have raised no grievance. Raise one from My Requests.') : 'No case matches this status.'}</td></tr>`
+    ${shown.length === 0 ? `<tr><td colspan="6" class="s-306094">${records.length === 0 ? (you.all_cases ? 'No grievances have been raised.' : 'You have raised no grievance. Raise one from My Requests.') : 'No case matches this status.'}</td></tr>`
       : shown.map(r => {
         const [label, kind] = HR_GRV_STATE[r.status] || [r.status, 'secondary'];
-        return `<tr><td style="font-family:monospace;">${hrEsc(r.code || r.id)}</td><td>${hrEsc(emps.name(r.employee_id))}</td><td>${hrEsc(r.category)}</td>
+        return `<tr><td class="s-72126d">${hrEsc(r.code || r.id)}</td><td>${hrEsc(emps.name(r.employee_id))}</td><td>${hrEsc(r.category)}</td>
           <td>${hrBadge(label, kind)}</td><td>${hrEsc(String(r.updated_at || '').slice(0, 10))}</td>
           <td><button class="action-btn" data-hr-grv-open="${hrEsc(r.id)}">Open</button></td></tr>`;
       }).join('')}</tbody></table>`;
@@ -1739,14 +1739,14 @@ async function renderGrievancesTab(container) {
   const newPanel = document.createElement('div');
   newPanel.className = 'table-panel';
   newPanel.style.padding = '24px';
-  newPanel.innerHTML = `<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+  newPanel.innerHTML = `<div class="s-97380c">
 ${employeePickerField('hr-grv-employee', '220px')}
       ${hrSelect('hr-grv-category', 'Category', ['Harassment', 'Compensation', 'Workplace Safety', 'Discrimination', 'Other'].map(c => [c, c]), 'Harassment', '180px')}</div>
-    <div class="form-group" style="margin:16px 0 0;"><label class="form-label" for="hr-grv-desc">Description</label>
+    <div class="form-group s-efea5f"><label class="form-label" for="hr-grv-desc">Description</label>
       <textarea id="hr-grv-desc" class="form-input" rows="4"></textarea></div>
     ${access ? `<div style="${hrMuted}margin-top:8px;">${hrEsc(hrGrievanceAccessText(access))}</div>` : ''}
-    <div style="margin-top:16px;"><button class="btn btn-primary" id="hr-grv-save">Raise and send to HR</button></div>
-    <div id="hr-grv-error" class="login-error hidden" style="margin-top:16px;"></div>`;
+    <div class="s-1b0f49"><button class="btn btn-primary" id="hr-grv-save">Raise and send to HR</button></div>
+    <div id="hr-grv-error" class="login-error hidden s-1b0f49"></div>`;
 
   const { section, open } = hrSection({ id: 'hr-grv', title: 'Grievances', heading: 'h2', count: records.length, list: listPanel,
     forms: canFile ? { new: ['Grievance', newPanel] } : {} });
@@ -1757,22 +1757,22 @@ ${employeePickerField('hr-grv-employee', '220px')}
     const [label, kind] = HR_GRV_STATE[r.status] || [r.status, 'secondary'];
     const deciding = r.status === 'Pending Approval' && you.decide;
     const hidden = `<span style="${hrMuted}">Hidden from your role - only ${hrEsc(access ? access.content_readers.join(', ') : 'Super Admin')} can read it.</span>`;
-    open.innerHTML = `<div class="table-panel" style="padding:24px;">
-      <h2 style="font-size:16px;font-weight:700;margin:0 0 12px;">Grievance ${hrEsc(r.code || r.id)}</h2>
-      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">${hrBadge(label, kind)}
+    open.innerHTML = `<div class="table-panel s-ddaf9e">
+      <h2 class="s-db89ac">Grievance ${hrEsc(r.code || r.id)}</h2>
+      <div class="s-93c58b">${hrBadge(label, kind)}
         <span>${hrEsc(emps.name(r.employee_id))}</span><span>${hrEsc(r.category)}</span></div>
       <div class="form-group"><span class="form-label">Description</span>
-        <div style="white-space:pre-wrap;">${you.read_content ? hrEsc(r.description) : hidden}</div></div>
+        <div class="s-a548ea">${you.read_content ? hrEsc(r.description) : hidden}</div></div>
       <div class="form-group"><label class="form-label" for="hr-grv-notes">Resolution Notes</label>
         ${deciding && you.write_notes ? `<textarea id="hr-grv-notes" class="form-input" rows="4">${hrEsc(r.resolution_notes)}</textarea>`
-          : `<div style="white-space:pre-wrap;">${you.read_content ? (hrEsc(r.resolution_notes) || `<span style="${hrMuted}">None yet.</span>`) : hidden}</div>`}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          : `<div class="s-a548ea">${you.read_content ? (hrEsc(r.resolution_notes) || `<span style="${hrMuted}">None yet.</span>`) : hidden}</div>`}</div>
+      <div class="s-b32917">
         ${r.status === 'Draft' && canUpdateDoctype('Grievance') ? '<button class="btn btn-primary" data-hr-grv-act="send">Send to HR</button>' : ''}
         ${deciding ? '<button class="btn btn-primary" data-hr-grv-act="Approved">Resolve - actioned</button><button class="btn btn-outline" data-hr-grv-act="Rejected">Close - no action</button>' : ''}
       </div>
       ${r.status === 'Pending Approval' && !you.decide ? `<p style="${hrMuted}">With HR - decided by ${hrEsc(access ? hrRoleName(access.reviewer_role) || 'Super Admin' : 'Super Admin')}.</p>` : ''}
       <div id="hr-grv-history"></div>
-      <div id="hr-grv-open-error" class="login-error hidden" style="margin-top:16px;"></div></div>`;
+      <div id="hr-grv-open-error" class="login-error hidden s-1b0f49"></div></div>`;
     hrGetJSON(`/api/v1/approval/log?doctype=Grievance&document_id=${encodeURIComponent(r.id)}`, []).then(log => {
       const el = open.querySelector('#hr-grv-history');
       if (el) el.innerHTML = hrHistory(log, you.read_content);

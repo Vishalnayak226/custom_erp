@@ -43,7 +43,7 @@ It maps each Indian rule that plausibly applies to a client of this ERP to the p
 | CM-IN-016 | CGST Rule 138 e-way bill | shared | partial |
 | CM-IN-017 | Card data never stored (RBI, PCI DSS) | shared | partial |
 
-Every row that is not `implemented` carries its gap in the JSON. The supporting pages are the [CERT-In log inventory](cert-in-log-inventory.md), the field-purpose register (`engines/personal_data_register.go`), the data classification registry (`engines/data_classification.go`) and the [incident runbook](../operations/incident_runbook.md).
+Every row that is not `implemented` carries its gap in the JSON. The supporting pages are the [CERT-In log inventory](cert-in-log-inventory.md), the field-purpose register (`engines/personal_data_register.go`), the data classification registry (`engines/data_classification.go`) and the [incident runbook](../operations/incident-runbook.md).
 
 ## Changing it
 

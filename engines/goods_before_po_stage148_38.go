@@ -218,8 +218,14 @@ func matchRetroPOBill(tenantID, actorUserID, schema, grnID, poID string) {
 // retroPOBlocksBill refuses to pay a bill whose goods came before a PO that is
 // not yet approved. Every payment path calls it with the bill's own data.
 func retroPOBlocksBill(tenantID string, bill map[string]interface{}) error {
+	if err := expenseBillPayBlock(tenantID, bill); err != nil { // Stage 148.19
+		return err
+	}
 	block := func() error {
 		return &ValidationError{Code: "PURCHA-5032", Message: "This bill is for goods received before a PO."}
+	}
+	if err := inspectionBlocksBill(tenantID, bill); err != nil {
+		return err
 	}
 	if grnID := strField(bill, "grn_id"); grnID != "" {
 		grn, _, err := fetchDocData(tenantID, "GRN", grnID)

@@ -195,6 +195,8 @@ type GSTBreakdown struct {
 	ExemptAmount    float64 `json:"exempt_amount,omitempty"`
 	NilRatedAmount  float64 `json:"nil_rated_amount,omitempty"`
 	ZeroRatedAmount float64 `json:"zero_rated_amount,omitempty"`
+	// BlockedTax is the GST on lines whose credit is blocked (Stage 148.42).
+	BlockedTax float64 `json:"blocked_tax,omitempty"`
 }
 
 // NonTaxableAmount is the total turnover in this breakdown that carried no
@@ -342,6 +344,9 @@ type GSTLineInput struct {
 	Sku      string
 	Qty      int
 	UnitRate float64
+	// Stage 148.42: purchase lines only. Bands takes the rate from the HSN row's
+	// value band; Blocked keeps the line's GST out of input credit.
+	Bands, Blocked bool
 }
 
 // ComputeGSTForLines validates every line's Item is fully tax-classified and
@@ -421,6 +426,9 @@ func ComputeGSTForLinesMode(tenantID string, lines []GSTLineInput, interstate bo
 		}
 
 		gstRate := info.GSTRate
+		if line.Bands { // Stage 148.42: a band on the HSN row, by the line's price
+			gstRate = bandedGSTRate(tenantID, info.HSNCode, line.UnitRate, gstRate)
+		}
 		// Inclusive: back the tax out of the gross. Exclusive: the gross IS
 		// the taxable value and CalculateGST adds tax on top of it.
 		taxable := gross
@@ -437,7 +445,11 @@ func ComputeGSTForLinesMode(tenantID string, lines []GSTLineInput, interstate bo
 		total.IGST += lineBreakdown.IGST
 		total.TotalTax += lineBreakdown.TotalTax
 		total.TotalAmount += lineBreakdown.TotalAmount
+		if line.Blocked {
+			total.BlockedTax += lineBreakdown.TotalTax
+		}
 	}
+	total.BlockedTax = round2(total.BlockedTax)
 	// Stage 94.15: money is kept at 2 decimals. An inclusive rate backed out
 	// line by line used to reach the PO's Total Cost as 970.8737864077669.
 	total.TaxableAmount = round2(total.TaxableAmount)
@@ -465,7 +477,7 @@ func ComputeGSTForLinesMode(tenantID string, lines []GSTLineInput, interstate bo
 
 // ComputePurchaseOrderGST is the PurchaseOrder-side half of Stage 17.5's
 // enforcement. `items` is the doctype's existing mandatory "PO Items JSON"
-// field (db/migrations_phase3.sql) - a JSON-encoded string, same convention
+// field (db/migrations/migrations_phase3.sql) - a JSON-encoded string, same convention
 // as GRN's "received_items" - expected to hold objects with sku/qty/rate
 // (rate = tax-inclusive unit price, this codebase's existing convention).
 // A missing or empty items list is not itself an error here (that's
@@ -493,6 +505,7 @@ func ComputePurchaseOrderGST(tenantID string, payload map[string]interface{}) (G
 	lines := make([]GSTLineInput, len(rawItems))
 	for i, it := range rawItems {
 		lines[i] = GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: poLineUnitRate(it)}
+		purchaseLineITCInto(tenantID, payload, it, &lines[i]) // Stage 148.42
 	}
 	return ComputeGSTForLinesMode(tenantID, lines, interstate, ResolvePOGSTMode(tenantID, payload))
 }
@@ -517,6 +530,7 @@ func ApplyPurchaseOrderTotals(tenantID string, payload map[string]interface{}) e
 		return err
 	}
 	payload["gst_breakdown"] = breakdown
+	stampPOBlockedTax(payload, breakdown) // Stage 148.42
 	// total_amount is this codebase's taxable value throughout
 	// (PostDoubleEntry's existing accounting depends on that), so it is kept
 	// as the breakdown's taxable figure rather than the gross. Before this it

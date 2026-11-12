@@ -11,7 +11,7 @@ import (
 )
 
 // Stage 30.7: the POS offer evaluator. Offers are configured in the ERP as
-// Offer documents (db/migrations_stage28_2_pos_offers.sql, a flat-schema
+// Offer documents (db/migrations/migrations_stage28_2_pos_offers.sql, a flat-schema
 // Master so create/list/edit come free from the generic doctype machinery)
 // and are applied here, server-side, at checkout - so a change to an offer in
 // the ERP takes effect on the very next POS sale with no POS-side deploy or

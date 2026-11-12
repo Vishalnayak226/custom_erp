@@ -6,7 +6,7 @@ import (
 )
 
 // Stage 39.9 - "Was this helpful?" feedback. HelpArticleFeedback (seeded by
-// db/migrations_stage39_9_help_feedback.sql) is an ordinary generic document,
+// db/migrations/migrations_stage39_9_help_feedback.sql) is an ordinary generic document,
 // not a bespoke table - submission goes straight through the existing
 // POST /api/v1/doc/{doctype} API with no new Go handler at all. This file is
 // the read side: aggregating raw Yes/No rows into something a Knowledge

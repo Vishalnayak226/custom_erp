@@ -131,7 +131,7 @@ func GetBudgetVarianceReport(tenantID, periodStart, periodEnd string) ([]map[str
 // customerOutstandingReceivable sums this customer's open (Approved, not yet
 // Paid) SalesInvoice.total_amount - matching Customer.name against
 // SalesInvoice.customer, the same free-text convention
-// GetCustomerLedgerReport (engines/finance_reports_stage26.go) already uses,
+// GetCustomerLedgerReport (engines/finance_reports.go) already uses,
 // since neither doctype carries a real Customer Link today.
 func customerOutstandingReceivable(schema, customerName string) (float64, error) {
 	var total float64
@@ -372,7 +372,7 @@ func GetDunningQueue(tenantID string) ([]map[string]interface{}, error) {
 // ---------------------------------------------------------------------------
 // 37.4.5: Cash-flow forecast - projects future cash position from open
 // invoices' due dates, unlike GetCashFlowStatement (engines/
-// finance_reports_stage26.go), which is historical only. An invoice with no
+// finance_reports.go), which is historical only. An invoice with no
 // due_date cannot be projected (no date to project it to) and is excluded -
 // stated, not silently guessed at.
 // ---------------------------------------------------------------------------

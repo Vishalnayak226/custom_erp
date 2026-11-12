@@ -39,7 +39,10 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 		// caller's own resolved identity, never a name from the request body.
 		ExceptionType   string `json:"exception_type"`
 		ExceptionReason string `json:"exception_reason"`
-		Items           []struct {
+		// Stage 148.28: why the customer is returning it (a Sales Return reason).
+		ReasonCode string `json:"reason_code"`
+		Reason     string `json:"reason"`
+		Items      []struct {
 			SKU string `json:"sku"`
 			Qty int    `json:"qty"`
 			// Stage 148.1: the one sold piece this line brings back.
@@ -102,12 +105,23 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	reasonCode, reasonText, err := engines.ValidateReturnReason(tenantID, req.ReasonCode, req.Reason)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
 	result, err := engines.CreateReturnRequestCommand(tenantID, req.RequestType, req.ReturnLocation,
 		req.OriginalOrderID, req.BookingID, requestedBy, idempotencyKey,
 		r.Header.Get("Resolved-Correlation-ID"), items, exception)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
+	}
+	if !result.Replayed {
+		if err := engines.StampReturnReason(tenantID, result.ReturnRequestID, reasonCode, reasonText); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"return_request_id": result.ReturnRequestID,

@@ -9,7 +9,7 @@
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
-  <link rel="stylesheet" href="/styles.css?v=43">
+  <link rel="stylesheet" href="/styles.css?v=44">
   <!-- Stage 28.2/47.8: external same-origin theme bootstrap avoids an inline
        script exception in the strict CSP candidate. -->
   <script src="/theme-boot.js?v=2"></script>
@@ -33,14 +33,14 @@
           <input type="password" id="login-password" class="form-input" autocomplete="current-password" required>
         </div>
         <div id="login-error" class="login-error hidden"></div>
-        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="login-submit-btn">Sign In</button>
+        <button type="submit" class="btn btn-primary s-f8ff87" id="login-submit-btn">Sign In</button>
       </form>
 
       <!-- Stage 57.17: set your own password - first sign-in, or after an
            administrator reset it. The server allows nothing else until done. -->
       <form id="password-change-form" class="hidden" novalidate>
         <p class="login-subtitle">Set your own password</p>
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        <p class="s-2c00de">
           Set your own password to continue.
         </p>
         <div class="form-group">
@@ -56,19 +56,19 @@
           <input type="password" id="pwchange-confirm" class="form-input" autocomplete="new-password" required>
         </div>
         <div id="pwchange-error" class="login-error hidden" role="alert"></div>
-        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="pwchange-submit">Set password and continue</button>
-        <button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; margin-top: 8px;" id="pwchange-signout">Sign out</button>
+        <button type="submit" class="btn btn-primary s-f8ff87" id="pwchange-submit">Set password and continue</button>
+        <button type="button" class="btn btn-secondary s-177edc" id="pwchange-signout">Sign out</button>
       </form>
 
       <!-- First-time MFA enrollment (HR/Admin only - SEC-V2 12) -->
       <div id="mfa-enroll-screen" class="hidden">
         <p class="login-subtitle">Set up two-factor authentication</p>
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        <p class="s-2c00de">
           Add the code to your authenticator app, then enter its 6-digit code.
         </p>
         <div class="form-group">
           <label class="form-label">Manual entry code</label>
-          <code id="mfa-enroll-secret" style="display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border-radius: 8px; font-size: 13px;"></code>
+          <code id="mfa-enroll-secret" class="s-88ff60"></code>
         </div>
         <form id="mfa-enroll-form">
           <div class="form-group">
@@ -76,7 +76,7 @@
             <input type="text" id="mfa-enroll-code" class="form-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
           </div>
           <div id="mfa-enroll-error" class="login-error hidden"></div>
-          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-enroll-submit-btn">Verify &amp; Finish Setup</button>
+          <button type="submit" class="btn btn-primary s-f8ff87" id="mfa-enroll-submit-btn">Verify &amp; Finish Setup</button>
         </form>
       </div>
 
@@ -88,13 +88,13 @@
             <label class="form-label" for="mfa-challenge-code">6-digit code</label>
             <input type="text" id="mfa-challenge-code" class="form-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
             <!-- 32.5: also takes a recovery code (setRecoveryCodeMode). -->
-            <p id="mfa-challenge-hint" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+            <p id="mfa-challenge-hint" class="s-8e87bc">
               Lost your phone? <a href="#" id="mfa-use-recovery-link">Use a recovery code</a>
             </p>
           </div>
-          <label id="mfa-remember-row" class="hidden" style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:13px"><input type="checkbox" id="mfa-remember"><span>Remember this device for <span id="mfa-remember-days">30</span> days</span></label>
+          <label id="mfa-remember-row" class="hidden s-32bdf9"><input type="checkbox" id="mfa-remember"><span>Remember this device for <span id="mfa-remember-days">30</span> days</span></label>
           <div id="mfa-challenge-error" class="login-error hidden"></div>
-          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-challenge-submit-btn">Verify</button>
+          <button type="submit" class="btn btn-primary s-f8ff87" id="mfa-challenge-submit-btn">Verify</button>
         </form>
       </div>
 
@@ -103,18 +103,18 @@
            the server stores only their hashes. -->
       <div id="mfa-recovery-screen" class="hidden">
         <p class="login-subtitle">Save your recovery codes</p>
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        <p class="s-2c00de">
           Each code works once. <strong>Shown only now</strong> - save them.
         </p>
         <pre id="mfa-recovery-codes" class="recovery-code-list"></pre>
-        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button type="button" class="btn btn-secondary" id="mfa-recovery-copy-btn" style="flex: 1; justify-content: center;">Copy</button>
-          <button type="button" class="btn btn-secondary" id="mfa-recovery-download-btn" style="flex: 1; justify-content: center;">Download</button>
+        <div class="s-290877">
+          <button type="button" class="btn btn-secondary s-0dcb5a" id="mfa-recovery-copy-btn">Copy</button>
+          <button type="button" class="btn btn-secondary s-0dcb5a" id="mfa-recovery-download-btn">Download</button>
         </div>
-        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; cursor: pointer;">
+        <label class="s-c0a222">
           <input type="checkbox" id="mfa-recovery-ack"> I have saved these codes somewhere safe
         </label>
-        <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-recovery-continue-btn" disabled>Continue</button>
+        <button type="button" class="btn btn-primary s-f8ff87" id="mfa-recovery-continue-btn" disabled>Continue</button>
       </div>
     </div>
   </div>
@@ -163,7 +163,7 @@
           <ul class="menu-flyout" id="fav-flyout"><li><a class="menu-item fav-none"><span>No favourites yet</span></a></li></ul>
         </li>
 
-        <!-- Module: POS (2026-07-26: renamed to "POS" per final SaaS naming decision; internal id left as module-pos) -->
+        <!-- Module: POS -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-pos">
             <span>POS</span>
@@ -180,7 +180,7 @@
           </ul>
         </li>
 
-        <!-- Module: Finance (2026-07-26: renamed to "Financial Accounting" per final SaaS naming decision; internal id left as module-finance) -->
+        <!-- Module: Finance -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-finance">
             <span>Financial Accounting</span>
@@ -189,17 +189,26 @@
             </svg>
           </a>
           <ul class="menu-flyout">
-            <li><a class="menu-item" id="menu-finance"><span>Finance / GL</span></a></li>
             <!-- Stage 57.17: cross-module (approvers exist in every module), so it never keeps this flyout visible on its own; Home's "waiting on you" card always reaches it. -->
             <li data-cross-module><a class="menu-item" id="menu-approvals"><span>Approvals</span></a></li>
+            <li class="submenu-group-label" role="presentation">General ledger</li>
+            <li><a class="menu-item" id="menu-finance" data-go="finance"><span>Work to review</span></a></li>
+            <li><a class="menu-item" id="menu-finance-trial-balance" data-go="finance:trial-balance" data-like="menu-finance"><span>Trial Balance</span></a></li>
+            <li><a class="menu-item" id="menu-finance-chart-of-accounts" data-go="finance:chart-of-accounts" data-like="menu-finance"><span>Chart of Accounts</span></a></li>
+            <li><a class="menu-item" id="menu-finance-periods" data-go="finance:periods" data-like="menu-finance"><span>Accounting Periods</span></a></li>
+            <li><a class="menu-item" id="menu-journal-vouchers"><span>Journal Vouchers</span></a></li>
+            <li class="submenu-group-label" role="presentation">Payables</li>
             <li><a class="menu-item" id="menu-vendor-invoices"><span>Vendor Invoice</span></a></li>
             <li><a class="menu-item" id="menu-payment-proposals"><span>Payment Proposals</span></a></li>
-            <li><a class="menu-item" id="menu-bank-reconciliation"><span>Bank Reconciliation</span></a></li>
-            <li><a class="menu-item" id="menu-finance-notes"><span>Debit / Credit Notes</span></a></li>
+            <li><a class="menu-item" id="menu-finance-notes" data-go="finance-notes:debit"><span>Debit Notes</span></a></li>
+            <li><a class="menu-item" id="menu-finance-vcn" data-go="finance-notes:vendor-credit" data-like="menu-finance"><span>Vendor Credit Notes</span></a></li>
+            <li class="submenu-group-label" role="presentation">Receivables</li>
             <li><a class="menu-item" id="menu-sales-invoices"><span>Sales Invoice</span></a></li>
+            <li><a class="menu-item" id="menu-finance-cn" data-go="finance-notes:customer-credit" data-like="menu-finance"><span>Customer Credit Notes</span></a></li>
             <li><a class="menu-item" id="menu-einvoice" data-go="einvoice" data-like="menu-finance"><span>E-Invoice (IRN)</span></a></li>
             <li><a class="menu-item" id="menu-einvoice-settings" data-go="einvoice:settings" data-like="menu-prefix-configs"><span>E-Invoice Settings</span></a></li>
-            <li><a class="menu-item" id="menu-journal-vouchers"><span>Journal Vouchers</span></a></li>
+            <li class="submenu-group-label" role="presentation">Bank</li>
+            <li><a class="menu-item" id="menu-bank-reconciliation"><span>Bank Reconciliation</span></a></li>
           </ul>
         </li>
 
@@ -233,14 +242,23 @@
             <li><a class="menu-item" id="menu-crm" data-go="crm"><span>CRM overview</span></a></li>
             <li><a class="menu-item" id="menu-customers" data-go="crm:customers"><span>Customers</span></a></li>
             <li><a class="menu-item" id="menu-crm-segments" data-go="crm:segments"><span>Segments</span></a></li>
+            <li><a class="menu-item" id="menu-crm-templates" data-go="crm:templates"><span>Templates</span></a></li>
             <li><a class="menu-item" id="menu-campaigns" data-go="crm:campaigns"><span>Campaigns</span></a></li>
             <li><a class="menu-item" id="menu-crm-journeys" data-go="crm:journeys"><span>Journeys</span></a></li>
+            <li><a class="menu-item" id="menu-crm-messages" data-go="crm:messages"><span>Messages</span></a></li>
             <li><a class="menu-item" id="menu-crm-inbox" data-go="crm:inbox"><span>Inbox</span></a></li>
+            <li><a class="menu-item" id="menu-crm-tickets" data-go="crm:tickets"><span>Tickets</span></a></li>
+            <li><a class="menu-item" id="menu-crm-feedback" data-go="crm:feedback"><span>Feedback</span></a></li>
             <li><a class="menu-item" id="menu-crm-worklist" data-go="crm:worklist"><span>Worklist</span></a></li>
             <li><a class="menu-item" id="menu-crm-pipeline" data-go="crm:pipeline"><span>Pipeline</span></a></li>
-            <li><a class="menu-item" id="menu-loyalty"><span>Loyalty</span></a></li>
+            <li><a class="menu-item" id="menu-crm-settings" data-go="crm:settings"><span>Settings</span></a></li>
             <li><a class="menu-item" id="menu-vouchers" data-go="doctype-table" data-doctype="Voucher"><span>Vouchers</span></a></li>
             <li><a class="menu-item" id="menu-service-tickets" data-go="doctype-table" data-doctype="ServiceTicket"><span>Service Tickets</span></a></li>
+            <li class="submenu-group-label" role="presentation">Loyalty</li>
+            <li><a class="menu-item" id="menu-loyalty" data-go="loyalty"><span>Customer Points</span></a></li>
+            <li><a class="menu-item" id="menu-loyalty-tiers" data-go="loyalty:tiers" data-like="menu-loyalty"><span>Tiers</span></a></li>
+            <li><a class="menu-item" id="menu-loyalty-movement" data-go="loyalty:movement" data-like="menu-loyalty"><span>Points Movement</span></a></li>
+            <li><a class="menu-item" id="menu-loyalty-offers" data-go="loyalty:offers" data-like="menu-loyalty"><span>Vouchers &amp; Campaigns</span></a></li>
           </ul>
         </li>
 
@@ -268,7 +286,7 @@
           </a>
         </li>
 
-        <!-- Module: Procurement (2026-07-26: renamed to "Procurement" per final SaaS naming decision; internal id/module_key left as procurement) -->
+        <!-- Module: Procurement -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-procurement">
             <span>Procurement</span>
@@ -308,6 +326,8 @@
             <!-- Stage 85.B: the store's own stock locations (ERP, not WMS). -->
             <li><a class="menu-item" id="menu-stock-moves"><span>Move Stock</span></a></li>
             <li><a class="menu-item" id="menu-stock-locations"><span>Stock Locations</span></a></li>
+            <li><a class="menu-item" id="menu-stock-loc-stores" data-go="stock-locations:stores" data-like="menu-stock-locations"><span>Locations by Store</span></a></li>
+            <li><a class="menu-item" id="menu-stock-loc-txns" data-go="stock-locations:txns" data-like="menu-stock-locations"><span>Locations by Transaction</span></a></li>
             <!-- Stage 30.5.5: the "Stores" entry was removed here. It opened a
                  master that nothing in the system could select - a shop is a
                  Location with Type = Store, and always was. Its four unique
@@ -325,6 +345,8 @@
           </a>
           <ul class="menu-flyout">
             <li><a class="menu-item" id="menu-warehouse-cockpit"><span>Warehouse Cockpit</span></a></li>
+            <li><a class="menu-item" id="menu-wms-labour" data-go="warehouse-cockpit:labour" data-like="menu-warehouse-cockpit"><span>Labour</span></a></li>
+            <li><a class="menu-item" id="menu-wms-billing" data-go="warehouse-cockpit:billing" data-like="menu-warehouse-cockpit"><span>Warehouse Billing</span></a></li>
             <li class="has-subflyout"><a class="menu-item submenu-parent">Inbound</a><ul class="menu-subflyout">
               <li><a class="menu-item" id="menu-appointments"><span>Appointment Calendar</span></a></li>
               <li><a class="menu-item" id="menu-dock-doors" data-doctype="DockDoor"><span>Dock Doors</span></a></li>
@@ -429,6 +451,7 @@
             <li><a class="menu-item" id="menu-pim-templates" data-go="pim:channel-templates" data-like="menu-pim"><span>Templates</span></a></li>
             <li><a class="menu-item" id="menu-pim-feeds" data-go="pim:feeds" data-like="menu-pim"><span>Feeds</span></a></li>
             <li><a class="menu-item" id="menu-pim-design-values" data-go="pim:design-values" data-like="menu-pim"><span>Design Values</span></a></li>
+            <li><a class="menu-item" id="menu-pim-stewardship" data-go="pim:stewardship" data-like="menu-pim"><span>Stewardship</span></a></li>
             <li><a class="menu-item" id="menu-pim-checklists" data-go="pim:checklists" data-like="menu-pim"><span>Checklists</span></a></li>
             <li><a class="menu-item" id="menu-pim-reports" data-go="pim:reports" data-like="menu-pim"><span>PIM Reports</span></a></li>
           </ul>
@@ -478,6 +501,11 @@
             </ul></li>
             <li class="has-subflyout"><a class="menu-item submenu-parent">Monitoring</a><ul class="menu-subflyout">
               <li><a class="menu-item" id="menu-audit-logs"><span>Activity Log</span></a></li>
+              <li><a class="menu-item" id="menu-log-system" data-go="audit-logs:system" data-like="menu-audit-logs"><span>System Errors</span></a></li>
+              <li><a class="menu-item" id="menu-log-integration" data-go="audit-logs:integration" data-like="menu-audit-logs"><span>Integration Payloads</span></a></li>
+              <li><a class="menu-item" id="menu-log-jobs" data-go="audit-logs:jobs" data-like="menu-audit-logs"><span>Async Jobs</span></a></li>
+              <li><a class="menu-item" id="menu-log-security" data-go="audit-logs:security" data-like="menu-audit-logs"><span>Security Events</span></a></li>
+              <li><a class="menu-item" id="menu-privacy-approvals"><span>Privacy approvals</span></a></li>
               <li><a class="menu-item" id="menu-system-status"><span>System Status</span></a></li>
             </ul></li>
             <li class="has-subflyout"><a class="menu-item submenu-parent">Platform</a><ul class="menu-subflyout">
@@ -656,7 +684,7 @@
       <form id="add-field-form" data-act="submitAddField" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <input type="hidden" id="add-field-doctype">
         <input type="hidden" id="add-field-id">
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="modal-body s-89dbb6">
           <div class="form-group">
             <label class="form-label" for="add-field-name">Field Name (Technical Identifier)</label>
             <input type="text" class="form-input" id="add-field-name" placeholder="e.g. material_weight" autocomplete="off" required>
@@ -680,7 +708,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+            <label class="form-label s-ca8dfa">
               <input type="checkbox" id="add-field-mandatory">
               Is this field mandatory?
             </label>
@@ -713,7 +741,7 @@
         </button>
       </div>
       <form id="add-label-form" data-act="submitAddLabel" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="modal-body s-89dbb6">
           <div class="form-group">
             <label class="form-label" for="add-label-orig">Original Word/Label</label>
             <input type="text" class="form-control" id="add-label-orig" placeholder="e.g. Brand" required>
@@ -742,17 +770,17 @@
       </div>
       <form id="import-modal-form" data-act="handleBulkImportSubmit" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <div class="modal-body">
-          <div style="margin-bottom: 16px;">
+          <div class="s-29b798">
             <button type="button" class="btn btn-secondary btn-sm" data-act="downloadImportTemplate">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="s-7cc88f"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Template CSV</span>
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" style="margin-left: 6px;" data-act="downloadImportTemplate" data-act-args="[&quot;dictionary&quot;]">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <button type="button" class="btn btn-secondary btn-sm s-8cdcd8" data-act="downloadImportTemplate" data-act-args="[&quot;dictionary&quot;]">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="s-7cc88f"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Column Guide</span>
             </button>
             <button type="button" class="btn btn-secondary btn-sm" id="import-family-template-btn" style="display:none; margin-left: 6px;" data-act="downloadImportTemplate" data-act-args="[&quot;family&quot;]" title="No code column: each row's SKU is generated from its Product Family (Design) and variant attributes">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="s-7cc88f"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Template (SKU from Design)</span>
             </button>
           </div>
@@ -830,7 +858,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=77"></script>
+  <script src="/app.js?v=78"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=2"></script>

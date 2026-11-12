@@ -750,8 +750,9 @@ func PushShopifyStock(ctx context.Context, tenantID, channel string, full bool, 
 	schema, _ := db.GetTenantSchema(tenantID)
 	var updates []ConnectorInventoryUpdate
 	newStock := map[string]map[string]int{}
+	off := listingStockOff(tenantID, channel) // 146.4.5
 	for _, l := range links {
-		if l.InventoryItemID == "" || (len(only) > 0 && !only[l.SKU]) {
+		if l.InventoryItemID == "" || off[l.SKU] || (len(only) > 0 && !only[l.SKU]) {
 			continue
 		}
 		want := shopifyStockFor(tenantID, l.SKU, s, cfg.InventoryBuffer)

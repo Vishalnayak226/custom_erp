@@ -21,19 +21,42 @@ screens: [reports]
 # Report catalog (part 3)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **94** reports, from
+every category and explains how to run a report. It holds **102** reports, from
 Procurement to Stock Transfer.
 
 ## Contents
 
-- [Procurement](#procurement) - 24 reports
+- [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement-grn) - 27 reports
-- [Sales](#sales) - 11 reports
+- [Quality](#quality) - 2 reports
+- [Sales](#sales) - 14 reports
 - [Sales & POS](#sales-pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
 
 ## Procurement
+
+### R2060 Back orders
+
+**Report id:** `backorder-list`
+
+**Parameters:**
+
+- **Location** (`location_code`) - text, optional
+
+**Columns:** SKU · Item · Location · Waiting · Orders · Oldest · In stock · Inward · On PO · In transit · To buy
+
+**Drill-down:** no.
+
+### R3091 Drop-ship lines open
+
+**Report id:** `dropship-open-lines`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Order · Customer · Ship to · Item · Qty · Vendor · Purchase order · PO status · Expected
+
+**Drill-down:** no.
 
 ### R9045 Expected arrivals
 
@@ -186,6 +209,16 @@ Procurement to Stock Transfer.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Goods receipt · PO · Vendor · Expected · Received · Timing
+
+**Drill-down:** no.
+
+### R2054 Memo stock
+
+**Report id:** `memo-stock`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Vendor · SKU · Receipt · Received · Sold · Returned · Lost · Open · Rate
 
 **Drill-down:** no.
 
@@ -723,6 +756,28 @@ Procurement to Stock Transfer.
 
 **Drill-down:** no.
 
+## Quality
+
+### R9060 Inspection lots
+
+**Report id:** `inspection-lots`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Lot · Receipt · Vendor · Item · Store · Qty · Sample · Asked by · Passed · Failed · Status
+
+**Drill-down:** no.
+
+### R9061 Inspections due by stock age
+
+**Report id:** `stock-age-inspections-due`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Inspection · Store · Rule · Age · Age from · Outcome · Markdown · Due · Days left · Status
+
+**Drill-down:** no.
+
 ## Sales
 
 ### R1026 Competitor Price Gap
@@ -788,6 +843,16 @@ Procurement to Stock Transfer.
 
 **Drill-down:** no.
 
+### R1034 Late promise lines
+
+**Report id:** `late-promise-lines`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Item · Customer · Order · Qty · Promised · Days late · Reason
+
+**Drill-down:** no.
+
 ### R1031 Post-Sale Edit History
 
 **Report id:** `post-sale-edit-history`
@@ -828,6 +893,19 @@ Procurement to Stock Transfer.
 
 **Drill-down:** no.
 
+### R3095 Sales incentives
+
+**Report id:** `sales-incentives`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Salesman · Accrued · Clawed back · Paid · Balance
+
+**Drill-down:** no.
+
 ### R1030 Salesman-wise Sales
 
 **Report id:** `salesman-sales`
@@ -839,6 +917,19 @@ Procurement to Stock Transfer.
 - **To** (`to`) - date, optional
 
 **Columns:** Salesman · Bills · Sales
+
+**Drill-down:** no.
+
+### R3090 Summary invoice groups
+
+**Report id:** `summary-invoice-groups`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Bill-to · Currency · Place of supply · Customer PO · Orders · Total · GST basis · Status
 
 **Drill-down:** no.
 

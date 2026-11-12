@@ -38,8 +38,8 @@ as open release gates; a quarantined red-team test does not become a pass merely
 is excluded from the ordinary suite. Physical scanner/printer and real-user acceptance cannot
 be replaced with a desktop screenshot or source-level CSS assertion.
 
-Blank [UAT checklist](../guides/UAT_CHECKLIST.md), [UAT run sheet](../operations/uat_run_sheet.md)
+Blank [UAT checklist](../guides/uat-checklist.md), [UAT run sheet](../operations/uat-run-sheet.md)
 and [release template](../governance/release-acceptance.md) are reusable forms. Completed
-records are dated and preserved. [Restore drill log](../operations/restore_drill_log.md) is
-historical evidence; [backup runbook](../operations/backup_restore.md) is a procedure. Retain
+records are dated and preserved. [Restore drill log](../operations/restore-drill-log.md) is
+historical evidence; [backup runbook](../operations/backup-restore.md) is a procedure. Retain
 this distinction when splitting or migrating the existing operations documents.

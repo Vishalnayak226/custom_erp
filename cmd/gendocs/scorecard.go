@@ -126,7 +126,7 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 	}
 
 	// Unresolved risk age.
-	if raw, ok := read("docs/security/risk_register.md"); ok {
+	if raw, ok := read("docs/security/risk-register.md"); ok {
 		open := raw
 		if i := strings.Index(open, "\n## Closed"); i >= 0 {
 			open = open[:i]
@@ -142,7 +142,7 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 		if overdue > 0 {
 			state = fmt.Sprintf("attention: %d review date(s) passed", overdue)
 		}
-		add("Open risks", fmt.Sprintf("%d open", risks), state, "`docs/security/risk_register.md`")
+		add("Open risks", fmt.Sprintf("%d open", risks), state, "`docs/security/risk-register.md`")
 	}
 
 	// Detection coverage: the rule catalog and its drill.
@@ -168,7 +168,7 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 	add("Tenant and access negative tests", fmt.Sprintf("%d test functions", negative), "run in every release (G10)", "`*redteam*_test.go`, `stage49_3*_test.go`, `stage49_4_7*_test.go`")
 
 	// Restore drill.
-	if raw, ok := read("docs/operations/restore_drill_log.md"); ok {
+	if raw, ok := read("docs/operations/restore-drill-log.md"); ok {
 		latest := ""
 		for _, m := range drillHeading.FindAllStringSubmatch(raw, -1) {
 			if m[1] > latest {
@@ -179,8 +179,11 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 		if d := days(latest); d < 0 || d > 35 {
 			state = fmt.Sprintf("attention: last logged drill %d days ago (monthly expected); `deploy/restore_drill.sh` now also checks ledgers and audit evidence", d)
 		}
-		add("Restore drill", "last logged "+latest, state, "`docs/operations/restore_drill_log.md`")
+		add("Restore drill", "last logged "+latest, state, "`docs/operations/restore-drill-log.md`")
 	}
+
+	// 49.17.4: drill pass rate over time, from the dated drill records.
+	rows = append(rows, drillRows(root, days)...)
 
 	// Security documents past their review date.
 	if matches, _ := filepath.Glob(filepath.Join(root, "docs", "security", "*.md")); len(matches) > 0 {
@@ -238,8 +241,8 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 	add("Bounded state", fmt.Sprintf("%d tables swept, %d kept as evidence or fixed-size, %d in-memory capped", swept, kept, memory),
 		"every state table registered (`TestStage49182EveryStateTableIsBounded`)", "`engines/bounded_state.go`")
 
-	add("Access recertification", "admins without 2FA, API keys to review", "live only", "Activity Log → Security")
-	add("Audit and data growth", "audit rows, lost audit writes, verifier failures", "live only", "Activity Log → Security")
+	add("Access recertification", "admins without 2FA, API keys to review", "live only", "Settings → Monitoring → Security Events")
+	add("Audit and data growth", "audit rows, lost audit writes, verifier failures", "live only", "Settings → Monitoring → Security Events")
 	add("User-reported security friction", "-", "not measured yet", "-")
 
 	var b strings.Builder

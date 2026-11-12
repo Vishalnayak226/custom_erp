@@ -1,0 +1,61 @@
+# Files named before CONTRIBUTING.md (the project constitution) existed.
+# Article 4 lets them keep their names for now. This list may only SHRINK:
+#   - rename a file by what it does (<module>_<feature>.go, kebab-case docs),
+#   - then delete its line here, in the same change.
+# Never add a line to make a new file pass the layout check.
+# Snapshot taken 2026-11-10: tracked files plus other sessions' unreleased
+# files in the shared tree. One repository path per line, sorted.
+docs/ai_handover.md
+docs/micro_checklist.md
+docs/project_ledger.md
+engines/ai_access_stage148_37.go
+engines/brand_restrictions_stage148_43.go
+engines/brand_restrictions_stage148_43_test.go
+engines/custom_orders_stage148_36.go
+engines/custom_orders_stage148_36_test.go
+engines/dropship_stage148_32.go
+engines/dropship_stage148_32_fix_test.go
+engines/dropship_stage148_32_test.go
+engines/expected_arrivals_stage148_34.go
+engines/expected_arrivals_stage148_34_test.go
+engines/found_stage148_51_56_test.go
+engines/gift_return_stage148_45.go
+engines/gift_return_stage148_45_test.go
+engines/goods_before_po_stage148_38.go
+engines/goods_before_po_stage148_38_test.go
+engines/grn_inbox_stage148_49.go
+engines/grn_inbox_stage148_49_test.go
+engines/inspection_dispose_stage148_33.go
+engines/inspection_rules_stage148_33.go
+engines/inspection_rules_stage148_33_test.go
+engines/itc_bands_stage148_42.go
+engines/itc_bands_stage148_42_test.go
+engines/oms_bill_shipping_stage148_46.go
+engines/oms_bill_shipping_stage148_46_test.go
+engines/pack_units_stage148_35.go
+engines/pack_units_stage148_35_test.go
+engines/piece_attribute_correction_stage148_40_test.go
+engines/piece_hold_stage148_41.go
+engines/piece_hold_stage148_41_test.go
+engines/po_approval_rules_stage148_39.go
+engines/po_approval_rules_stage148_39_test.go
+engines/po_rule_roles_stage148_47.go
+engines/po_rule_roles_stage148_47_test.go
+engines/product_sheet_import_stage146_5_4.go
+engines/product_sheet_import_stage146_5_4_test.go
+engines/summary_invoice_stage148_31.go
+engines/vendor_advance_labels_stage148_50.go
+engines/vendor_advance_stage148_50_test.go
+engines/wholesale_fixture_stage148_31_test.go
+engines/wholesale_reports_stage148_31_32.go
+engines/wholesale_stage148_31_32.go
+engines/wholesale_stage148_31_fix_test.go
+engines/wholesale_stage148_31_test.go
+internal/server/ai_access_stage148_37_test.go
+internal/server/approval_log_stage148_44_test.go
+internal/server/custom_orders_stage148_36_test.go
+internal/server/goods_before_po_stage148_38_test.go
+internal/server/handlers_inspection_stage148_33.go
+internal/server/handlers_wholesale_stage148_31_32.go
+internal/server/po_store_entity_stage148_48_test.go
+public/profiles/food_bev.json

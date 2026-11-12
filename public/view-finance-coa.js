@@ -35,7 +35,7 @@ export function renderChartOfAccounts(container, accounts) {
   const list = document.createElement('div');
   list.className = 'table-panel';
   const rowHtml = ({ a, depth }) => `<tr${a.blocked ? ' class="text-muted"' : ''}>
-      <td style="font-family: monospace;">${esc(a.account_code)}</td>
+      <td class="s-355794">${esc(a.account_code)}</td>
       <td style="font-weight:600; padding-left:${12 + depth * 18}px;">${esc(a.account_name)}</td>
       <td>${esc(a.account_type)}</td>
       <td>${esc(nameOf(a.parent_code))}</td>
@@ -45,7 +45,7 @@ export function renderChartOfAccounts(container, accounts) {
     </tr>`;
   list.innerHTML = rows.length
     ? `<table><thead><tr><th>Account Code</th><th>Account Name</th><th>Type</th><th>Parent</th><th>Flags</th>${canChange ? '<th></th>' : ''}</tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table>`
-    : '<p class="text-muted" style="padding:16px;">No accounts yet.</p>';
+    : '<p class="text-muted s-287f77">No accounts yet.</p>';
   if (!canChange) { container.appendChild(list); return; }
 
   const accountOptions = (blank) => `<option value="">${esc(blank)}</option>` +
@@ -117,7 +117,7 @@ export function renderChartOfAccounts(container, accounts) {
       err.classList.add('hidden');
       showToast('Sent for approval.', { variant: 'info' });
       txnDone('finance-coa');
-      renderView('finance');
+      renderView('finance:chart-of-accounts');
     } finally {
       btn.disabled = false;
     }

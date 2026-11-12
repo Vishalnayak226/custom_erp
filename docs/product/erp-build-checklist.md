@@ -19,7 +19,7 @@ format: work-register
 
 # ERP maturity build and acceptance checklist
 
-This is the execution detail for [Stage 50 in the live TODO](../micro_checklist.md#stage-50--independent-erp-maturity-audit-2026-09-16-audit-executed-remediation-open).
+This is the execution detail for [Stage 50 in the tracker archive](../archive/micro_checklist_closed_stages.md#stage-50--independent-erp-maturity-audit-2026-09-16-audit-executed-remediation-open).
 It turns the [independent audit](../archive/audits/erp-independent-audit-2026-09-16.md),
 [136-control review](../qa/erp-maturity-checklist.md) and
 [module, SaaS, UI and performance roadmap](erp-maturity-roadmap-2026-09-16.md)
@@ -111,12 +111,12 @@ basket's aggregate exposure). Implementation required no application-logic chang
 `handleCheckout`→`SubmitForApproval`→(on later cart-level Approved decision)→`FinalizePOSCheckout`
 confirmed the shipped code already does exactly this correctly end-to-end. Only the test's
 expectation was wrong. Rewrote `TestStage472ApprovedOverridePricesTheSaleAndIsSpentByIt`
-(`internal/server/pos_pricing_stage47_2_test.go`) to assert the decided behavior: checkout with
+(`internal/server/pos_pricing_test.go`) to assert the decided behavior: checkout with
 the approved override now asserts `pending_approval` (not immediate completion), the override
 stays `Approved` (not yet `Consumed`) while the cart decision is outstanding, then a Store Manager
 decides the cart-level approval via `/api/v1/approval/decide`, and only THEN is the line priced at
 900/reference 1000/price_source Override, the cart `Paid`, and the override `Consumed`. Green
-against a fresh scratch DB, plus the whole `pos_pricing_stage47_2_test.go`/POSCart-approval test
+against a fresh scratch DB, plus the whole `pos_pricing_test.go`/POSCart-approval test
 set alongside it (no regressions). This closes the one blocker BLD-015 was waiting on.
 
 **2026-09-18: BLD-010/011 live-verified.** A working Playwright/Chromium install existed on this
@@ -337,7 +337,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
     *EXTERNAL") - not a new finding. Partial mitigation already in place and unaffected by this:*
     *`.github/workflows/ci.yml:134` already runs `go test ./... -p 1 -race -v` on a real Linux CI*
     *runner on every push, and this repo already has real goroutine-based concurrency tests*
-    *(`internal/server/pos_atomic_checkout_stage47_3_test.go`, `returns_stage47_4_test.go`) that*
+    *(`internal/server/pos_atomic_checkout_test.go`, `returns_test.go`) that*
     *CI exercises under `-race`. What this item still asks for beyond that - targeted*
     *duplicate-command/package/job-replay race scenarios and three dedicated race runs with*
     *recorded evidence - needs either a local C toolchain (an actual environment change, not*
@@ -585,7 +585,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
     found and removed one self-inflicted stray `nul` file (Git Bash treats a literal `2>nul` as a
     real filename, not the Windows null device — from this session's own earlier `where` probes)
     that was the one file `update-brain.ps1 -Check` reported unclaimed; regenerated the brain map
-    (`docs/brain/BRAIN.md`/`brain.html`/`docs/generated/brain-manifest.json`) to pick up the new
+    (`docs/brain/brain-map.md`/`brain.html`/`docs/generated/brain-manifest.json`) to pick up the new
     files, now 100% region coverage. `go run ./cmd/doclint` clean except the pre-existing,
     unrelated findings BLD-055 owns (unregistered security docs, handover budget, nonportable
     links). Full detail `project_ledger.md` §160.
@@ -725,8 +725,8 @@ promise to perform every ERP domain serially or a mandate to split the service i
     reaching its own main task (POS/Purchase Orders/Warehouse Cockpit/Finance-GL) in exactly one
     click; Picker (most permission-limited) shows zero unauthorized and zero disabled tiles; a
     freshly-provisioned genuinely-empty single-package tenant confirmed real module-gating plus
-    the "Get started"/absent-"Recent" states. `docs/guides/USER_GUIDE.md`/`USER_SOP.md`/
-    `UAT_CHECKLIST.md`/KB updated - all four still said Reports is the post-login landing.
+    the "Get started"/absent-"Recent" states. `docs/guides/user-guide.md`/`user-sop.md`/
+    `uat-checklist.md`/KB updated - all four still said Reports is the post-login landing.
     `go build`/`go vet`/`gofmt`/`node --check` clean; 3 full `go test ./... -p 1` passes clean
     (one real, mid-session, unrelated-to-Home catch: a `//` comment placed inside
     `MENU_MODULE_MAP`'s object literal broke `TestModuleManifestCatalog`, which parses that
@@ -1267,7 +1267,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
     added a `public/view-*.js` glob to the existing "SPA Shell" region so future chunk files
     auto-claim without a further edit). Files touched: `public/app.js`, four new
     `public/view-*.js` chunk files, `docs/security/attack_surface.json`,
-    `docs/brain/{brain.map.json,BRAIN.md,brain.html}`, `docs/generated/brain-manifest.json`. Full
+    `docs/brain/{brain.map.json,brain-map.md,brain.html}`, `docs/generated/brain-manifest.json`. Full
     detail `project_ledger.md` §180, `micro_checklist.md` 50.14.*
   - *Correction, later 2026-10-02: the dynamic-`<script>` `loadViewChunk` mechanism recorded above was superseded by a concurrent session's ES-module extraction (native `import()` via `LAZY_VIEW_MODULES` + `loadViewModule()`, 18 `public/view-*.js` modules). Measured after reconciliation (3 cold-cache runs, startup set): cold-core 142,667 bytes = 139.3 KiB vs 180 KiB; initial JS 102,684 bytes = 100.3 KiB vs 120 KiB; no static imports between chunks (no waterfall). Browser smoke over all 57 lazy/inline views: zero page errors. Remaining before this item can close: print, help and error-recovery verification on each lazily loaded screen; owner review of duplicate-code and entitlement criteria. Reconciliation fixes: module-manifest test and RF-outcome test extended to read the new layout; four post-split `ReferenceError` screens (Finance, Fulfillment, OMS, Reports) fixed by moving each declaration into its only consumer's module.*
   - *2026-10-03: **verified complete; the native-ESM implementation below supersedes the
@@ -1332,7 +1332,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   and ran `EXPLAIN (ANALYZE, BUFFERS)` on the generic doc-list endpoint's real query shapes at
   each scale. Found and fixed a real gap: BLD-033's `sort=recent` (`ORDER BY updated_at DESC`)
   had no supporting index — 57.2ms at 100k rows, an unbounded `Sort`/`Gather Merge`. Fixed with
-  one additive migration (`db/migrations_stage50_14_document_recency_index.sql`,
+  one additive migration (`db/migrations/migrations_stage50_14_document_recency_index.sql`,
   `idx_documents_active_doctype_updated (doctype, updated_at DESC) WHERE deleted_at IS NULL`,
   same DO-block tenant-catchup shape as Stage 31.1/32.5/47.1); confirmed 57.2ms→0.156ms at 100k,
   holding at 0.127ms at 250k. **No cache added** — the one broadly-applicable gap was fully
@@ -1594,7 +1594,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   that request carried nothing, so an async failure at 03:00 had no path back to its cause. New
   `engines/correlation.go` carries one id from the request through the transaction into the durable
   work it queues, on the context rather than threaded as a parameter through every enqueue site;
-  `db/migrations_stage50_15_correlation_trace.sql` adds an additive, partially-indexed
+  `db/migrations/migrations_stage50_15_correlation_trace.sql` adds an additive, partially-indexed
   `correlation_id` to `async_jobs` and `integration_event_outbox` (empty-string default, so every
   existing row and writer is unaffected). The full request -> transaction -> outbox ->
   webhook-delivery-job chain is proven end to end in `engines/bld052_correlation_trace_test.go`; a

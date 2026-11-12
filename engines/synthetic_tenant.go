@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -64,6 +65,10 @@ type SynthShape struct {
 	Owners           int // stock owners, one per warehouse (47.5.1)
 	Months           int // month ends, each with a burst of finance postings
 	MonthEndEntries  int // postings per month end
+	PurchaseOrders   int // purchase orders received through the GRN steps
+	SalesOrders      int // online orders placed through the OMS path
+	ProductionOrders int // production orders issued and completed
+	HistoryDays      int // 0 = everything dated now; else spread over this many past days
 }
 
 var synthShapes = []SynthShape{
@@ -72,13 +77,16 @@ var synthShapes = []SynthShape{
 		AuditTrail: 150, Owners: 2, Months: 3, MonthEndEntries: 6},
 	{Name: "10k", Items: 2000, Stores: 10, Warehouses: 3, BinsPerWarehouse: 2000, StockedBinPct: 15, Vendors: 200, Customers: 5000,
 		Bills: 10_000, MaxLinesPerBill: 5, HotSKUPct: 25, LargeOrders: 20, LargeOrderLines: 120, ReturnPct: 6, CustomerBillPct: 40,
-		AuditTrail: 5_000, Owners: 3, Months: 12, MonthEndEntries: 40},
+		AuditTrail: 5_000, Owners: 3, Months: 12, MonthEndEntries: 40,
+		PurchaseOrders: 40, SalesOrders: 100, ProductionOrders: 20, HistoryDays: 365},
 	{Name: "100k", Items: 10_000, Stores: 40, Warehouses: 4, BinsPerWarehouse: 10_000, StockedBinPct: 12, Vendors: 1_000, Customers: 40_000,
 		Bills: 100_000, MaxLinesPerBill: 5, HotSKUPct: 20, LargeOrders: 100, LargeOrderLines: 300, ReturnPct: 6, CustomerBillPct: 40,
-		AuditTrail: 50_000, Owners: 4, Months: 24, MonthEndEntries: 120},
+		AuditTrail: 50_000, Owners: 4, Months: 24, MonthEndEntries: 120,
+		PurchaseOrders: 200, SalesOrders: 500, ProductionOrders: 100, HistoryDays: 730},
 	{Name: "1m", Items: 50_000, Stores: 150, Warehouses: 6, BinsPerWarehouse: 40_000, StockedBinPct: 10, Vendors: 5_000, Customers: 300_000,
 		Bills: 1_000_000, MaxLinesPerBill: 5, HotSKUPct: 15, LargeOrders: 500, LargeOrderLines: 500, ReturnPct: 5, CustomerBillPct: 40,
-		AuditTrail: 500_000, Owners: 6, Months: 36, MonthEndEntries: 400},
+		AuditTrail: 500_000, Owners: 6, Months: 36, MonthEndEntries: 400,
+		PurchaseOrders: 1_000, SalesOrders: 2_000, ProductionOrders: 300, HistoryDays: 1095},
 }
 
 // SynthShapeNamed returns the named shape.
@@ -110,6 +118,10 @@ type SynthOptions struct {
 	// it ran (47.18.2) so SynthResult.Footprint can report bytes per sale,
 	// return, receipt and posting. It costs one cheap query per transaction.
 	Measure bool
+	// Workers > 1 rings up the POS bills on that many parallel connections,
+	// sharded by store (47.9.1). The result is the same as with one worker
+	// (same checksum). Not with Measure.
+	Workers int
 	// Custom replaces the named shape (tests, one-off experiments). Its Name
 	// is used as given.
 	Custom *SynthShape
@@ -206,6 +218,9 @@ func GenerateSyntheticTenant(opts SynthOptions) (*SynthResult, error) {
 	if err := shape.check(); err != nil {
 		return nil, err
 	}
+	if opts.Measure && opts.Workers > 1 {
+		return nil, errSynthMeasureWorkers
+	}
 	tenantID := strings.TrimSpace(opts.TenantID)
 	if tenantID == "" {
 		tenantID = fmt.Sprintf("synth-%s-%d", shape.Name, opts.Seed)
@@ -235,7 +250,15 @@ func GenerateSyntheticTenant(opts SynthOptions) (*SynthResult, error) {
 		tenantID, fmt.Sprintf("Synthetic %s (seed %d)", shape.Name, opts.Seed)); err != nil {
 		return nil, fmt.Errorf("flag sandbox: %w", err)
 	}
+	invalidateSandboxFlag()
 
+	return g.build(start)
+}
+
+// build runs the generator steps against a provisioned sandbox tenant and
+// reports what was made. GenerateSyntheticTenant and SeedSandboxTenant share it.
+func (g *synthGen) build(start time.Time) (*SynthResult, error) {
+	schema, tenantID, opts, shape := g.schema, g.tenantID, g.opts, g.shape
 	steps := []struct {
 		name string
 		run  func() error
@@ -243,9 +266,13 @@ func GenerateSyntheticTenant(opts SynthOptions) (*SynthResult, error) {
 		{"masters", g.masters},
 		{"opening stock", g.openingStock},
 		{"warehouse bins and owners", g.ownerStock},
+		{"purchase orders and receipts", g.purchasing},
+		{"production orders", g.manufacturing},
 		{"sales and partial returns", g.sales},
+		{"online sales orders", g.salesOrders},
 		{"audit history", g.auditHistory},
 		{"month-end finance", g.monthEnds},
+		{"backdated history", g.backdate},
 	}
 	for _, s := range steps {
 		t := time.Now()
@@ -292,10 +319,19 @@ func (g *synthGen) logf(format string, args ...interface{}) {
 // importRows writes master rows through the CSV import core, in chunks so a
 // large shape never holds one huge result.
 func (g *synthGen) importRows(doctype string, rows []map[string]interface{}) error {
-	const chunk = 2000
+	chunk, workers := 2000, 1
+	if synthBatchLoad {
+		// Chunks are independent (every master carries its own code), so a
+		// bounded pool imports several at once; the rows written are the same.
+		if workers = g.loadWorkers(); workers > 1 {
+			chunk = 250
+		}
+	}
+	var parts [][]map[string]interface{}
 	for at := 0; at < len(rows); at += chunk {
-		end := min(at+chunk, len(rows))
-		part := rows[at:end]
+		parts = append(parts, rows[at:min(at+chunk, len(rows))])
+	}
+	one := func(part []map[string]interface{}) error {
 		var res *ImportResult
 		err := g.measure("master:"+doctype, len(part), func() error {
 			var err error
@@ -308,8 +344,41 @@ func (g *synthGen) importRows(doctype string, rows []map[string]interface{}) err
 		if res.FailedRows > 0 {
 			return fmt.Errorf("%s: %d row(s) refused, first: row %d %s", doctype, res.FailedRows, res.Errors[0].RowNumber, res.Errors[0].Message)
 		}
+		return nil
 	}
-	return nil
+	if workers <= 1 || len(parts) < 2 {
+		for _, p := range parts {
+			if err := one(p); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var first error
+	next := make(chan []map[string]interface{})
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for p := range next {
+				if err := one(p); err != nil {
+					mu.Lock()
+					if first == nil {
+						first = err
+					}
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+	for _, p := range parts {
+		next <- p
+	}
+	close(next)
+	wg.Wait()
+	return first
 }
 
 // synthGSTIN builds a GSTIN that passes the real shape and check-digit rules.
@@ -397,6 +466,9 @@ func (g *synthGen) receive(loc, voucher string, qty map[string]int) error {
 // receiveCosted is receive; withCost false leaves the moving-average cost to
 // the caller (opening stock records it once per item for every store).
 func (g *synthGen) receiveCosted(loc, voucher string, qty map[string]int, withCost bool) error {
+	if synthBatchLoad {
+		return g.receiveBulk(loc, voucher, qty, withCost)
+	}
 	return g.measure("receipt", 1, func() error {
 		skus := make([]string, 0, len(qty))
 		for sku := range qty {
@@ -426,6 +498,14 @@ func (g *synthGen) receiveCosted(loc, voucher string, qty map[string]int, withCo
 		return PostDoubleEntry(g.tenantID, "StockReceipt", voucher, map[string]int64{"1200": value}, map[string]int64{"2100": value},
 			synthBaseDate, "synth:"+voucher)
 	})
+}
+
+func (g *synthGen) itemCodes() []string {
+	codes := make([]string, len(g.items))
+	for i, it := range g.items {
+		codes[i] = it.code
+	}
+	return codes
 }
 
 func (g *synthGen) costOf(sku string) int64 {
@@ -461,6 +541,9 @@ func (g *synthGen) openingStock() error {
 	}
 	// Every store received at the same unit cost, so one moving-average entry
 	// per item for the whole quantity is the same result as one per store.
+	if synthBatchLoad {
+		return g.recordCosts(g.itemCodes(), func(sku string) float64 { return float64(qty[sku] * len(g.stores)) })
+	}
 	for _, it := range g.items {
 		if err := RecordStockReceiptCost(g.tenantID, it.code, float64(qty[it.code]*len(g.stores)), it.cost); err != nil {
 			return err
@@ -499,7 +582,8 @@ func (g *synthGen) ownerStock() error {
 		if err := g.receive(wh, "SYN-OPEN-"+wh, qty); err != nil {
 			return err
 		}
-		for _, p := range plan {
+		if err := g.forEachParallel(len(plan), func(i int) error {
+			p := plan[i]
 			if err := g.measure("putaway", 1, func() error {
 				if err := PutawayToBin(g.tenantID, p.bin, p.sku, p.qty, synthUser); err != nil {
 					return err
@@ -508,6 +592,9 @@ func (g *synthGen) ownerStock() error {
 			}); err != nil {
 				return fmt.Errorf("bin %s: %w", p.bin, err)
 			}
+			return nil
+		}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -517,32 +604,16 @@ func (g *synthGen) ownerStock() error {
 // returns a share of them through the real return chain.
 func (g *synthGen) sales() error {
 	s := g.shape
-	modes := []string{"Cash", "Card", "UPI"}
 	// Large orders are spread through the run rather than bunched at one end.
 	large := map[int]bool{}
 	for k := 0; k < s.LargeOrders; k++ {
 		large[(k*s.Bills)/max(s.LargeOrders, 1)] = true
 	}
-	for b := 0; b < s.Bills; b++ {
-		cart := fmt.Sprintf("SYN-CART-%07d", b+1)
-		store := g.stores[g.rng.IntN(len(g.stores))]
-		mode := modes[g.rng.IntN(len(modes))]
-		customer := ""
-		if s.Customers > 0 && g.rng.IntN(100) < s.CustomerBillPct {
-			customer = fmt.Sprintf("SYN-C%07d", 1+g.rng.IntN(s.Customers))
-		}
-		lines := g.billLines(large[b])
-		wantReturn := !large[b] && g.rng.IntN(100) < s.ReturnPct
-		if err := g.measure("sale", 1, func() error { return g.ringUp(cart, store, mode, customer, lines) }); err != nil {
-			return fmt.Errorf("bill %s: %w", cart, err)
-		}
-		if wantReturn && (len(lines) > 1 || lines[0].Qty > 1) {
-			if err := g.measure("return", 1, func() error { return g.partialReturn(cart, store, lines[0].Sku) }); err != nil {
-				return fmt.Errorf("return of %s: %w", cart, err)
-			}
-		}
-		if (b+1)%1000 == 0 {
-			g.logf("  %d / %d bills", b+1, s.Bills)
+	done := 0
+	for from := 0; from < s.Bills; from += synthPlanChunk {
+		to := min(from+synthPlanChunk, s.Bills)
+		if err := g.runBills(g.planBills(from, to, large), &done, s.Bills); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -596,7 +667,7 @@ func (g *synthGen) ringUp(cart, store, mode, customer string, lines []QuoteLineR
 		return err
 	}
 	for attempt := 0; ; attempt++ {
-		_, _, err = FinalizePOSCheckout(g.tenantID, cart, "")
+		err = retryDeadlock(func() error { _, _, e := FinalizePOSCheckout(g.tenantID, cart, ""); return e })
 		var short *InsufficientStockError
 		if err == nil || attempt > 0 || !errors.As(err, &short) {
 			return err
@@ -609,28 +680,36 @@ func (g *synthGen) ringUp(cart, store, mode, customer string, lines []QuoteLineR
 }
 
 func (g *synthGen) partialReturn(cart, store, sku string) error {
-	cmd, err := CreateReturnRequestCommand(g.tenantID, "Customer Return", store, cart, "", synthCashier, "synth:"+cart, "",
-		[]ReturnItemInput{{SKU: sku, Qty: 1}}, nil)
-	if err != nil {
+	var cmd *ReturnCommandResult
+	if err := retryDeadlock(func() (e error) {
+		cmd, e = CreateReturnRequestCommand(g.tenantID, "Customer Return", store, cart, "", synthCashier, "synth:"+cart, "",
+			[]ReturnItemInput{{SKU: sku, Qty: 1}}, nil)
+		return
+	}); err != nil {
 		return err
 	}
-	if err := ApproveReturnRequest(g.tenantID, cmd.ReturnRequestID, synthManager); err != nil {
+	if err := retryDeadlock(func() error { return ApproveReturnRequest(g.tenantID, cmd.ReturnRequestID, synthManager) }); err != nil {
 		return err
 	}
-	if err := ReceiveReturnRequest(g.tenantID, cmd.ReturnRequestID, synthManager); err != nil {
+	if err := retryDeadlock(func() error { return ReceiveReturnRequest(g.tenantID, cmd.ReturnRequestID, synthManager) }); err != nil {
 		return err
 	}
-	_, refundID, err := ApplyReturnQC(g.tenantID, cmd.ReturnRequestID, map[string]string{sku: "Sellable"}, synthManager)
-	if err != nil {
+	var refundID string
+	if err := retryDeadlock(func() (e error) {
+		_, refundID, e = ApplyReturnQC(g.tenantID, cmd.ReturnRequestID, map[string]string{sku: "Sellable"}, synthManager)
+		return
+	}); err != nil {
 		return err
 	}
 	if refundID == "" {
 		return nil
 	}
-	if err := ApproveRefundRequest(g.tenantID, refundID, synthSupervisor); err != nil {
+	if err := retryDeadlock(func() error { return ApproveRefundRequest(g.tenantID, refundID, synthSupervisor) }); err != nil {
 		return err
 	}
-	return ProcessRefundRequest(g.tenantID, refundID, synthManager, RefundMethodOriginalPayment)
+	return retryDeadlock(func() error {
+		return ProcessRefundRequest(g.tenantID, refundID, synthManager, RefundMethodOriginalPayment)
+	})
 }
 
 // auditHistory writes the hot SKU's long history - price changes - through
@@ -674,7 +753,9 @@ func (g *synthGen) monthEnds() error {
 // synthDigest counts what a tenant holds and hashes its business content:
 // stock by SKU and location, bins and owners, the GL by account, documents
 // and audit actions by kind. Generated ids, timestamps and signatures are
-// left out, so one seed always hashes the same.
+// left out, so one seed always hashes the same. Customer updates are left out
+// too: the profile refresh a bill triggers is skipped when another store has
+// just made it, so its count depends on the order stores interleave.
 func synthDigest(schema string) (map[string]int64, string, error) {
 	counts := map[string]int64{}
 	h := sha256.New()
@@ -703,7 +784,7 @@ func synthDigest(schema string) (map[string]int64, string, error) {
 		{"bin_stock_owner", `SELECT bin_code||'|'||sku||'|'||owner_id||'|'||qty FROM %s.bin_stock_owner ORDER BY 1`},
 		{"gl_accounts_used", `SELECT account_code||'|'||SUM(debit)||'|'||SUM(credit)||'|'||COUNT(*) FROM %s.gl_postings GROUP BY account_code ORDER BY 1`},
 		{"doctypes", `SELECT doctype||'|'||status||'|'||COUNT(*) FROM %s.documents GROUP BY doctype, status ORDER BY 1`},
-		{"audit_actions", `SELECT action||'|'||COUNT(*) FROM %s.audit_logs GROUP BY action ORDER BY 1`},
+		{"audit_actions", `SELECT action||'|'||COUNT(*) FROM %s.audit_logs WHERE action <> 'UPDATE_Customer' GROUP BY action ORDER BY 1`},
 	}
 	for _, q := range queries {
 		if err := section(q.name, fmt.Sprintf(q.q, schema)); err != nil {
@@ -718,6 +799,10 @@ func synthDigest(schema string) (map[string]int64, string, error) {
 		{"returns", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'ReturnRequest'`},
 		{"bins", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'Bin'`},
 		{"items", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'Item'`},
+		{"purchase_orders", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'PurchaseOrder'`},
+		{"grns", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'GRN'`},
+		{"sales_orders", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'SalesOrder'`},
+		{"production_orders", `SELECT COUNT(*) FROM %s.documents WHERE doctype = 'ProductionOrder'`},
 	} {
 		var n int64
 		if err := db.DB.QueryRow(fmt.Sprintf(t.q, schema)).Scan(&n); err != nil {

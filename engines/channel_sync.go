@@ -31,18 +31,19 @@ type ChannelSKUMapping struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 type ChannelHealth struct {
-	Channel        string  `json:"channel"`
-	Platform       string  `json:"platform"`
-	LastSyncAt     string  `json:"last_sync_at"`
-	LastStatus     string  `json:"last_status"`
-	LastError      string  `json:"last_error"`
-	LagSeconds     int64   `json:"lag_seconds"`
-	Runs24h        int     `json:"runs_24h"`
-	Failures24h    int     `json:"failures_24h"`
-	FailureRate    float64 `json:"failure_rate"`
-	OpenExceptions int     `json:"open_exceptions"`
-	CanPullOrders  bool    `json:"can_pull_orders"`
-	CanPushATS     bool    `json:"can_push_ats"`
+	Channel         string  `json:"channel"`
+	Platform        string  `json:"platform"`
+	LastSyncAt      string  `json:"last_sync_at"`
+	LastStatus      string  `json:"last_status"`
+	LastError       string  `json:"last_error"`
+	LagSeconds      int64   `json:"lag_seconds"`
+	Runs24h         int     `json:"runs_24h"`
+	Failures24h     int     `json:"failures_24h"`
+	FailureRate     float64 `json:"failure_rate"`
+	OpenExceptions  int     `json:"open_exceptions"`
+	CanPullOrders   bool    `json:"can_pull_orders"`
+	CanPushATS      bool    `json:"can_push_ats"`
+	CanListProducts bool    `json:"can_list_products"` // 146.4.5: the connector can read its listings
 	// CredentialsSet (Stage 55.21) says whether the channel can connect at
 	// all, so "never synced" and "not connected" read differently.
 	CredentialsSet bool `json:"credentials_set"`
@@ -309,7 +310,11 @@ func SyncChannelInventory(ctx context.Context, tenantID, channelCode string) (pr
 		return 0, 0, err
 	}
 	updates := make([]ConnectorInventoryUpdate, 0, len(mappings))
+	off := listingStockOff(tenantID, channelCode) // 146.4.5: a listing switched off is not pushed
 	for _, m := range mappings {
+		if off[m.SKU] {
+			continue
+		}
 		location := m.LocationCode
 		if location == "" {
 			location = cfg.LocationCode
@@ -389,6 +394,7 @@ func GetConnectorHealth(tenantID string) ([]ChannelHealth, error) {
 			descriptor := connector.Descriptor()
 			h.CanPullOrders = descriptor.PullOrders
 			h.CanPushATS = descriptor.PushInventory
+			_, h.CanListProducts = connector.(ChannelProductLister)
 		}
 		var finished sql.NullString
 		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT data->>'finished_at',status,COALESCE(data->>'error','') FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`, schema), h.Channel).Scan(&finished, &h.LastStatus, &h.LastError)

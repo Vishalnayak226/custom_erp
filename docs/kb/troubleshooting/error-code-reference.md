@@ -19,8 +19,8 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **693** of them,
-across **76** areas. This page is produced from the running catalog, so it
+Every refusal in this application carries a code. There are **826** of them,
+across **78** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
 Search is usually faster than scrolling: type the code into the search box
@@ -38,7 +38,7 @@ open the right page.
 
 ## Contents
 
-- [Admin / Configuration](#admin-configuration) - 19 codes
+- [Admin / Configuration](#admin-configuration) - 21 codes
 - [Approvals / Workflow](#approvals-workflow) - 4 codes
 - [Audit & Compliance](#audit-compliance) - 2 codes
 - [Backup / DR](#backup-dr) - 4 codes
@@ -52,7 +52,7 @@ open the right page.
 - [CRM / Journeys](#crm-journeys) - 1 codes
 - [CRM / Lists](#crm-lists) - 1 codes
 - [CRM / Messages](#crm-messages) - 1 codes
-- [CRM / Pipeline](#crm-pipeline) - 2 codes
+- [CRM / Pipeline](#crm-pipeline) - 3 codes
 - [CRM / Privacy](#crm-privacy) - 1 codes
 - [CRM / Referrals](#crm-referrals) - 1 codes
 - [CRM / Segments](#crm-segments) - 1 codes
@@ -62,23 +62,23 @@ open the right page.
 - [CRM / Vouchers](#crm-vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
 - [Customer / CRM](#customer-crm) - 15 codes
-- [Data Import / Excel Upload](#data-import-excel-upload) - 8 codes
+- [Data Import / Excel Upload](#data-import-excel-upload) - 16 codes
 - [Deployment / Release](#deployment-release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 8 codes
 - [Extension Hooks / Customization](#extension-hooks-customization) - 4 codes
-- [Finance & Accounting](#finance-accounting) - 75 codes
+- [Finance & Accounting](#finance-accounting) - 96 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
-- [GST](#gst) - 1 codes
-- [Global](#global) - 13 codes
+- [GST](#gst) - 3 codes
+- [Global](#global) - 22 codes
 - [Global / Common](#global-common) - 25 codes
-- [Goods Receipt](#goods-receipt) - 20 codes
+- [Goods Receipt](#goods-receipt) - 22 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
-- [HR & Payroll](#hr-payroll) - 2 codes
-- [HR / Payroll](#hr-payroll) - 14 codes
-- [Integration / API](#integration-api) - 12 codes
-- [Integrations](#integrations) - 1 codes
-- [Inventory](error-code-reference-2.md#inventory) - 14 codes
+- [HR & Payroll](error-code-reference-2.md#hr-payroll) - 2 codes
+- [HR / Payroll](error-code-reference-2.md#hr-payroll) - 15 codes
+- [Integration / API](error-code-reference-2.md#integration-api) - 14 codes
+- [Integrations](error-code-reference-2.md#integrations) - 1 codes
+- [Inventory](error-code-reference-2.md#inventory) - 23 codes
 - [Inventory / Warehouse](error-code-reference-2.md#inventory-warehouse) - 29 codes
 - [Item Master](error-code-reference-2.md#item-master) - 2 codes
 - [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 16 codes
@@ -88,26 +88,28 @@ open the right page.
 - [Observability / Incident](error-code-reference-2.md#observability-incident) - 3 codes
 - [Omnichannel / OMS](error-code-reference-2.md#omnichannel-oms) - 5 codes
 - [Order Management](error-code-reference-2.md#order-management) - 10 codes
-- [PIM](error-code-reference-2.md#pim) - 23 codes
+- [PIM](error-code-reference-2.md#pim) - 27 codes
 - [PIM / Product Publishing](error-code-reference-2.md#pim-product-publishing) - 8 codes
 - [POS / Billing](error-code-reference-2.md#pos-billing) - 42 codes
 - [POS / Offline & Cash Drawer](error-code-reference-2.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-2.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-2.md#payments) - 7 codes
 - [Planning](error-code-reference-2.md#planning) - 1 codes
+- [Procurement](error-code-reference-2.md#procurement) - 1 codes
 - [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-2.md#purchase-order) - 52 codes
-- [Purchase Requisition](error-code-reference-2.md#purchase-requisition) - 6 codes
-- [Purchase Return](error-code-reference-2.md#purchase-return) - 1 codes
+- [Purchase Order](error-code-reference-3.md#purchase-order) - 73 codes
+- [Purchase Requisition](error-code-reference-3.md#purchase-requisition) - 6 codes
+- [Purchase Return](error-code-reference-3.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-3.md#purchase-return-rtv) - 5 codes
-- [Quality & Maintenance](error-code-reference-3.md#quality-maintenance) - 6 codes
+- [Quality & Maintenance](error-code-reference-3.md#quality-maintenance) - 12 codes
 - [RFQ](error-code-reference-3.md#rfq) - 6 codes
 - [Reports](error-code-reference-3.md#reports) - 3 codes
 - [Reports & Exports](error-code-reference-3.md#reports-exports) - 8 codes
 - [SaaS / Multi-Tenant](error-code-reference-3.md#saas-multi-tenant) - 8 codes
-- [Sales / POS](error-code-reference-3.md#sales-pos) - 9 codes
-- [Sales Return](error-code-reference-3.md#sales-return) - 7 codes
-- [Security / Rate Limit](error-code-reference-3.md#security-rate-limit) - 5 codes
+- [Sales / POS](error-code-reference-3.md#sales-pos) - 40 codes
+- [Sales Return](error-code-reference-3.md#sales-return) - 9 codes
+- [Security / AI assistant access](error-code-reference-3.md#security-ai-assistant-access) - 10 codes
+- [Security / Rate Limit](error-code-reference-3.md#security-rate-limit) - 6 codes
 - [Stock Transfer](error-code-reference-3.md#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](error-code-reference-3.md#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](error-code-reference-3.md#user-access-security) - 9 codes
@@ -131,6 +133,8 @@ open the right page.
 | `ADMINC-0039` | Template configuration missing | Document template is not configured. Please contact administrator. | Contact admin to configure. | High | 422 |
 | `ADMINC-0310` | Number series prefix already used by another series | This prefix is already used by another number series. | Choose a prefix no other transaction uses - two series with one prefix could print the same number. | High | 422 |
 | `ADMINC-0311` | Number series settings invalid | The number series settings are not valid. | Use capital letters, digits, '/' and '-' in prefix and suffix (no spaces, up to 20), a separator of / or - (or none), a length of 1 to 12 digits, and keep the whole number to 16 characters. | Medium | 422 |
+| `GLOBAL-9140` | Landing screen set with no role | Choose the role. | Pick a role on the Roles screen. | Low | 422 |
+| `GLOBAL-9141` | Landing screen not one of the offered screens | That screen cannot be a landing. | Choose one of the screens in the list. | Low | 422 |
 | `PLATFORM-0316` | Data console edit refused for a protected table or column | This value cannot be changed from the data console. | Keys, hidden (secret or personal) values, audit tables and the ledger are protected. Change the record through its own screen instead. | Medium | 422 |
 | `PLATFORM-0317` | Cross-client action (data console, client list, plans, sandboxes) by someone who is not a platform operator | Only a platform operator can see or change other clients. | Ask the server administrator to add your client and username to ERP_PLATFORM_OPERATORS. | High | 403 |
 | `PLATFORM-0318` | Scale test run on a client that is not a sandbox | The scale test runs only on a sandbox client. | Run it signed in to a sandbox client (a platform operator creates one with POST /api/v1/admin/sandbox-tenants). The test posts sales, which must never reach a real client's books. | High | 422 |
@@ -235,6 +239,7 @@ open the right page.
 |---|---|---|---|---|---|
 | `CRMPLT-1111` | Lead or opportunity rule not met (stage requirement, approved quotation to win, reason to lose) | The deal can't move there yet. | Do what the detail says the stage needs (for example, have the quotation approved), then try again. | Low | 422 |
 | `CRMPLT-1122` | Sales quotation not valid (no lines, unknown item, not a draft) | The quotation can't be saved. | Add at least one line with an item, a quantity and a rate. | Low | 422 |
+| `CRMPLT-1130` | Expired quotation converted to an order | This quotation has expired, so it cannot become an order. | Revise the quotation with a new valid-until date and get it approved. | Low | 409 |
 
 ## CRM / Privacy
 
@@ -320,6 +325,14 @@ open the right page.
 | `DATAIM-0189` | Uploaded file exceeds the maximum import row count | This file has too many rows to import in one go. | Split the file into smaller batches and import them one at a time. | Medium | 422 |
 | `DATAIM-0470` | Resume asked of an import job recorded before failed rows were kept | This import job cannot be resumed. | It was recorded before failed rows were kept - correct the original file and import it again. | Low | 422 |
 | `DATAIM-0471` | Resume file does not match the job's open failed rows | These rows cannot resume this import. | Use the job's Failed rows download: keep its original_row column, fix only those rows, and send each row once. | Low | 422 |
+| `DATAIM-0480` | File larger than the staged-import cap | The file is too large. | Split it into files under 5 MB and stage each. | Low | 422 |
+| `DATAIM-0481` | Import batch not found, or not at the step asked | That import batch cannot do that now. | Open the batch and use the step it is at: check, preview, approve, commit. | Low | 422 |
+| `DATAIM-0482` | Import rules changed since the batch was checked | The import rules changed since this batch was checked. | Check the batch again, then preview and approve it. | Low | 422 |
+| `DATAIM-0483` | Commit asked of a batch that is not approved | This batch is not approved yet. | Approve it first - if approval is set up, someone else decides it. | Low | 422 |
+| `DATAIM-0484` | Commit asked while another commit of the batch runs | This batch is being committed right now. | Wait for it to finish, then open the batch for the result. | Low | 422 |
+| `DATAIM-0485` | Approve asked of a batch with no valid rows | There are no valid rows to import. | Fix the rows listed in the preview and stage the file again. | Low | 422 |
+| `DATAIM-0486` | File encoding cannot be read | The file could not be read as text. | In Excel use Save As, CSV UTF-8, and stage it again. | Low | 422 |
+| `DATAIM-0487` | Stated column total does not tie to the file | The file does not tie to the total you stated. | Check the file against the stated total, fix the rows and stage it again. | Medium | 422 |
 
 ## Deployment / Release
 
@@ -435,6 +448,27 @@ open the right page.
 | `FIN-0924` | Cancelling an advance that was already applied or refunded | This advance has been used, so it cannot be cancelled. | Refund what is still open; the applied part stays on its bill. | Medium | 422 |
 | `FIN-0925` | Applying or refunding an advance with nothing open | Nothing is open on this advance. | Check the advance's status; a refunded, fully applied or cancelled advance has nothing left. | Medium | 422 |
 | `FIN-0926` | Vendor advance saved by hand | Vendor advances are made by Give advance. | Use Give advance, Apply, Refund or Cancel on Vendor Advances. | Medium | 422 |
+| `FIN-0930` | Bills without a PO switched off | Bills without a PO are switched off. | Ask an admin to turn on Bills without a PO in Settings. | Medium | 422 |
+| `FIN-0931` | Expense bill vendor, number, date or lines not usable | This bill can't be entered. | Fix what the message names. | Medium | 422 |
+| `FIN-0932` | Expense bill line account, amount, rate or credit not usable | A line on this bill can't be booked. | Fix the line the message names. | Medium | 422 |
+| `FIN-0933` | Expense bill typed in or changed by a plain save | Bills without a PO are entered on their own page. | Use New on Bills without a PO. | Medium | 422 |
+| `FIN-0934` | Expense bill link or cancel refused | That can't be done to this bill. | Fix what the message names. | Medium | 422 |
+| `FIN-0935` | Expense bill not booked yet | This bill is not booked yet. | Wait for its approval. | Medium | 422 |
+| `FIN-0950` | Journal line missing a dimension its account requires | A journal line is missing a required dimension. | Fill the cost centre, department, store, employee or tag the message names, or ask finance to exempt the account. | Medium | 422 |
+| `FIN-0951` | Journal line dimension suspended, unknown or too long | A journal line uses a dimension that is not usable. | Pick an active cost centre, department, store or employee; a suspended one stays on old entries only. | Medium | 422 |
+| `FIN-0952` | Line dimensions on a voucher in another currency | Line dimensions are not available in another currency. | Set the dimensions on the whole voucher, or enter it in the home currency. | Medium | 422 |
+| `FIN-0953` | Journal template whose lines do not balance or split to 100 | The template lines do not add up. | Make debits equal credits, or each side of a percent split total 100. | Medium | 422 |
+| `FIN-0954` | Journal dimension rule with no dimension or a reversed account range | The dimension rule is incomplete. | Name the dimension for a required rule, and give the account range from low to high. | Medium | 422 |
+| `FIN-0970` | GSTR-1 filed month: sales posting refused | This month is locked: its GSTR-1 is filed. | Correct it with a credit or debit note, or ask an admin to unmark the month. | Medium | 422 |
+| `FIN-0971` | Sales posting in a period On Hold | This period is on hold for sales. | Release the period, or date the sale in an open period. | Medium | 422 |
+| `FIN-0972` | GSTR-1 mark, unmark or period hold refused | That cannot be done to this month or period. | Check the month has ended, is marked, and give a reason to unmark. | Medium | 422 |
+| `FIN-0973` | Customer-vendor pair refused | These two cannot be paired. | Pick one customer and one vendor that are not already in an active pair. | Medium | 422 |
+| `FIN-0974` | Set-off voucher input refused | The set-off is not complete. | Pick the pair, an amount, a clearing account and valid dates. | Medium | 422 |
+| `FIN-0975` | Set-off clearing account missing or unusable | No clearing account is set for set-off. | An admin picks it in Settings under Finance. | Medium | 422 |
+| `FIN-0976` | Set-off more than a balance | That is more than one side owes. | Use the balances shown for the pair, or less. | Medium | 422 |
+| `FIN-0977` | Set-off reversal refused | This set-off cannot be reversed now. | Reverse a posted set-off once, on or after its own date. | Medium | 422 |
+| `FIN-0978` | Set-off voucher saved by hand as posted | Set-offs are posted by approval. | Submit the draft for approval. | Medium | 422 |
+| `FIN-0979` | Invoice line names an account that is not an income account | That is not an income account. | Pick a Revenue account from the chart. | Medium | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -467,6 +501,8 @@ open the right page.
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `TAXGST-1320` | E-way bill refused (not needed, missing GSTIN / PIN / state / HSN / distance / vehicle, no provider, outside the extend or cancel window, already generated) | This e-way bill can't go ahead. | Fix what the message names; until a provider is connected, make the bill on the e-way bill portal and use Record from portal. | Medium | 422 |
+| `TAXGST-1330` | HSN value bands not usable | The value bands can't be saved. | Write them as limit:rate, lowest first, with only the last one open, like 1000:5,2500:12,:18. | Medium | 422 |
+| `TAXGST-1331` | GST credit value not usable | The GST credit must be Eligible or Blocked. | Pick Eligible or Blocked. | Medium | 422 |
 
 ## Global
 
@@ -485,6 +521,15 @@ open the right page.
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
 | `GLOBAL-4971` | Same command key still being processed | This is still being processed. | Wait a moment and check whether it went through before trying again - do not enter it again. | Medium | 409 |
 | `GLOBAL-4972` | Command key reused for a different request | This request key was already used for a different request. | Send a new key for a new request; resend the same request to get the first answer. | Medium | 409 |
+| `GLOBAL-9110` | Go-live scope answers not usable | The scope answers are not usable. | Check the answers marked. | Medium | 422 |
+| `GLOBAL-9111` | Evidence on a go-live check that is unknown or read from live data | This check cannot take evidence. | Fix the data, or waive the check. | Medium | 422 |
+| `GLOBAL-9112` | Go-live evidence with no note or reference | Add a note or a reference. | Say what proves the check. | Medium | 422 |
+| `GLOBAL-9113` | Waiver without a reason or expiry, or on a check that is not open | The waiver needs a reason and a date. | Give a reason and an expiry within a year. | Medium | 422 |
+| `GLOBAL-9114` | Sign-off while a Critical or Blocking check is open | Some checks are still open. | Close them, or waive them with a reason. | Medium | 422 |
+| `GLOBAL-9115` | Sign-off by the person who waived a Critical check | Another person must sign. | Ask someone else to sign off. | Medium | 422 |
+| `GLOBAL-9116` | Scope decision on a record that cannot be set out of scope | That cannot be set out of scope. | Pick an existing entity, location or cost centre, and give a reason. | Medium | 422 |
+| `GLOBAL-9117` | Reconciliation accepted while the books do not tie | The books do not tie yet. | Fix the difference first. | Medium | 422 |
+| `GLOBAL-9118` | Sign-off of a pack already signed (or signed a moment ago by someone else) | Already signed. | Nothing to do; reopen a check if it must be signed again. | Medium | 422 |
 
 ## Global / Common
 
@@ -540,6 +585,8 @@ open the right page.
 | `GOODSR-1305` | Item listed under the receiving store's Items not stocked here | This store does not stock this item. | Receive it at a store that stocks it, or ask an administrator to change the store's Items not stocked here. | Medium | 422 |
 | `GOODSR-1317` | One goods receipt for POs in different currencies | These purchase orders can't be received together. | Receive the POs of each currency on their own goods receipt. | Medium | 422 |
 | `GOODSR-1318` | Packing list of a package that is still open | This package is still open, so its packing list can't be printed yet. | Close the package, then print its packing list. | Low | 422 |
+| `GOODSR-1330` | Vendor bill paid while a lot of its receipt is still being inspected (148.33) | This bill is for goods still being inspected. | Pay it after the lot is released; pending lots are listed under Inspection lots. | Medium | 422 |
+| `PURCHA-5131` | Packs convert to a part-piece on an item that does not allow it (148.35) | That is not a whole number of pieces. | Receive whole packs, or allow part-pieces on the item. | Medium | 422 |
 
 ## Goods Receipt / GRN
 
@@ -553,53 +600,4 @@ open the right page.
 | `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel the documents made from this receipt first (its vendor invoice or stock movement), then cancel the receipt. | Critical | 409 |
 | `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Generate the barcodes for the accepted quantity, then post again. | High | 422 |
 | `GRN-0255` | QC hold pending | Stock is under QC hold and cannot be sold or transferred. | Complete QC approval/rejection. | High | 200 |
-
-## HR & Payroll
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `HRPAYR-1322` | Payslip deductions are more than its gross pay | This payslip's deductions are more than its gross pay. | Check the salary structure, the loan EMI and the statutory rates, then run payroll for the period again. | Medium | 422 |
-| `HRPAYR-1323` | Payroll run again for a period whose payslip is already posted | This employee's payslip for the period is already posted. | Open the posted payslip; a correction is made as an adjustment in the next period. | Medium | 422 |
-
-## HR / Payroll
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `HR-0267` | Inactive employee login blocked | Employee is inactive. ERP access is blocked. Please contact HR/Admin. | Contact HR/Admin. | High | 409 |
-| `HR-0268` | Attendance device/location mismatch | Attendance location does not match assigned work location. Manager review is required. | Submit regularization request. | Medium | 200 |
-| `HR-0269` | Shift not assigned | Shift is not assigned for this employee/date. Please configure shift before attendance. | Assign shift and retry. | High | 422 |
-| `HR-0531` | Onboarding or offboarding checklist not found | That onboarding or offboarding checklist was not found. | Refresh HR -> Onboarding/Offboarding and open the checklist again. | Low | 404 |
-| `HR-0532` | Checklist steps are not a readable step list | This checklist's steps are not in a form the step list can read. | Open the checklist and choose "Use as steps" to turn the text into one step per line. | Low | 422 |
-| `HR-0533` | Checklist step does not exist | That step is not on this checklist. | Refresh the checklist - someone may have changed its steps - and tick the step again. | Low | 422 |
-| `HRPAYR-0149` | Employee code duplicate | Employee code already exists. Please use a unique employee code. | Correct HR details. | Medium | 409 |
-| `HRPAYR-0150` | Attendance missing | Attendance is missing for one or more days. Please regularize before payroll. | Correct HR details. | Medium | 422 |
-| `HRPAYR-0151` | Leave balance insufficient | Insufficient leave balance for this leave request. | Correct HR details. | Medium | 422 |
-| `HRPAYR-0152` | Leave overlap | Leave request overlaps with an existing leave entry. | Correct HR details. | Medium | 422 |
-| `HRPAYR-0153` | Payroll period locked | Payroll period is locked. Changes are not allowed. | Correct HR details. | Medium | 409 |
-| `HRPAYR-0154` | Salary component missing | Salary component configuration is missing for this employee. | Correct HR details. | Medium | 422 |
-| `HRPAYR-0155` | Bank details missing | Employee bank details are required for salary payment. | Correct HR details. | Medium | 422 |
-| `HRPAYR-0156` | Exit date before joining date | Exit date cannot be earlier than joining date. | Correct HR details. | Medium | 422 |
-
-## Integration / API
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `INT-0218` | Outbox event stuck | Integration event is pending longer than expected. Please review the queue. | Retry or move to dead-letter queue. | High | 200 |
-| `INT-0219` | Retry limit reached | Integration retry limit reached. Please review the failed payload and take action. | Review payload, fix root cause, and retry. | High | 422 |
-| `INT-0220` | Webhook signature invalid | Webhook verification failed. The request was rejected. | Check webhook secret and source platform. | Critical | 422 |
-| `INT-0221` | Webhook timestamp expired | Webhook request expired and was rejected. | Ask source system to resend current event. | High | 422 |
-| `INT-0222` | Duplicate idempotency key | This request was already processed. Duplicate action was ignored. | No action needed unless data is incorrect. | Medium | 200 |
-| `INT-0223` | Credential decryption failed | Connector credentials could not be read. Please re-enter credentials. | Re-save credentials or rotate key correctly. | Critical | 503 |
-| `INTEGR-0167` | Integration timeout | External service did not respond in time. Please retry. | Correct details or retry. Contact admin if repeated. | High | 503 |
-| `INTEGR-0168` | Integration authentication failed | External service authentication failed. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 401 |
-| `INTEGR-0169` | Invalid API response | Invalid response received from external service. Please retry or contact support. | Correct details or retry. Contact admin if repeated. | High | 422 |
-| `INTEGR-4718` | Courier booking not confirmed - the courier may already have it and cannot be asked | This courier booking is not confirmed - the courier may already have it. | Find the reference below on the courier's portal, then enter its AWB, or mark it not booked to try again. | High | 409 |
-| `INTEGR-4719` | Courier booked again for a fulfillment task that already has a live booking | This parcel is already booked with a courier. | Use the booking it has, or cancel that booking before booking again. | Medium | 409 |
-| `INTEGR-4720` | Courier pickup or cancellation not confirmed - the courier may already have done it and cannot be asked | This courier pickup or cancellation is not confirmed - the courier may already have done it. | Check the booking on the courier's portal, then resolve it here as done or not done to try again. | High | 409 |
-
-## Integrations
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `CONN-0994` | Shopify channel set-up incomplete or not valid | The Shopify connection is not ready for this. | Open the channel's Shopify page: save the shop address (yourstore.myshopify.com), the admin API token and the webhook secret, test the connection, and map each Shopify location to a store. | Medium | 422 |
 

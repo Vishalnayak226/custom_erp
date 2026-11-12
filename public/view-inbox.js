@@ -20,15 +20,15 @@ let inboxSourceFilter = '';
 function inboxWhen(value) {
   if (!value || String(value).startsWith('0001-')) return '—';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? String(value) : formatDateTime(d);
 }
 
 async function renderTaskInboxView(container) {
   container.innerHTML = `
     <div class="page-header"><div class="page-title-section"><h1 class="page-title">My work</h1></div>
       <span class="page-section-actions"><button class="btn btn-outline" id="inbox-refresh">Refresh</button></span></div>
-    <div class="table-panel" style="padding:16px 24px;margin-bottom:24px;">
-      <div id="inbox-filters" role="group" aria-label="Show" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
+    <div class="table-panel s-bd6ccb">
+      <div id="inbox-filters" role="group" aria-label="Show" class="s-bdf12d"></div>
       <div id="inbox-errors"></div>
       <div id="inbox-list" class="table-wrapper"><p class="text-muted">Loading your work…</p></div>
     </div>

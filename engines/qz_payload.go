@@ -20,7 +20,7 @@ import (
 //	pixel  - a PDF/HTML/image QZ rasterises through the OS driver.
 //
 // Which one a given printer needs is recorded on its Printer Master row
-// (printer_language, added in db/migrations_stage31_1_qz_print.sql), so the
+// (printer_language, added in db/migrations/migrations_stage31_1_qz_print.sql), so the
 // operator configures it once and every print path picks the right encoding
 // without a per-screen decision.
 //

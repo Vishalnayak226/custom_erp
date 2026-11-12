@@ -54,6 +54,22 @@ type ReasonSnapshot struct {
 	Category         string `json:"category"`
 	LossClass        string `json:"loss_class,omitempty"`
 	EvidenceRequired bool   `json:"evidence_required,omitempty"`
+	Severity         string `json:"severity,omitempty"`
+	NoteRequired     bool   `json:"note_required,omitempty"`
+}
+
+// reasonCodeServes: a code serves its own category and any listed in its
+// contexts ("Also used in", comma or semicolon separated).
+func reasonCodeServes(data map[string]interface{}, category string) bool {
+	if strField(data, "category") == category {
+		return true
+	}
+	for _, c := range strings.FieldsFunc(strField(data, "contexts"), func(r rune) bool { return r == ',' || r == ';' }) {
+		if strings.EqualFold(strings.TrimSpace(c), category) {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveReasonCode checks a code for a category and returns its snapshot.
@@ -82,7 +98,7 @@ func ResolveReasonCode(tenantID, code, category string) (ReasonSnapshot, error) 
 	if status != "Active" {
 		return s, &ValidationError{Code: "MASTER-0975", SubFor: category, Message: fmt.Sprintf("reason code %q is not Active", code)}
 	}
-	if c := strField(data, "category"); c != category {
+	if c := strField(data, "category"); !reasonCodeServes(data, category) {
 		return s, &ValidationError{Code: "MASTER-0975", SubFor: category, Message: fmt.Sprintf("reason code %q is for %q, not %q", code, c, category)}
 	}
 	today := BusinessToday()
@@ -93,7 +109,8 @@ func ResolveReasonCode(tenantID, code, category string) (ReasonSnapshot, error) 
 		return s, &ValidationError{Code: "MASTER-0975", SubFor: category, Message: fmt.Sprintf("reason code %q was retired on %s", code, to)}
 	}
 	return ReasonSnapshot{Code: firstNonEmpty(strField(data, "code"), code), Label: strField(data, "description"), Category: category,
-		LossClass: strField(data, "loss_class"), EvidenceRequired: strField(data, "evidence_required") == "Yes"}, nil
+		LossClass: strField(data, "loss_class"), EvidenceRequired: strField(data, "evidence_required") == "Yes",
+		Severity: firstNonEmpty(strField(data, "severity"), "Low"), NoteRequired: strField(data, "note_required") == "Yes"}, nil
 }
 
 // ReasonCodesRequired reports whether this client makes the codes mandatory.
@@ -116,6 +133,9 @@ func ReasonForException(tenantID, category, code, text string) (string, string, 
 	snap, err := ResolveReasonCode(tenantID, code, category)
 	if err != nil {
 		return "", text, err
+	}
+	if text == "" && snap.NoteRequired {
+		return "", text, &ValidationError{Code: "MASTER-0975", SubFor: category, Message: fmt.Sprintf("reason code %q needs a note - say what happened", snap.Code)}
 	}
 	if text == "" {
 		text = snap.Label
@@ -199,6 +219,8 @@ type ReasonCodeOption struct {
 	WhenToUse        string `json:"when_to_use,omitempty"`
 	EvidenceRequired bool   `json:"evidence_required,omitempty"`
 	LossClass        string `json:"loss_class,omitempty"`
+	Severity         string `json:"severity,omitempty"`
+	NoteRequired     bool   `json:"note_required,omitempty"`
 }
 
 // ListReasonCodes is a category's usable codes today, for a picker.
@@ -209,8 +231,10 @@ func ListReasonCodes(tenantID, category string) ([]ReasonCodeOption, error) {
 	}
 	today := BusinessToday()
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(data->>'code', id), COALESCE(data->>'description', ''), COALESCE(data->>'when_to_use', ''),
-		COALESCE(data->>'evidence_required', '') = 'Yes', COALESCE(data->>'loss_class', '')
-		FROM %s.documents WHERE doctype = 'ReasonCode' AND deleted_at IS NULL AND status = 'Active' AND data->>'category' = $1
+		COALESCE(data->>'evidence_required', '') = 'Yes', COALESCE(data->>'loss_class', ''),
+		COALESCE(NULLIF(data->>'severity', ''), 'Low'), COALESCE(data->>'note_required', '') = 'Yes'
+		FROM %s.documents WHERE doctype = 'ReasonCode' AND deleted_at IS NULL AND status = 'Active'
+		  AND (data->>'category' = $1 OR (',' || lower(regexp_replace(COALESCE(data->>'contexts', ''), '[ ]*[,;][ ]*', ',', 'g')) || ',') LIKE '%%,' || lower($1) || ',%%')
 		  AND COALESCE(NULLIF(data->>'effective_from', ''), '0000') <= $2 AND COALESCE(NULLIF(data->>'effective_to', ''), '9999') >= $2
 		ORDER BY 2, 1`, schema), category, today)
 	if err != nil {
@@ -220,7 +244,7 @@ func ListReasonCodes(tenantID, category string) ([]ReasonCodeOption, error) {
 	out := []ReasonCodeOption{}
 	for rows.Next() {
 		var o ReasonCodeOption
-		if err := rows.Scan(&o.Code, &o.Label, &o.WhenToUse, &o.EvidenceRequired, &o.LossClass); err != nil {
+		if err := rows.Scan(&o.Code, &o.Label, &o.WhenToUse, &o.EvidenceRequired, &o.LossClass, &o.Severity, &o.NoteRequired); err != nil {
 			return nil, err
 		}
 		out = append(out, o)

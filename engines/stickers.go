@@ -65,10 +65,10 @@ type StickerLabel struct {
 }
 
 // StickerTemplate is a tenant-configured label layout, mapped to one or more
-// free-text Item.category values. See db/migrations_stage52_sticker_templates.sql
+// free-text Item.category values. See db/migrations/migrations_stage52_sticker_templates.sql
 // for the field definitions and the reasoning behind categories being plain
 // comma-separated text rather than a Link (Item.category has no master
-// behind it - db/migration.sql:345 - so there is nothing to link to).
+// behind it - db/migrations/migration.sql:345 - so there is nothing to link to).
 type StickerTemplate struct {
 	ID            string
 	Code          string

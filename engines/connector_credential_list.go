@@ -116,6 +116,11 @@ func SetConnectorCredentialActive(tenantID, kind, code string, active bool, acto
 	if !ok || code == "" {
 		return errors.New("kind must be channel, courier, clevertap, pinelabs or unicommerce, with a code")
 	}
+	if active {
+		if err := checkConnectorRehearsal(tenantID, kind, code, actor); err != nil {
+			return err
+		}
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err

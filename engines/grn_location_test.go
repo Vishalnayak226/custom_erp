@@ -95,7 +95,7 @@ func TestPrepareGRNReceiptDefaultsLocation(t *testing.T) {
 		var mandatory bool
 		err := db.DB.QueryRow("SELECT mandatory FROM " + schema + ".doctype_fields WHERE doctype_name = 'GRN' AND fieldname = 'location'").Scan(&mandatory)
 		if err != nil {
-			t.Fatalf("GRN.location is not declared as a field (run db/migrations_stage30_2_1_grn_location.sql): %v", err)
+			t.Fatalf("GRN.location is not declared as a field (run db/migrations/migrations_stage30_2_1_grn_location.sql): %v", err)
 		}
 		if !mandatory {
 			t.Fatalf("GRN.location is declared but not mandatory - a receipt with no location would still post zero stock")

@@ -31,6 +31,10 @@ type grnPOLineRate struct {
 	GSTRate   float64
 	Inclusive bool
 	Gross     float64
+	// Stage 148.35: a pack line's price a piece before rounding, in the PO's
+	// own GST mode, and the factor its packs were bought at.
+	Exact      float64
+	PackFactor float64
 }
 
 // poRatesBySKU prices a PO through PreviewPurchaseOrder - the same function the
@@ -68,6 +72,18 @@ func poRatesBySKU(tenantID, poID string) (map[string]grnPOLineRate, map[string]i
 	for sku, a := range sums {
 		out[sku] = grnPOLineRate{Rate: round2(a.taxable / float64(a.qty)), GSTRate: a.gst,
 			Inclusive: preview.GSTMode == GSTModeInclusive, Gross: round2(a.gross / float64(a.qty))}
+	}
+	if lines, err := ParsePOLines(data["items"]); err == nil {
+		for _, l := range lines {
+			if r, ok := out[l.SKU]; ok && l.PackFactor > 0 {
+				a := sums[l.SKU]
+				r.PackFactor, r.Exact = l.PackFactor, a.taxable/float64(a.qty)
+				if r.Inclusive {
+					r.Exact = a.gross / float64(a.qty)
+				}
+				out[l.SKU] = r
+			}
+		}
 	}
 	return out, data, nil
 }
@@ -154,6 +170,9 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 	delete(payload, "received_before_po")
 	delete(payload, "before_po_due")
 	delete(payload, "retro_po_id")
+	if err := checkMemoGRN(tenantID, payload); err != nil { // 148.16
+		return err
+	}
 	lines := grnLineMaps(payload)
 	// Stage 130.9 (72.D d): goods its store does not stock are not received there.
 	var skus []string
@@ -264,6 +283,7 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 		} else {
 			continue
 		}
+		stampGRNExactPrice(l, r) // 148.35
 		acc := grnLineAcceptedQty(l)
 		if ok {
 			poValue += r.Rate * acc
@@ -503,30 +523,45 @@ func raiseGRNRateNote(tenantID, grnID, userID, storeCode, doctype, series string
 			fmt.Sprintf("Raised %s %s for %.2f + GST %.2f on GRN %s", label, id, taxable, gst, grnID))
 		status = "Draft"
 	}
+	// PostDebitNote books the taxable leg only (a Purchase Return posts its own
+	// GST reversal), so the input credit claimed on the overcharge is reversed
+	// with it. Keyed, so a repeat call never books it twice. Stage 162.9: for a
+	// note still to post, the reversal runs in the posting's own transaction.
+	var reverseGST func(tx *sql.Tx, schema string) error
+	var gst float64
+	if doctype == "DebitNote" {
+		for _, l := range lines {
+			gst += l.GST
+		}
+		if gst = round2(gst); gst > 0 {
+			reverseGST = func(tx *sql.Tx, schema string) error {
+				return PostDoubleEntryTx(tx, tenantID, schema, "DebitNote", id,
+					map[string]int64{"2100": RupeesToPaise(gst)}, map[string]int64{"1500": RupeesToPaise(gst)},
+					"", fmt.Sprintf("DebitNote:%s:GST", id))
+			}
+		}
+	}
 	if status != "Posted" {
 		if doctype == "DebitNote" {
-			_, err = PostDebitNote(tenantID, id, userID)
+			_, err = postDebitNoteWith(tenantID, id, userID, reverseGST)
 		} else {
 			_, err = PostVendorCreditNote(tenantID, id, userID)
 		}
 		if err != nil {
 			return id, fmt.Errorf("%s %s was raised for GRN %s but could not be posted (%v) - post it from Debit / Credit Notes", label, id, grnID, err)
 		}
-	}
-	// PostDebitNote books the taxable leg only (a Purchase Return posts its own
-	// GST reversal), so the input credit claimed on the overcharge is reversed
-	// here. Keyed, so a repeat call never books it twice.
-	if doctype == "DebitNote" {
-		var gst float64
-		for _, l := range lines {
-			gst += l.GST
+	} else if reverseGST != nil {
+		// Posted before this fix, GST reversal possibly missing: book it, keyed.
+		tx, err := db.DB.Begin()
+		if err != nil {
+			return id, err
 		}
-		if gst = round2(gst); gst > 0 {
-			if err := PostDoubleEntry(tenantID, "DebitNote", id,
-				map[string]int64{"2100": RupeesToPaise(gst)}, map[string]int64{"1500": RupeesToPaise(gst)},
-				"", fmt.Sprintf("DebitNote:%s:GST", id)); err != nil {
-				return id, fmt.Errorf("debit note %s posted, but its GST reversal of %.2f could not be booked: %v", id, gst, err)
-			}
+		defer tx.Rollback()
+		if err := reverseGST(tx, schema); err != nil {
+			return id, fmt.Errorf("debit note %s posted, but its GST reversal of %.2f could not be booked: %v", id, gst, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return id, err
 		}
 	}
 	return id, nil

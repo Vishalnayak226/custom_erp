@@ -122,6 +122,9 @@ func SaveCourierCredential(tenantID, provider string, fields map[string]string) 
 // SaveCourierCredentialBy (49.8.5) records who saved the courier's
 // credential and an optional expiry (SaveChannelCredentialBy).
 func SaveCourierCredentialBy(tenantID, provider string, fields map[string]string, savedBy string, expiresAt *string) error {
+	if err := checkConnectorRehearsal(tenantID, "courier", provider, savedBy); err != nil {
+		return err
+	}
 	if _, err := courierAdapter(provider); err != nil {
 		return err
 	}

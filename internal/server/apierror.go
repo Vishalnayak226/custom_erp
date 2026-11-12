@@ -488,7 +488,7 @@ func classifyDriverMessage(status int, message string) (int, bool) {
 }
 
 // CatalogEntries exposes the standardized message catalog as a slice, for
-// cmd/gendocs to generate docs/guides/ERROR_CODES.md from. Exported purely so
+// cmd/gendocs to generate docs/guides/error-codes.md from. Exported purely so
 // that reference page is produced from this exact map rather than transcribed
 // by hand - a hand-copied list of 300 codes is stale the day someone adds one,
 // which is precisely the class of drift Stage 30.3 had to spend a pass

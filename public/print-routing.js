@@ -106,7 +106,7 @@ function askPrinter(kind, printers, preselect, computer) {
     document.getElementById('custom-dialog-title').textContent = `Printer for ${kind}`;
     document.getElementById('custom-dialog-message').textContent =
       `Which printer prints ${kind} on this computer (${computer})?`;
-    extra.innerHTML = `<select id="custom-dialog-printer" class="form-input" style="width:100%;margin-top:12px;">${printers.map(n =>
+    extra.innerHTML = `<select id="custom-dialog-printer" class="form-input s-6dae10">${printers.map(n =>
       `<option${n === preselect ? ' selected' : ''}>${window.escapeHTMLText(n)}</option>`).join('')}</select>`;
     extra.classList.remove('hidden');
     const cancel = document.getElementById('custom-dialog-cancel-btn');
@@ -197,7 +197,7 @@ export function explainFailure(kind, reason, setup = false) {
     document.getElementById('custom-dialog-title').textContent = `${kind} did not print`;
     document.getElementById('custom-dialog-message').textContent = setup && reason ? reason :
       `${reason || 'PrintBridge did not answer.'} Check that PrintBridge is running on this computer and the printer is on and loaded, then Retry.`;
-    extra.innerHTML = '<button type="button" class="btn btn-outline btn-sm" id="custom-dialog-browser" style="margin-top:12px;">Print with the browser instead</button>';
+    extra.innerHTML = '<button type="button" class="btn btn-outline btn-sm s-56f435" id="custom-dialog-browser">Print with the browser instead</button>';
     extra.classList.remove('hidden');
     ok.textContent = 'Retry';
     const cancel = document.getElementById('custom-dialog-cancel-btn');

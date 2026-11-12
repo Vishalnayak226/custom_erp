@@ -404,7 +404,7 @@ func secretFilePermissionFindings() []BaselineFinding {
 
 // --- Seeded credentials ---------------------------------------------------
 
-// seededCredentialHashes are the exact bcrypt hashes db/migration.sql ships
+// seededCredentialHashes are the exact bcrypt hashes db/migrations/migration.sql ships
 // for its four bootstrap accounts. 24.27 already guarded the first of them,
 // in tenant_default only; 49.1.3 widens that to every seeded account in every
 // tenant schema, because three of the four were never checked at all - and
@@ -412,7 +412,7 @@ func secretFilePermissionFindings() []BaselineFinding {
 // as unrestricted.
 //
 // TestSeededCredentialHashesCoverMigrationSQL keeps this list honest: it
-// reads db/migration.sql and fails if a password hash is seeded there that is
+// reads db/migrations/migration.sql and fails if a password hash is seeded there that is
 // not listed here, so a fifth bootstrap account cannot be added without also
 // being guarded.
 var seededCredentialHashes = map[string]string{
@@ -472,9 +472,9 @@ func seededCredentialFindings() []BaselineFinding {
 		ID: "SB-021", Severity: blockInProd(IsProductionEnv()),
 		Title: "a shipped bootstrap password is still active",
 		Detail: fmt.Sprintf(
-			"%d active account(s) still carry a password hash that db/migration.sql ships in this repository, so anyone holding the source holds the password: %s",
+			"%d active account(s) still carry a password hash that db/migrations/migration.sql ships in this repository, so anyone holding the source holds the password: %s",
 			len(names), strings.Join(names, ", ")),
-		Remedy: "rotate each account's password (or set its status to Inactive); note that re-running db/migration.sql resets them again, because its users INSERT ends in ON CONFLICT DO UPDATE SET password_hash = EXCLUDED.password_hash",
+		Remedy: "rotate each account's password (or set its status to Inactive); note that re-running db/migrations/migration.sql resets them again, because its users INSERT ends in ON CONFLICT DO UPDATE SET password_hash = EXCLUDED.password_hash",
 	}}
 }
 

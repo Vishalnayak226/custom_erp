@@ -47,7 +47,7 @@ type ProductPackage struct {
 // ProductPackages is the master definition of every sellable product and
 // where it lives. Adding a new product is a one-entry change here (plus,
 // if it needs a genuinely new capability, a module_key migration like
-// db/migrations_stage27_product_packaging.sql) - nothing else needs to
+// db/migrations/migrations_stage27_product_packaging.sql) - nothing else needs to
 // change to give it a working URL (internal/server/routes.go's SPA
 // fallback loop) or make it provisionable (handleProvisionTenant's
 // `packages` field). "reports" is deliberately not a package of its own -

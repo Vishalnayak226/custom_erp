@@ -19,7 +19,29 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-/opt/erp/backups}"
 DRILL_DB="${DRILL_DB:-erp_restore_drill_$(date -u +%Y%m%d%H%M%S)}"
 
-fail() { echo "DRILL FAILED: $*" >&2; exit 1; }
+# 49.17.2 / 47.17.3: every run, pass or fail, leaves one record in the format the
+# release-candidate gate reads (internal/releasegate.Evidence, stored by the
+# release as release/evidence/backup_restore.json). The server has no git
+# checkout, so the commit is ERP_COMMIT when set and otherwise empty; the Deploy
+# click ingests the file (`releasegate record -from`) and names the build it
+# deployed. Recording never changes the drill's own outcome.
+DRILL_EVIDENCE_FILE="${DRILL_EVIDENCE_FILE:-$BACKUP_DIR/restore-drill-evidence.json}"
+DRILL_RESULT=fail
+DRILL_NOTE="stopped before a result"
+json_safe() { printf '%s' "$1" | tr -d '"\\\r\n' | cut -c1-300; }
+record_evidence() {
+  local fmt='{\n  "kind": "backup_restore",\n  "date": "%s",\n  "commit": "%s",\n  "result": "%s",\n  "by": "%s",\n  "note": "%s"\n}\n'
+  if printf "$fmt" "$(date -u +%Y-%m-%d)" "$(json_safe "${ERP_COMMIT:-}")" "$DRILL_RESULT" \
+      "$(json_safe "restore_drill.sh@$(hostname 2>/dev/null || echo host)")" "$(json_safe "$DRILL_NOTE")" \
+      > "$DRILL_EVIDENCE_FILE" 2>/dev/null; then
+    echo "Evidence for the release gate: $DRILL_EVIDENCE_FILE ($DRILL_RESULT)"
+  else
+    echo "WARNING: could not write $DRILL_EVIDENCE_FILE - the release gate will not see this run." >&2
+  fi
+}
+trap record_evidence EXIT
+
+fail() { echo "DRILL FAILED: $*" >&2; DRILL_NOTE="$*"; exit 1; }
 
 # The newest whole-database backup. Tenant exports (tenant_*.enc, see
 # backup.sh --tenant) are deliberately excluded: they contain one schema, so
@@ -66,6 +88,7 @@ admin_url="${DRILL_ADMIN_URL:-$(printf '%s' "$DATABASE_URL" | sed -E 's#(://[^/]
 drill_url="$(printf '%s' "$admin_url" | sed -E "s#(://[^/]*)/[^?]*#\1/$DRILL_DB#")"
 
 cleanup() {
+  record_evidence
   echo "Dropping scratch database $DRILL_DB..."
   psql "$admin_url" -q -c "DROP DATABASE IF EXISTS \"$DRILL_DB\"" || true
 }
@@ -86,7 +109,10 @@ echo "Restoring..."
 # --no-owner because the scratch database's roles need not match production's;
 # pg_restore reports non-fatal warnings on extensions/comments, so its exit
 # code is checked but stderr is kept for the operator to read.
-openssl enc -d -aes-256-cbc -pbkdf2 -in "$newest" -pass pass:"$BACKUP_ENCRYPTION_KEY" \
+# 163.2: the key reaches openssl through its environment (env:), not as an
+# argument - an argument is visible to every user in the process list.
+export BACKUP_ENCRYPTION_KEY
+openssl enc -d -aes-256-cbc -pbkdf2 -in "$newest" -pass env:BACKUP_ENCRYPTION_KEY \
   | pg_restore -d "$drill_url" --no-owner --clean --if-exists \
   || fail "pg_restore reported an error restoring $newest."
 
@@ -126,4 +152,6 @@ if [ -x "$ERP_BIN" ]; then
 else
   echo "WARNING: $ERP_BIN not found - the integrity checks were skipped (set ERP_BIN)." >&2
 fi
+DRILL_RESULT=pass
+DRILL_NOTE="$(basename "$newest") restores cleanly, carries data and checks out"
 echo "DRILL PASSED: $newest restores cleanly, carries data and checks out."

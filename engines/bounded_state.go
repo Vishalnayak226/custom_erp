@@ -156,9 +156,15 @@ func SecurityStateStores() []StateStore {
 		{"public.ops_run_log", "table", "backup or drill run", "a few rows a day", "", evidence},
 		{"web_push_seen", "table", "scope + reference", "replaced with the current set on every pass", "", notEvidence},
 		{"public.tenant_lifecycle_events", "table", "lifecycle change", "a few rows per client lifetime", "", evidence},
+		{"public.sandbox_effect_log", "table", "stopped outside call", "at most 5,000 rows per sandbox (insertSandboxEffect); cleared by a sandbox reset; removed with its client", "ResetSandboxData", "only sandbox clients write it; a sandbox is never a client under legal hold"},
 		{"public.backup_runs", "table", "host + run", "one row per backup run per host", "", evidence},
 		{"privileged_sessions", "table", "session", "30 days (privilegedSessionRetentionDays)", "SweepPrivilegedSessions", holdKeeps},
+		{"user_sessions", "table", "session", "a day after its token expired (userSessionGraceAfterExp)", "SweepUserSessions", holdKeeps},
+		{"security_export_config", "table", "client", "one row per client; the export cursor, never a queue", "", evidence},
+		{"notification_matrix_versions", "table", "matrix version", "one row per saved version of a hand-edited matrix", "", evidence},
+		{"notification_decisions", "table", "incident x matrix row", "one row per decision a person opens for an incident", "", evidence},
 		{"privSessionCache", "memory", "tenant + session", "privilegedSessionCacheMax, cleared when full; TTL authStateCacheTTL", "", notEvidence},
+		{"userSessionCache", "memory", "tenant + session", "userSessionCacheMax, cleared when full; TTL authStateCacheTTL", "", notEvidence},
 		{"authStateCache", "memory", "tenant + user", "authStateCacheMaxEntries, cleared when full; TTL authStateCacheTTL", "", notEvidence},
 		{"tenantGateCache", "memory", "tenant", "authStateCacheMaxEntries, cleared when full", "", notEvidence},
 		{"rateLimiter.requests", "memory", "address or session", "rateLimitMaxKeys; stale keys evicted first", "", notEvidence},
@@ -189,7 +195,7 @@ const (
 // without an entry, a large column its payload does not name, or an index the
 // table does not have fails it. Found writing it: eleven swept tables had no
 // index on the column their sweep ages them by (each sweep read the whole
-// table) - added by db/migrations_stage140_13_state_sweep_indexes_49_18_2.sql - and
+// table) - added by db/migrations/migrations_stage140_13_state_sweep_indexes_49_18_2.sql - and
 // the extension hook log stored a hook's error text uncapped.
 var stateStoreLimits = func() map[string]struct{ payload, index, slo string } {
 	const (
@@ -236,10 +242,16 @@ var stateStoreLimits = func() map[string]struct{ payload, index, slo string } {
 		"irp_profiles":                   {"one registration's settings", "irp_profiles_environment_gstin_key", stateSLOLookup},
 		"public.ops_run_log":             {"detail: one run's summary", "idx_ops_run_log_type_finished", stateSLOLookup},
 		"web_push_seen":                  {"ref_key ≤ 300 (its column)", "web_push_seen_pkey", stateSLOLookup},
+		"public.sandbox_effect_log":      {"detail: one line (a method and host)", "idx_sandbox_effect_log_tenant", stateSLOLookup},
 		"public.tenant_lifecycle_events": {"detail: one change's summary", "idx_tenant_lifecycle_events_tenant", stateSLOLookup},
 		"public.backup_runs":             {"detail, offsite_key: one run's summary", "idx_backup_runs_latest", stateSLOLookup},
 		"privileged_sessions":            {fixed, "idx_privileged_sessions_started", stateSLOSweep},
+		"user_sessions":                  {fixed, "idx_user_sessions_expires", stateSLOSweep},
+		"security_export_config":         {"url ≤ 500, secret_enc: the encrypted secret of 16 to 200 characters, last_error ≤ 300, gap_note", "security_export_config_pkey", stateSLOLookup},
+		"notification_matrix_versions":   {"entries: at most 60 rows of short text; note ≤ 300", "notification_matrix_versions_pkey", stateSLOLookup},
+		"notification_decisions":         {"row_snapshot: one matrix row; reason ≤ 1,000, evidence_ref ≤ 500; approval_note ≤ 500", "idx_notification_decisions_opened", stateSLOLookup},
 		"privSessionCache":               {"one session ended flag", "", stateSLOMemory},
+		"userSessionCache":               {"one session ended flag and last-seen time", "", stateSLOMemory},
 		"authStateCache":                 {"one user's role, store and status", "", stateSLOMemory},
 		"tenantGateCache":                {"one client's state", "", stateSLOMemory},
 		"rateLimiter.requests":           {"the request times inside one window", "", stateSLOMemory},

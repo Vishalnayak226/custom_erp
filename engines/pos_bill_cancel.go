@@ -51,6 +51,9 @@ func CancelPOSBill(tenantID, role, user, billNo, location, reason string) (*Bill
 	if done, err := cancelledBill(tenantID, billNo); err != nil || done != nil {
 		return done, err
 	}
+	if err := refuseBillCancelAfterMemoSale(tenantID, billNo); err != nil { // 148.16
+		return nil, err
+	}
 	if elig.SaleDate != BusinessToday() {
 		return nil, &ValidationError{Code: "POSOFF-1301", SubFor: billNo, Message: fmt.Sprintf("bill %s is from %s - only today's bills can be cancelled; take a return for it instead", billNo, elig.SaleDate)}
 	}

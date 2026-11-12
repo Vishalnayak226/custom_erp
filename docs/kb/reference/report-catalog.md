@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**440** reports across **26** categories, all reachable from
+**449** reports across **27** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -54,16 +54,17 @@ open the right page.
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](report-catalog-2.md#hrms) - 15 reports
-- [Inventory](report-catalog-2.md#inventory) - 42 reports
+- [Inventory](report-catalog-2.md#inventory) - 43 reports
 - [MIS & Management](report-catalog-2.md#mis-management) - 10 reports
 - [Manufacturing](report-catalog-2.md#manufacturing) - 21 reports
 - [Master Data & Audit](report-catalog-2.md#master-data-audit) - 11 reports
 - [OMS](report-catalog-2.md#oms) - 25 reports
 - [PIM](report-catalog-2.md#pim) - 6 reports
 - [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
-- [Procurement](report-catalog-3.md#procurement) - 24 reports
+- [Procurement](report-catalog-3.md#procurement) - 27 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
-- [Sales](report-catalog-3.md#sales) - 11 reports
+- [Quality](report-catalog-3.md#quality) - 2 reports
+- [Sales](report-catalog-3.md#sales) - 14 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
 - [Service](report-catalog-3.md#service) - 1 reports
 - [Stock Transfer](report-catalog-3.md#stock-transfer) - 9 reports

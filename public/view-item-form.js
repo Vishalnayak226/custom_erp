@@ -288,7 +288,7 @@ async function wireItemForm(body, { isEdit = false, record = {} } = {}) {
       .map(([k, ...v]) => [k.trim(), v.join(':').trim()]);
     const current = new Map(pairs.map(([k, v]) => [k.toUpperCase(), v]));
     const kept = pairs.filter(([k]) => !asked.some(a => a.code.toUpperCase() === k.toUpperCase()));
-    attrHost.innerHTML = asked.length ? '' : `<p class="text-muted" style="font-size:12.5px; margin:0;">${set.source === 'all' ? 'No item attributes yet - add them under Setup → Item Attribute.' : 'Nothing is mapped to ask for this type.'}</p>`;
+    attrHost.innerHTML = asked.length ? '' : `<p class="text-muted s-881487">${set.source === 'all' ? 'No item attributes yet - add them under Setup → Item Attribute.' : 'Nothing is mapped to ask for this type.'}</p>`;
     const grid = document.createElement('div');
     grid.className = 'item-attr-grid';
     asked.forEach(a => {
@@ -404,7 +404,7 @@ function lockTreatment(body, setup, { target, ref, label, anchor }) {
   }
 }
 
-const money = v => (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = v => formatMoney(Number(v) || 0);
 
 async function openTreatmentCorrection({ target, ref, label, form, preset = {} }) {
   const setup = await loadItemSetup();
@@ -424,14 +424,14 @@ async function openTreatmentCorrection({ target, ref, label, form, preset = {} }
     <div class="modal-container modal-container-wide">
       <div class="modal-header"><h3 class="modal-title"></h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
-        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px 16px;">
+        <div class="s-b16031">
           ${target === 'Item' ? `<div class="form-group"><label class="form-label" for="tc-kind">It should be</label>
             <select class="form-select" id="tc-kind">${setup.kinds.map(k => `<option value="${escapeHTMLText(k.code)}">${escapeHTMLText(k.label)}</option>`).join('')}</select></div>` : ''}
           ${TREATMENT_FIELDS.map(n => `<div class="form-group"><label class="form-label" for="tc-${n}">${dimLabel[n]}</label>
             <select class="form-select" id="tc-${n}" data-dim="${n}">${optionsOf(n)}</select></div>`).join('')}
         </div>
-        <button type="button" class="btn btn-primary" id="tc-review" style="margin-top:12px;">Review the impact</button>
-        <div id="tc-preview" style="margin-top:16px;"></div>
+        <button type="button" class="btn btn-primary s-56f435" id="tc-review">Review the impact</button>
+        <div id="tc-preview" class="s-1b0f49"></div>
       </div>
     </div>`;
   overlay.querySelector('.modal-title').textContent = `Correct treatment - ${label}`;
@@ -476,32 +476,32 @@ async function openTreatmentCorrection({ target, ref, label, form, preset = {} }
     const stockRows = pv.items.filter(i => i.on_hand > 0);
     const askUnit = pv.needs_unit_value || pv.items.some(i => ['entered', 'standard cost', 'last costed receipt'].includes(i.unit_value_source));
     out.innerHTML = `
-      <h4 style="margin:0 0 6px;">What changes</h4>
+      <h4 class="s-ad7f18">What changes</h4>
       <table class="item-fields-table"><thead><tr><th></th><th>Now</th><th>After</th></tr></thead><tbody>
         ${rows.map(([k, t]) => `<tr${changed(k) ? ' style="font-weight:600;"' : ''}><td>${t}</td><td>${escapeHTMLText(pv.before[k] || '—')}</td><td>${escapeHTMLText(pv.after[k] || '—')}</td></tr>`).join('')}
       </tbody></table>
-      <h4 style="margin:16px 0 6px;">Stock it affects</h4>
-      ${stockRows.length ? `<div style="overflow-x:auto;"><table class="item-fields-table"><thead><tr><th>Item</th><th>Stores (on hand)</th><th>Qty</th><th>Value per unit</th><th>Value</th></tr></thead><tbody>
+      <h4 class="s-cafd28">Stock it affects</h4>
+      ${stockRows.length ? `<div class="s-0ddf06"><table class="item-fields-table"><thead><tr><th>Item</th><th>Stores (on hand)</th><th>Qty</th><th>Value per unit</th><th>Value</th></tr></thead><tbody>
         ${stockRows.map(i => `<tr><td>${escapeHTMLText(i.code)}${i.name ? ` - ${escapeHTMLText(i.name)}` : ''}</td>
           <td>${i.stores.map(st => `${escapeHTMLText(st.location)}: ${st.on_hand}`).join(', ')}</td><td>${i.on_hand}${i.write_off ? ' <em>(leaves stock)</em>' : ''}</td>
           <td>₹${money(i.unit_value)} <span class="text-muted">(${escapeHTMLText(i.unit_value_source || '—')})</span></td><td>₹${money(i.value)}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="text-muted">No stock on hand now - nothing moves; only the item changes.</p>'}
-      ${askUnit ? `<div class="form-group" style="max-width:300px; margin-top:8px;">
+      ${askUnit ? `<div class="form-group s-28f8d4">
         <label class="form-label" for="tc-unit">Value per unit coming into Inventory (₹)</label>
         <div class="item-attr-add"><input class="form-input" type="number" step="any" min="0" id="tc-unit" value="${unitValue ?? ''}"><button type="button" class="btn btn-outline btn-sm" id="tc-recalc">Recalculate</button></div></div>` : ''}
-      <h4 style="margin:16px 0 6px;">Entry that will post</h4>
+      <h4 class="s-cafd28">Entry that will post</h4>
       ${pv.journal.length ? `<table class="item-fields-table"><thead><tr><th>Account</th><th class="c">Debit</th><th class="c">Credit</th></tr></thead><tbody>
         ${pv.journal.map(j => `<tr><td>${escapeHTMLText(j.account)} ${escapeHTMLText(j.name || '')}</td><td class="c">${j.debit ? '₹' + money(j.debit) : ''}</td><td class="c">${j.credit ? '₹' + money(j.credit) : ''}</td></tr>`).join('')}
       </tbody></table>` : '<p class="text-muted">No journal entry - no stock value moves.</p>'}
-      <h4 style="margin:16px 0 6px;">From now on</h4>
-      <ul style="margin:0 0 0 18px;">${pv.from_now.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul>
-      ${pv.open_documents.length ? `<h4 style="margin:16px 0 6px;">Open documents that name it</h4><ul style="margin:0 0 0 18px;">${pv.open_documents.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul>
-        <p class="text-muted" style="font-size:12.5px;">Not changed; later lines use the new treatment.</p>` : ''}
-      ${pv.blockers.length ? `<div class="login-error" style="margin-top:14px;"><strong>Cannot be made yet:</strong><ul style="margin:6px 0 0 18px;">${pv.blockers.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul></div>` : `
-      <h4 style="margin:18px 0 6px;">Confirm</h4>
+      <h4 class="s-cafd28">From now on</h4>
+      <ul class="s-94e046">${pv.from_now.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul>
+      ${pv.open_documents.length ? `<h4 class="s-cafd28">Open documents that name it</h4><ul class="s-94e046">${pv.open_documents.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul>
+        <p class="text-muted s-6750b2">Not changed; later lines use the new treatment.</p>` : ''}
+      ${pv.blockers.length ? `<div class="login-error s-d6f2af"><strong>Cannot be made yet:</strong><ul class="s-b449ae">${pv.blockers.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul></div>` : `
+      <h4 class="s-66be9e">Confirm</h4>
       <div class="form-group"><label class="form-label" for="tc-reason">Why is this being corrected?<span class="required">*</span></label>
         <textarea class="form-input" id="tc-reason" rows="2" placeholder="e.g. Created as a normal product by mistake - it is packaging"></textarea></div>
-      <div class="form-group" style="max-width:320px;"><label class="form-label" for="tc-confirm">Type <strong>${escapeHTMLText(pv.code)}</strong> to confirm<span class="required">*</span></label>
+      <div class="form-group s-3521b3"><label class="form-label" for="tc-confirm">Type <strong>${escapeHTMLText(pv.code)}</strong> to confirm<span class="required">*</span></label>
         <input class="form-input" id="tc-confirm" autocomplete="off"></div>
       <button type="button" class="btn btn-primary" id="tc-apply" disabled>${pv.second_admin ? 'Send to a second admin for approval' : 'Apply the correction'}</button>`}`;
     out.querySelector('#tc-recalc')?.addEventListener('click', () => {
@@ -607,7 +607,7 @@ async function wireAttributeMapForm(body, doctype, record) {
     ? `Off until "Attributes follow the item's type" is on.`
     : '';
   const draw = (used) => {
-    if (!attrs.length) { host.innerHTML = '<p class="text-muted" style="font-size:12.5px;">No item attributes yet - add them under Setup → Item Attribute.</p>'; return; }
+    if (!attrs.length) { host.innerHTML = '<p class="text-muted s-6750b2">No item attributes yet - add them under Setup → Item Attribute.</p>'; return; }
     host.innerHTML = (note ? `<div class="attr-map-note">${escapeHTMLText(note)}</div>` : '') + attrs.map(a => {
       const code = String(a.code || a.id).toUpperCase();
       const on = map.has(code);
@@ -690,7 +690,7 @@ async function renderConfigItemFields(outer) {
       <td class="c">${check(r, 'hidden', r.hidden, false)}</td>
     </tr>`;
   host.innerHTML = `
-    <h2 style="font-size:18px; margin:0 0 14px;">Item fields</h2>
+    <h2 class="s-6d0caf">Item fields</h2>
     <div>
     <table class="item-fields-table">
       <thead><tr><th>Field</th><th class="c">On the item</th><th class="c">In the PO</th><th>At the GRN</th><th>Values from</th><th class="c">Hidden</th></tr></thead>

@@ -30,10 +30,11 @@ import (
 // secret/token/password-named key. secrets_test.go holds the reviewed
 // allowlist and fails the build on anything new.
 //
-// What this does NOT cover (49.6.6's remainder, said here so nobody assumes
-// it): git HISTORY (a secret committed and later deleted is still in every
-// clone - that needs a history scan and, for a real find, a rotation, not a
-// rewrite), built binaries, and backup files. Those stay open on the tracker.
+// Beyond the working tree, secrets_history.go scans git history (the lines
+// added by recent commits - a secret committed and later deleted is still in
+// every clone, and a real find needs a rotation, not a rewrite), built binaries
+// (their printable strings) and a backup folder (every backup encrypted, none in
+// clear).
 
 // SecretFinding is one hit. Excerpt never carries the matched value: it is
 // printed in test output and CI logs.
@@ -230,29 +231,7 @@ func ScanSecrets(root string, files []string) ([]SecretFinding, error) {
 		if bytes.IndexByte(head, 0) >= 0 {
 			continue // binary
 		}
-		lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
-		for i, line := range lines {
-			lower := asciiLower(line)
-			for _, p := range secretPatterns {
-				if !p.mayMatch(line, lower) {
-					continue
-				}
-				subject := line
-				if p.fold {
-					subject = lower
-				}
-				for _, m := range p.pattern.FindAllStringSubmatchIndex(subject, -1) {
-					v := line[m[2*p.value]:m[2*p.value+1]]
-					if placeholderValue(v) || (p.check != nil && !p.check(v)) {
-						continue
-					}
-					findings = append(findings, SecretFinding{
-						Kind: p.kind, File: rel, Line: i + 1,
-						Excerpt: redactSecretLine(line, m[0], m[1], p.kind),
-					})
-				}
-			}
-		}
+		findings = append(findings, scanText(rel, string(data))...)
 	}
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].File != findings[j].File {
@@ -339,4 +318,40 @@ func CountSecretsByFileAndKind(findings []SecretFinding) map[string]map[string]i
 		out[f.File][f.Kind]++
 	}
 	return out
+}
+
+// scanText returns every secret-shaped hit in one text, attributed to name.
+// Working-tree files, history diffs and a binary's printable strings all pass
+// through here, so a new shape is added once, in secretPatterns.
+func scanText(name, text string) []SecretFinding {
+	var findings []SecretFinding
+	for i, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+		findings = append(findings, scanLine(name, i+1, line)...)
+	}
+	return findings
+}
+
+func scanLine(name string, lineNo int, line string) []SecretFinding {
+	var findings []SecretFinding
+	lower := asciiLower(line)
+	for _, p := range secretPatterns {
+		if !p.mayMatch(line, lower) {
+			continue
+		}
+		subject := line
+		if p.fold {
+			subject = lower
+		}
+		for _, m := range p.pattern.FindAllStringSubmatchIndex(subject, -1) {
+			v := line[m[2*p.value]:m[2*p.value+1]]
+			if placeholderValue(v) || (p.check != nil && !p.check(v)) {
+				continue
+			}
+			findings = append(findings, SecretFinding{
+				Kind: p.kind, File: name, Line: lineNo,
+				Excerpt: redactSecretLine(line, m[0], m[1], p.kind),
+			})
+		}
+	}
+	return findings
 }

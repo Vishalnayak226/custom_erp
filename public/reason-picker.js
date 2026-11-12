@@ -24,7 +24,7 @@ export function reasonSelectHTML(reasons, opts = {}) {
   const blank = reasons && reasons.required ? 'Choose a reason' : 'Reason (choose, or type below)';
   return `<select class="form-select" ${opts.attrs || ''} aria-label="${escapeHTMLText(opts.label || 'Reason')}">
     <option value="">${escapeHTMLText(blank)}</option>
-    ${codes.map(c => `<option value="${escapeHTMLText(c.code)}"${c.code === value ? ' selected' : ''} title="${escapeHTMLText(c.when_to_use || '')}">${escapeHTMLText(c.label)}${c.evidence_required ? ' (attach a file)' : ''}</option>`).join('')}
+    ${codes.map(c => `<option value="${escapeHTMLText(c.code)}"${c.code === value ? ' selected' : ''} title="${escapeHTMLText(c.when_to_use || '')}">${escapeHTMLText(c.label)}${c.evidence_required ? ' (attach a file)' : ''}${c.note_required ? ' (note needed)' : ''}</option>`).join('')}
   </select>`;
 }
 
@@ -80,4 +80,14 @@ export async function chooseReason({ category, title, question }) {
     document.body.appendChild(overlay);
     overlay.querySelector('#rp-code').focus();
   });
+}
+
+// Stage 148.28: a return is raised with a Sales Return reason when the business
+// requires one (sales.return_reason_required). Resolves to {} when not asked,
+// { reason_code, reason } when answered, or null when cancelled.
+export async function askReturnReason() {
+  const reasons = await loadReasons('Sales Return');
+  if (!reasons.return_required) return {};
+  const r = await chooseReason({ category: 'Sales Return', title: 'Reason' });
+  return r ? { reason_code: r.code, reason: r.text } : null;
 }

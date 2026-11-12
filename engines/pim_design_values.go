@@ -131,9 +131,13 @@ func SetDesignAttributeValues(tenantID, user string, req DesignValueRequest) (*D
 			res.Unchanged++
 			continue
 		}
-		body, _ := json.Marshal(map[string]interface{}{"item": d, "attribute": attribute, "value": value})
+		wp := map[string]interface{}{"item": d, "attribute": attribute, "value": value, "source": "ERP", "source_ref": user}
+		if gErr := StewardshipGuard(tenantID, wp); gErr != nil { // 47.13.4: a stewarded attribute keeps its source
+			return nil, gErr
+		}
+		body, _ := json.Marshal(wp)
 		if exists {
-			_, err = tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $2, updated_at = NOW() WHERE doctype = 'ProductAttributeValue' AND id = $1`, schema), id, body)
+			_, err = tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $2, updated_at = NOW(), updated_by = NULLIF($3, '') WHERE doctype = 'ProductAttributeValue' AND id = $1`, schema), id, body, user)
 		} else {
 			_, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents(id, doctype, data, status, created_by) VALUES($1,'ProductAttributeValue',$2,'Active',$3)`, schema), id, body, user)
 		}

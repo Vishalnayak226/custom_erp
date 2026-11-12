@@ -8,7 +8,7 @@ import (
 // Stage 47.16.4b (G2 of docs/security/gst-companies-act-controls.md): ledger
 // rows the database will not change.
 //
-// db/migrations_stage47_16_4b_gl_postings_guard.sql puts a trigger on every
+// db/migrations/migrations_stage47_16_4b_gl_postings_guard.sql puts a trigger on every
 // client's gl_postings: a posted row is never deleted, and its account,
 // amounts, date, currency and keys never change - a mistake is corrected by a
 // reversing entry. Two writes are sanctioned, each by naming itself for the
@@ -18,7 +18,7 @@ import (
 //     (ResetTenantData, operator-run). A sandbox reset TRUNCATEs, which a
 //     row trigger does not see; a purged client's schema is dropped. Stage
 //     47.16.4g: stored_value_ledger's append-only trigger accepts it too
-//     (db/migrations_stage72_8_stored_value_purge_47_16_4g.sql), so a client
+//     (db/migrations/migrations_stage72_8_stored_value_purge_47_16_4g.sql), so a client
 //     with gift card events can be reset.
 //   - "recode": a master renumber (recodeInSchemaTx) carries a renumbered
 //     store, entity, cost center, department or project code onto the rows

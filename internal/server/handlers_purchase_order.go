@@ -26,7 +26,7 @@ import (
 // response) while still serving both callers the composer actually has: the
 // maker raising a PO, and the approver amending one. Gating on create alone
 // would 403 a Store Manager mid-amendment - they have update but not create
-// on PurchaseOrder (db/migration.sql) - and silently blank every derived
+// on PurchaseOrder (db/migrations/migration.sql) - and silently blank every derived
 // column on the screen.
 func handlePreviewPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")

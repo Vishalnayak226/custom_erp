@@ -79,7 +79,7 @@ func scopeValueExpr(fields []string) string {
 // madeOnOwnScreen names the doctypes handleGenericDoc refuses to write - each
 // is made by its own screen. GET /api/v1/me/permissions sends it so no list or
 // picker offers New for them (132.10 h).
-var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim"}
+var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim", "CustomOrderQuote"}
 
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -129,6 +129,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	if doctype == "VendorRebateClaim" && r.Method != http.MethodGet {
 		writeAPIError(w, r, "PURCHA-5025", "")
+		return
+	}
+	// Stage 148.36: a custom-order quote is made by the configurator, with the rate it used.
+	if doctype == engines.CustomOrderQuoteDoctype && r.Method != http.MethodGet {
+		writeAPIError(w, r, "SALESP-0768", "")
 		return
 	}
 
@@ -598,6 +603,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if len(own) == 0 {
 				engines.LogSensitiveBulkRead(r.Context(), tenantID, userID, role, doctype, len(docs), r.URL.RawQuery)
 			}
+			engines.MarkUnknownRoles(tenantID, doctype, docs) // Stage 148.47
 			_ = json.NewEncoder(w).Encode(docs)
 		}
 
@@ -773,6 +779,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// Stage 57.7: a new SKU gets its barcode now when the tenant issues
 			// barcodes at SKU creation (engines/barcode_policy.go).
 			engines.PrepareItemBarcode(tenantID, id == "", payload)
+			// Stage 148.35: purchase unit and factor; the stock unit locks after the first movement.
+			if err := engines.PrepareItemPackUnits(tenantID, id, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
 		}
 
 		// Fill the derived half of any duplicate mandatory field pair
@@ -782,6 +793,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// updates as well as creates, since an edit that changes the vendor
 		// must move both keys together or the two would drift apart.
 		engines.PrepareMirroredFields(doctype, payload)
+		if doctype == "VendorInvoice" { // Stage 148.19: a bill without a PO is the engine's, not a plain save's
+			if err := engines.KeepExpenseBillMarks(tenantID, id, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+		}
+		engines.KeepServerSetFields148(tenantID, doctype, id, payload) // Stage 148.27 / 148.41
+		engines.KeepEngineOnlyFields(tenantID, doctype, id, payload)   // Stage 148.31 / 148.32 / 148.37
 
 		// A GRN's receiving location defaults from its PO's target warehouse
 		// when the caller didn't supply one (Stage 30.2.1). Before metadata
@@ -799,6 +818,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			if id != "" {
 				engines.KeepGRNBeforePOMarks(tenantID, id, payload) // Stage 148.38
+			}
+			// Stage 148.35: packs received become stock units before the receipt is priced.
+			if err := engines.PrepareGRNPacks(tenantID, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
 			}
 			if err := engines.PrepareGRNPricing(tenantID, id == "", payload); err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
@@ -844,7 +868,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// this path sets payload["id"]. Left alone, a freshly created Vendor
 		// gets a random UUID id disconnected from its code, and every Link
 		// field that points at it fails "record does not exist" forever, even
-		// though the record is right there - db/migrations_stage24_addendum_
+		// though the record is right there - db/migrations/migrations_stage24_addendum_
 		// data_integrity.sql's own comment documents id=code as the assumed
 		// invariant those Link conversions depended on. Restored once, here,
 		// so every caller (UI, CSV import, API) gets it, not just the ones
@@ -900,6 +924,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorDetail(w, r, "GLOBAL-0011", "", engines.LocationOutOfScopeMessage(named, location))
 			return
 		}
+
+		engines.StampStewardshipSource(doctype, payload, "ERP", userID) // 47.13.4
 
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)
@@ -1376,7 +1402,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if doctype == "Employee" {
 			empUserID, _ := payload["user_id"].(string)
 			empStatus, _ := payload["status"].(string)
-			if errSync := engines.SyncEmployeeAccessLink(tenantID, empUserID, empStatus); errSync != nil {
+			empExit, _ := payload["date_of_exit"].(string)
+			priorEmpStatus, _ := priorData["status"].(string)
+			priorEmpExit, _ := priorData["date_of_exit"].(string)
+			if priorEmpStatus == "" {
+				priorEmpStatus = priorStatus
+			}
+			if errSync := engines.SyncEmployeeAccessLink(r.Context(), tenantID, engines.EmployeeAccessChange{
+				UserID: empUserID, Status: empStatus, ExitDate: empExit,
+				PriorStatus: priorEmpStatus, PriorExitDate: priorEmpExit, Actor: r.Header.Get("Resolved-Username"),
+			}); errSync != nil {
 				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ACCESS_LINK_SYNC_FAILED", r.URL.Path, errSync.Error(), "")
 			}
 			// Stage 93.9: HR leads - the linked user takes the employee's department.
@@ -1414,7 +1449,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		}
 		if doctype == "GRN" && id == "" && !engines.IsGRNStepFlow(payload) {
 			locationCode, _ := payload["location"].(string)
-			// GRN's own registered schema (db/migrations_phase3.sql) declares the mandatory
+			// GRN's own registered schema (db/migrations/migrations_phase3.sql) declares the mandatory
 			// field as "received_items", a JSON-encoded string (same convention as BOM's
 			// "components" field, engines/manufacturing.go fetchBOM) - not a raw "items"
 			// array key, which was never part of GRN's declared schema and left this stock
@@ -1437,7 +1472,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// rejected/damaged qty now routes to the qc_hold/damaged
 				// buckets instead of being silently posted as available
 				// alongside it (see engines/wms_receiving.go).
-				_, errLedger := engines.PostGRNReceiptWithQC(tenantID, locationCode, items, userID, docID)
+				// Stage 162.11: the inventory.stock_changed outbox row is written in
+				// this same transaction.
+				_, errLedger := engines.PostGRNReceiptAndPublish(tenantID, locationCode, items, userID, docID)
 				if errLedger != nil {
 					// Stage 30.2.1: this used to be a bare log.Printf, so a
 					// failed stock post returned HTTP 200 "saved" - the
@@ -1486,17 +1523,6 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				grnNotes = engines.PostGRNRateDifferenceNotes(tenantID, docID, userID, r.Header.Get("Resolved-Location"))
 			}
 			engines.SyncGRNLineRows(tenantID, docID) // Stage 94.1: the GRN register reads every receipt
-
-			// Publish inventory transaction changed outbox event
-			tx, errTx := db.DB.Begin()
-			if errTx == nil {
-				_ = db.SetSearchPath(tx, schema)
-				_ = engines.PublishEvent(tx, schema, "inventory.stock_changed", map[string]interface{}{
-					"grn_id":   docID,
-					"location": locationCode,
-				})
-				_ = tx.Commit()
-			}
 		}
 		// Stage 57.3: a saved Item's HSN teaches the HSN catalogue, so the next
 		// New Item can pick it. Here, after the save has succeeded, so a rejected
@@ -1603,6 +1629,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeEngineError(w, r, gErr, http.StatusInternalServerError)
 				return
 			}
+		} else if doctype == engines.StewardshipDoctype || doctype == "ProductAttributeValue" {
+			// Stage 47.13.4: the register and a stewarded value keep their own rules on delete.
+			if gErr := engines.CheckStewardshipDelete(tenantID, doctype, id, userID); gErr != nil {
+				writeEngineError(w, r, gErr, http.StatusUnprocessableEntity)
+				return
+			}
 		} else if documentType == "Transaction" && postedDocumentStatuses[status] {
 			// Stage 74.1.5: a posted document is undone by its own reversing
 			// document, never deleted - its stock and GL rows would be orphaned.
@@ -1626,6 +1658,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 
 	default:
+		// Stage 162.3: a PUT / PATCH on a locked record says why, once, here.
+		if (r.Method == http.MethodPut || r.Method == http.MethodPatch) && id != "" {
+			if msg := engines.LockedRecordMessage(tenantID, doctype, id); msg != "" {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, msg)
+				return
+			}
+		}
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 	}
 }
@@ -2046,6 +2085,7 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	engines.OfferRoleChoices(tenantID, doctype, fields) // Stage 148.47
 	_ = json.NewEncoder(w).Encode(fields)
 }
 
@@ -2067,6 +2107,8 @@ var actionOnlyStatuses = map[string][]string{
 	// stock, posts the sale and issues the bill number; a save as Paid made
 	// a bill in the sales and GST figures with none of them.
 	"POSCart": {"Paid"}, // /checkout
+	// Stage 148.23: only the voucher's Reverse action reverses it.
+	"SetOffVoucher": {"Reversed"}, // /finance/set-off/{id}/reverse
 }
 
 func isActionOnlyStatus(doctype, s string) bool {

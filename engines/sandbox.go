@@ -74,6 +74,7 @@ func ProvisionSandboxTenant(appVersion string, ttlDays int) (tenantID, schemaNam
 		return "", "", "", fmt.Errorf("provisioned but failed to flag %s as a sandbox: %v", tenantID, err)
 	}
 	InvalidateTenantLifecycleCache(tenantID)
+	invalidateSandboxFlag()
 	return tenantID, schemaName, adminPassword, nil
 }
 

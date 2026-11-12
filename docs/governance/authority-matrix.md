@@ -29,9 +29,9 @@ neither completed checklist items nor this draft create a support promise.
 | What does the API expose? | Generated OpenAPI + compatibility guidance | [OpenAPI](../api/generated/public-v1.json), [API guide](../api/public-api-v1.md) | API owner |
 | How is it designed? | Current architecture + governing ADRs | [Current architecture](../architecture/current-architecture.md); remaining ADR/reconciliation work in 48.4 | Engineering owner |
 | How do I perform a user task? | KB topic | [Role journeys](../kb/role-journeys/role-journeys-overview.md); manuals remain transition copies | Documentation + module owners |
-| How do I operate or recover it? | Runbook | [Incident](../operations/incident_runbook.md), [backup](../operations/backup_restore.md) | Operations owner |
+| How do I operate or recover it? | Runbook | [Incident](../operations/incident-runbook.md), [backup](../operations/backup-restore.md) | Operations owner |
 | How do I implement it for a customer? | Implementation guides + accepted configuration workbook | [Onboarding/cutover workbook](../implementation/onboarding-workbook.md); customer execution/approval pending | Implementation owner |
-| What actually happened? | Dated scoped immutable record | [Audits](../archive/audits/erp-deep-persona-audit-2026-09-01.md), [drill log](../operations/restore_drill_log.md) | Evidence owner |
+| What actually happened? | Dated scoped immutable record | [Audits](../archive/audits/erp-deep-persona-audit-2026-09-01.md), [drill log](../operations/restore-drill-log.md) | Evidence owner |
 | Is it secure/compliant or legally suitable? | Qualified applicability/control evidence | [Security register](../security/README.md); no blanket certification | Security/privacy/legal owners |
 | Where do I resume development? | Short handover + developer procedures | [Handover](../ai_handover.md); split pending 48.8 | Engineering owner |
 

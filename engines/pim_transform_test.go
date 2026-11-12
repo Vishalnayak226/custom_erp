@@ -6,7 +6,7 @@ import "testing"
 // in pimTransformFunctions is a plain string transform with no tenant/DB
 // dependency, the same reasoning currency_fx_test.go gives for keeping its
 // sign-convention tests off a live rate table. The DB-backed seam
-// (ApplyPIMTransformRule/fetchPIMTransformRule) and the two consumers
+// (ApplyPIMTransformRuleCtx/fetchPIMTransformRule) and the two consumers
 // (BuildChannelPayload, Stage 36.3's import path) are proven by the
 // throwaway-server live HTTP pass, not here.
 

@@ -9,8 +9,8 @@
   "checksum_encoding": "utf-8-lf",
   "outputs": [
     {
-      "path": "docs/brain/BRAIN.md",
-      "sha256": "4694df3c5d2bb9c3be9e8baa5f1414b27d2e2ca96ca5a7eb780af42c16b99eb1",
+      "path": "docs/brain/brain-map.md",
+      "sha256": "502bab4d0d487d8253590e8bd45b04fb3a110a0a9c90da79b72698047bf60681",
       "sources": [
         "docs/brain/brain.map.json",
         "graphify-out/graph.json",
@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/brain/brain.html",
-      "sha256": "99d3fd7dcd11aefb53747db1afe8da036dbf84de3906f950fbad92b925bb9f68",
+      "sha256": "550d792ed6a55c0db7aa1a48cb22984beb82b05dcba4cfccfa5a0f4c562780f9",
       "sources": [
         "docs/brain/brain.map.json",
         "graphify-out/graph.json",

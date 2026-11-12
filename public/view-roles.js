@@ -20,6 +20,8 @@ if (!document.getElementById('view-roles-css')) {
 .roles-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
 .roles-toolbar .form-input { width: 260px; max-width: 100%; }
 .roles-toolbar .roles-held { margin-left: auto; font-size: 13px; color: var(--text-muted); }
+.roles-toolbar .roles-landing { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.roles-toolbar .roles-landing .form-input { width: auto; }
 .roles-matrix-wrap { overflow-x: auto; }
 .roles-matrix th.roles-col, .roles-matrix td.roles-col { text-align: center; width: 96px; }
 .roles-matrix input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; vertical-align: middle; }
@@ -101,11 +103,12 @@ function summarise(role) {
 }
 
 export async function renderRolesView(container) {
-  const [permsRes, rolesRes, usersRes, storesRes] = await Promise.all([
+  const [permsRes, rolesRes, usersRes, storesRes, landRes] = await Promise.all([
     apiFetch('/api/v1/admin/role-permissions'),
     apiFetch('/api/v1/admin/roles'),
     apiFetch('/api/v1/admin/users'),
-    apiFetch('/api/v1/admin/roles/stores')
+    apiFetch('/api/v1/admin/roles/stores'),
+    apiFetch('/api/v1/admin/roles/landing')
   ]);
   if (!permsRes || !rolesRes) return;
   if (!permsRes.ok || !rolesRes.ok) { renderErrorPanel(container, 'Failed to load roles.', () => renderView('roles')); return; }
@@ -114,6 +117,7 @@ export async function renderRolesView(container) {
   const users = usersRes && usersRes.ok ? await usersRes.json().catch(() => []) : [];
   // Stage 85.A1: each role's store access, for the list's Stores column.
   storesByRole = storesRes && storesRes.ok ? ((await storesRes.json().catch(() => ({}))).roles || {}) : {};
+  landing = landRes && landRes.ok ? await landRes.json().catch(() => ({})) : {};
   storeModule = await loadViewModule('/view-store.js?v=1').catch(() => null);
 
   grantsByRole = new Map();
@@ -144,15 +148,15 @@ export async function renderRolesView(container) {
         <form class="roles-new-form" id="roles-new-form" novalidate>
           <div class="form-group">
             <label class="form-label" for="new-role-name">Role name<span class="required">*</span></label>
-            <input type="text" id="new-role-name" class="form-input" style="width: 220px;" placeholder="e.g. Purchase Clerk" maxlength="60" autocomplete="off">
+            <input type="text" id="new-role-name" class="form-input s-30080b" placeholder="e.g. Purchase Clerk" maxlength="60" autocomplete="off">
           </div>
-          <div class="form-group" style="flex: 1; min-width: 220px;">
+          <div class="form-group s-1b6393">
             <label class="form-label" for="new-role-description">Description</label>
             <input type="text" id="new-role-description" class="form-input" placeholder="What this role is for" autocomplete="off">
           </div>
           <button class="btn btn-primary" type="submit">Create Role</button>
         </form>
-        <div id="new-role-error" class="login-error hidden" style="margin: 0 24px 24px;"></div>
+        <div id="new-role-error" class="login-error hidden s-dbc0cc"></div>
       </div>
     </div>
     <div data-pane="access" class="hidden"><div class="table-panel" id="roles-access"></div></div>
@@ -187,7 +191,7 @@ function drawList(ordered) {
   const host = document.getElementById('roles-list');
   if (!host) return;
   if (!ordered.length) {
-    host.innerHTML = `<div class="empty-state-hint" style="padding: 24px;">No roles yet.</div>`;
+    host.innerHTML = `<div class="empty-state-hint s-ac532f">No roles yet.</div>`;
     return;
   }
   host.innerHTML = `
@@ -202,11 +206,11 @@ function drawList(ordered) {
           : '<span class="roles-muted">No access yet</span>';
         const who = holders.length ? `${holders.length} <span class="roles-muted">· ${escapeHTMLText(holders.slice(0, 3).join(', '))}${holders.length > 3 ? ', …' : ''}</span>` : '<span class="roles-muted">None</span>';
         return `<tr data-role="${escapeHTMLText(role)}"${admin ? ' data-admin="1"' : ''}>
-          <td style="font-weight: 600;">${escapeHTMLText(role)}</td>
+          <td class="s-21a1be">${escapeHTMLText(role)}</td>
           <td>${access}</td>
           <td>${admin ? 'All stores' : escapeHTMLText(roleStoresText(role))}</td>
           <td>${who}</td>
-          <td style="text-align: right;">${admin ? '' : `<button type="button" class="btn btn-outline btn-sm" data-role-stores>Stores</button> <button type="button" class="btn btn-outline btn-sm">Set access</button>`}</td>
+          <td class="s-30489c">${admin ? '' : `<button type="button" class="btn btn-outline btn-sm" data-role-stores>Stores</button> <button type="button" class="btn btn-outline btn-sm">Set access</button>`}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
@@ -220,6 +224,7 @@ function drawList(ordered) {
 // Stage 85.A1 (user: "First role than user"): a role's store access - All
 // stores (new ones included), Selected, or each user's home store only.
 let storesByRole = {};
+let landing = {}; // 47.14.5: { options: [{key,label}], roles: { name: {view, template} } }
 let storeModule = null;
 function roleStoresText(role) {
   const s = storesByRole[role];
@@ -262,6 +267,7 @@ function drawAccess() {
       <button type="button" class="btn btn-outline btn-sm" id="roles-expand">Expand all</button>
       <button type="button" class="btn btn-outline btn-sm" id="roles-collapse">Collapse all</button>
       <button type="button" class="btn btn-outline btn-sm" id="roles-history-btn">History</button>
+      <label class="roles-landing">Opens on <select class="form-input" id="roles-landing" aria-label="Opens on"><option value="">Default</option>${(landing.options || []).map(o => `<option value="${escapeHTMLText(o.key)}"${o.key === (landing.roles?.[selectedRole]?.view || '') ? ' selected' : ''}>${escapeHTMLText(o.label)}</option>`).join('')}</select></label>
       <button type="button" class="btn btn-outline btn-sm" id="roles-stores" title="Which stores holders of this role work at">Stores: ${escapeHTMLText(roleStoresText(selectedRole))}</button>
       <span class="roles-held">${holders.length ? `Held by ${holders.length} user${holders.length === 1 ? '' : 's'}: ${escapeHTMLText(holders.slice(0, 5).join(', '))}${holders.length > 5 ? ', …' : ''}` : 'No user holds this role yet.'}</span>
     </div>
@@ -286,6 +292,7 @@ function drawAccess() {
   host.querySelector('#roles-discard').addEventListener('click', () => { draft = cloneGrants(saved); syncTicks(); });
   host.querySelector('#roles-save').addEventListener('click', saveAccess);
   host.querySelector('#roles-stores').addEventListener('click', () => editRoleStores(selectedRole));
+  host.querySelector('#roles-landing').addEventListener('change', saveLanding);
   host.querySelector('#roles-history-btn').addEventListener('click', toggleHistory);
 
   const body = host.querySelector('#roles-matrix-body');
@@ -343,7 +350,7 @@ function drawRows() {
       }
     }
   }
-  body.innerHTML = html || `<tr><td colspan="${COLS.length + 2}" class="roles-muted" style="text-align: center;">Nothing matches "${escapeHTMLText(filterText)}".</td></tr>`;
+  body.innerHTML = html || `<tr><td colspan="${COLS.length + 2}" class="roles-muted s-65f9d5">Nothing matches "${escapeHTMLText(filterText)}".</td></tr>`;
   syncTicks();
 }
 
@@ -399,6 +406,15 @@ function syncTicks() {
 
 // 49.3.6: the role's change history, each change with an Undo that rolls it
 // back (later decisions stand; a dangerous grant is never handed back).
+async function saveLanding(e) {
+  const sel = e.currentTarget, role = selectedRole;
+  const res = await apiFetch('/api/v1/admin/roles/landing', { method: 'POST', body: JSON.stringify({ role, view: sel.value }) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res); return; }
+  landing = await res.json().catch(() => landing);
+  showToast(sel.value ? 'Saved' : 'Cleared');
+}
+
 async function toggleHistory() {
   const box = document.getElementById('roles-history');
   if (!box) return;
@@ -408,9 +424,9 @@ async function toggleHistory() {
   const changes = (await res.json().catch(() => ({}))).changes || [];
   const risk = c => [...(c.dangerous_gained || []).map(g => '+ ' + (g.doctype ? getDoctypeLabel(g.doctype) : g.capability)), ...(c.dangerous_removed || []).map(g => '- ' + (g.doctype ? getDoctypeLabel(g.doctype) : g.capability))].join(', ');
   box.innerHTML = changes.length ? `<div class="table-panel"><table><thead><tr><th>When</th><th>By</th><th>Reason</th><th>Sensitive</th><th></th></tr></thead><tbody>${changes.map(c => `<tr>
-    <td>${escapeHTMLText(new Date(c.changed_at).toLocaleString())}</td><td>${escapeHTMLText(c.changed_by)}</td>
+    <td>${escapeHTMLText(formatDateTime(c.changed_at))}</td><td>${escapeHTMLText(c.changed_by)}</td>
     <td>${escapeHTMLText(c.rollback_of ? 'Undo. ' + c.reason : c.reason)}</td><td>${escapeHTMLText(risk(c))}</td>
-    <td style="text-align: right;">${c.rollback_of ? 'Undo' : c.rolled_back_by ? 'Undone' : `<button type="button" class="btn btn-outline btn-sm" data-undo="${escapeHTMLText(c.id)}">Undo</button>`}</td></tr>`).join('')}</tbody></table></div>` : '<div class="roles-risk-line">No changes yet.</div>';
+    <td class="s-30489c">${c.rollback_of ? 'Undo' : c.rolled_back_by ? 'Undone' : `<button type="button" class="btn btn-outline btn-sm" data-undo="${escapeHTMLText(c.id)}">Undo</button>`}</td></tr>`).join('')}</tbody></table></div>` : '<div class="roles-risk-line">No changes yet.</div>';
   box.classList.remove('hidden');
   box.onclick = async e => {
     const btn = e.target.closest('[data-undo]');

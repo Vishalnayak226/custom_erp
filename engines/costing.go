@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 )
 
@@ -190,6 +191,19 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 	// Stage 62: a priced GRN costs at the vendor's invoice rate (stamped on
 	// its lines, multi-PO aware); an older GRN still costs from its PO.
 	grnCosts := grnLineUnitCostsPaise(tenantID, grnID)
+	// 148.57: stock takes whole units per line (as the hold does, 148.56), so
+	// costing does too: a part unit adds no value and no quantity to the average.
+	whole := acceptedLines[:0:0]
+	for _, l := range acceptedLines {
+		if l.Qty = math.Trunc(l.Qty); l.Qty > 0 {
+			whole = append(whole, l)
+		}
+	}
+	if handled, err := memoReceiptTx(tx, tenantID, schema, grnID, part, whole, grnCosts, poID); err != nil { // 148.16
+		return err
+	} else if handled {
+		return nil
+	}
 	var totalValuePaise int64
 	var inventoryLines []groupLine
 	// Stage 72.10: a non-valuated or non-stock item is expensed at receipt -
@@ -201,7 +215,7 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 	// Stage 148.1: the part's stock has already posted, so the units still to be
 	// costed here come off the stock in hand each line blends with. SKU order, for
 	// the item_cost locks.
-	lines := append(acceptedLines[:0:0], acceptedLines...)
+	lines := whole
 	sort.SliceStable(lines, func(i, j int) bool { return lines[i].SKU < lines[j].SKU })
 	stockIn := map[string]float64{}
 	for _, line := range lines {
@@ -275,6 +289,9 @@ func CreateLandedCostVoucher(tenantID, grnID string, chargeLines []map[string]in
 	grnData, _, err := fetchDocData(tenantID, "GRN", grnID)
 	if err != nil {
 		return "", fmt.Errorf("grn_reference: %v", err)
+	}
+	if isMemoReceipt(tenantID, grnID, grnData) { // 148.16: its units carry no value to add to
+		return "", memoNoBillOnReceipt()
 	}
 	if len(chargeLines) == 0 {
 		return "", fmt.Errorf("at least one charge line is required")
@@ -427,6 +444,9 @@ func ValidateLandedCostVoucherDocument(tenantID string, payload map[string]inter
 	if grnID == "" {
 		return nil
 	}
+	if grn, _, gerr := fetchDocData(tenantID, "GRN", grnID); gerr == nil && isMemoReceipt(tenantID, grnID, grn) { // 148.16
+		return memoNoBillOnReceipt()
+	}
 	var exists bool
 	if err := db.DB.QueryRow(fmt.Sprintf(
 		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'GRN' AND id = $1 AND deleted_at IS NULL)`, schema),
@@ -457,6 +477,7 @@ func GetInventoryValuation(tenantID string) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	memoOpen := memoOpenBySKU(db.DB, schema) // 148.16: a vendor's units are not our stock value
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT ia.sku, SUM(ia.on_hand) AS qty, COALESCE(ic.avg_unit_cost_paise, 0)
 		FROM %s.inventory_availability ia
@@ -477,12 +498,12 @@ func GetInventoryValuation(tenantID string) ([]map[string]interface{}, error) {
 		if err := rows.Scan(&sku, &qty, &unitCostPaise); err != nil {
 			return nil, err
 		}
-		value, source := unitCostPaise*qty, costSourceAverage
+		value, source := unitCostPaise*max(qty-int64(memoOpen[sku]), 0), costSourceAverage
 		if unitCostPaise == 0 {
 			source = costSourceNone
 		}
 		if p, ok := pieces[sku]; ok && p.covers(qty, unitCostPaise) {
-			value, source = p.value, costSourceOwn
+			value, source = p.value-int64(memoOpen[sku])*unitCostPaise, costSourceOwn // 148.16
 		}
 		out = append(out, map[string]interface{}{
 			"sku": sku, "qty_on_hand": qty,

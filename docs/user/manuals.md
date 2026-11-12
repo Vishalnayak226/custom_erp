@@ -42,10 +42,10 @@ repository. Keep the repository layout when distributing these files. For a
 single-file print export, open the edition in a browser and print to PDF; review
 page breaks and table readability for the chosen paper size.
 
-The older [User Guide](../guides/USER_GUIDE.md) and
-[Admin Guide](../guides/ADMIN_GUIDE.md) remain transitional sources until their
+The older [User Guide](../guides/user-guide.md) and
+[Admin Guide](../guides/admin-guide.md) remain transitional sources until their
 unique sections and published links have passed parity review. The
-[User SOP](../guides/USER_SOP.md) and [Admin SOP](../guides/ADMIN_SOP.md) likewise
+[User SOP](../guides/user-sop.md) and [Admin SOP](../guides/admin-sop.md) likewise
 remain inputs to customer-approved procedures. Generation has not completed that
 migration or authorized deleting any legacy guide.
 

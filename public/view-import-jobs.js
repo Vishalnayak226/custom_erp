@@ -7,7 +7,7 @@
 function importWhen(value) {
   if (!value) return '—';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? String(value) : formatDateTime(d);
 }
 
 async function downloadFailedRows(jobID) {
@@ -22,7 +22,7 @@ async function downloadFailedRows(jobID) {
   URL.revokeObjectURL(url);
 }
 
-const importNum = v => escapeHTMLText(Number(v || 0).toLocaleString());
+const importNum = v => escapeHTMLText(formatNumber(v || 0));
 
 // Stage 47.13.3: the job's control totals and the file it came from.
 function totalsHTML(job) {
@@ -73,10 +73,10 @@ async function openImportResume(jobID) {
       <div class="modal-body">
         <div id="import-resume-summary">${summaryHTML(job)}</div>
         <div id="import-resume-steps"${job.resumable ? '' : ' hidden'}>
-          <ol style="padding-left:18px;margin:8px 0;">
+          <ol class="s-2fbc99">
             <li><button type="button" class="btn btn-outline btn-sm" id="import-resume-download">Download failed rows</button> - each row with its reason; keep the <code>original_row</code> column.</li>
             <li>Fix the rows (delete any you will not import now), then choose the file:
-              <input type="file" id="import-resume-file" accept=".csv" class="form-input" aria-label="Corrected failed rows CSV" style="margin-top:6px;"></li>
+              <input type="file" id="import-resume-file" accept=".csv" class="form-input s-fe7b49" aria-label="Corrected failed rows CSV"></li>
             <li><button type="button" class="btn btn-outline btn-sm" id="import-resume-check">Check</button> validates without writing, then <button type="button" class="btn btn-primary btn-sm" id="import-resume-run" disabled>Resume</button> imports only these rows.</li>
           </ol>
         </div>
@@ -129,11 +129,11 @@ async function openImportResume(jobID) {
 // The Import Job list's lookup: open a job by its id.
 function renderImportJobPanel(host) {
   host.innerHTML = `
-    <div class="table-panel" style="padding:16px 24px;margin-bottom:24px;">
-      <h2 style="font-size:16px;margin:0 0 8px;">Fix and resume an import</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="import-job-lookup">Import job</label>
-          <input id="import-job-lookup" class="form-input" style="width:240px;" placeholder="IMPJOB-…"></div>
+    <div class="table-panel s-bd6ccb">
+      <h2 class="s-78a190">Fix and resume an import</h2>
+      <div class="s-58cada">
+        <div class="form-group s-ef0b7a"><label class="form-label" for="import-job-lookup">Import job</label>
+          <input id="import-job-lookup" class="form-input s-30196d" placeholder="IMPJOB-…"></div>
         <button class="btn btn-outline" id="import-job-open">Open</button>
       </div>
     </div>`;

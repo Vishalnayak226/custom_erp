@@ -129,11 +129,11 @@ type warehouseOwnerConfig struct {
 
 const warehouseOwnerNote = "Warehouse/Location is NOT where ownership lives: the 'Location' doctype " +
 	"(tenant_default.documents, doctype='Location') has fields code/name/type/legal_entity/status only " +
-	"- no owner concept, first-class or otherwise (see db/migrations_stage17h_location_masters.sql). " +
+	"- no owner concept, first-class or otherwise (see db/migrations/migrations_stage17h_location_masters.sql). " +
 	"Ownership is tracked one level down: (1) the 'Bin' doctype's optional owner_id field " +
-	"(db/migrations_stage26_5_wms_p2.sql, Stage 26.5.15) - a bin is either unowned or wholly one owner's; " +
+	"(db/migrations/migrations_stage26_5_wms_p2.sql, Stage 26.5.15) - a bin is either unowned or wholly one owner's; " +
 	"(2) since Stage 42.5.5, the bin_stock_owner breakdown table " +
-	"(db/migrations_stage42_5_5_owner_segregation.sql) lets a single bin/SKU/condition be split across " +
+	"(db/migrations/migrations_stage42_5_5_owner_segregation.sql) lets a single bin/SKU/condition be split across " +
 	"multiple owners, with Bin.owner_id remaining the fallback attribution for any slice that has no " +
 	"explicit bin_stock_owner row (see engines/wms_owner_stock.go's ownerStockQty for the exact combined " +
 	"query). This is exactly the gap Stage 47.5 (3PL owner enforcement) is scoped to close - the user " +

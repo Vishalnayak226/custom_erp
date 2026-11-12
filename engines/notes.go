@@ -90,6 +90,14 @@ func creditNoteDebitsPaise(tx *sql.Tx, schema, invoiceID, noteID string, notePai
 // reusing 1200/5100 - those carry a sale-specific COGS meaning elsewhere
 // (PostSalesFinanceBooking) that a purchase-side adjustment shouldn't disturb.
 func PostDebitNote(tenantID, noteID, userID string) (amount int, err error) {
+	return postDebitNoteWith(tenantID, noteID, userID, nil)
+}
+
+// postDebitNoteWith is PostDebitNote with an optional step that runs in the
+// same transaction after the note's own GL posting and before the Posted
+// stamp (Stage 162.9): a failure in it rolls the whole posting back, so the
+// ledger and the note can never disagree.
+func postDebitNoteWith(tenantID, noteID, userID string, also func(tx *sql.Tx, schema string) error) (amount int, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, err
@@ -124,8 +132,13 @@ func PostDebitNote(tenantID, noteID, userID string) (amount int, err error) {
 
 	debits := map[string]int64{"2100": RupeesToPaise(amountF)}
 	credits := map[string]int64{"5150": RupeesToPaise(amountF)}
-	if err := PostDoubleEntry(tenantID, "DebitNote", noteID, debits, credits, "", fmt.Sprintf("DebitNote:%s:POST", noteID)); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "DebitNote", noteID, debits, credits, "", fmt.Sprintf("DebitNote:%s:POST", noteID)); err != nil {
 		return 0, postingError(err, "note not marked Posted") // 73.D.14: a coded refusal keeps its code
+	}
+	if also != nil {
+		if err := also(tx, schema); err != nil {
+			return 0, err
+		}
 	}
 
 	data["status"] = "Posted"
@@ -184,6 +197,9 @@ func PostCreditNote(tenantID, noteID, userID string) (amount int, err error) {
 		return 0, fmt.Errorf("amount must be positive to post")
 	}
 	amount = int(amountF)
+	if err := checkCreditNoteReceiptTx(tx, tenantID, schema, data); err != nil { // Stage 148.28
+		return 0, err
+	}
 
 	// Stage 73 / 55.10: a note that names an open (Approved) SalesInvoice -
 	// every cancellation note does - first reduces what that customer still
@@ -211,7 +227,7 @@ func PostCreditNote(tenantID, noteID, userID string) (amount int, err error) {
 			return 0, derr
 		}
 		credits := map[string]int64{"1100": RupeesToPaise(amountF)}
-		if err := PostDoubleEntry(tenantID, "CreditNote", noteID, debits, credits, "", fmt.Sprintf("CreditNote:%s:POST", noteID)); err != nil {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "CreditNote", noteID, debits, credits, "", fmt.Sprintf("CreditNote:%s:POST", noteID)); err != nil {
 			return 0, postingError(err, "note not marked Posted")
 		}
 	}
@@ -234,5 +250,6 @@ func PostCreditNote(tenantID, noteID, userID string) (amount int, err error) {
 		return 0, err
 	}
 	LogAuditEvent(tenantID, userID, "POST_CREDIT_NOTE", "SUCCESS", fmt.Sprintf("Posted credit note %s amount=%d", noteID, amount))
+	ClawbackCreditNoteIncentives(tenantID, noteID, data) // 148.30
 	return amount, nil
 }

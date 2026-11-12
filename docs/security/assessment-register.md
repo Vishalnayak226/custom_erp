@@ -38,7 +38,7 @@ testing itself and are labelled as such.
 | Date | Kind | Viewpoint and scope | By | Evidence | Expires |
 |---|---|---|---|---|---|
 | 2026-09-01 | internal-persona | Deep persona audit: CEO, admin, operator, auditor viewpoints over the whole ERP | development sessions | `docs/archive/audits/erp-deep-persona-audit-2026-09-01.md` | 2027-02-28 |
-| 2026-09-08 | internal-persona | Outside-in attacker: unauthenticated surface, headers, TLS, exposed routes | development sessions | `docs/security/outside_in_verification_2026-09-08.md` | 2027-03-07 |
+| 2026-09-08 | internal-persona | Outside-in attacker: unauthenticated surface, headers, TLS, exposed routes | development sessions | `docs/security/outside-in-verification-2026-09-08.md` | 2027-03-07 |
 | 2026-09-16 | internal-persona | Maturity audit: 136 controls incl. security, tenancy and recovery | development sessions | `docs/archive/audits/erp-independent-audit-2026-09-16.md` | 2027-03-15 |
 | 2026-09-23 | internal-persona | Provider and extension abuse: bad signatures, duplicate and out-of-order webhooks, hostile hook targets (BLD-031) | development sessions | `engines/bld031_provider_extension_contract_test.go` | 2027-03-22 |
 | 2026-10-25 | internal-persona | Attacker and insider: MFA bypass, reset races, purged-tenant tokens, existence disclosure, formula injection (Stages 47 / 49) | development sessions | ledger §293 | 2027-04-23 |

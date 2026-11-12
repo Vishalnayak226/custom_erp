@@ -742,6 +742,7 @@ func crmMarkTx(tx *sql.Tx, schema, id, status, code, detail string, extra map[st
 func crmHandOver(schema string, s *crmSendRow, d crmDecision) {
 	if d.sender.Provider != CRMProviderMock {
 		if sb, _ := IsSandboxSchema(schema); sb {
+			noteSandboxSuppressed(schema, d.sender.Provider)
 			_ = crmRecordOutcome(schema, s.ID, crmSendSimulated, "", "simulated - a sandbox client does not send to real providers", nil, "system")
 			return
 		}

@@ -24,7 +24,7 @@ let gs = null; // { id, view, page, edit, mrp, moves, names, root, onChanged }
 const esc = (s) => escapeHTMLText(s == null ? '' : String(s));
 const money = (v) => formatMoney(Number(v) || 0);
 // Stage 94.15: an MRP is a whole rupee, shown without paise.
-const mrpText = (v) => { const n = Number(v) || 0; return Number.isInteger(n) ? n.toLocaleString('en-IN') : money(n); };
+const mrpText = (v) => { const n = Number(v) || 0; return Number.isInteger(n) ? formatNumber(n) : money(n); };
 const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
 // Stage 110.1: a line of a GST-inclusive PO shows and takes its prices incl.
 // GST, like its PO; the server keeps them ex-GST. A price typed back to what
@@ -152,7 +152,7 @@ function totalsHTML(v) {
     (v.lines || []).forEach(l => {
       const e = gs.edit[l.line_no] || {};
       const inc = inclOf(l, 'grn_price');
-      ours += inc !== null ? Math.round(keptQty(l, e) * inc * 100) / 100 : keptQty(l, e) * (num(e.grn_price) ?? 0) * (1 + (Number(l.gst_rate) || 0) / 100);
+      ours += inc !== null ? Math.round(keptQty(l, e) * exactOf(l, inc) * 100) / 100 : keptQty(l, e) * exactOf(l, num(e.grn_price) ?? 0) * (1 + (Number(l.gst_rate) || 0) / 100);
     });
     ours = Math.round(ours * 100) / 100;
   }
@@ -211,7 +211,7 @@ const notAllowed = (k) => canDo(k) ? '' : `<span class="text-muted">Your role do
 // transport, editable until the receipt posts.
 function logisticsHTML(g) {
   const f = (key, label, type = 'text') => `<div class="form-group"><label class="form-label" for="gs-log-${key}">${label}</label><input id="gs-log-${key}" data-gs-log="${key}" type="${type}" class="form-input" value="${esc(type === 'number' && !g[key] ? '' : g[key])}"></div>`;
-  return `<details class="grn-logistics"${Object.values(g).some(Boolean) ? ' open' : ''}><summary style="cursor:pointer;font-weight:600;margin:6px 0;">Supplier documents and transport</summary>
+  return `<details class="grn-logistics"${Object.values(g).some(Boolean) ? ' open' : ''}><summary class="s-3afd6c">Supplier documents and transport</summary>
     <div class="gs-form-row">${f('vendor_challan_no', 'Vendor challan no')}${f('vendor_challan_date', 'Challan date', 'date')}${f('lr_awb_no', 'LR / AWB no')}
       ${f('vehicle_no', 'Vehicle no')}${f('transporter', 'Transporter')}${f('package_count', 'Packages', 'number')}</div></details>`;
 }
@@ -261,6 +261,11 @@ function priceShown(l, field) {
 // Stage 130.1: a GST-inclusive line's price incl. GST, sent with the ex-GST one
 // so the server works the line from it (null for a line priced before GST).
 const inclOf = (l, field) => (l.gst_inclusive ? num(priceShown(l, field)) : null);
+// Stage 148.35: a pack line's exact price a piece, while the box still shows it.
+const exactOf = (l, shown) => {
+  const x = Number(l.exact_unit_price) || 0;
+  return x > 0 && Math.abs(Math.round(x * 100) / 100 - shown) < 0.005 ? x : shown;
+};
 
 // 118.4: the product name, then design · Combination ID · batch, then the
 // Colour / Size... values in the client's attribute order - as the GRN line
@@ -375,7 +380,7 @@ function postHTML(v) {
         <td>${itemCell(l)}</td><td class="num">${l.accepted_qty}</td><td class="num">${money(l.grn_price)}</td>
         <td class="num">${l.current_mrp ? mrpText(l.current_mrp) : '<span class="text-muted">none</span>'}</td>
         <td class="num">${posted ? mrpText(l.mrp) : numInput(l.line_no, 'mrp', gs.mrp[l.line_no], '1')}</td>
-        <td class="num">${l.suggested_mrp ? mrpText(l.suggested_mrp) : ''}${l.suggested_mrp && l.suggested_mrp_rule ? `<div class="text-muted" style="font-size: 11px;" title="MRP rule (Setup &gt; MRP Rule)">${esc(l.suggested_mrp_rule)}</div>` : ''}</td>
+        <td class="num">${l.suggested_mrp ? mrpText(l.suggested_mrp) : ''}${l.suggested_mrp && l.suggested_mrp_rule ? `<div class="text-muted s-a11453" title="MRP rule (Setup &gt; MRP Rule)">${esc(l.suggested_mrp_rule)}</div>` : ''}</td>
         <td class="num">${margin == null ? '' : margin + '%'}</td><td>${posted ? '' : warn}</td></tr>`;
     }).join('');
     return `<section class="gs-child">
@@ -417,7 +422,7 @@ function payHTML(v) {
   const correct = gs.correcting ? correctHTML(v) : '';
   return `
     <div class="gs-summary">
-      <span>Vendor bill ${v.vendor_bill_id ? `<b title="${esc(v.vendor_bill_id)}">${esc(v.vendor_invoice_no)}</b> (${esc(v.vendor_bill_status || '')})` : '<span class="gs-amber">not made yet</span>'}</span>
+      <span>${v.memo_stock ? 'Memo stock · billed on sale' : `Vendor bill ${v.vendor_bill_id ? `<b title="${esc(v.vendor_bill_id)}">${esc(v.vendor_invoice_no)}</b> (${esc(v.vendor_bill_status || '')})` : '<span class="gs-amber">not made yet</span>'}`}</span>
       ${notes ? `<span>${notes}</span>` : ''}
       <span>Paid <b>${money(v.paid_amount)}</b></span>
       <span>Due <b>${money(v.net_payable)}</b></span>
@@ -425,7 +430,7 @@ function payHTML(v) {
     ${payments}
     ${form}
     ${correct}
-    ${actionsHTML(canDo('correct') && !gs.correcting ? `<button type="button" class="btn btn-outline" data-gs="correct-open">Correct</button>` : '',
+    ${actionsHTML(canDo('correct') && !gs.correcting && !v.memo_stock ? `<button type="button" class="btn btn-outline" data-gs="correct-open">Correct</button>` : '',
       form ? `<button type="button" class="btn btn-primary" data-gs="pay">Pay</button>` : (v.net_payable > 0.004 ? notAllowed('pay') : '<span class="gs-ok">Nothing is due.</span>'),
       form ? `<button type="button" class="btn btn-outline" data-gs="leave">Leave it in Payables</button>` : '')}`;
 }
@@ -457,7 +462,7 @@ function changesHTML(v) {
   if (!rows.length) return '';
   return `<details class="gs-log"><summary>Changes (${rows.length})</summary><div class="txn-grid"><table>
     <thead><tr><th>When</th><th>Step</th><th>Line</th><th>Field</th><th>Was</th><th>Now</th><th>Why</th><th>By</th></tr></thead>
-    <tbody>${rows.map(c => `<tr><td>${esc(new Date(c.changed_at).toLocaleString())}</td><td>${esc(c.step)}</td><td>${c.line_no || ''} ${esc(c.sku || '')}</td>
+    <tbody>${rows.map(c => `<tr><td>${esc(formatDateTime(c.changed_at))}</td><td>${esc(c.step)}</td><td>${c.line_no || ''} ${esc(c.sku || '')}</td>
       <td>${esc(c.field.replace(/_/g, ' '))}</td><td>${esc(c.old)}</td><td>${esc(c.new)}</td><td>${esc(c.reason || '')}</td><td>${esc(c.by || '')}</td></tr>`).join('')}</tbody>
   </table></div></details>`;
 }
@@ -657,6 +662,7 @@ const TABS = [
   { key: 'verify', label: 'To verify' },
   { key: 'price', label: 'To price' },
   { key: 'pay', label: 'Ready to pay' },
+  { key: 'po', label: 'Waiting for PO' },
   { key: 'done', label: 'Done' }
 ];
 
@@ -671,17 +677,18 @@ function ageText(h) {
 export function renderGRNInbox(el, rows, onOpen, tab) {
   const current = tab || (TABS.find(t => rows.some(r => r.tab === t.key)) || TABS[0]).key;
   const counts = {};
-  TABS.forEach(t => {
+  const shown = TABS.filter(t => t.key !== 'po' || rows.some(r => r.tab === 'po')); // 148.49: only when a bill waits
+  shown.forEach(t => {
     const mine = rows.filter(r => r.tab === t.key);
     counts[t.key] = { n: mine.length, oldest: mine.reduce((m, r) => Math.max(m, r.age_hours), 0) };
   });
   const list = rows.filter(r => r.tab === current);
   el.innerHTML = `
-    <div class="gs-tabs" role="tablist">${TABS.map(t => `<button type="button" role="tab" class="gs-tab${t.key === current ? ' active' : ''}" aria-selected="${t.key === current}" data-gs-tab="${t.key}">
+    <div class="gs-tabs" role="tablist">${shown.map(t => `<button type="button" role="tab" class="gs-tab${t.key === current ? ' active' : ''}" aria-selected="${t.key === current}" data-gs-tab="${t.key}">
       ${t.label} <span class="txn-count">${counts[t.key].n}</span>${t.key !== 'done' && counts[t.key].n ? `<span class="text-muted"> oldest ${ageText(counts[t.key].oldest)}</span>` : ''}</button>`).join('')}</div>
     <table><thead><tr><th>GRN</th><th>Vendor</th><th>Invoice</th><th class="num">Invoice total</th><th>Waiting</th><th></th></tr></thead>
     <tbody>${list.length ? list.map(r => `<tr>
-      <td style="font-family: monospace;">${esc(r.code)}</td><td>${esc(r.vendor_name || r.vendor)}</td><td>${esc(r.vendor_invoice_no)}</td>
+      <td class="s-355794">${esc(r.code)}</td><td>${esc(r.vendor_name || r.vendor)}</td><td>${esc(r.vendor_invoice_no)}</td>
       <td class="num">${money(r.vendor_invoice_amount)}</td>
       <td>${esc(ageText(r.age_hours))}${r.excess_pending ? ' <span class="gs-amber">approval pending</span>' : ''}${r.payment_status ? ` &middot; ${esc(r.payment_status)}` : ''}</td>
       <td><button type="button" class="btn btn-outline btn-sm" data-gs-open="${esc(r.id)}">Open</button></td></tr>`).join('')

@@ -8,13 +8,13 @@ Usage:
   .\manage.ps1 restart              stop then start (dev)
   .\manage.ps1 status               show what's currently running (dev)
   .\manage.ps1 logs                 show the last lines of both log files (dev)
-  .\manage.ps1 release              stop erp-server if running, rebuild it stripped (-ldflags="-s -w"),
+  .\manage.ps1 release              stop erp-server if running, rebuild bin\erp-server.exe stripped (-ldflags="-s -w"),
                                      report the size change. Does not restart it - run 'start' after.
   .\manage.ps1 <action> -Env test   same actions, targeting the 'test' environment instead of 'dev'
                                      (own port/database, per environments.json - see promote.ps1
                                      for how a commit actually gets there). -Env live works the same way.
   .\manage.ps1 backup               create timestamped, AES-256 encrypted custom-format dumps of
-                                     dev, test, and live (see docs/operations/backup_restore.md)
+                                     dev, test, and live (see docs/operations/backup-restore.md)
   .\manage.ps1 export-tenant -TenantSchema tenant_acme
                                      export ONE tenant's schema (26.1.6), encrypted and checksummed
                                      the same way a full backup is. On-demand only - the nightly
@@ -80,7 +80,7 @@ $PgData   = "$env:USERPROFILE\pg-data"
 $PgPort   = $resolved.PgPort
 $GoBin    = "$env:USERPROFILE\go-portable\go\bin"
 $ErpDir   = $resolved.ErpDir
-$ErpExe   = Join-Path $ErpDir "erp-server.exe"
+$ErpExe   = Join-Path $ErpDir "bin\erp-server.exe"   # builds live in bin/ (CONTRIBUTING.md Article 3)
 $ErpPort  = $resolved.ErpPort
 $ErpDatabase = $resolved.Database
 $LogDir   = Join-Path $ErpDir "logs"
@@ -157,7 +157,7 @@ function Start-Erp {
         return
     }
     if (-not (Test-Path $ErpExe)) {
-        Write-Host "erp-server.exe not found. Build it first:  go build -o erp-server.exe ./cmd/server" -ForegroundColor Red
+        Write-Host "bin\erp-server.exe not found. Build it first:  .\manage.ps1 release  (or: go build -o bin/erp-server.exe ./cmd/server)" -ForegroundColor Red
         return
     }
     if (-not (Test-PortOpen $PgPort)) {
@@ -224,7 +224,7 @@ function Build-Release {
     Write-Host "Building stripped release binary (-ldflags=`"$ldflags`")..." -ForegroundColor Cyan
     Push-Location $ErpDir
     try {
-        & "$GoBin\go.exe" build -ldflags="$ldflags" -o erp-server.exe ./cmd/server
+        & "$GoBin\go.exe" build -ldflags="$ldflags" -o $ErpExe ./cmd/server
     } finally {
         Pop-Location
     }
@@ -235,7 +235,7 @@ function Build-Release {
     }
 
     $afterSize = (Get-Item $ErpExe).Length
-    Write-Host "Build OK: erp-server.exe" -ForegroundColor Green
+    Write-Host "Build OK: bin\erp-server.exe" -ForegroundColor Green
     if ($beforeSize) {
         $savedKB = [math]::Round(($beforeSize - $afterSize) / 1KB, 0)
         Write-Host ("  {0:N0} KB -> {1:N0} KB  ({2:N0} KB smaller)" -f ($beforeSize / 1KB), ($afterSize / 1KB), $savedKB) -ForegroundColor Cyan
@@ -352,7 +352,7 @@ function Unprotect-BackupFile($EncPath) {
 function Backup-Databases {
     # Stage 17.10: any failure below alerts to OPS_ALERT_WEBHOOK_URL (via
     # Send-OpsAlert) before propagating, so a failed scheduled backup (see
-    # docs/operations/backup_restore.md's Task Scheduler recipe) is caught the same day
+    # docs/operations/backup-restore.md's Task Scheduler recipe) is caught the same day
     # rather than silently discovered at the next restore drill.
     $runStarted = Get-Date
     $currentBackupEnv = ""
@@ -496,7 +496,7 @@ function Restore-Database {
 
 # Stage 12.2: makes "monthly recovery test drill" a real, scriptable, non-interactive action instead
 # of a manual runbook step someone has to remember - always sources the newest dev backup and always
-# restores into 'test', matching docs/operations/backup_restore.md's own established drill pattern.
+# restores into 'test', matching docs/operations/backup-restore.md's own established drill pattern.
 # Deliberately refuses to ever target 'live'.
 function Invoke-RestoreDrill {
     if ($Env -eq "live") { throw "restore-drill refuses to target 'live' - it always restores into 'test' regardless of -Env." }
@@ -531,7 +531,7 @@ function Invoke-RestoreDrill {
             if ($tempPlain -and (Test-Path $tempPlain)) { Remove-Item -LiteralPath $tempPlain -Force }
         }
 
-        # Same sanity checks as the manual drill this replaces (docs/operations/backup_restore.md's
+        # Same sanity checks as the manual drill this replaces (docs/operations/backup-restore.md's
         # "Latest verified restore drill" entry, 2026-07-19): row counts on two core tables.
         $tenantCount = (& "$PgBin\psql.exe" -h localhost -p $testCfg.PgPort -U postgres -d $testCfg.Database -tAc "SELECT COUNT(*) FROM public.tenants" 2>$null).Trim()
         $doctypeCount = (& "$PgBin\psql.exe" -h localhost -p $testCfg.PgPort -U postgres -d $testCfg.Database -tAc "SELECT COUNT(*) FROM tenant_default.doctype_meta" 2>$null).Trim()
@@ -539,20 +539,20 @@ function Invoke-RestoreDrill {
 
         $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
         $logLine = "- $(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ssZ') | backup=$($latest.Name) | target=test/$($testCfg.Database) | duration=${duration}s | tenants=$tenantCount doctype_meta=$doctypeCount | verifier=automated (manage.ps1 restore-drill) | result=PASS"
-        Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore_drill_log.md") -Value $logLine
-        Write-Host "Restore drill PASSED in ${duration}s (tenants=$tenantCount, doctype_meta=$doctypeCount). Logged to docs/operations/restore_drill_log.md." -ForegroundColor Green
+        Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore-drill-log.md") -Value $logLine
+        Write-Host "Restore drill PASSED in ${duration}s (tenants=$tenantCount, doctype_meta=$doctypeCount). Logged to docs/operations/restore-drill-log.md." -ForegroundColor Green
         Log-OpsRun "restore_drill" "test" "success" "backup=$($latest.Name) tenants=$tenantCount doctype_meta=$doctypeCount duration=${duration}s" $started
     } catch {
         $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
         $logLine = "- $(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ssZ') | duration=${duration}s | verifier=automated (manage.ps1 restore-drill) | result=FAIL | error=$($_.Exception.Message)"
-        Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore_drill_log.md") -Value $logLine
+        Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore-drill-log.md") -Value $logLine
         Log-OpsRun "restore_drill" "test" "failed" "$($_.Exception.Message)" $started
         Send-OpsAlert "Monthly restore drill FAILED: $($_.Exception.Message)"
         throw
     }
 }
 
-# Stage 12.2: converts docs/operations/backup_restore.md's manual Task Scheduler recipe into one
+# Stage 12.2: converts docs/operations/backup-restore.md's manual Task Scheduler recipe into one
 # command. Registers two tasks (idempotent - /F overwrites a prior registration of the same name)
 # rather than silently running on its own; this only executes when explicitly invoked.
 function Register-BackupSchedule {

@@ -629,7 +629,7 @@ func handlePIMPublishLog(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePIMTaxonomyHistory (Stage 26.4.3) surfaces the existing audit_logs
-// trail (db/migration.sql section 16) for one taxonomy document - see
+// trail (db/migrations/migration.sql section 16) for one taxonomy document - see
 // engines.GetTaxonomyHistory for the allowlist/query.
 func handlePIMTaxonomyHistory(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -663,7 +663,7 @@ func handlePIMSearchFeedExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename=pim_search_feed.csv")
+	w.Header().Set("Content-Disposition", attachmentDisposition("pim_search_feed.csv"))
 	// BLD-046: a streaming handler cannot use writeEngineError once the first
 	// byte is flushed, so the abandoned-request check it would have applied is
 	// made here instead. Without it every client that closed the tab mid-

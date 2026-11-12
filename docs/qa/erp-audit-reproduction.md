@@ -65,14 +65,14 @@ The scripts intentionally do not drop or overwrite existing databases.
 ```powershell
 $auditFixture = Join-Path $env:TEMP 'erp-audit-20260916'
 $auditPg = Join-Path $env:USERPROFILE 'pg-portable/pgsql/bin'
-python docs/qa/run-maturity-audit.py --source "$auditFixture/source" --evidence "$auditFixture/evidence" --pg-bin "$auditPg" --port 5446
-python docs/qa/run-maturity-suites.py --source "$auditFixture/source" --evidence "$auditFixture/evidence" --pg-bin "$auditPg" --port 5446
+python docs/qa/run_maturity_audit.py --source "$auditFixture/source" --evidence "$auditFixture/evidence" --pg-bin "$auditPg" --port 5446
+python docs/qa/run_maturity_suites.py --source "$auditFixture/source" --evidence "$auditFixture/evidence" --pg-bin "$auditPg" --port 5446
 ```
 
-- `run-maturity-audit.py`: three builds/static/syntax/inventory/vulnerability rounds, fresh
+- `run_maturity_audit.py`: three builds/static/syntax/inventory/vulnerability rounds, fresh
   migration and replay, and the CI migration-order rehearsal. Full suites are conditional on
   a successful migration; the output must not silently imply they ran when install failed.
-- `run-maturity-suites.py`: records the known clean-install failure again, applies only the
+- `run_maturity_suites.py`: records the known clean-install failure again, applies only the
   specific missing prerequisite to newly created databases, resumes the unchanged migration
   runner, then runs three suites with order off/4802/4803. This is explicitly a workaround
   fixture, not a repaired application.
@@ -85,18 +85,18 @@ python docs/qa/run-maturity-suites.py --source "$auditFixture/source" --evidence
   observations and harmless stored-markup probes. These are writes to the disposable fixture.
   Do not run on a customer database. The original raw response-string Unicode check needed
   JSON decoding; the separate parsed cross-role check is the authoritative persistence evidence.
-- `audit-http.py --evidence EVIDENCE`: eight local boundary checks, payload measurements,
+- `audit_http.py --evidence EVIDENCE`: eight local boundary checks, payload measurements,
   oversized-page checks and three paced rounds of 24 requests at each concurrency level 1/4/8.
   The fixture must contain 5,000 Items. Preserve 429s; never count their latency as successful work.
-- `audit-deploy-mock.py --source SOURCE --evidence EVIDENCE --bash GIT_BASH`: runs the actual
+- `audit_deploy_mock.py --source SOURCE --evidence EVIDENCE --bash GIT_BASH`: runs the actual
   remote script inside new verified TEMP children with local command doubles. No SSH, real
   system service, webhook or external HTTP is invoked. Models the uploader's ordering before
   calling the script. Twelve cases: three rounds each of success, bad health, failed restart
   and failed migration. The first invalid Git-Bash PATH experiment is retained but excluded.
-- `audit-restore.py --evidence EVIDENCE --pg-bin PG_BIN`: dumps the quiescent
+- `audit_restore.py --evidence EVIDENCE --pg-bin PG_BIN`: dumps the quiescent
   `erp_audit_repro1` synthetic database, restores into three new databases and compares all
   table row counts/content fingerprints. The tiny local timings are not production RTO/RPO.
-- `summarize-maturity-audit.py --evidence EVIDENCE --output OUTPUT_JSON`: checks frozen input
+- `summarize_maturity_audit.py --evidence EVIDENCE --output OUTPUT_JSON`: checks frozen input
   hashes and compiles the recorded outcomes without converting skips/failures into passes.
 
 The Go quota and package fault probes are preserved in the evidence bundle's `probes/` folder.

@@ -67,6 +67,7 @@ func handleEditOrder(w http.ResponseWriter, r *http.Request) {
 		ShippingAddress *string           `json:"shipping_address"`
 		BillingAddress  *string           `json:"billing_address"`
 		PaymentStatus   *string           `json:"payment_status"`
+		DeliveryDate    *string           `json:"delivery_date"` // Stage 148.32
 		CustomFields    map[string]string `json:"custom_fields"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -80,6 +81,7 @@ func handleEditOrder(w http.ResponseWriter, r *http.Request) {
 		ShippingAddress: req.ShippingAddress,
 		BillingAddress:  req.BillingAddress,
 		PaymentStatus:   req.PaymentStatus,
+		DeliveryDate:    req.DeliveryDate,
 		CustomFields:    req.CustomFields,
 	}, r.Header.Get("Resolved-User-ID"))
 	if err != nil {

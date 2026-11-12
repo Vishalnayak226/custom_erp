@@ -150,6 +150,7 @@ func SendRecoveryEmailChangedNotice(tenantID, oldEmail, username, newEmail strin
 	// function landed after that fix (49.2.4) and had the identical gap.
 	if isSandbox, _ := IsSandboxTenant(tenantID); isSandbox {
 		log.Printf("[EMAIL-CHANGED] sandbox tenant %s - simulating notice to %s (no real email sent)", tenantID, username)
+		noteSandboxSuppressedForTenant(tenantID, "recovery email changed notice")
 		return
 	}
 	if oldEmail == "" {
@@ -222,6 +223,7 @@ func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 	// same ordering deliverWebhook uses (sandbox is the more specific gate).
 	if isSandbox, _ := IsSandboxTenant(tenantID); isSandbox {
 		log.Printf("[PASSWORD-RESET] sandbox tenant %s - simulating delivery to %s (no real email sent)", tenantID, username)
+		noteSandboxSuppressedForTenant(tenantID, "password reset mail")
 		return
 	}
 	if toEmail == "" {

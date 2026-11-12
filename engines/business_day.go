@@ -11,7 +11,7 @@ import (
 // yesterday's date until 05:30 IST - a bill, a GRN or a settlement after
 // midnight was dated the day (and, on the 1st, the month) before. Every
 // "today" of the engines comes from BusinessToday instead; the database side
-// is public.erp_today() / erp_day_start() (db/migrations_stage132_19_business_day.sql).
+// is public.erp_today() / erp_day_start() (db/migrations/migrations_stage132_19_business_day.sql).
 //
 // ERP_BUSINESS_TZ names the zone (IANA, e.g. Asia/Dubai); unset, Asia/Kolkata -
 // the same default as public.erp_business_tz(). A system without zone data

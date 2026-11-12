@@ -35,6 +35,7 @@ func main() {
 	del := flag.String("delete", "", "drop this synthetic tenant and exit")
 	bills := flag.Int("bills", 0, "override the shape's bill count (masters and stock keep the shape's size)")
 	slowMs := flag.Int("slow-ms", 0, "sample statements running longer than this many ms during the build and print the top fingerprints (0 = off)")
+	workers := flag.Int("workers", 1, "parallel POS loaders, sharded by store (same checksum as 1; not with -measure)")
 	flag.Parse()
 
 	// Before anything connects: nothing this run does may leave the machine.
@@ -68,7 +69,7 @@ func main() {
 		go sampler.Run(ctx, time.Duration(max(*slowMs/2, 10))*time.Millisecond)
 		stop = cancel
 	}
-	opts := engines.SynthOptions{Shape: *shape, Seed: *seed, TenantID: *tenant, Measure: *measure, Log: os.Stderr}
+	opts := engines.SynthOptions{Shape: *shape, Seed: *seed, TenantID: *tenant, Measure: *measure, Workers: *workers, Log: os.Stderr}
 	if *bills > 0 {
 		// The shape's masters and stock, fewer bills: per-transaction sizes
 		// measured against a full-size master set without the full run.

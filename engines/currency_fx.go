@@ -52,7 +52,7 @@ import (
 // a payable costs MORE to settle (loss).
 const (
 	// AccountRealisedFXGain and friends are the four accounts seeded by
-	// db/migrations_stage37_1_fx_revaluation.sql. Constants rather than
+	// db/migrations/migrations_stage37_1_fx_revaluation.sql. Constants rather than
 	// literals at eight posting sites, so a chart-of-accounts change is one
 	// edit and a typo is a build error instead of a silently misfiled rupee.
 	AccountRealisedFXGain   = "4200"
@@ -819,7 +819,7 @@ func GetFXGainLossRegister(tenantID, fromDate, toDate, kind string) ([]FXRegiste
 	args = append(args, fromDate, toDate)
 
 	// The half-open upper bound rather than a cast on created_at, per the
-	// convention at the top of finance_reports_stage26.go: casting the indexed
+	// convention at the top of finance_reports.go: casting the indexed
 	// column can never be a range seek.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT to_char(p.created_at, 'YYYY-MM-DD'), p.account_code,

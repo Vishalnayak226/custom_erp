@@ -17340,6 +17340,80 @@
   },
   "reports": [
     {
+      "id": "backorder-list",
+      "label": "Back orders",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "item_name",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "location_code",
+          "label": "Location",
+          "sensitive": false
+        },
+        {
+          "key": "waiting",
+          "label": "Waiting",
+          "sensitive": false
+        },
+        {
+          "key": "orders",
+          "label": "Orders",
+          "sensitive": false
+        },
+        {
+          "key": "oldest",
+          "label": "Oldest",
+          "sensitive": false
+        },
+        {
+          "key": "available",
+          "label": "In stock",
+          "sensitive": false
+        },
+        {
+          "key": "inward",
+          "label": "Inward",
+          "sensitive": false
+        },
+        {
+          "key": "on_order",
+          "label": "On PO",
+          "sensitive": false
+        },
+        {
+          "key": "in_transit",
+          "label": "In transit",
+          "sensitive": false
+        },
+        {
+          "key": "to_buy",
+          "label": "To buy",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "location_code",
+          "label": "Location",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R2060"
+    },
+    {
       "id": "budget-variance",
       "label": "Budget vs Actual",
       "category": "Finance",
@@ -17657,6 +17731,144 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R6041"
+    },
+    {
+      "id": "rfm-segmentation",
+      "label": "RFM Customer Segmentation",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "recency_days",
+          "label": "Recency (days)",
+          "sensitive": false
+        },
+        {
+          "key": "frequency",
+          "label": "Frequency",
+          "sensitive": false
+        },
+        {
+          "key": "monetary",
+          "label": "Monetary",
+          "sensitive": true
+        },
+        {
+          "key": "r_score",
+          "label": "R",
+          "sensitive": false
+        },
+        {
+          "key": "f_score",
+          "label": "F",
+          "sensitive": false
+        },
+        {
+          "key": "m_score",
+          "label": "M",
+          "sensitive": false
+        },
+        {
+          "key": "segment",
+          "label": "Segment",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which customers are loyal, lapsing or new?",
+      "description": "Recency, frequency and spend scores per customer.",
+      "number": "R6056"
+    },
+    {
+      "id": "points-liability",
+      "label": "Loyalty Points Liability",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "total_outstanding_points",
+          "label": "Outstanding Points",
+          "sensitive": false
+        },
+        {
+          "key": "total_liability_value",
+          "label": "Liability Value",
+          "sensitive": true
+        },
+        {
+          "key": "customer_count",
+          "label": "Customers",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": true,
+      "question": "What do we owe in loyalty points?",
+      "description": "Unredeemed points per customer at their redemption value.",
+      "number": "R6057"
+    },
+    {
+      "id": "customer-360",
+      "label": "Customer 360",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "loyalty_balance",
+          "label": "Loyalty Balance",
+          "sensitive": true
+        },
+        {
+          "key": "pos_purchase_count",
+          "label": "POS Purchases",
+          "sensitive": false
+        },
+        {
+          "key": "pos_total_spend",
+          "label": "POS Spend",
+          "sensitive": true
+        },
+        {
+          "key": "last_purchase_at",
+          "label": "Last Purchase",
+          "sensitive": false
+        },
+        {
+          "key": "invoice_count",
+          "label": "Invoices",
+          "sensitive": false
+        },
+        {
+          "key": "invoice_total",
+          "label": "Invoice Total",
+          "sensitive": true
+        }
+      ],
+      "params": [
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "type": "link",
+          "options": "Customer",
+          "required": true
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R6058"
     },
     {
       "id": "crm-pulse",
@@ -18747,144 +18959,6 @@
       "has_control_totals": false,
       "description": "Open business deals by stage: value, chance and weighted value; won and lost in the period. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the expected close date. Computed when the report runs - not a stored snapshot.",
       "number": "R6055"
-    },
-    {
-      "id": "rfm-segmentation",
-      "label": "RFM Customer Segmentation",
-      "category": "CRM",
-      "module_key": "crm_loyalty",
-      "columns": [
-        {
-          "key": "customer_id",
-          "label": "Customer",
-          "sensitive": false
-        },
-        {
-          "key": "recency_days",
-          "label": "Recency (days)",
-          "sensitive": false
-        },
-        {
-          "key": "frequency",
-          "label": "Frequency",
-          "sensitive": false
-        },
-        {
-          "key": "monetary",
-          "label": "Monetary",
-          "sensitive": true
-        },
-        {
-          "key": "r_score",
-          "label": "R",
-          "sensitive": false
-        },
-        {
-          "key": "f_score",
-          "label": "F",
-          "sensitive": false
-        },
-        {
-          "key": "m_score",
-          "label": "M",
-          "sensitive": false
-        },
-        {
-          "key": "segment",
-          "label": "Segment",
-          "sensitive": false
-        }
-      ],
-      "params": null,
-      "has_drill_down": false,
-      "has_control_totals": false,
-      "question": "Which customers are loyal, lapsing or new?",
-      "description": "Recency, frequency and spend scores per customer.",
-      "number": "R6056"
-    },
-    {
-      "id": "points-liability",
-      "label": "Loyalty Points Liability",
-      "category": "CRM",
-      "module_key": "crm_loyalty",
-      "columns": [
-        {
-          "key": "total_outstanding_points",
-          "label": "Outstanding Points",
-          "sensitive": false
-        },
-        {
-          "key": "total_liability_value",
-          "label": "Liability Value",
-          "sensitive": true
-        },
-        {
-          "key": "customer_count",
-          "label": "Customers",
-          "sensitive": false
-        }
-      ],
-      "params": null,
-      "has_drill_down": false,
-      "has_control_totals": true,
-      "question": "What do we owe in loyalty points?",
-      "description": "Unredeemed points per customer at their redemption value.",
-      "number": "R6057"
-    },
-    {
-      "id": "customer-360",
-      "label": "Customer 360",
-      "category": "CRM",
-      "module_key": "crm_loyalty",
-      "columns": [
-        {
-          "key": "customer_id",
-          "label": "Customer",
-          "sensitive": false
-        },
-        {
-          "key": "loyalty_balance",
-          "label": "Loyalty Balance",
-          "sensitive": true
-        },
-        {
-          "key": "pos_purchase_count",
-          "label": "POS Purchases",
-          "sensitive": false
-        },
-        {
-          "key": "pos_total_spend",
-          "label": "POS Spend",
-          "sensitive": true
-        },
-        {
-          "key": "last_purchase_at",
-          "label": "Last Purchase",
-          "sensitive": false
-        },
-        {
-          "key": "invoice_count",
-          "label": "Invoices",
-          "sensitive": false
-        },
-        {
-          "key": "invoice_total",
-          "label": "Invoice Total",
-          "sensitive": true
-        }
-      ],
-      "params": [
-        {
-          "key": "customer_id",
-          "label": "Customer",
-          "type": "link",
-          "options": "Customer",
-          "required": true
-        }
-      ],
-      "has_drill_down": false,
-      "has_control_totals": false,
-      "number": "R6058"
     },
     {
       "id": "fx-open-item-exposure",
@@ -21468,6 +21542,73 @@
       "number": "R9022"
     },
     {
+      "id": "inspection-lots",
+      "label": "Inspection lots",
+      "category": "Quality",
+      "module_key": "quality",
+      "columns": [
+        {
+          "key": "lot",
+          "label": "Lot",
+          "sensitive": false
+        },
+        {
+          "key": "grn",
+          "label": "Receipt",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "sample",
+          "label": "Sample",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Asked by",
+          "sensitive": false
+        },
+        {
+          "key": "passed",
+          "label": "Passed",
+          "sensitive": false
+        },
+        {
+          "key": "failed",
+          "label": "Failed",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9060"
+    },
+    {
       "id": "entity-trial-balance",
       "label": "Entity Trial Balance",
       "category": "Finance",
@@ -22770,6 +22911,63 @@
       "number": "R3072"
     },
     {
+      "id": "memo-stock",
+      "label": "Memo stock",
+      "category": "Procurement",
+      "module_key": "memo_stock",
+      "columns": [
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "grn",
+          "label": "Receipt",
+          "sensitive": false
+        },
+        {
+          "key": "received",
+          "label": "Received",
+          "sensitive": false
+        },
+        {
+          "key": "sold",
+          "label": "Sold",
+          "sensitive": false
+        },
+        {
+          "key": "returned",
+          "label": "Returned",
+          "sensitive": false
+        },
+        {
+          "key": "lost",
+          "label": "Lost",
+          "sensitive": false
+        },
+        {
+          "key": "open",
+          "label": "Open",
+          "sensitive": false
+        },
+        {
+          "key": "rate",
+          "label": "Rate",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R2054"
+    },
+    {
       "id": "oms-exception-queue",
       "label": "OMS Exception Queue",
       "category": "OMS",
@@ -23333,6 +23531,58 @@
       "question": "Does payroll agree from gross pay to the bank and the ledger?",
       "description": "Payslip gross, deductions and net against the GL, salary paid, and payments confirmed on the bank statement.",
       "number": "R8017"
+    },
+    {
+      "id": "held-pieces",
+      "label": "Held pieces",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "serial_no",
+          "label": "Piece",
+          "sensitive": false
+        },
+        {
+          "key": "customer_name",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "until",
+          "label": "Held until",
+          "sensitive": false
+        },
+        {
+          "key": "advance",
+          "label": "Advance",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "held_by",
+          "label": "Held by",
+          "sensitive": false
+        },
+        {
+          "key": "note",
+          "label": "Note",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R3083"
     },
     {
       "id": "pim-product-group-readiness",
@@ -24520,6 +24770,54 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "number": "R5073"
+    },
+    {
+      "id": "late-promise-lines",
+      "label": "Late promise lines",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "customer_name",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "order_id",
+          "label": "Order",
+          "sensitive": false,
+          "type": "doclink"
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "promise_date",
+          "label": "Promised",
+          "sensitive": false
+        },
+        {
+          "key": "days_late",
+          "label": "Days late",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R1034"
     },
     {
       "id": "vendor-invoices-before-po",
@@ -47854,6 +48152,56 @@
       "number": "R1031"
     },
     {
+      "id": "sales-incentives",
+      "label": "Sales incentives",
+      "category": "Sales",
+      "module_key": "sales_incentives",
+      "columns": [
+        {
+          "key": "salesman_id",
+          "label": "Salesman",
+          "sensitive": false
+        },
+        {
+          "key": "accrued",
+          "label": "Accrued",
+          "sensitive": false
+        },
+        {
+          "key": "clawed_back",
+          "label": "Clawed back",
+          "sensitive": false
+        },
+        {
+          "key": "paid",
+          "label": "Paid",
+          "sensitive": false
+        },
+        {
+          "key": "balance",
+          "label": "Balance",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R3095"
+    },
+    {
       "id": "serial-inquiry",
       "label": "Serial Number Inquiry",
       "category": "WMS",
@@ -48139,6 +48487,68 @@
       "question": "Where did a marketplace pay us a different amount?",
       "description": "Settlement lines held as variance for dispute or write-off.",
       "number": "R6074"
+    },
+    {
+      "id": "stock-age-inspections-due",
+      "label": "Inspections due by stock age",
+      "category": "Quality",
+      "module_key": "quality",
+      "columns": [
+        {
+          "key": "inspection",
+          "label": "Inspection",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "rule",
+          "label": "Rule",
+          "sensitive": false
+        },
+        {
+          "key": "age_band",
+          "label": "Age",
+          "sensitive": false
+        },
+        {
+          "key": "age_source",
+          "label": "Age from",
+          "sensitive": false
+        },
+        {
+          "key": "outcome",
+          "label": "Outcome",
+          "sensitive": false
+        },
+        {
+          "key": "markdown",
+          "label": "Markdown",
+          "sensitive": false
+        },
+        {
+          "key": "due",
+          "label": "Due",
+          "sensitive": false
+        },
+        {
+          "key": "days_left",
+          "label": "Days left",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9061"
     },
     {
       "id": "stock-book-vs-ledger",
@@ -49139,6 +49549,128 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R9040"
+    },
+    {
+      "id": "summary-invoice-groups",
+      "label": "Summary invoice groups",
+      "category": "Sales",
+      "module_key": "wholesale",
+      "columns": [
+        {
+          "key": "payer_name",
+          "label": "Bill-to",
+          "sensitive": false
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "sensitive": false
+        },
+        {
+          "key": "place_of_supply",
+          "label": "Place of supply",
+          "sensitive": false
+        },
+        {
+          "key": "customer_po",
+          "label": "Customer PO",
+          "sensitive": false
+        },
+        {
+          "key": "orders",
+          "label": "Orders",
+          "sensitive": false
+        },
+        {
+          "key": "total",
+          "label": "Total",
+          "sensitive": false
+        },
+        {
+          "key": "gst_basis",
+          "label": "GST basis",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R3090"
+    },
+    {
+      "id": "dropship-open-lines",
+      "label": "Drop-ship lines open",
+      "category": "Procurement",
+      "module_key": "wholesale",
+      "columns": [
+        {
+          "key": "order_id",
+          "label": "Order",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "address",
+          "label": "Ship to",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "po_id",
+          "label": "Purchase order",
+          "sensitive": false
+        },
+        {
+          "key": "po_status",
+          "label": "PO status",
+          "sensitive": false
+        },
+        {
+          "key": "expected_date",
+          "label": "Expected",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R3091"
     },
     {
       "id": "3pl-storage-billing",

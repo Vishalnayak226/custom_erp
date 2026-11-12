@@ -2,7 +2,7 @@
 title: Error code reference (part 3)
 section: Troubleshooting
 order: 22
-summary: Error codes for Purchase Return / RTV to WMS / Logistics, continued from the error code reference.
+summary: Error codes for Purchase Order to WMS / Logistics, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,26 +20,125 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 3)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **113** codes, from
-Purchase Return / RTV to WMS / Logistics.
+lists every area and explains how to read a code. It holds **243** codes, from
+Purchase Order to WMS / Logistics.
 
 ## Contents
 
+- [Purchase Order](#purchase-order) - 73 codes
+- [Purchase Requisition](#purchase-requisition) - 6 codes
+- [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return-rtv) - 5 codes
-- [Quality & Maintenance](#quality-maintenance) - 6 codes
+- [Quality & Maintenance](#quality-maintenance) - 12 codes
 - [RFQ](#rfq) - 6 codes
 - [Reports](#reports) - 3 codes
 - [Reports & Exports](#reports-exports) - 8 codes
 - [SaaS / Multi-Tenant](#saas-multi-tenant) - 8 codes
-- [Sales / POS](#sales-pos) - 9 codes
-- [Sales Return](#sales-return) - 7 codes
-- [Security / Rate Limit](#security-rate-limit) - 5 codes
+- [Sales / POS](#sales-pos) - 40 codes
+- [Sales Return](#sales-return) - 9 codes
+- [Security / AI assistant access](#security-ai-assistant-access) - 10 codes
+- [Security / Rate Limit](#security-rate-limit) - 6 codes
 - [Stock Transfer](#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](#user-access-security) - 9 codes
 - [Vendor Invoice / AP](#vendor-invoice-ap) - 7 codes
 - [WMS](#wms) - 5 codes
 - [WMS / Logistics](#wms-logistics) - 3 codes
+
+## Purchase Order
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PO-0252` | PO amendment blocked after full GRN | PO cannot be amended after full receipt. Create an adjustment or return process. | Use approved adjustment/return process. | High | 409 |
+| `PURCHA-0082` | PO approval pending | PO cannot be released until approval is completed. | Correct transaction or send for approval. | High | 422 |
+| `PURCHA-0083` | PO amount exceeds approval limit | PO amount exceeds your approval limit. Please send it for higher approval. | Correct transaction or send for approval. | High | 403 |
+| `PURCHA-0084` | PO closed | This PO is closed. No further changes are allowed. | Correct transaction or send for approval. | High | 409 |
+| `PURCHA-0085` | PO amendment reason missing | Please enter amendment reason before changing the PO. | Correct transaction or send for approval. | High | 422 |
+| `PURCHA-0086` | PO amendment approval pending | PO amendment cannot be released until approval is completed. | Correct transaction or send for approval. | High | 422 |
+| `PURCHA-0087` | PO quantity exceeded in GRN | Received quantity cannot exceed open PO quantity unless excess receipt is approved. | Correct transaction or send for approval. | High | 422 |
+| `PURCHA-0088` | GRN item not in PO | This item is not part of the selected PO. Please verify the item. | Correct transaction or send for approval. | High | 422 |
+| `PURCHA-0179` | PO released | PO released successfully. | No action required. | Low | 200 |
+| `PURCHA-0320` | Deleting a purchase order that goods have been received against | This purchase order cannot be deleted - goods have already been received against it. | Cancel the goods receipt first (or return the goods with a Purchase Return); the purchase order can then be deleted. | Medium | 422 |
+| `PURCHA-0487` | Short-close without a valid reason code | Choose why the rest of this order is being closed. | Pick an active reason code of category Cancellation (Masters > Reason Codes). | Medium | 422 |
+| `PURCHA-0488` | Short-close not possible in the PO's state | This purchase order cannot be short-closed now. | Only an Approved order with units still open can be short-closed. | Medium | 422 |
+| `PURCHA-0489` | Receipt or amendment on a closed (short-closed) PO | This purchase order is closed. | Raise a new purchase order for anything still needed. | High | 422 |
+| `PURCHA-0490` | A PO line without a purchase price or quantity (Stage 127.7) | Every line of a purchase order needs its purchase price and quantity. | Enter the purchase price (and quantity) on each line named, then save again. | Medium | 422 |
+| `PURCHA-0621` | Sending a cancelled (e.g. auto-cancelled) purchase order to the vendor | This purchase order is cancelled. | Raise a new purchase order for anything still needed. | Medium | 422 |
+| `PURCHA-1308` | Typed date further back or ahead than the client's day limit (vendor invoice date, PO expected delivery) | That date is outside the allowed window. | Check the date against the bill. An administrator can enter a date outside the window (Configuration > Procurement & GRN sets it). | Medium | 422 |
+| `PURCHA-1316` | PO sent for approval without its commercial terms, or after its quote's validity | This purchase order can't go for approval yet. | Fill in the payment term, delivery terms, expected delivery date and who pays the freight; renew or correct an expired quote date. | Medium | 422 |
+| `PURCHA-4961` | Purchase order for a vendor with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This vendor has no state, so the GST split can't be worked out. | Open the vendor, choose its State (or enter its GSTIN) and save, then save the purchase order again. | Medium | 422 |
+| `PURCHA-4965` | Purchase order billed to a store with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This store has no state, so the GST split can't be worked out. | Open the store, choose its State (or enter the GSTIN on its legal entity) and save, then save the purchase order again. | Medium | 422 |
+| `PURCHA-4966` | Goods receipt started from a gate entry that is unknown, already used or cancelled | This gate entry can't start a goods receipt. | Pick an open gate entry, or leave the gate entry blank. | Medium | 422 |
+| `PURCHA-4967` | Goods receipt for a different vendor than its gate entry | The vendor does not match the gate entry. | Use the vendor on the gate entry, or pick the right gate entry. | Medium | 422 |
+| `PURCHA-4968` | Vendor invoice dated before its purchase order (warning on save) | This invoice is dated before its purchase order. | Check the invoice date and the PO; the invoice is listed in Vendor invoices dated before their PO. | Low | 200 |
+| `PURCHA-4970` | Vendor agreement with qty breaks that overlap | These qty breaks overlap. | Change the Qty from / Qty to so each quantity falls in one break. | Medium | 422 |
+| `PURCHA-4971` | Vendor agreement with a gap between qty breaks | There is a gap between these qty breaks. | Start the next break right after the previous one ends. | Medium | 422 |
+| `PURCHA-4972` | Vendor agreement row with no item, design or category | This row needs an item, design or category. | Pick what the row applies to, or leave a sales price list without a vendor. | Medium | 422 |
+| `PURCHA-4973` | Vendor agreement or PO line discount outside 0 to 100, or a negative amount | This discount is not allowed. | Enter a percent from 0 to 100, or an amount that is not negative. | Medium | 422 |
+| `PURCHA-4974` | Vendor agreement buy N get M with a missing or negative number, or a pack that is not a whole number | Buy, Get and Pack of need whole numbers above zero. | Fill both Buy and Get, or neither. | Medium | 422 |
+| `PURCHA-4975` | Order discount over 100 percent, negative, or above the order value | This order discount is not allowed. | Enter a percent from 0 to 100, or an amount that is less than the order value. | Medium | 422 |
+| `PURCHA-4980` | Charge row or rule with an unknown or inactive charge code | That charge code cannot be used. | Pick an active charge code. | Medium | 422 |
+| `PURCHA-4981` | Charge row or rule with a selling-only code | That charge code is for selling only. | Pick a code used for buying. | Medium | 422 |
+| `PURCHA-4982` | Charge row with no amount, or naming a SKU not on the document | This charge row is not valid. | Enter an amount above nought and SKUs on this document. | Medium | 422 |
+| `PURCHA-4983` | Transfer charge on a code paid to the vendor | A transfer charge must go to a third party. | Pick a code paid to a third party. | Medium | 422 |
+| `PURCHA-4984` | Charge rule rate not valid | This rule's rate is not allowed. | A percent is above 0 and up to 100; other methods are above 0. | Medium | 422 |
+| `PURCHA-4985` | Receipt on a stopped PO line | This line is stopped; nothing more can be received on it. | Ask the buyer to reopen it, or receive it on its own. | Medium | 422 |
+| `PURCHA-4986` | Part delivery of a full-delivery-only PO line | This line must be delivered in full. | Receive the whole line, or ask the buyer to clear full delivery only. | Medium | 422 |
+| `PURCHA-4987` | PO line control values not valid | The line control values are not valid. | Keep percentages between 0 and 100 and instalments adding up to the line quantity. | Medium | 422 |
+| `PURCHA-4988` | Stop or close of a PO line without a reason or nothing open | A reason is needed, or nothing is open on this line. | Pick a Cancellation reason code on a line that still has quantity open. | Low | 422 |
+| `PURCHA-4989` | Cancel transfer lines without a reason or after dispatch | Lines can only be cancelled before dispatch, with a reason. | Pick a Cancellation reason code; after dispatch use Return to source. | Medium | 422 |
+| `PURCHA-4990` | Transfer excess beyond the item over-delivery tolerance | More arrived than the item's over-delivery tolerance allows. | Receive up to the tolerance, or ask for the item's tolerance to be changed. | Medium | 422 |
+| `PURCHA-4991` | Vendor challan no. already used this year (warning) | This vendor challan no. was already used this year. | Check the challan no.; the earlier receipt is named in the warning. | Low | 200 |
+| `PURCHA-5020` | Volume rebate action while the setting is off | Volume rebates are off. | Turn on Volume rebates from vendors in Configuration, under Procurement. | Medium | 422 |
+| `PURCHA-5021` | Rebate period or vendor not usable | Enter a period (from, to) and a known vendor. | Use dates as YYYY-MM-DD with from not after to, or leave the vendor blank for all. | Medium | 422 |
+| `PURCHA-5022` | Rebate claim step taken from the wrong status | This claim is not ready for that step. | A Calculated claim goes for approval; an Approved claim is settled. | Medium | 422 |
+| `PURCHA-5023` | Submitting a rebate claim with no rebate | This claim has nothing to claim. | The vendor did not reach the first tier in this period. Recalculate after more bills, or leave it. | Medium | 422 |
+| `PURCHA-5024` | Rebate tiers on a vendor agreement are not usable | The rebate target on the agreement is not set up correctly. | Tier 1 needs a target and a percentage; tier 2 needs a higher target and a higher percentage; the basis is Gross or Net. | Medium | 422 |
+| `PURCHA-5025` | Rebate claim saved by hand | Rebate claims are made by Calculate. | Use Calculate, Send or Settle on Vendor Rebate Claims. | Medium | 422 |
+| `PURCHA-5030` | Goods received before a PO without a reason code (148.38) | Choose why these goods came before a PO. | Pick a reason under Received before PO, or link the PO this receipt is for. | Medium | 422 |
+| `PURCHA-5031` | Goods received before a PO without a vendor (148.38) | Choose the vendor for this receipt. | A receipt with no PO needs its vendor; pick it and save again. | Medium | 422 |
+| `PURCHA-5032` | Vendor bill paid against goods whose retro PO is not approved (148.38) | This bill is for goods received before a PO. | Pay it after the retro PO is approved; it is listed under Goods received before PO. | Medium | 422 |
+| `PURCHA-5033` | Retro PO names a receipt that is not one received before a PO (148.38) | That receipt was not received before a PO. | Pick a receipt marked Received before PO. | Medium | 422 |
+| `PURCHA-5034` | Retro PO for a vendor other than the receipt's (148.38) | This PO's vendor differs from the receipt's. | Use the vendor the goods were received from. | Medium | 422 |
+| `PURCHA-5035` | Receipt already has a retro PO (148.38) | This receipt already has a retro PO. | Open that PO, or reject it first. | Medium | 422 |
+| `PURCHA-5050` | A receipt marked Memo stock while the module is off, or with a bad value | Memo stock is off. | An admin turns on Memo stock under Modules, or leave the field blank. | Medium | 422 |
+| `PURCHA-5051` | Returning memo units that were already sold | Part of this memo stock is already sold. | Return only the units still unsold; sold units are on a vendor bill. | Medium | 422 |
+| `PURCHA-5052` | A memo receipt with no vendor | Pick the vendor who owns the memo stock. | Enter the vendor on the receipt, then save. | Medium | 422 |
+| `PURCHA-5053` | Cancelling a sale that took memo stock | This sale took memo stock, so it cannot be cancelled. | Take the goods back with a return instead. | Medium | 422 |
+| `PURCHA-5054` | Memo receipt of a serial or batch item | A serial or batch tracked item cannot be received as memo stock. | Receive it as ordinary stock, or clear Memo stock on the receipt. | Medium | 422 |
+| `PURCHA-5055` | A bill, payment, correction or landed cost on a memo receipt | A memo receipt has no bill of its own: its sales raise the bills. | Pay the bill a sale raised. To change the receipt, return the units and receive again. | Medium | 422 |
+| `PURCHA-5060` | Vendor link used while procurement.vendor_link is off (148.18) | The vendor link is not switched on. | Ask an administrator to turn it on in Settings. | Medium | 422 |
+| `PURCHA-5061` | Vendor link is wrong, expired or revoked (148.18) | This link is not valid or has expired. | Ask the buyer for a new link. | Medium | 422 |
+| `PURCHA-5062` | Vendor link for a purchase order that is not open (148.18) | This purchase order is not open. | Check the order status. | Medium | 422 |
+| `PURCHA-5063` | Vendor proposal with no change, a bad quantity or a bad date (148.18) | That change cannot be sent. | Give a quantity above zero or a date that is not past. | Medium | 422 |
+| `PURCHA-5064` | Vendor change already dealt with or not found (148.18) | That change was already dealt with. | Refresh the list. | Low | 422 |
+| `PURCHA-5065` | Vendor change cannot be applied to the line (148.18) | This change cannot be applied to the line. | Change the line on the order, or reject the change. | Medium | 422 |
+| `PURCHA-5066` | Vendor invoice file refused: type, size, count or detail (148.18) | That file cannot be accepted. | Send a PDF, PNG or JPG under 2 MB. | Medium | 422 |
+| `PURCHA-5067` | Vendor file not found or marked with an unknown status (148.18) | That file was not found. | Refresh the list. | Low | 422 |
+| `PURCHA-5068` | Revoke a vendor link when none is live (148.18) | This order has no live link. | Make a link first. | Low | 422 |
+| `PURCHA-5105` | Goods receipt against a drop-ship purchase order | This is a drop-ship order: no goods receipt. | The vendor ships to the customer. Confirm shipment instead. | Medium | 409 |
+| `PURCHA-5106` | Vendor confirmation before the purchase order is approved | The purchase order is not approved yet. | Approve it, then confirm the shipment. | Medium | 409 |
+| `PURCHA-5107` | Drop-ship vendor bill or lines could not be made | The vendor bill could not be made. | Check the purchase order and try again. | Medium | 422 |
+| `PURCHA-5130` | Pack quantity on an item with no purchase unit (148.35) | This item has no purchase unit. | Set a purchase unit on the item, or key pieces. | Medium | 422 |
+| `PURCHA-5132` | Packs convert to a part-piece on a PO (148.35) | A PO takes whole pieces. | Order whole pieces; receive the part-pack on the goods receipt. | Medium | 422 |
+| `PURCHA-5133` | Pack quantity or pack price not a valid number (148.35) | Pack quantity or price is not valid. | Enter a pack quantity above zero and a price of zero or more. | Medium | 422 |
+
+## Purchase Requisition
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PURCHA-5010` | Requisition line with no item, an unknown item, a quantity not above zero or not whole, no store, an unknown store or an unusable vendor | This request line is not complete. | Choose an item, a whole quantity above zero and a store; leave the vendor empty or choose an active one. | Medium | 422 |
+| `PURCHA-5011` | Requisition with no item lines and no description, quantity or amount | Add item lines, or fill description, quantity and amount. | Add at least one item line, or complete the three header fields. | Medium | 422 |
+| `PURCHA-5012` | Edit of a requisition line already on a purchase order | This line is already on a purchase order. | Change the purchase order, or cancel it to free the line. | Medium | 422 |
+| `PURCHA-5013` | Combine with no open request line for the vendor | No open request lines for this vendor. | Check the vendor on the lines, or whether another person already combined them. | Low | 422 |
+| `PURCHA-5014` | Combine with no vendor, or an unknown or unusable vendor or store | Choose a vendor to combine for. | Choose an active vendor, and a store that exists if you limit it to one. | Low | 422 |
+| `PURCHA-5016` | One-shot purchase order conversion of a requisition that has item lines | This request has item lines. | Use Combine open requests for the vendor. | Low | 422 |
+
+## Purchase Return
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PURCHA-0620` | Returning accepted goods after the purchase return window | The return window for this goods receipt has passed. | Accepted goods can be returned only within the days set in Configuration > Procurement > Purchase return window. Rejected and damaged goods can still be returned. | Medium | 422 |
 
 ## Purchase Return / RTV
 
@@ -61,6 +160,12 @@ Purchase Return / RTV to WMS / Logistics.
 | `QUALIT-0564` | Concession without a note or by the inspector | A concession needs a reason and a second person. | Write why the stock can be used, and have someone other than the inspector record the concession. | Medium | 422 |
 | `QUALIT-0565` | Non-conformance step out of order or missing owner/evidence | This non-conformance step cannot be recorded yet. | Investigate first, then plan the action with an owner, then close it with the evidence the action was done. | Medium | 422 |
 | `QUALIT-0566` | Maintenance order step out of order or completion incomplete | This maintenance step cannot be recorded yet. | Schedule a draft order, start a scheduled one, and complete it only with notes, every checklist task ticked and parts with quantities. | Medium | 422 |
+| `QUALIT-0600` | Inspection result lines do not total the lot or are not whole quantities | The result lines do not match the lot. | Enter whole quantities that add up to the lot, each marked Pass or Fail. | Medium | 422 |
+| `QUALIT-0601` | Inspection lot not found or already decided | That lot cannot take a result. | Open the pending lots and pick one that is still waiting. | Low | 422 |
+| `QUALIT-0602` | Inspection by rule or stock age inspection is switched off | This check is off. | An administrator turns it on under Configuration > Quality. | Low | 422 |
+| `QUALIT-0603` | Inspection lot or stock age inspection typed in by hand | This record is made by the system. | Lots come from a receipt; age inspections come from the daily check. | Low | 422 |
+| `QUALIT-0604` | Mandatory check waived, waived without a reason, or age outcome incomplete | That decision cannot be recorded. | A mandatory check cannot be waived; give a reason, and for scrap the lines and reason code, for re-polish the job-work. | Medium | 422 |
+| `QUALIT-0605` | Inspection rule saved without what it needs (days or a category or item) | That rule is incomplete. | Give the days between checks and a category or item. | Low | 422 |
 
 ## RFQ
 
@@ -120,6 +225,37 @@ Purchase Return / RTV to WMS / Logistics.
 | `SALESP-0128` | Bill cancellation blocked | Bill cannot be cancelled after the allowed cancellation period. | Take a return against the bill instead. | High | 409 |
 | `SALESP-0183` | Bill saved | Bill generated successfully. | No action required. | Low | 200 |
 | `SALESP-0616` | Change to an issued sale without a reason | Say why this issued sale is being changed. | Enter a reason for the change and save again. The change, who made it and the reason are kept in the Post-Sale Edit History report. | Medium | 422 |
+| `SALESP-0620` | Customer price-list row not valid | A price-list row is not valid. | Name an item, a design or a category, give a price above 0, and keep the bands in order. | Low | 422 |
+| `SALESP-0621` | Margin hold released by the generic release | This order is on Margin hold, so it cannot be released or held again by hand. | A Store Manager releases it with a reason. | Low | 409 |
+| `SALESP-0622` | Margin hold release by a role that may not | Only a Store Manager or an administrator can release a Margin hold. | Ask a Store Manager to release the order. | Low | 403 |
+| `SALESP-0623` | Order line below the floor without a reason | A line is below the lowest rate. | Give a reason for the line, or raise the rate. | Low | 422 |
+| `SALESP-0624` | Invoice or quote line below the floor without a reason | A line is below the lowest rate. | Give a reason for the line, or raise the rate. | Low | 422 |
+| `SALESP-0625` | Price endings on an approved or vendor list | Only a draft customer price list can be changed. | Make a new version of the list. | Low | 409 |
+| `SALESP-0626` | Price ending or release reason not valid | Check the ending and the reason. | Use 0, 9, 49, 99 or none, and say why a low rate is accepted. | Low | 422 |
+| `SALESP-0710` | Wholesale used while the module is off | Wholesale is off for this company. | Ask an administrator to switch Wholesale on. | Medium | 422 |
+| `SALESP-0711` | Bill-to customer is itself, missing, or billed elsewhere | This bill-to customer cannot be used. | Pick another customer, or leave bill-to blank. | Medium | 422 |
+| `SALESP-0712` | A summary invoice group cannot be one invoice | This group cannot be one invoice. | Change the grouping on the customer, or invoice the orders one by one. | Medium | 422 |
+| `SALESP-0713` | Nothing chosen or nothing to invoice | Nothing to invoice here. | Pick a period that has shipped orders, then choose the groups. | Medium | 422 |
+| `SALESP-0714` | Instalment dates on a line do not add up | The instalments do not match the line. | Write each as qty; together they may not pass the line quantity. | Medium | 422 |
+| `SALESP-0715` | Drop-ship item without a default vendor | A drop-ship item needs a default vendor. | Set the default vendor on the item. | Medium | 422 |
+| `SALESP-0716` | Drop-ship and stock lines on one order | An order is all drop-ship or none. | Put the drop-ship items on their own order. | Medium | 422 |
+| `SALESP-0717` | Change refused: the drop-ship purchase order is past Draft | The purchase order is past Draft. | Ask the vendor to change it. | Medium | 409 |
+| `SALESP-0718` | A new line on a drop-ship order | A drop-ship order takes no new line. | Use a new order. | Medium | 422 |
+| `SALESP-0719` | Drop-ship line already shipped or not a drop-ship line | A chosen line is already shipped. | Refresh the list and choose again. | Medium | 409 |
+| `SALESP-0740` | Incentive split is not 100 percent | The salesman split does not add up to 100%. | Change the split so the shares add up to 100% and post again. | Medium | 422 |
+| `SALESP-0741` | Incentive salesman not on file | That salesman is not on file. | Pick a salesman from the list. | Medium | 422 |
+| `SALESP-0742` | Sales incentives are off | Sales incentives are off. | Ask an admin to turn on Sales incentives. | Medium | 403 |
+| `SALESP-0743` | Login is not a salesman | This login is not linked to a salesman. | Ask HR to link your login to your salesman profile. | Medium | 422 |
+| `SALESP-0760` | Custom orders used while the module is off | Custom orders are off. | Ask an admin to turn the Custom orders module on. | Low | 403 |
+| `SALESP-0761` | No metal rate for today | No rate for today. | Add today's rate for this metal and purity under Metal Rate, then try again. | Medium | 422 |
+| `SALESP-0762` | A choice that is not in the masters | Pick a choice from the list. | Pick from the list, or add the choice under Custom choices. | Medium | 422 |
+| `SALESP-0763` | Custom order without a weight | Enter the weight. | Enter the weight in grams. | Medium | 422 |
+| `SALESP-0764` | Making type without a making charge | This making type has no charge. | Set the making charge on the choice under Custom choices. | Medium | 422 |
+| `SALESP-0765` | Metal without HSN or GST | The metal has no HSN or GST. | Set the HSN and GST on the metal under Custom choices. | Medium | 422 |
+| `SALESP-0766` | Custom order without customer or address | Enter the customer and address. | Fill both and save again. | Medium | 422 |
+| `SALESP-0767` | The item for a custom order was not saved | The item was not saved. | Fix what the message says and try again. No order was made. | Medium | 422 |
+| `SALESP-0768` | A custom-order quote typed in by hand | Quotes are made with New order. | Use New order on the Custom order quotes list. | Medium | 422 |
+| `SALESR-1400` | Order line for a brand outside the dealer's allowed list | This dealer cannot buy that brand. | Remove the line, or add the brand to the dealer's allowed brands on the customer. | Medium | 422 |
 
 ## Sales Return
 
@@ -132,6 +268,23 @@ Purchase Return / RTV to WMS / Logistics.
 | `SALESR-0617` | Return or refund approved by the person who raised the return | Another person must approve this. | Ask a colleague or manager to approve it. The business has turned on second-person approval of returns and refunds. | Medium | 422 |
 | `SALESR-1307` | Whole purchase returned without its free gift (Gift With Purchase) | The free gift comes back with the purchase. | Everything paid for on this bill is coming back - add the free gift to the return, or keep part of the purchase. An administrator can let customers keep gifts (Configuration > Point of Sale). | Medium | 422 |
 | `SALESR-1310` | Store credit chosen for a refund of a bill with no customer | Store credit needs a customer. | This bill was a walk-in sale - refund it the way it was paid. | Low | 422 |
+| `SALESR-1315` | A return raised without a reason | A return needs a reason. | Pick a reason or type one. | Low | 422 |
+| `SALESR-1316` | Credit note on stock items before the return is received | This credit note needs a received return. | Receive and check in the return first, then post the note. | Low | 422 |
+
+## Security / AI assistant access
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `SEC-0300` | Assistant call by a user who is disabled or gone | This assistant can no longer act. | Ask an administrator to turn the user back on, or make a new assistant client for another user. | High | 403 |
+| `SEC-0301` | Assistant asked for a store its user may not work at | This user cannot see that store. | Ask for a store the user works at, or leave the store out to get all of theirs. | High | 403 |
+| `SEC-0302` | Assistant client not tied to a user | This client is not set up as an assistant. | Make the client under Admin, AI assistants, so it acts as one named user. | High | 403 |
+| `SEC-0303` | Assistant draft order not valid | The draft order is not complete. | Send at least one line with a known item and a quantity above zero. | Medium | 422 |
+| `SEC-0304` | Assistant client not valid at issue | The assistant client cannot be made. | Pick an active user and only the read and draft choices. | Medium | 422 |
+| `SEC-0305` | Order not found for the assistant | No such order. | Check the order number. Only orders at the user's stores are shown. | Low | 404 |
+| `SEC-0306` | Submitting something that is not an open assistant draft | This is not an open assistant draft. | Pick a draft made by an assistant that is still a draft. | Medium | 422 |
+| `SEC-0307` | Report not found for the assistant | No such report. | Ask for a report from the list. | Low | 404 |
+| `SEC-0308` | Report refused for the assistant's role | This user's role cannot run that report. | Pick a report the list shows for this user. | High | 403 |
+| `SEC-0309` | Assistant tied to a user who has full access | This assistant cannot act as an Admin. | Make a new assistant for a user with a narrower role. | High | 403 |
 
 ## Security / Rate Limit
 
@@ -142,6 +295,7 @@ Purchase Return / RTV to WMS / Logistics.
 | `SEC-0282` | Suspicious activity blocked | Suspicious activity detected. Action was blocked for security review. | Contact administrator. | Critical | 409 |
 | `SEC-0283` | Token purpose invalid | This verification token is not valid for this action. Please restart the process. | Restart login/authorized process. | High | 401 |
 | `SEC-0284` | Origin not allowed | This browser origin is not allowed to access the ERP API. | Use approved ERP URL. | Critical | 422 |
+| `SEC-0290` | A second active API access for a purpose another already holds | Another active API access already has this purpose. | Rotate that access instead, revoke it first, or give this one a different purpose. | Medium | 409 |
 
 ## Stock Transfer
 

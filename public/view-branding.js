@@ -16,26 +16,26 @@ export async function renderBrandingPanel(host) {
   try { role = String(localStorage.getItem('erp_role') || '').replace(/\s+/g, '').toLowerCase(); } catch (_) { /* storage off */ }
   const operator = role === 'superadmin';
   panel.innerHTML = `
-    <div class="form-group" style="margin-bottom: 18px;">
-      <label class="form-label" style="font-weight: 600;">Branding for this company</label>
-      <p class="page-subtitle" style="margin: 2px 0 8px; font-size: 12.5px;">${b.enabled
+    <div class="form-group s-2f23af">
+      <label class="form-label s-21a1be">Branding for this company</label>
+      <p class="page-subtitle s-19cee9">${b.enabled
         ? 'On.'
         : 'Off - ask Wholeops to switch it on.'}</p>
-      ${operator ? `<label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="brand-mode" ${b.enabled ? 'checked' : ''} style="width: 16px; height: 16px;"> <span style="font-size: 13px;">Branding switched on for this client (platform operator)</span></label>` : ''}
+      ${operator ? `<label class="s-facf9d"><input type="checkbox" id="brand-mode" ${b.enabled ? 'checked' : ''} class="s-c98093"> <span class="s-a54188">Branding switched on for this client (platform operator)</span></label>` : ''}
     </div>
     <div class="form-group">
-      <label class="form-label" for="brand-logo-file" style="font-weight: 600;">Company logo</label>
-      <p class="page-subtitle" style="margin: 2px 0 8px; font-size: 12.5px;">PNG, JPEG or WebP (no SVG), at most 300 KB.</p>
-      <div id="brand-logo-preview" style="margin-bottom: 10px;">${b.logo_version
-        ? `<img src="/api/v1/branding/logo?v=${encodeURIComponent(b.logo_version)}" alt="Current logo" style="max-height: 64px; max-width: 240px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card, #fff);">`
-        : '<span class="text-muted" style="font-size: 13px;">No logo yet.</span>'}</div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <input type="file" id="brand-logo-file" accept="image/png,image/jpeg,image/webp" class="form-input" style="max-width: 320px;">
+      <label class="form-label s-21a1be" for="brand-logo-file">Company logo</label>
+      <p class="page-subtitle s-19cee9">PNG, JPEG or WebP (no SVG), at most 300 KB.</p>
+      <div id="brand-logo-preview" class="s-39ae4d">${b.logo_version
+        ? `<img src="/api/v1/branding/logo?v=${encodeURIComponent(b.logo_version)}" alt="Current logo" class="s-e69668">`
+        : '<span class="text-muted s-a54188">No logo yet.</span>'}</div>
+      <div class="s-aea80b">
+        <input type="file" id="brand-logo-file" accept="image/png,image/jpeg,image/webp" class="form-input s-4e15a3">
         <button type="button" class="btn btn-primary btn-sm" id="brand-logo-upload">Upload logo</button>
         ${b.logo_version ? '<button type="button" class="btn btn-outline btn-sm" id="brand-logo-remove">Remove logo</button>' : ''}
       </div>
-      <div id="brand-logo-error" class="login-error hidden" role="alert" style="margin-top: 10px;"></div>
-      ${!b.enabled ? '<p class="text-muted" style="font-size: 12.5px; margin-top: 8px;">You can upload it now; it shows once branding is on.</p>' : ''}
+      <div id="brand-logo-error" class="login-error hidden s-e5a6d3" role="alert"></div>
+      ${!b.enabled ? '<p class="text-muted s-f47227">You can upload it now; it shows once branding is on.</p>' : ''}
     </div>`;
   const showError = msg => {
     const el = panel.querySelector('#brand-logo-error');

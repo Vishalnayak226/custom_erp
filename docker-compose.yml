@@ -8,7 +8,7 @@
 # file list/order), then hit http://localhost:8080.
 #
 # Production hosting stays the plain-VPS/systemd path in
-# docs/operations/go_live_decisions.md §4 until that decision is deliberately
+# docs/operations/go-live-decisions.md §4 until that decision is deliberately
 # revisited.
 
 services:

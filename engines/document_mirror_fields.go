@@ -9,8 +9,8 @@ import (
 //
 // A handful of doctypes carry two mandatory fields that hold the same value,
 // registered independently at different points in this project's history:
-// db/migration.sql declared PurchaseOrder.vendor as a Link, and
-// db/migrations_phase3.sql later declared PurchaseOrder.vendor_id as Data.
+// db/migrations/migration.sql declared PurchaseOrder.vendor as a Link, and
+// db/migrations/migrations_phase3.sql later declared PurchaseOrder.vendor_id as Data.
 // Both stuck, both are mandatory, and different consumers read different ones
 // (GetVendorLedgerReport reads `vendor`; the payment-file and vendor-invoice
 // paths read `vendor_id`), so neither can simply be dropped without breaking

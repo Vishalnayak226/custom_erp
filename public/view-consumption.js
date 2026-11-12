@@ -32,16 +32,16 @@ function ceRender() {
   if (!body) return;
   if (head) head.textContent = ceMode() === 'Periodic count' ? 'Counted closing qty' : 'Qty used';
   if (!ceLines.length) {
-    body.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);">Add the items counted or used.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="s-5872de">Add the items counted or used.</td></tr>';
     return;
   }
   body.innerHTML = ceLines.map((l, i) => {
     const c = ceConsumed(l);
     const bad = c !== '' && (c < 0 || c > l.book);
     return `<tr>
-      <td><div style="font-weight:600;">${ceEsc(l.name || l.sku)}</div><div style="font-size:11.5px; color:var(--text-muted);">${ceEsc(l.sku)}${l.valuated ? '' : ' &middot; non-valuated'}</div></td>
+      <td><div class="s-eed0f8">${ceEsc(l.name || l.sku)}</div><div class="s-40ab95">${ceEsc(l.sku)}${l.valuated ? '' : ' &middot; non-valuated'}</div></td>
       <td>${l.book}</td>
-      <td><input type="number" min="0" step="1" class="form-input" style="width:110px;" data-ce-qty="${i}" value="${ceEsc(l.qty)}"></td>
+      <td><input type="number" min="0" step="1" class="form-input s-607468" data-ce-qty="${i}" value="${ceEsc(l.qty)}"></td>
       <td style="${bad ? 'color:var(--danger-color, #b3261e); font-weight:600;' : ''}">${c === '' ? '' : c}</td>
       <td><button class="action-btn action-btn-danger" type="button" data-ce-remove="${i}">Remove</button></td>
     </tr>`;
@@ -105,12 +105,12 @@ export function openConsumptionEntry(host) {
   panel.id = 'consumption-entry-panel';
   panel.dataset.key = `ce-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   panel.innerHTML = `
-    <div style="padding:16px; display:grid; gap:12px;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <h2 style="margin:0; font-size:16px;">Consumption Entry</h2>
-        <button class="btn btn-outline btn-sm" type="button" id="ce-close" style="margin-left:auto;">Close</button>
+    <div class="s-ad390e">
+      <div class="s-42e4ac">
+        <h2 class="s-29bbd1">Consumption Entry</h2>
+        <button class="btn btn-outline btn-sm s-6d0006" type="button" id="ce-close">Close</button>
       </div>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+      <div class="s-883887">
         <div class="form-group"><label class="form-label" for="ce-location-display">Store</label>
           <input type="text" id="ce-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
           <input type="hidden" id="ce-location"></div>
@@ -121,8 +121,8 @@ export function openConsumptionEntry(host) {
         <div class="form-group"><label class="form-label" for="ce-reason">Reason</label>
           <input type="text" id="ce-reason" class="form-input" placeholder="Optional"></div>
       </div>
-      <div style="display:flex; gap:8px; align-items:flex-end;">
-        <div class="form-group" style="flex:1;"><label class="form-label" for="ce-item-display">Item</label>
+      <div class="s-8a7d3a">
+        <div class="form-group s-97445a"><label class="form-label" for="ce-item-display">Item</label>
           <input type="text" id="ce-item-display" class="form-input" placeholder="Search butter paper, tape, boxes..." autocomplete="off">
           <input type="hidden" id="ce-item"></div>
         <button class="btn btn-outline" type="button" id="ce-add">Add</button>
@@ -132,7 +132,7 @@ export function openConsumptionEntry(host) {
         <thead><tr><th>Item</th><th>Book stock</th><th id="ce-qty-head">Counted closing qty</th><th>Consumed</th><th></th></tr></thead>
         <tbody id="ce-lines"></tbody>
       </table></div>
-      <div style="display:flex; justify-content:flex-end;"><button class="btn btn-primary" type="button" id="ce-post">Post Consumption</button></div>
+      <div class="s-09ab5b"><button class="btn btn-primary" type="button" id="ce-post">Post Consumption</button></div>
     </div>`;
   // Next to the page header that was clicked - the live page, not a wrapper
   // the view may have replaced since it rendered.

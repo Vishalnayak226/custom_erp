@@ -217,8 +217,19 @@ classification. Still open:
 - **New code** - run `node docs/qa/xss-sink-scan.cjs --candidates` on a change to `public/` and
   judge any new candidate; an escape-by-default tagged-template helper would retire the class.
 - **47.8.4** - payload coverage exists for the named surfaces but not for *every* shared renderer;
-  the revoked-session proof is `internal/server/stage49_2_2_session_revocation_test.go`.
-- **style-src** - 629 inline-style violations are reported, not enforced; retiring them is the next
-  step this mechanism is set up for.
+  the revoked-session proof is `internal/server/session_revocation_test.go`.
+- **style-src** - 49.4.3 moved 2,764 static `style="..."` attributes to classes (`styles.css` for the cold core,
+  `view-inline.css` for lazy views, loaded by `loadViewModule`) and the three static `<style>` blocks to CSS files. About 119
+  remain, built from `${...}` values at run time or toggled by JS; `TestPublicInlineStylesOnlyShrink` keeps that number from
+  growing. A 14-screen sweep still logs a few report-only violations, so the enforced policy keeps `'unsafe-inline'`.
 - **47.8.3** (session cookie-versus-token topology) and **47.8.5** (vendor assessment, tracked as
   26.11.1) stay excluded under their own existing gates.
+
+## Stage 49.4.3 audit and evaluation (2026-11-07)
+
+- **Script CSP**: enforced `script-src 'self'`; no inline script or eval. `TestPublicContentBoundary` now fails on a new inline `<script>`, `on*=` handler, `eval`, `new Function`, `srcdoc`, string `setTimeout`, or `document.write` outside the two reviewed print-popup files.
+- **Found and fixed**: `public/pim-catalog-share.html` had an inline script that the enforced CSP blocks (the shared-catalog page could not load); moved to `public/pim-catalog-share.js`. The bulk-selection CSV export in `public/view-documents.js` did not neutralise a leading `= + - @` cell; it now does (as `view-dashboards.js` already did). Server CSV writers already use the formula-safe writer (49.8.2); the leftover plain writers hold sanitised cells (`import.go`, `import_resume.go`) or a bank file format (`payment_file.go`, deliberately plain).
+- **User files**: attachments are `nosniff`, `private, no-store`, downloaded (not inline) unless an image; SVG is now always a download, and every file response carries `Content-Security-Policy: sandbox; default-src 'none'`. No route serves user-supplied HTML.
+- **Still blocked by the report-only candidate**: the remaining run-time inline `style="..."` attributes (a full 85-route crawl went from 1,486 console reports to 44); the enforced policy keeps `style-src 'unsafe-inline'` until they move to classes. No script consequence.
+- **Trusted Types**: evaluation only, not enabled. `require-trusted-types-for 'script'` is now in the report-only header alone (49.4.3). A 14-screen sweep logged 146 reports, most of them `innerHTML` assignments in `app.js` and the view modules, so it cannot be enforced without a policy that wraps `esc()`'d markup. Read the reports for two weeks, then decide.
+- **Open**: new-code scanning of `innerHTML` with unescaped values (the sink scan harness covers it offline), style-src, 47.8.3 token storage (see `adr-session-topology.md`).

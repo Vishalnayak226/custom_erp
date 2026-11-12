@@ -15,7 +15,7 @@ import (
 
 // BLD-020 (pairwise compatibility and boundary matrix). Reuses
 // moduleHTTPFixture/seedStage47User/stage47Token (module_manifest_test.go,
-// stage47_redteam_helpers_shared_test.go) rather than building new fixture
+// redteam_helpers_shared_test.go) rather than building new fixture
 // machinery. The role/tenant-size/module scope this matrix combines is the
 // one the product/QA owner decided in bld-002-test-configuration-inventory.md
 // §9: REF-RETAIL-IN (Cashier as its least-privileged role) and

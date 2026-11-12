@@ -11,7 +11,7 @@ import (
 // 49.8.5: who saved a connector credential, when it was last used, and an
 // optional expiry - on channel_credentials (channels, couriers, Shopify,
 // the image drive, IRP) and the Pine Labs / CleverTap / Unicommerce tables
-// (db/migrations_stage49_8_5_credential_metadata.sql). The connector
+// (db/migrations/migrations_stage49_8_5_credential_metadata.sql). The connector
 // screens show the three as "Owner · Last used · Expires".
 //
 //   - Owner is the user who last saved it (Save...By), blank for a row saved

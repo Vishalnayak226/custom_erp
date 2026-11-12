@@ -19,7 +19,7 @@ import (
 // So this file deliberately does NOT ship a migration that rewrites
 // role_permissions. A tenant's roles are live production access; changing
 // them is a decision its owner makes, having seen exactly what changes.
-// db/migrations_stage47_1_role_templates.sql therefore only creates the
+// db/migrations/migrations_stage47_1_role_templates.sql therefore only creates the
 // ledger, and every grant change goes:
 //
 //	PlanRoleTemplateMigration  -> the before/after diff, changing nothing

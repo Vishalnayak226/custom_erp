@@ -110,18 +110,18 @@ func HashFileSet(paths []string) (HashResult, error) {
 	return HashResult{SHA256: hex.EncodeToString(h.Sum(nil)), FileCount: len(sorted)}, nil
 }
 
-// HashMigrationSet hashes every db/*.sql file, in the identical
+// HashMigrationSet hashes every db/migrations/*.sql file, in the identical
 // filename-sorted order .github/workflows/ci.yml's "Apply database schema"
-// step applies them in (`ls db/*.sql | sort`) - so this hash changes exactly
+// step applies them in (`ls db/migrations/*.sql | sort`) - so this hash changes exactly
 // when the applied schema would change, and not when an unrelated file in
 // db/ (a .go helper, a test) does.
 func HashMigrationSet(root string) (HashResult, error) {
-	matches, err := filepath.Glob(filepath.Join(root, "db", "*.sql"))
+	matches, err := filepath.Glob(filepath.Join(root, "db", "migrations", "*.sql"))
 	if err != nil {
-		return HashResult{}, fmt.Errorf("glob db/*.sql: %w", err)
+		return HashResult{}, fmt.Errorf("glob db/migrations/*.sql: %w", err)
 	}
 	if len(matches) == 0 {
-		return HashResult{}, fmt.Errorf("no db/*.sql files found under %s", root)
+		return HashResult{}, fmt.Errorf("no db/migrations/*.sql files found under %s", root)
 	}
 	return HashFileSet(matches)
 }
@@ -165,7 +165,7 @@ type BuildOptions struct {
 
 // BuildManifest assembles a ReleaseManifest from the repository at
 // opts.Root: parses go.mod for the module path and toolchain version, hashes
-// db/*.sql and public/, and carries opts.Ledger's dependency rows and
+// db/migrations/*.sql and public/, and carries opts.Ledger's dependency rows and
 // opts.Artifacts through unchanged.
 func BuildManifest(opts BuildOptions) (*ReleaseManifest, error) {
 	if opts.Root == "" {

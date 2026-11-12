@@ -28,7 +28,7 @@ type waveTaskItemRemainder struct {
 }
 
 // AssignTasksToWave (26.5.6) tags a batch of still-open FulfillmentTasks
-// with a shared wave_id - a plain additive JSON key (db/migrations_stage26_5
+// with a shared wave_id - a plain additive JSON key (db/migrations/migrations_stage26_5
 // _wms_enterprise.sql registers it for generic-table visibility only, it's
 // not a new column). Tasks already Packed/Dispatched/Rejected are skipped
 // rather than erroring the whole batch, so one already-finished task in a

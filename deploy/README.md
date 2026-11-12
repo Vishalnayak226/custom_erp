@@ -19,7 +19,7 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 # Deploying the ERP to a Linux Droplet
 
 This is the runbook for the production/staging deploy path described in
-[go_live_decisions.md](../docs/operations/go_live_decisions.md) section 4. It
+[go-live-decisions.md](../docs/operations/go-live-decisions.md) section 4. It
 targets the choices made for the first box: **self-hosted PostgreSQL on the
 Droplet**, **Caddy for automatic TLS**, and a **staging/shakeout box first**
 before real production.
@@ -222,7 +222,7 @@ From the repo root, with the box reachable over SSH as the `deploy` user:
 
 This cross-compiles `erp-server` (linux/amd64), ships it plus `public/` and
 `db/`, runs `migrate.sh`, swaps the binary in, and restarts the service. The
-first run applies every migration in `db/` in order.
+first run applies every migration in `db/migrations/` in order.
 
 > Prereq: passwordless sudo for the restart. On the box:
 > `echo 'deploy ALL=(root) NOPASSWD: /bin/systemctl restart erp' | sudo tee /etc/sudoers.d/erp-deploy`
@@ -304,7 +304,7 @@ not evidence that a backup works.
 > 2026-08-07 when the cron was first genuinely installed on the droplet.
 
 Then do a **restore drill** into a scratch database to prove the mechanism —
-`docs/operations/backup_restore.md` has the invocation that actually works on
+`docs/operations/backup-restore.md` has the invocation that actually works on
 production (the `erp` role is deliberately not allowed to create databases, so
 the drill needs `DRILL_ADMIN_URL`).
 
@@ -334,7 +334,7 @@ overwriting the live `erp-server`/`public/` directly (Stage 50/BLD-005: it
 used to scp straight over the live `public/`, which meant `remote_deploy.sh`'s
 own "pre-deploy" snapshot below was actually already a snapshot of the NEW
 release, so a rollback never really restored the old frontend — found via
-`docs/qa/audit-deploy-mock.py`, fixed by staging it the same way the binary
+`docs/qa/audit_deploy_mock.py`, fixed by staging it the same way the binary
 already was). The actual swap/restart happens on the box via
 `deploy/remote_deploy.sh` (shipped fresh each run), which: snapshots the
 current `erp-server`/`public/` to `erp-server.prev`/`public.prev` before

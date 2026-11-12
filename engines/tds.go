@@ -107,7 +107,15 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if gst <= 0 || gst >= amount {
 		gst = 0
 	}
-	tdsF, _, err := CalculateTDS(tenantID, sectionCode, amount-gst)
+	// Stage 148.19: an expense bill booked its eligible GST to 1500 when it was
+	// entered, so the payment clears 2100 only; TDS is on the value without any
+	// of its GST, eligible or blocked.
+	expense := isExpenseBill(data)
+	tdsBase := amount - gst
+	if expense {
+		tdsBase = amount - expenseBillGST(data, amount)
+	}
+	tdsF, _, err := CalculateTDS(tenantID, sectionCode, tdsBase)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -123,8 +131,11 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if gst > 0 {
 		debits["1500"] = RupeesToPaise(gst)
 	}
+	if expense {
+		debits = map[string]int64{"2100": RupeesToPaise(amount)}
+	}
 	credits := map[string]int64{"1100": RupeesToPaise(netF), "2300": RupeesToPaise(tdsF)}
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID)); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID)); err != nil {
 		return 0, 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
 	// Stage 73 / 55.10: the bill's payment history. The basis is this

@@ -24,9 +24,9 @@ import (
 //
 // All of them sit behind apiMiddleware and the existing "stickers" module
 // gate - the Printer doctype is already mapped to that key
-// (db/migrations_stage14a_modules.sql), so no new module key is introduced.
+// (db/migrations/migrations_stage14a_modules.sql), so no new module key is introduced.
 // A new key would 403 every existing tenant until their plan was edited, the
-// trap called out in db/migrations_stage30_7_pos_offers.sql.
+// trap called out in db/migrations/migrations_stage30_7_pos_offers.sql.
 
 func handleQZCertificate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

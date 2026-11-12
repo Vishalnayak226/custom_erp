@@ -176,14 +176,14 @@ async function showVersions() {
   panel.dataset.ps = 'versions-panel';
   panel.className = 'table-panel';
   panel.style.cssText = 'position:absolute;right:16px;top:64px;z-index:20;max-width:560px;padding:14px 16px;box-shadow:var(--shadow-lg, 0 8px 24px rgba(0,0,0,.18));';
-  const when = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(); };
-  panel.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><strong>Versions</strong><span class="pts-spacer" style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-ver-close>Close</button></div>
+  const when = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : formatDateTime(d); };
+  panel.innerHTML = `<div class="s-aca7bf"><strong>Versions</strong><span class="pts-spacer s-97445a"></span><button type="button" class="btn btn-ghost btn-sm" data-ver-close>Close</button></div>
     <div class="table-wrapper"><table><thead><tr><th>Version</th><th>Status</th><th>Saved</th><th>Approved by</th><th></th></tr></thead><tbody>
-    ${versions.length ? versions.map(v => `<tr><td>${v.version}</td><td>${esc(v.status)}${v.note ? `<div class="text-muted" style="font-size:12px;">${esc(v.note)}</div>` : ''}</td>
-      <td>${esc(v.saved_by)}<div class="text-muted" style="font-size:12px;">${esc(when(v.saved_at))}</div></td><td>${esc(v.approved_by || '')}</td>
-      <td style="white-space:nowrap;">${v.status === 'Pending' ? `<button type="button" class="action-btn" data-ver="approve" data-v="${v.version}">Approve</button> <button type="button" class="action-btn action-btn-danger" data-ver="reject" data-v="${v.version}">Reject</button>` : ''}
+    ${versions.length ? versions.map(v => `<tr><td>${v.version}</td><td>${esc(v.status)}${v.note ? `<div class="text-muted s-6cb285">${esc(v.note)}</div>` : ''}</td>
+      <td>${esc(v.saved_by)}<div class="text-muted s-6cb285">${esc(when(v.saved_at))}</div></td><td>${esc(v.approved_by || '')}</td>
+      <td class="s-86abda">${v.status === 'Pending' ? `<button type="button" class="action-btn" data-ver="approve" data-v="${v.version}">Approve</button> <button type="button" class="action-btn action-btn-danger" data-ver="reject" data-v="${v.version}">Reject</button>` : ''}
         ${v.status === 'Superseded' || v.status === 'Rejected' ? `<button type="button" class="action-btn" data-ver="restore" data-v="${v.version}">Restore</button>` : ''}</td></tr>`).join('')
-      : '<tr><td colspan="5" class="text-muted" style="text-align:center;">No versions yet - the next save is version 1.</td></tr>'}</tbody></table></div>`;
+      : '<tr><td colspan="5" class="text-muted s-91a870">No versions yet - the next save is version 1.</td></tr>'}</tbody></table></div>`;
   S.root.appendChild(panel);
   panel.querySelector('[data-ver-close]').addEventListener('click', () => panel.remove());
   panel.querySelectorAll('[data-ver]').forEach(b => b.addEventListener('click', async () => {
@@ -360,10 +360,10 @@ function renderTop() {
     <input class="pts-name" data-ps="name" value="${esc(S.name)}" aria-label="Template name">
     <span class="pts-chip">${esc(T.txnLabel(S.txn))}</span>
     ${S.isDefault === 'Yes' ? '<span class="pts-chip">Default</span>' : ''}
-    ${S.dirty ? '<span class="text-muted" style="font-size:12px;">Unsaved</span>' : ''}
+    ${S.dirty ? '<span class="text-muted s-6cb285">Unsaved</span>' : ''}
     <span class="pts-spacer"></span>
-    <span class="text-muted" style="font-size:12px;">Preview with</span>
-    <input class="form-input" style="width:170px;" data-ps="sample" placeholder="document no" value="${esc(S.sampleRef?.id || '')}">
+    <span class="text-muted s-6cb285">Preview with</span>
+    <input class="form-input s-d52ddd" data-ps="sample" placeholder="document no" value="${esc(S.sampleRef?.id || '')}">
     <button type="button" class="btn btn-ghost btn-sm" data-ps="undo" ${S.undo.length ? '' : 'disabled'}>Undo</button>
     <button type="button" class="btn btn-ghost btn-sm" data-ps="redo" ${S.redo.length ? '' : 'disabled'}>Redo</button>
     <button type="button" class="btn btn-outline btn-sm" data-ps="test">Test print</button>
@@ -556,7 +556,7 @@ function renderInspector() {
 function templateInspector() {
   const p = S.layout.page || {};
   return `
-    <div class="pts-section-title" style="margin-top:0;">Template</div>
+    <div class="pts-section-title s-d46224">Template</div>
     <div class="form-group"><label class="form-label">Transaction</label><div>${esc(T.txnLabel(S.txn))}</div></div>
     <div class="pts-grid2">
       <div class="form-group"><label class="form-label">Page size</label><select class="form-input" data-tp="size">${Object.keys(T.PAGE_SIZES).map(s => opt(s, s, p.size || 'A4')).join('')}</select></div>
@@ -575,7 +575,7 @@ function templateInspector() {
 function elementInspector(el) {
   const byPosition = T.pagesByPosition(el, S.layout.elements.find(e => e.type === 'table'));
   const common = `
-    <div class="pts-section-title" style="margin-top:0;">${esc(TYPE_LABEL[el.type] || el.type)}</div>
+    <div class="pts-section-title s-d46224">${esc(TYPE_LABEL[el.type] || el.type)}</div>
     <div class="pts-grid4">${num('x', 'X', el.x)}${num('y', 'Y', el.y)}${num('w', 'W', el.w)}${num('h', 'H', el.h, el.type === 'line' ? 0.1 : 0.5)}</div>
     ${el.type === 'table' ? '' : byPosition ? `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" disabled>${opt(byPosition, byPosition === 'first' ? 'First page (above the items table)' : 'Last page (below the items table)', byPosition)}</select></div>` : `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" data-prop="pages">${opt('first', 'First page', el.pages)}${opt('all', 'Every page', el.pages)}${opt('last', 'Last page', el.pages)}</select></div>`}
     ${['line', 'image', 'box', 'qr'].includes(el.type) ? '' : `
@@ -586,7 +586,7 @@ function elementInspector(el) {
       <button type="button" data-tog="border" class="${el.border ? 'on' : ''}">Border</button>
       ${['left', 'center', 'right'].map(a => `<button type="button" data-align="${a}" class="${(el.align || 'left') === a ? 'on' : ''}">${a[0].toUpperCase() + a.slice(1)}</button>`).join('')}
     </div>
-    <div class="form-group" style="margin-top:8px;"><label class="form-label">Background</label><input type="text" class="form-input" data-prop="bg" value="${esc(el.bg || '')}" placeholder="none, or #f1f3f5"></div>`}`;
+    <div class="form-group s-8a77e5"><label class="form-label">Background</label><input type="text" class="form-input" data-prop="bg" value="${esc(el.bg || '')}" placeholder="none, or #f1f3f5"></div>`}`;
   let extra = '';
   const headerFields = S.catalog.header || [];
   switch (el.type) {
@@ -603,7 +603,7 @@ function elementInspector(el) {
     case 'block':
       extra = `<div class="form-group"><label class="form-label">Block</label><select class="form-input" data-prop="block">${opt('store', 'Generating store', el.block)}${opt('party', 'Vendor / other store', el.block)}${opt('ship_to', 'Ship to', el.block)}</select></div>
         <div class="form-group"><label class="form-label">Title</label><input class="form-input" data-prop="title" value="${esc(el.title || '')}"></div>
-        <div class="form-group"><label class="form-label">Show</label>${T.BLOCK_LINE_OPTIONS.map(([k, l]) => `<label style="display:flex;gap:6px;font-size:12.5px;"><input type="checkbox" data-show="${k}" ${(el.show || ['name', 'legal_name', 'address', 'city_pin', 'state', 'gstin', 'phone']).includes(k) ? 'checked' : ''}>${esc(l)}</label>`).join('')}</div>`;
+        <div class="form-group"><label class="form-label">Show</label>${T.BLOCK_LINE_OPTIONS.map(([k, l]) => `<label class="s-ae2370"><input type="checkbox" data-show="${k}" ${(el.show || ['name', 'legal_name', 'address', 'city_pin', 'state', 'gstin', 'phone']).includes(k) ? 'checked' : ''}>${esc(l)}</label>`).join('')}</div>`;
       break;
     case 'image':
       extra = `<div class="form-group"><label class="form-label">Picture (logo) - PNG / JPG up to 400 KB</label><input type="file" accept="image/png,image/jpeg,image/svg+xml" class="form-input" data-upload></div>
@@ -616,7 +616,7 @@ function elementInspector(el) {
     case 'table':
       extra = `<div class="pts-grid2">${num('fontSize', 'Font size (pt)', el.fontSize ?? 8)}${num('imageSize', 'Picture size (mm)', el.imageSize ?? 14, 1)}
           <div class="form-group"><label class="form-label">Header shade</label><input type="text" class="form-input" data-prop="headerBg" value="${esc(el.headerBg || '')}"></div></div>
-        <label style="display:flex;gap:6px;font-size:12.5px;margin-bottom:8px;"><input type="checkbox" data-rowlines ${el.rowLines === false ? '' : 'checked'}>Line between rows</label>
+        <label class="s-88aac8"><input type="checkbox" data-rowlines ${el.rowLines === false ? '' : 'checked'}>Line between rows</label>
         <div class="pts-section-title">Columns (width is relative)</div>
         <div class="pts-cols">${(el.columns || []).map((c, i) => `
           <div class="pts-col">
@@ -629,13 +629,13 @@ function elementInspector(el) {
             <div class="pts-col-under">${(c.under || []).map((u, j) => `<span class="pts-chip">${esc(u)} <button type="button" data-underdel="${i}" data-j="${j}" title="Remove this line">&times;</button></span>`).join('')}
               <select class="form-input" data-underadd="${i}" aria-label="Add a line under this column"><option value="">+ line under...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>
           </div>`).join('')}</div>
-        <div class="form-group" style="margin-top:8px;"><label class="form-label">Add column</label><select class="form-input" data-addcol><option value="">Choose...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>`;
+        <div class="form-group s-8a77e5"><label class="form-label">Add column</label><select class="form-input" data-addcol><option value="">Choose...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>`;
       break;
     case 'totals': {
       const rows = el.rows && el.rows.length ? el.rows : T.DEFAULT_TOTAL_ROWS;
       extra = `<div class="pts-section-title">Rows</div>
-        <div class="pts-cols">${rows.map((r, i) => `<div class="pts-col" style="grid-template-columns:1fr 26px 26px;"><input class="form-input" data-trow="${i}" value="${esc(r.label)}"><button type="button" data-trowmove="${i}">&uarr;</button><button type="button" data-trowdel="${i}">&times;</button><div class="pts-col-key">${esc(r.key)}${r.when ? ` · ${r.when === 'intra' ? 'within state' : 'across states'} only` : ''}</div></div>`).join('')}</div>
-        <div class="form-group" style="margin-top:8px;"><label class="form-label">Add row</label><select class="form-input" data-addtrow><option value="">Choose...</option>${headerFields.filter(f => f.key.startsWith('totals.') || f.key.startsWith('fields.')).map(f => opt(f.key, f.label, '')).join('')}</select></div>`;
+        <div class="pts-cols">${rows.map((r, i) => `<div class="pts-col s-2fabb7"><input class="form-input" data-trow="${i}" value="${esc(r.label)}"><button type="button" data-trowmove="${i}">&uarr;</button><button type="button" data-trowdel="${i}">&times;</button><div class="pts-col-key">${esc(r.key)}${r.when ? ` · ${r.when === 'intra' ? 'within state' : 'across states'} only` : ''}</div></div>`).join('')}</div>
+        <div class="form-group s-8a77e5"><label class="form-label">Add row</label><select class="form-input" data-addtrow><option value="">Choose...</option>${headerFields.filter(f => f.key.startsWith('totals.') || f.key.startsWith('fields.')).map(f => opt(f.key, f.label, '')).join('')}</select></div>`;
       break;
     }
     case 'qr':
@@ -643,11 +643,11 @@ function elementInspector(el) {
       break;
   }
   return `${common}${extra}
-    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
+    <div class="s-70e4a7">
       ${el.type === 'table' ? '' : '<button type="button" class="btn btn-outline btn-sm" data-act-el="dup">Duplicate</button>'}
       <button type="button" class="btn btn-outline btn-sm" data-act-el="front">To front</button>
       <button type="button" class="btn btn-outline btn-sm" data-act-el="back">To back</button>
-      <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger-color);" data-act-el="del">Delete</button>
+      <button type="button" class="btn btn-ghost btn-sm s-25f4ca" data-act-el="del">Delete</button>
     </div>`;
 }
 
@@ -770,12 +770,12 @@ export async function renderPrintTemplateGallery(container, { only = null, title
   panel.style.padding = '20px';
   panel.setAttribute('data-pts-gallery', '1');
   panel.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+    <div class="s-fb07b5">
       <div>
-        <h2 style="font-size:16px;font-weight:700;margin:0;">${esc(title)}</h2>
+        <h2 class="s-505773">${esc(title)}</h2>
       </div>
-      <div style="display:flex;gap:8px;align-items:flex-end;">
-        <label class="form-label" style="display:flex;flex-direction:column;gap:4px;font-size:12px;">New template for
+      <div class="s-8a7d3a">
+        <label class="form-label s-26bb04">New template for
           <select class="form-input" data-gal="txn">${txns.map(t => `<option value="${t.key}">${esc(t.label)}</option>`).join('')}</select></label>
         <button type="button" class="btn btn-primary btn-sm" data-gal="new">+ New template</button>
       </div>
@@ -792,7 +792,7 @@ export async function renderPrintTemplateGallery(container, { only = null, title
                 <button type="button" class="btn btn-outline btn-sm" data-gal-edit="${esc(x.id)}">Design</button>
                 <button type="button" class="btn btn-ghost btn-sm" data-gal-copy="${esc(x.id)}">Duplicate</button>
                 ${x.is_default === 'Yes' ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-gal-default="${esc(x.id)}" data-txn="${t.key}">Make default</button>`}
-                <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger-color);" data-gal-del="${esc(x.id)}" data-name="${esc(x.name || x.code)}">Delete</button>
+                <button type="button" class="btn btn-ghost btn-sm s-25f4ca" data-gal-del="${esc(x.id)}" data-name="${esc(x.name || x.code)}">Delete</button>
               </div>
             </div>`).join('')}
           <div class="pts-card">

@@ -59,6 +59,25 @@ func StartTillExchange(tenantID, cashier string, req ExchangeReturnRequest) (*Ex
 	if strings.TrimSpace(req.OriginalOrderID) == "" || strings.TrimSpace(req.Location) == "" || len(req.Lines) == 0 {
 		return nil, &ValidationError{Code: "POSOFF-0611", Message: "an exchange needs the original bill, the store and at least one item coming back"}
 	}
+	// 148.55: a free gift has no value to carry, so this is refused here, before
+	// stock or the journal moves, not after.
+	elig, eligErr := ResolveReturnEligibility(tenantID, req.OriginalOrderID)
+	if eligErr == nil && elig.Found && exchangeIsGiftsOnly(elig, req.Lines) {
+		return nil, &ValidationError{Code: "POSOFF-0611", Message: "a free gift has no value to exchange; take it back as a return"}
+	}
+	dispositions := map[string]string{}
+	for _, l := range req.Lines {
+		d := strings.TrimSpace(req.Dispositions[l.SKU])
+		if d == "" {
+			d = "Sellable"
+		}
+		dispositions[l.SKU] = d
+	}
+	// 148.59: so is a return where no line would refund (the condition chosen,
+	// or a rule that credits by note): refused before anything posts.
+	if eligErr == nil && elig.Found && !exchangeHasRefundableLine(tenantID, req.Lines, dispositions, elig) {
+		return nil, exchangeNothingRefundable()
+	}
 	key := strings.TrimSpace(req.IdempotencyKey)
 	if key == "" {
 		key = "exchange:" + req.OriginalOrderID + ":" + NewDocIDCompact("X")
@@ -79,20 +98,12 @@ func StartTillExchange(tenantID, cashier string, req ExchangeReturnRequest) (*Ex
 	if err := ReceiveReturnRequest(tenantID, returnID, cashier); err != nil {
 		return nil, err
 	}
-	dispositions := map[string]string{}
-	for _, l := range req.Lines {
-		d := strings.TrimSpace(req.Dispositions[l.SKU])
-		if d == "" {
-			d = "Sellable"
-		}
-		dispositions[l.SKU] = d
-	}
 	_, refundID, err := ApplyReturnQC(tenantID, returnID, dispositions, cashier)
 	if err != nil {
 		return nil, err
 	}
 	if refundID == "" {
-		return nil, &ValidationError{Code: "POSOFF-0611", Message: "nothing coming back is refundable (check the condition chosen), so there is no credit to exchange against"}
+		return nil, exchangeNothingRefundable() // the backstop for a case the check above cannot see
 	}
 	if err := approveRefundRequest(tenantID, refundID, cashier, false); err != nil {
 		return nil, err
@@ -105,6 +116,53 @@ func StartTillExchange(tenantID, cashier string, req ExchangeReturnRequest) (*Ex
 		err = fmt.Errorf("exchange credit for return %s was not created", returnID)
 	}
 	return credit, err
+}
+
+func exchangeIsGiftsOnly(elig *ReturnEligibility, lines []ReturnItemInput) bool {
+	for _, l := range lines {
+		free := false
+		for _, e := range elig.Lines {
+			if e.SKU == l.SKU && e.UnitPrice <= 0 {
+				free = true
+			}
+		}
+		if !free {
+			return false
+		}
+	}
+	return true
+}
+
+func exchangeNothingRefundable() error {
+	return &ValidationError{Code: "POSOFF-0611", Message: "nothing coming back is refundable (check the condition chosen), so there is no credit to exchange against"}
+}
+
+// exchangeHasRefundableLine says whether QC would raise a refund for these lines:
+// a condition that refunds, a rule that does not credit by note instead, and a
+// price paid. When it cannot tell, it says yes and QC decides, as before.
+func exchangeHasRefundableLine(tenantID string, lines []ReturnItemInput, dispositions map[string]string, elig *ReturnEligibility) bool {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return true
+	}
+	rules := loadReturnDispositionRules(db.DB, schema)
+	for _, l := range lines {
+		d := dispositions[l.SKU]
+		rule, known := returnDispositionRule[d]
+		onBill, paid := false, false
+		for _, e := range elig.Lines {
+			if e.SKU == l.SKU {
+				onBill, paid = true, paid || e.UnitPrice > 0
+			}
+		}
+		if !known || !onBill {
+			return true // the return and QC report these with their own errors
+		}
+		if paid && rule.RefundEligible && rules.action(d) != returnActionCredit {
+			return true
+		}
+	}
+	return false
 }
 
 func exchangeCreditForReturn(tenantID, returnID string) (*ExchangeCredit, error) {

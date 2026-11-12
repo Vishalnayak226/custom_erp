@@ -37,9 +37,10 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		// by staff skips Pending. API callers leave it off and wait at Pending.
 		Manual bool `json:"manual"`
 		Lines  []struct {
-			SKU       string  `json:"sku"`
-			Qty       int     `json:"qty"`
-			UnitPrice float64 `json:"unit_price"`
+			SKU         string  `json:"sku"`
+			Qty         int     `json:"qty"`
+			UnitPrice   float64 `json:"unit_price"`
+			FloorReason string  `json:"floor_reason"`
 		} `json:"lines"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -64,7 +65,7 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Each line requires a non-empty 'sku' and a positive 'qty'")
 			return
 		}
-		lines[i] = engines.SalesOrderLineInput{SKU: l.SKU, Qty: l.Qty, UnitPrice: l.UnitPrice}
+		lines[i] = engines.SalesOrderLineInput{SKU: l.SKU, Qty: l.Qty, UnitPrice: l.UnitPrice, FloorReason: l.FloorReason}
 	}
 
 	orderID, err := engines.CreateSalesOrder(tenantID, engines.SalesOrderInput{

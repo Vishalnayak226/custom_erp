@@ -103,6 +103,7 @@ the route the way the others are):
 // diff, not noticed later in an audit.
 var reviewedUnauthenticatedRoutes = map[string]string{
 	"GET /internal/tls-ask":           "Caddy's on_demand_tls ask hook - called mid-TLS-handshake, before any request exists, so it cannot carry a bearer token. Answers only whether a hostname is a known tenant.",
+	"GET /media/{tenant}/{id}/{sig}":  "146.5.9: a product image at its signed public address, for marketplaces that fetch feed pictures with no login. The client and media id are named by the address and covered by an HMAC-SHA256 (key from PUBLIC_MEDIA_SIGNING_KEY, the previous key accepted while rotating) compared in constant time; no session, header or token is read. It serves only an Active, undeleted JPEG/PNG/WebP/GIF of a registered client that switched pim.public_media_urls on (off by default), and every refusal is the same plain 404. Image rate-limit bucket (600 a minute per address).",
 	"GET /favicon.ico":                "73.D.23: a browser asks for /favicon.ico on every page before anyone signs in; the handler only answers a 301 to /favicon.png, a static file the method-less \"/\" file server already serves unauthenticated. No data, no input read, no tenant.",
 	"POST /api/public/v1/oauth/token": "Stage 38.2d's OAuth2 client_credentials grant - where an integration without a bearer gets one, so it cannot sit behind publicAPIMiddleware, which requires one. The client authenticates itself: its secret is checked against the stored hash in the named client's schema, only an Active oauth_client credential qualifies, requested scopes must already be held, 30 requests a minute per address, a 16 KiB body cap, and the issued token is stored hashed and never outlives its client. Reviewed at the 2026-10-18 release, when the scanner first saw it.",
 }
@@ -127,7 +128,7 @@ reviewedUnauthenticatedRoutes with the reason it cannot be.`, key, r.Source)
 // which is how an internal route becomes public without anyone deciding it.
 //
 // The two exceptions below are real: found by this check on the day it was
-// written (49.1.1), recorded in docs/security/risk_register.md as R-05, and
+// written (49.1.1), recorded in docs/security/risk-register.md as R-05, and
 // owned by whoever next touches middleware.go. They are listed rather than
 // silently tolerated so the count can only go down.
 var knownDeadPublicRouteEntries = map[string]string{

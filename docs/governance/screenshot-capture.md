@@ -9,7 +9,7 @@ audience: [documentation-author, qa-owner]
 applies_to: current manual screenshots; synthetic fixtures only
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-08
+last_verified: 2026-11-07
 review_by: 2026-10-08
 supersedes: none
 superseded_by: none
@@ -55,6 +55,33 @@ state and token. The tool fails for HTTP/browser errors, an authentication or
 denial screen, unexpected overlays, navigation fallback and detected clipping.
 Controls inside an intentional scroll area are allowed. Cropped sidebar shots
 require a viewport large enough for their declared crop.
+
+## What fails a capture, and what each shot is tagged with
+
+Every selected screen is checked before its image is kept. The whole set is refused (nothing is
+published) on any of: an HTTP status of 400 or more; a browser console error or uncaught page
+error; a failed network request; an unexpected dialog or overlay; a missing in-app help
+mapping (the screen has no entry in `GET /api/v1/help/index` `screen_map`, so the Help drawer
+would be empty; a shot may set `help: false` only for a screen that has none by design);
+a declared selector (`selectors`) that is no longer on the page (a stale selector, named in the
+message); navigation that fell back to another screen; a session whose role or tenant does not
+match; clipped controls; and a crop larger than the viewport.
+
+Role boundaries are part of the evidence. A shot may list `refusedRoles`; when the capture runs
+as one of those roles the screen **must** be refused. A refusal (a 401/403, a redirect away, or an
+access-denied screen) is recorded as `refused-as-expected` with no image; the screen opening is the
+failure (`unauthorized success`). A shot may list `allowedHttp` statuses for an expected denial.
+A refusal screen is recognised by its wording (access denied, do not have permission, no access, ask your administrator). A closed modal overlay (opacity 0 on an ancestor) is not an unexpected dialog. Both were found by running the tool as Cashier against the real app (2026-11-10): roles and configuration were refused as expected; reports and pos-billing were captured, so the help-map check passed on real data.
+
+Each image has a sidecar `<id>.json`, and the manifest (`schema_version` 2) carries the same
+tags: `release`, `commit`, `role`, `fixture`, `tenant_fixture`, `viewport`, `device_scale`,
+`locale`, `theme`, `outcome`, `route` and the image `sha256`. Pass `--commit <sha>` for the exact
+build under capture.
+
+Each failure mode is proved by injection in `capture-screenshots.test.cjs` (a synthetic page
+that breaks that one rule must make the capture fail, and an HTTP error, console error, page error,
+overlay, missing help mapping, unauthorized success, stale selector and clipped control each have
+their own fixture screen).
 
 ## Review before replacing living assets
 

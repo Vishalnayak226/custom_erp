@@ -8,7 +8,7 @@ import (
 
 // Stage 26.5.12/26.5.13/26.5.15/26.5.16 (WMS Enterprise Maturity Sprint P2
 // follow-up) engine tests. Kept in its own file, same convention
-// wms_enterprise_test.go/reports_stage26_10_test.go already established
+// wms_enterprise_test.go/reports_operations_test.go already established
 // for staying out of engines_test.go while other concurrent work is
 // mid-editing it.
 func TestWMSP2(t *testing.T) {

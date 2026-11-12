@@ -337,3 +337,40 @@ func inventoryLossByReason(tenantID string, p map[string]string) ([]map[string]i
 	}
 	return out, nil
 }
+
+// AdjustmentPoolQCHold marks a line that writes off units held in quarantine
+// (Stage 148.28: a scrapped return). No other adjustment line carries it.
+const AdjustmentPoolQCHold = "qc_hold"
+
+// quarantinedStock is what a store holds in quarantine of an item.
+func quarantinedStock(schema, sku, location string) int {
+	var held int
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(qc_hold, 0) FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), sku, location).Scan(&held)
+	return held
+}
+
+// applyQuarantineScrapTx takes the units of every quarantine line out of
+// qc_hold and on hand - available is left alone - and writes the ledger entry.
+func applyQuarantineScrapTx(tx *sql.Tx, schema, location, number, userID string, lines []map[string]interface{}) error {
+	for _, l := range lines {
+		if strField(l, "pool") != AdjustmentPoolQCHold {
+			continue
+		}
+		sku, qty := strField(l, "sku"), -int(numFromInterface(l["qty"]))
+		if qty <= 0 {
+			continue
+		}
+		res, err := tx.Exec(fmt.Sprintf(`UPDATE %s.inventory_availability SET on_hand = on_hand - $3, qc_hold = qc_hold - $3, updated_at = CURRENT_TIMESTAMP
+			WHERE sku = $1 AND location_code = $2 AND COALESCE(qc_hold, 0) >= $3`, schema), sku, location, qty)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return &ValidationError{Code: "INVENT-0101", SubFor: sku, Message: fmt.Sprintf("%s at %s no longer holds %d unit(s) in quarantine to write off", sku, location, qty)}
+		}
+		if err := WriteStockLedgerLinesTx(tx, schema, location, InventoryAdjustmentDoctype, number, userID, "", []PostedStockLine{{SKU: sku, Qty: -qty, BatchNo: strField(l, "batch_no")}}); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -36,7 +36,7 @@ func restoreThresholdSetting(tenantID, schema, prev string, existed bool) {
 }
 
 // Stage 34.1-34.3 engine tests. Own file, same convention
-// reports_stage26_10_test.go / wms_enterprise_test.go follow for staying out
+// reports_operations_test.go / wms_enterprise_test.go follow for staying out
 // of engines_test.go while other work may be mid-editing it.
 //
 // Every fixture is prefixed MI34 and deleted at the end, because these tests

@@ -89,15 +89,15 @@ async function renderDocTableView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      ${showQuickCreateBack ? `<a href="#" id="quick-create-back" class="empty-state-link" style="display:inline-block; margin-bottom:6px;">&larr; Back to ${escapeHTMLText(quickCreateReturn.label || getTranslatedLabel(quickCreateReturn.view))}</a>` : ''}
+      ${showQuickCreateBack ? `<a href="#" id="quick-create-back" class="empty-state-link s-dcc58a">&larr; Back to ${escapeHTMLText(quickCreateReturn.label || getTranslatedLabel(quickCreateReturn.view))}</a>` : ''}
       <h1 class="page-title">${escapeHTMLText(getDoctypeLabel(currentDoctype))}</h1>
     </div>
-    <div style="display:flex; gap: 8px;">
-      ${currentDoctype === 'PasswordResetRequest' ? (isMenuRuleVisible(MENU_PERMISSION_MAP['menu-users'])
+    <div class="s-55b451">
+      ${currentDoctype === 'CustomOrderQuote' ? (state.permissions.isAdmin || state.permissions.create.has('SalesOrder') ? '<button class="btn btn-primary" id="doc-custom-order">New order</button>' : '') : currentDoctype === 'PasswordResetRequest' ? (isMenuRuleVisible(MENU_PERMISSION_MAP['menu-users'])
         ? '<button class="btn btn-primary" id="doc-reset-users-button">Open Users for password reset</button>'
         : '<span class="page-header-note">Contact an administrator to request a password reset.</span>') : canCreateDoctype(currentDoctype) ? `
       <button class="btn btn-outline" id="doc-import-button">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="s-7cc88f"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span>Bulk Import</span>
       </button>
       <button class="btn btn-primary" id="doc-create-button">
@@ -108,10 +108,33 @@ async function renderDocTableView(container) {
     </div>
   `;
   container.appendChild(header);
+  // Stage 148.23: pairs are suggested, never made silently.
+  if (currentDoctype === 'PartyPair' && isMenuRuleVisible({ capability: 'finance.post' })) {
+    const sug = document.createElement('button');
+    sug.className = 'btn btn-outline';
+    sug.textContent = 'Suggested pairs';
+    sug.addEventListener('click', async () => { await loadViewModule('/view-set-off.js?v=1'); window.openSetOffSuggestions?.(); });
+    header.appendChild(sug);
+  }
+  if (currentDoctype === 'SerialNumber') loadViewModule('/view-piece-hold.js?v=1').then(() => window.pieceHoldHeaderButton?.(header.lastElementChild)).catch(() => {});
+  header.querySelector('#doc-custom-order')?.addEventListener('click', async () => {
+    await loadViewModule('/view-custom-orders.js?v=1');
+    window.openCustomOrder?.();
+  });
   header.querySelector('#doc-vendor-tool')?.addEventListener('click', async () => {
     await loadViewModule('/view-vendor-advance.js?v=1');
     if (currentDoctype === 'VendorAdvance') window.openVendorAdvanceGive?.(); else window.openVendorRebateCalculate?.();
   });
+  if (currentDoctype === 'PriceListVersion') { // Stage 148.26: endings preview, open lines
+    const tool = document.createElement('button');
+    tool.className = 'btn btn-outline'; tool.id = 'doc-price-tool'; tool.textContent = 'Price tools';
+    const anchor = header.querySelector('#doc-create-button');
+    if (anchor) anchor.before(tool); else header.lastElementChild?.appendChild(tool);
+    tool.addEventListener('click', async () => {
+      await loadViewModule('/view-b2b-pricing.js?v=1');
+      window.openPriceTools?.();
+    });
+  }
   // Stage 55.18: service tickets, contracts and projects open with their
   // working view (queue, coverage, ledger) above the record list.
   if (['ServiceTicket', 'ServiceContract', 'Project'].includes(currentDoctype)) {
@@ -134,6 +157,14 @@ async function renderDocTableView(container) {
       .then(m => m.renderMasterRecodePanel(recodeHost, currentDoctype, getDoctypeLabel(currentDoctype)))
       .catch(error => console.error('[93.11] code clean-up panel failed to load', error));
   }
+  // Stage 146.5.4: the Item list offers the wide product sheet.
+  if (currentDoctype === 'Item' && canCreateDoctype('Item')) {
+    const sheetHost = document.createElement('div');
+    container.appendChild(sheetHost);
+    loadViewModule('/view-product-sheet.js' + new URL(import.meta.url).search)
+      .then(m => m.renderProductSheetButton(sheetHost))
+      .catch(error => console.error('[146.5.4] product sheet failed to load', error));
+  }
   // Stage 55.11: the Import Job list opens with "Fix and resume an import".
   if (currentDoctype === 'ImportJob') {
     const resumeHost = document.createElement('div');
@@ -141,6 +172,14 @@ async function renderDocTableView(container) {
     loadViewModule('/view-import-jobs.js' + new URL(import.meta.url).search)
       .then(m => m.renderImportJobPanel(resumeHost))
       .catch(error => console.error('[55.11] import resume panel failed to load', error));
+  }
+  // Stage 47.13.1: the Import Batch list is the staged-import screen.
+  if (currentDoctype === 'ImportBatch') {
+    const stagedHost = document.createElement('div');
+    container.appendChild(stagedHost);
+    loadViewModule('/view-import-staging.js' + new URL(import.meta.url).search)
+      .then(m => m.renderImportBatchPanel(stagedHost))
+      .catch(error => console.error('[47.13.1] staged import panel failed to load', error));
   }
   header.querySelector('#quick-create-back')?.addEventListener('click', event => {
     event.preventDefault();
@@ -164,7 +203,7 @@ async function renderDocTableView(container) {
       ${currentDoctype === 'Item' ? `<button class="btn btn-outline" id="pim-group-actions-btn" title="Act on a saved Product Group instead of hand-picking rows">Group Actions</button>` : ''}
       ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" disabled>Reject Selected</button>` : ''}</div>` : ''}
     </div>
-    ${!isPIMBulkEditDoctype() && currentDoctype !== 'PasswordResetRequest' ? `<div class="bulk-edit-bar hidden" id="doc-bulk-bar" style="padding:0 16px 10px;">
+    ${!isPIMBulkEditDoctype() && currentDoctype !== 'PasswordResetRequest' ? `<div class="bulk-edit-bar hidden s-c2034d" id="doc-bulk-bar">
       <span id="doc-bulk-count">0 ticked</span>
       <button class="btn btn-outline btn-sm" data-doc-bulk="export">Export</button>
       ${GENERIC_SUBMIT_DOCTYPES.has(currentDoctype) && canUpdateDoctype(currentDoctype) ? '<button class="btn btn-outline btn-sm" data-doc-bulk="submit">Submit for approval</button>' : ''}
@@ -311,10 +350,10 @@ function renderDocTable() {
     <table>
       <thead>
         <tr>
-          ${bulkEditingEnabled ? `<th style="width: 42px;"><input type="checkbox" aria-label="Select all visible records" data-pim-select-page ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
+          ${bulkEditingEnabled ? `<th class="s-6feda3"><input type="checkbox" aria-label="Select all visible records" data-pim-select-page ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
           ${cols.map(f => `<th>${escapeHTMLText(getTranslatedLabel(f.label))}</th>`).join('')}
           ${currentDoctype === 'PurchaseRequisition' ? '<th>Next document</th>' : ''}
-          <th class="row-actions-cell" style="text-align: right;">Actions</th>
+          <th class="row-actions-cell s-30489c">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -382,14 +421,14 @@ function renderDocTable() {
       // showHistory above.
       const prActions = currentDoctype === 'PurchaseRequisition'
         ? (row.status === 'Draft'
-            ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" data-doc-action="submit-requisition" data-doc-id="${escapeHTMLText(row.id)}">
+            ? `<button class="action-btn s-c6b76b" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" data-doc-action="submit-requisition" data-doc-id="${escapeHTMLText(row.id)}">
                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                </button>`
             : row.status === 'Approved' && prHasLines(row)
-              ? `<button class="action-btn" title="Combine open requests for this vendor" style="margin-right:4px;" data-doc-action="combine-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText((prLines(row).find(l => l.vendor_id) || {}).vendor_id || '')}">Combine</button>`
+              ? `<button class="action-btn s-c6b76b" title="Combine open requests for this vendor" data-doc-action="combine-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText((prLines(row).find(l => l.vendor_id) || {}).vendor_id || '')}">Combine</button>`
             : row.status === 'Approved'
-              ? `<button class="action-btn" title="Convert to RFQ" style="margin-right:4px;" data-doc-action="convert-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-target="RFQ">RFQ</button>
-                 <button class="action-btn" title="Convert to Purchase Order" style="margin-right:4px;" data-doc-action="convert-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-target="PurchaseOrder">PO</button>`
+              ? `<button class="action-btn s-c6b76b" title="Convert to RFQ" data-doc-action="convert-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-target="RFQ">RFQ</button>
+                 <button class="action-btn s-c6b76b" title="Convert to Purchase Order" data-doc-action="convert-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-target="PurchaseOrder">PO</button>`
               : '')
         // Stage 26.9.7: QC gate - a QualityInspection is a plain flat-schema
         // Transaction doctype (same "no bespoke workbench needed" shape as
@@ -398,7 +437,7 @@ function renderDocTable() {
         // Approve/Reject itself happens on the existing Approvals inbox
         // screen, not here.
         : currentDoctype === 'QualityInspection' && row.status === 'Draft'
-        ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" data-doc-action="submit-quality-inspection" data-doc-id="${escapeHTMLText(row.id)}">
+        ? `<button class="action-btn s-c6b76b" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" data-doc-action="submit-quality-inspection" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         // Stage 26.9.11: SubcontractOrder is the same "flat doctype, only
@@ -406,25 +445,30 @@ function renderDocTable() {
         // raw material out (Draft->Sent), Receive moves the processed/
         // finished good back in (Sent->Received).
         : currentDoctype === 'SubcontractOrder' && row.status === 'Draft'
-        ? `<button class="action-btn" title="Send to Subcontractor" aria-label="Send ${escapeHTMLText(row.id)} to subcontractor" style="margin-right:4px;" data-doc-action="send-subcontract-order" data-doc-id="${escapeHTMLText(row.id)}">
+        ? `<button class="action-btn s-c6b76b" title="Send to Subcontractor" aria-label="Send ${escapeHTMLText(row.id)} to subcontractor" data-doc-action="send-subcontract-order" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         : currentDoctype === 'SubcontractOrder' && row.status === 'Sent'
-        ? `<button class="action-btn" title="Receive from Subcontractor" aria-label="Receive ${escapeHTMLText(row.id)} from subcontractor" style="margin-right:4px;" data-doc-action="receive-subcontract-order" data-doc-id="${escapeHTMLText(row.id)}" data-expected-qty="${escapeHTMLText(row.expected_received_qty || '')}">
+        ? `<button class="action-btn s-c6b76b" title="Receive from Subcontractor" aria-label="Receive ${escapeHTMLText(row.id)} from subcontractor" data-doc-action="receive-subcontract-order" data-doc-id="${escapeHTMLText(row.id)}" data-expected-qty="${escapeHTMLText(row.expected_received_qty || '')}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
            </button>`
         // Stage 148.15 / 148.17: advance and rebate-claim steps.
         : currentDoctype === 'VendorAdvance' && (row.status === 'Open' || row.status === 'Part Applied') && isMenuRuleVisible({ capability: 'finance.post' })
-        ? ['apply', 'refund', ...(row.status === 'Open' && !Number(row.refunded_amount) ? ['cancel'] : [])].map(op => `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="vendor-op" data-op="${op}" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText(row.vendor_id || '')}" data-po="${escapeHTMLText(row.po_id || '')}" data-open="${escapeHTMLText(String(row.open_amount ?? ''))}">${op[0].toUpperCase() + op.slice(1)}</button>`).join('')
+        ? ['apply', 'refund', ...(row.status === 'Open' && !Number(row.refunded_amount) ? ['cancel'] : [])].map(op => `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="vendor-op" data-op="${op}" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText(row.vendor_id || '')}" data-po="${escapeHTMLText(row.po_id || '')}" data-open="${escapeHTMLText(String(row.open_amount ?? ''))}">${op[0].toUpperCase() + op.slice(1)}</button>`).join('')
         : currentDoctype === 'VendorRebateClaim' && ['Calculated', 'Rejected', 'Approved'].includes(row.status) && isMenuRuleVisible({ capability: 'finance.post' })
-        ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="vendor-op" data-op="${row.status === 'Approved' ? 'settle' : 'submit'}" data-doc-id="${escapeHTMLText(row.id)}">${row.status === 'Approved' ? 'Settle' : 'Send'}</button>`
+        ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="vendor-op" data-op="${row.status === 'Approved' ? 'settle' : 'submit'}" data-doc-id="${escapeHTMLText(row.id)}">${row.status === 'Approved' ? 'Settle' : 'Send'}</button>`
+        : currentDoctype === 'PartyPair' && row.status === 'Active' && isMenuRuleVisible({ capability: 'finance.post' })
+        ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="set-off" data-op="balances" data-doc-id="${escapeHTMLText(row.id)}">Balances</button>`
+        // Stage 148.23: a posted set-off prints its statement; it reverses once.
+        : currentDoctype === 'SetOffVoucher' && ['Approved', 'Reversed'].includes(row.status) && isMenuRuleVisible({ capability: 'finance.post' })
+        ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="set-off" data-op="statement" data-doc-id="${escapeHTMLText(row.id)}">Statement</button>${row.status === 'Approved' ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="set-off" data-op="reverse" data-doc-id="${escapeHTMLText(row.id)}">Reverse</button>` : ''}`
         // Stage 148.8: a carrier's bill against the estimate; each line's share.
         : currentDoctype === 'TradeChargeEntry'
-        ? `${row.status === 'Estimated' ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="charge-bill" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.vendor_id || '')}">Book bill</button>` : ''}${row.source_doctype === 'GRN' || row.grn_id ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="charge-lines" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.grn_id || row.source_id || '')}">Lines</button>` : ''}`
+        ? `${row.status === 'Estimated' ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="charge-bill" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.vendor_id || '')}">Book bill</button>` : ''}${row.source_doctype === 'GRN' || row.grn_id ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="charge-lines" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.grn_id || row.source_id || '')}">Lines</button>` : ''}`
         // Stage 26.7.9: customer householding/merge - this row (the
         // duplicate) merges INTO another customer id the user provides.
         : currentDoctype === 'Customer' && row.status !== 'Merged'
-        ? `<button class="action-btn" title="Merge Into Another Customer" aria-label="Merge ${escapeHTMLText(row.id)} into another customer" style="margin-right:4px;" data-doc-action="merge-customer" data-doc-id="${escapeHTMLText(row.id)}">
+        ? `<button class="action-btn s-c6b76b" title="Merge Into Another Customer" aria-label="Merge ${escapeHTMLText(row.id)} into another customer" data-doc-action="merge-customer" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M3 16v5h5"/><path d="M16 21h5v-5"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
            </button>`
         // Stage 26.8.8/26.8.10: Appraisal/Grievance are the same "flat
@@ -432,7 +476,7 @@ function renderDocTable() {
         // QualityInspection already uses above.
         // 135.12: PriceListVersion too - this list is its only screen.
         : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance' || currentDoctype === 'HoldReleaseRequest' || currentDoctype === 'SupplierSubmission' || currentDoctype === 'PriceListVersion') && row.status === 'Draft'
-        ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" data-doc-action="submit-document" data-doc-id="${escapeHTMLText(row.id)}" data-doctype="${escapeHTMLText(currentDoctype)}">
+        ? `<button class="action-btn s-c6b76b" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" data-doc-action="submit-document" data-doc-id="${escapeHTMLText(row.id)}" data-doctype="${escapeHTMLText(currentDoctype)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         // Stage 36.4.1/36.4.3: run this export template right now and
@@ -440,11 +484,11 @@ function renderDocTable() {
         // Group Actions modal's Export CSV button, since a plain <a href>
         // can't carry the Bearer token this endpoint requires.
         : currentDoctype === 'PIMImportTemplate' && row.status === 'Active'
-        ? `<button class="action-btn" title="Preview and import CSV" aria-label="Preview and import with template ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="run-pim-import" data-doc-id="${escapeHTMLText(row.id)}">
+        ? `<button class="action-btn s-c6b76b" title="Preview and import CSV" aria-label="Preview and import with template ${escapeHTMLText(row.id)}" data-doc-action="run-pim-import" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>
            </button>`
         : currentDoctype === 'PIMExportTemplate' && row.status === 'Active'
-        ? `<button class="action-btn" title="Run" aria-label="Run export template ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="run-pim-export" data-doc-id="${escapeHTMLText(row.id)}">
+        ? `<button class="action-btn s-c6b76b" title="Run" aria-label="Run export template ${escapeHTMLText(row.id)}" data-doc-action="run-pim-export" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
            </button>`
         // Stage 36.4.4: mint/rotate this catalog's share link and show it
@@ -452,9 +496,9 @@ function renderDocTable() {
         // hook token and Stage 38.2a's API keys both already take.
         // Stage 99.2.1: a Shopify channel's own setup page.
         : currentDoctype === 'Channel' && String(row.platform || '').toLowerCase() === 'shopify'
-        ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="shopify-setup" data-doc-id="${escapeHTMLText(row.id)}">Shopify</button>`
+        ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="shopify-setup" data-doc-id="${escapeHTMLText(row.id)}">Shopify</button>`
         : currentDoctype === 'PIMCatalog'
-        ? `<button class="action-btn" title="Share Link" aria-label="Get share link for catalog ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="share-pim-catalog" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.name || row.id)}">
+        ? `<button class="action-btn s-c6b76b" title="Share Link" aria-label="Get share link for catalog ${escapeHTMLText(row.id)}" data-doc-action="share-pim-catalog" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.name || row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
            </button>`
         // 2026-10-10: Service Ticket (Stage 37.8) had its lifecycle routes
@@ -464,20 +508,20 @@ function renderDocTable() {
         ? serviceTicketActions(row)
         // Stage 148.40: correct a batch's or serial's purity, karat and weights.
         : (currentDoctype === 'Batch' || currentDoctype === 'SerialNumber') && (state.permissions.isAdmin || state.permissions.create.has('InventoryAdjustment'))
-        ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="correct-piece" data-doc-id="${escapeHTMLText(row.id)}">Correct</button>`
+        ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="correct-piece" data-doc-id="${escapeHTMLText(row.id)}">Correct</button>` + (currentDoctype === 'SerialNumber' && row.hold_customer ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="release-piece-hold" data-doc-id="${escapeHTMLText(row.id)}">Release</button>` : '')
         : '';
       tableHTML += `
-        <td class="row-actions-cell" style="text-align: right;">
-          ${showHistory ? `<button class="action-btn" title="History" aria-label="History for ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="taxonomy-history" data-doc-id="${escapeHTMLText(row.id)}">
+        <td class="row-actions-cell s-30489c">
+          ${showHistory ? `<button class="action-btn s-c6b76b" title="History" aria-label="History for ${escapeHTMLText(row.id)}" data-doc-action="taxonomy-history" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>` : ''}
           ${prActions}
           ${currentDoctype !== 'PasswordResetRequest' && canCreateDoctype(currentDoctype) ? `
-          <button class="action-btn" title="Copy: a new record with these details" aria-label="Copy ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="copy" data-doc-id="${escapeHTMLText(row.id)}">
+          <button class="action-btn s-c6b76b" title="Copy: a new record with these details" aria-label="Copy ${escapeHTMLText(row.id)}" data-doc-action="copy" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>` : ''}
           ${currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canUpdateDoctype(currentDoctype) ? `
-          <button class="action-btn" title="Edit" aria-label="Edit ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="edit" data-doc-id="${escapeHTMLText(row.id)}">
+          <button class="action-btn s-c6b76b" title="Edit" aria-label="Edit ${escapeHTMLText(row.id)}" data-doc-action="edit" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>` : ''}
           ${currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canDeleteDoctype(currentDoctype) ? `
@@ -522,6 +566,11 @@ function renderDocTable() {
           if (op === 'submit' || op === 'settle') window.vendorRebateOp?.(op, id); else window.vendorAdvanceOp?.(op, id, button.dataset.open, button.dataset.vendor, button.dataset.po);
           break;
         }
+        case 'set-off': {
+          await loadViewModule('/view-set-off.js?v=1');
+          if (button.dataset.op === 'reverse') window.reverseSetOff?.(id); else if (button.dataset.op === 'balances') window.openSetOffBalances?.(id); else window.openSetOffStatement?.(id);
+          break;
+        }
         case 'charge-lines': window.showChargeLinesRow?.(button.dataset.docName); break;
         case 'service-ticket': runServiceTicketStep(id, button.dataset.step, button); break;
         case 'submit-document': submitGenericDocForApproval(button.dataset.doctype, id, button); break;
@@ -529,6 +578,7 @@ function renderDocTable() {
         case 'run-pim-export': window.runPIMExportTemplateRow?.(id); break;
         case 'share-pim-catalog': window.openPIMCatalogShareModal?.(id, button.dataset.docName); break;
         case 'shopify-setup': loadViewModule('./view-shopify.js').then(m => m.renderShopifyPage(document.getElementById('view-root'), id)).catch(() => showToast('The Shopify page could not load. Refresh and try again.', { variant: 'error' })); break;
+        case 'release-piece-hold': loadViewModule('/view-piece-hold.js?v=1').then(() => window.releasePieceHold?.(visibleDocTableItems().find(r => r.id === id) || {})).catch(() => {}); break;
         case 'correct-piece': loadViewModule('./view-piece-correction.js').then(m => m.openPieceCorrection(currentDoctype, id)).catch(() => showToast('Could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'taxonomy-history': window.viewTaxonomyHistory?.(id); break;
         case 'copy': window.copyRecord?.(currentDoctype, id); break;
@@ -667,7 +717,8 @@ async function runDocBulk(kind, button) {
   if (kind === 'export') {
     const fields = state.activeDocFields;
     const cell = v => {
-      const s = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      let s = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      if (/^[=+\-@\t\r]/.test(s) && isNaN(Number(s))) s = `'${s}`; // 49.4.3: a spreadsheet must not run a cell
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [['ID', ...fields.map(f => getTranslatedLabel(f.label))],
@@ -760,7 +811,7 @@ const SERVICE_TICKET_NEXT = {
 
 function serviceTicketActions(row) {
   const [step, label] = SERVICE_TICKET_NEXT[row.status];
-  const button = (s, l) => `<button class="action-btn" title="${l}" aria-label="${l} service ticket ${escapeHTMLText(row.code || row.id)}" style="margin-right:4px;" data-doc-action="service-ticket" data-step="${s}" data-doc-id="${escapeHTMLText(row.id)}">${l}</button>`;
+  const button = (s, l) => `<button class="action-btn s-c6b76b" title="${l}" aria-label="${l} service ticket ${escapeHTMLText(row.code || row.id)}" data-doc-action="service-ticket" data-step="${s}" data-doc-id="${escapeHTMLText(row.id)}">${l}</button>`;
   return button(step, label) +
     (row.status === 'Assigned' ? button('assign', 'Reassign') : '') +
     (row.status !== 'Resolved' ? button('cancel', 'Cancel') : '');
@@ -897,25 +948,25 @@ window.openPIMProductGroupActionsModal = async function() {
           <label class="form-label" for="pim-group-select">Product group</label>
           <select class="form-select" id="pim-group-select">${groups.map(g => `<option value="${escapeHTMLText(g.id)}">${escapeHTMLText(g.name || g.id)} (${escapeHTMLText(g.group_type || '')})</option>`).join('')}</select>
         </div>
-        <p class="text-muted" style="font-size:13px;" id="pim-group-count">Resolving membership&hellip;</p>
+        <p class="text-muted s-5e0faa" id="pim-group-count">Resolving membership&hellip;</p>
         <div class="form-group"><label class="form-label" for="pim-group-field">Field to edit</label><select class="form-select" id="pim-group-field">${fields.map(f => `<option value="${escapeHTMLText(f.fieldname)}">${escapeHTMLText(getTranslatedLabel(f.label))}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label" id="pim-group-value-label">New value</label><div id="pim-group-value"></div></div>
-        <p class="text-muted" style="font-size:13px; margin:0;">Applies to the group's members at confirm time.</p>
+        <p class="text-muted s-06ed28">Applies to the group's members at confirm time.</p>
 
-        <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border-color);">
-          <label class="form-label" style="margin-bottom:8px;" title="Seeds a Draft in the target language, copied from each product's Approved content in the source language - not a machine translation. A human still has to translate the text and submit it for approval like any other content.">Bulk Catalog Translation (Stage 36.7.5)</label>
-          <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-            <div class="form-group" style="margin-bottom:0;">
+        <div class="s-c4ca9e">
+          <label class="form-label s-fdf33f" title="Seeds a Draft in the target language, copied from each product's Approved content in the source language - not a machine translation. A human still has to translate the text and submit it for approval like any other content.">Bulk Catalog Translation (Stage 36.7.5)</label>
+          <div class="s-97380c">
+            <div class="form-group s-ef0b7a">
               <label class="form-label" for="pim-group-xlt-source">Source language</label>
-              <input type="text" id="pim-group-xlt-source" class="form-input" style="width:100px;" value="en">
+              <input type="text" id="pim-group-xlt-source" class="form-input s-db4cf1" value="en">
             </div>
-            <div class="form-group" style="margin-bottom:0;">
+            <div class="form-group s-ef0b7a">
               <label class="form-label" for="pim-group-xlt-target">Target language</label>
-              <input type="text" id="pim-group-xlt-target" class="form-input" style="width:100px;" placeholder="e.g. hi">
+              <input type="text" id="pim-group-xlt-target" class="form-input s-db4cf1" placeholder="e.g. hi">
             </div>
             <button type="button" class="btn btn-outline" id="pim-group-xlt-run">Seed Translations</button>
           </div>
-          <div id="pim-group-xlt-result" style="margin-top:12px;"></div>
+          <div id="pim-group-xlt-result" class="s-56f435"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1024,7 +1075,7 @@ window.openPIMProductGroupActionsModal = async function() {
     const outcomes = await res.json();
     const ok = outcomes.filter(o => !o.error).length;
     resultEl.innerHTML = `<div class="table-wrapper"><p>${ok} of ${outcomes.length} item(s) seeded.</p><table><thead><tr><th>Item</th><th>Result</th></tr></thead><tbody>${
-      outcomes.map(o => `<tr><td style="font-family:monospace;">${escapeHTMLText(o.item_code)}</td><td>${o.error ? `<span class="badge badge-secondary">${escapeHTMLText(o.error)}</span>` : `<span class="badge badge-success">Seeded as Draft</span>`}</td></tr>`).join('')
+      outcomes.map(o => `<tr><td class="s-72126d">${escapeHTMLText(o.item_code)}</td><td>${o.error ? `<span class="badge badge-secondary">${escapeHTMLText(o.error)}</span>` : `<span class="badge badge-success">Seeded as Draft</span>`}</td></tr>`).join('')
     }</tbody></table></div>`;
   });
 
@@ -1071,7 +1122,7 @@ window.openPIMCatalogShareModal = async function(id, name) {
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Share Link: ${escapeHTMLText(name)}</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
-        <p class="text-muted" style="font-size:13px;">Anyone with this link can view it. Shown once.</p>
+        <p class="text-muted s-5e0faa">Anyone with this link can view it. Shown once.</p>
         <div class="form-group"><input class="form-input" id="pim-catalog-share-url" readonly value="${escapeHTMLText(shareURL)}" ${actionAttrs('selectFieldText', [ACTION_ARG_ELEMENT])}></div>
       </div>
       <div class="modal-footer">
@@ -1108,7 +1159,7 @@ window.openPIMBulkEditModal = function() {
   overlay.innerHTML = `
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Edit ${bulkSelectedDocIDs.size} selected ${escapeHTMLText(getDoctypeLabel(currentDoctype))} record${bulkSelectedDocIDs.size === 1 ? '' : 's'}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
-      <form><div class="modal-body"><div class="form-group"><label class="form-label">Field</label><select class="form-select" id="pim-bulk-field"></select></div><div class="form-group"><label class="form-label" id="pim-bulk-value-label">New value</label><div id="pim-bulk-value"></div></div><p class="text-muted" style="font-size:13px; margin:0;">Preview: this change will update all ${bulkSelectedDocIDs.size} selected records. Approved records are returned to Pending Approval when their doctype is approval-gated.</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Confirm bulk edit</button></div></form>
+      <form><div class="modal-body"><div class="form-group"><label class="form-label">Field</label><select class="form-select" id="pim-bulk-field"></select></div><div class="form-group"><label class="form-label" id="pim-bulk-value-label">New value</label><div id="pim-bulk-value"></div></div><p class="text-muted s-06ed28">Preview: this change will update all ${bulkSelectedDocIDs.size} selected records. Approved records are returned to Pending Approval when their doctype is approval-gated.</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Confirm bulk edit</button></div></form>
     </div>`;
   document.body.appendChild(overlay);
 
@@ -1849,7 +1900,7 @@ function wireOfferScopeValue(body) {
 // 21.9 QA-follow-up: the generic record-list screens (Vendors,
 // Bin Master, everything under Master Definition, etc.) had a Delete
 // action but no way to correct a mistake short of delete-and-recreate -
-// a real gap USER_GUIDE.md's own §8 claimed didn't exist. Reuses the
+// a real gap user-guide.md's own §8 claimed didn't exist. Reuses the
 // exact same modal/fields/submit path as create, just pre-filled and
 // posted to the /{id} update route the generic doc engine already serves.
 window.editDocRecord = async function(id) {
@@ -2068,7 +2119,7 @@ async function renderDocTypeBuilderView(container) {
     (doctypesByModule[mod] = doctypesByModule[mod] || []).push(d);
   });
 
-  let listHTML = `<ul class="doctype-module-list" style="border-right: 1px solid var(--border-color); padding-right: 16px; list-style: none;">`;
+  let listHTML = `<ul class="doctype-module-list s-516614">`;
   Object.keys(doctypesByModule).sort().forEach(mod => {
     listHTML += `
       <li class="menu-item-container has-flyout">
@@ -2125,8 +2176,8 @@ window.loadDoctypeConfig = async function(doctypeName, liveContainer = null) {
   const fields = await res.json();
 
   let html = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
-      <h3 style="font-size: 18px; font-weight:600;">Fields for ${escapeHTMLText(doctypeName)}</h3>
+    <div class="s-908238">
+      <h3 class="s-fb8e62">Fields for ${escapeHTMLText(doctypeName)}</h3>
       <button class="btn btn-outline btn-sm" ${actionAttrs('addNewFieldConfig', [doctypeName])}>Add Field</button>
     </div>
     <table>
@@ -2149,7 +2200,7 @@ window.loadDoctypeConfig = async function(doctypeName, liveContainer = null) {
   // text that can contain quotes, which an inline attribute would break on.
   const rowsHTML = fields.map((f, i) => `
       <tr>
-        <td style="font-family: monospace;">${escapeHTMLText(f.fieldname)}</td>
+        <td class="s-355794">${escapeHTMLText(f.fieldname)}</td>
         <td>${escapeHTMLText(f.label)}</td>
         <td>${escapeHTMLText(f.fieldtype)}</td>
         <td>${f.mandatory ? 'Yes' : 'No'}</td>

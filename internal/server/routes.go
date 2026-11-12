@@ -41,7 +41,7 @@ func Run() {
 	}
 
 	// 24.27: refuse to start in production if the seed admin credential
-	// from db/migration.sql is still active - a fresh dev/test install is
+	// from db/migrations/migration.sql is still active - a fresh dev/test install is
 	// unaffected (this only fires the hard-stop when ENV=production).
 	if err := engines.EnforceNoDefaultAdminCredentialInProduction(); err != nil {
 		log.Fatalf("Refusing to start: %v", err)
@@ -103,6 +103,8 @@ func Run() {
 	engines.StartQueueSaturationMonitor(workerCtx, 30*time.Second)
 	// Stage 49.11.4: security detections over the audit log, every 5 minutes.
 	engines.StartSecurityDetectionSweep(workerCtx, 5*time.Minute)
+	// Stage 49.11.6: optional security-event export, one bounded batch per client a minute.
+	engines.StartSecurityExportWorker(workerCtx, 1*time.Minute)
 	// Stage 49.2.1 / 49.2.6: dormant accounts and unused API credentials,
 	// hourly; both off until a client's admin picks a period.
 	engines.StartIdentityLifecycleSweep(workerCtx, 1*time.Hour)
@@ -110,7 +112,7 @@ func Run() {
 	// Start Backup Freshness Monitor (Stage 43.2) - hourly check that a
 	// nightly backup actually exists and is under 36h old. 36 rather than 24
 	// so a single late or slow run does not page anyone; two consecutive
-	// missed nights always does, which is the signal hypercare_plan.md's
+	// missed nights always does, which is the signal hypercare-plan.md's
 	// rollback trigger is written against. Disables itself where there is no
 	// backup directory (every dev box), and no-ops in delivery until
 	// OPS_ALERT_WEBHOOK_URL is set - see engines/alerting.go.
@@ -168,10 +170,12 @@ func Run() {
 	engines.StartDunningWorker(workerCtx, 1*time.Hour)
 	// 140.12.12: card / UPI settlement rows find their bank credit.
 	engines.StartAcquirerSettlementMatcher(workerCtx, 1*time.Hour)
+	engines.StartStockAgeInspectionWorker(workerCtx, 6*time.Hour)
 
 	// PO auto-cancel (procurement.po_auto_cancel_days, 2026-10-17) - hourly
 	// check of Approved POs past the days after approval.
 	engines.StartPOAutoCancelWorker(workerCtx, 1*time.Hour)
+	engines.StartPieceHoldWorker(workerCtx, 1*time.Hour) // Stage 148.41
 
 	// Start Amortization Worker (Stage 37.6.1/37.6.2) - monthly-granularity
 	// recognition of deferred revenue and prepaid expense schedules.
@@ -280,6 +284,11 @@ func Run() {
 // registerRoutes is the production registration path, also exercised without
 // launching workers by the module-manifest and entitlement integration tests.
 func registerRoutes() {
+	registerAIAccessRoutes()
+	http.HandleFunc("GET /api/v1/admin/ai-access/clients", apiMiddleware(moduleGate("ai_access", handleListAIAccessClients)))
+	http.HandleFunc("POST /api/v1/admin/ai-access/clients", apiMiddleware(moduleGate("ai_access", handleIssueAIAccessClient)))
+	http.HandleFunc("GET /api/v1/orders/assistant-drafts", apiMiddleware(moduleGate("ai_access", handleListAssistantDrafts)))
+	http.HandleFunc("POST /api/v1/orders/{id}/submit-assistant-draft", apiMiddleware(moduleGate("ai_access", handleSubmitAssistantDraft)))
 	// Stage 47.8: CSP reports are public browser beacons, size-capped by their
 	// handler and reduced to safe directive summaries before logging.
 	http.HandleFunc("POST /api/v1/security/csp-report", apiMiddleware(handleCSPReport))
@@ -312,6 +321,10 @@ func registerRoutes() {
 	// under /api/v1 so deploy/Caddyfile can block /internal/* wholesale on
 	// the public listener without pattern-matching a single API path.
 	http.HandleFunc("GET /internal/tls-ask", handleTLSAsk)
+	// Stage 146.5.9: a product image at its signed public address, for marketplace
+	// feeds. No apiMiddleware (the fetcher has no login); the signature is the
+	// credential and the handler checks it. See handlers_public_media.go.
+	http.HandleFunc("GET /media/{tenant}/{id}/{sig}", handlePublicMedia)
 	http.HandleFunc("POST /api/v1/auth/mfa/enroll", apiMiddleware(handleMFAEnroll))
 	http.HandleFunc("POST /api/v1/auth/mfa/activate", apiMiddleware(handleMFAActivate))
 	http.HandleFunc("POST /api/v1/auth/mfa/verify", apiMiddleware(handleMFAVerify))
@@ -321,6 +334,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/auth/forgot-password", apiMiddleware(handleForgotPassword))
 	http.HandleFunc("POST /api/v1/auth/reset-password", apiMiddleware(handleResetPassword))
 	http.HandleFunc("POST /api/v1/auth/operator-handoff", apiMiddleware(handleOperatorHandoff)) // Stage 125.2
+	http.HandleFunc("POST /api/v1/auth/logout", apiMiddleware(handleLogout))                    // 162.15
 
 	// Self-service User Profile (Stage 21)
 	http.HandleFunc("GET /api/v1/me", apiMiddleware(handleGetProfile))
@@ -344,6 +358,16 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/setup/path", apiMiddleware(handleSetupPath))
 	http.HandleFunc("GET /api/v1/setup/path/{step}/history", apiMiddleware(handleSetupStepHistory)) // Stage 47.12.4
 	http.HandleFunc("POST /api/v1/setup/path/{step}/note", apiMiddleware(handleSetupStepNote))
+	// Stage 47.12 / 49.17.3: go-live scope, structure graph and the three packs. Admin only.
+	http.HandleFunc("GET /api/v1/golive/scope", apiMiddleware(goLiveGate(handleGoLiveScopeGet)))
+	http.HandleFunc("POST /api/v1/golive/scope", apiMiddleware(goLiveGate(handleGoLiveScopeSave)))
+	http.HandleFunc("GET /api/v1/golive/graph", apiMiddleware(goLiveGate(handleGoLiveGraph)))
+	http.HandleFunc("POST /api/v1/golive/graph/scope", apiMiddleware(goLiveGate(handleGoLiveGraphScope)))
+	http.HandleFunc("GET /api/v1/golive/packs/{pack}", apiMiddleware(goLiveGate(handleGoLivePack)))
+	http.HandleFunc("POST /api/v1/golive/packs/{pack}/evidence", apiMiddleware(goLiveGate(handleGoLiveEvidence)))
+	http.HandleFunc("POST /api/v1/golive/packs/{pack}/waive", apiMiddleware(goLiveGate(handleGoLiveWaive)))
+	http.HandleFunc("POST /api/v1/golive/packs/{pack}/waive/end", apiMiddleware(goLiveGate(handleGoLiveWaiveEnd)))
+	http.HandleFunc("POST /api/v1/golive/packs/{pack}/signoff", apiMiddleware(goLiveGate(handleGoLiveSignOff)))
 	http.HandleFunc("GET /api/v1/localization", apiMiddleware(handleGetLocalization))
 
 	// MFA recovery and device migration (Stage 32.5). Unlike the three
@@ -409,15 +433,18 @@ func registerRoutes() {
 	// Stage 148.40: correct a batch or serial's attributes, with history.
 	http.HandleFunc("GET /api/v1/inventory/pieces/{doctype}/{id}", apiMiddleware(moduleGate("inventory", handleGetPieceAttributes)))
 	http.HandleFunc("POST /api/v1/inventory/pieces/{doctype}/{id}/correct", apiMiddleware(moduleGate("inventory", handleCorrectPieceAttributes)))
+	http.HandleFunc("GET /api/v1/inventory/piece-holds", apiMiddleware(moduleGate("inventory", handleListPieceHolds)))
+	http.HandleFunc("POST /api/v1/inventory/piece-holds", apiMiddleware(moduleGate("inventory", handlePlacePieceHold)))
+	http.HandleFunc("POST /api/v1/inventory/piece-holds/release", apiMiddleware(moduleGate("inventory", handleReleasePieceHold)))
 	// Stage 130.15 (74.2.4): internal Material Issue / Return.
-	http.HandleFunc("POST /api/v1/inventory/material-requests", apiMiddleware(moduleGate("inventory", handleCreateMaterialRequest)))
-	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/issue", apiMiddleware(moduleGate("inventory", handleIssueMaterial)))
-	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/return", apiMiddleware(moduleGate("inventory", handleReturnMaterial)))
+	http.HandleFunc("POST /api/v1/inventory/material-requests", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.material.request", handleCreateMaterialRequest))))
+	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/issue", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.material.issue", handleIssueMaterial))))
+	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/return", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.material.return", handleReturnMaterial))))
 	// Stage 130.16 (74.3.1): delivery challans.
-	http.HandleFunc("POST /api/v1/inventory/challans", apiMiddleware(moduleGate("inventory", handleCreateDeliveryChallan)))
-	http.HandleFunc("POST /api/v1/inventory/challans/{id}/dispatch", apiMiddleware(moduleGate("inventory", handleDispatchDeliveryChallan)))
-	http.HandleFunc("POST /api/v1/inventory/challans/{id}/return", apiMiddleware(moduleGate("inventory", handleReturnDeliveryChallan)))
-	http.HandleFunc("POST /api/v1/inventory/challans/{id}/cancel", apiMiddleware(moduleGate("inventory", handleCancelDeliveryChallan)))
+	http.HandleFunc("POST /api/v1/inventory/challans", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.challan.create", handleCreateDeliveryChallan))))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/dispatch", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.challan.dispatch", handleDispatchDeliveryChallan))))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/return", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.challan.return", handleReturnDeliveryChallan))))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/cancel", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.challan.cancel", handleCancelDeliveryChallan))))
 	http.HandleFunc("POST /api/v1/inventory/challans/{id}/write-off", apiMiddleware(moduleGate("inventory", handleRequestChallanWriteOff)))
 	// Stage 85.E8: uploaded line codes to items.
 	http.HandleFunc("POST /api/v1/lines/resolve", apiMiddleware(handleResolveLineCodes))
@@ -434,6 +461,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/pos/salesmen", apiMiddleware(handlePOSSalesmen))
 	http.HandleFunc("GET /api/v1/pos/bills", apiMiddleware(handlePOSBills))
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
+	http.HandleFunc("GET /api/v1/admin/roles/landing", apiMiddleware(handleRoleLanding))
+	http.HandleFunc("POST /api/v1/admin/roles/landing", apiMiddleware(handleRoleLanding))
 	// Stage 57.17: create a role before anyone holds it, so an admin can set
 	// up "Purchase Clerk" and its permissions first and then assign people.
 	http.HandleFunc("POST /api/v1/admin/roles", apiMiddleware(handleCreateRole))
@@ -494,11 +523,17 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/store-app/pin", apiMiddleware(handleStoreAppPIN))
 	http.HandleFunc("POST /api/v1/store-app/pin/remove", apiMiddleware(handleStoreAppPINRemove))
 	http.HandleFunc("GET /api/v1/store-app/today", apiMiddleware(moduleGate("sales", handleStoreAppToday)))
+	http.HandleFunc("GET /api/v1/store-app/earnings", apiMiddleware(moduleGate(engines.ModuleSalesIncentives, handleStoreAppEarnings)))
 	http.HandleFunc("GET /api/v1/store-app/low-stock", apiMiddleware(moduleGate("inventory", handleStoreAppLowStock)))
 	http.HandleFunc("GET /api/v1/store-app/receive", apiMiddleware(handleStoreAppReceiveList))
 	http.HandleFunc("GET /api/v1/store-app/receive/{kind}/{id}", apiMiddleware(handleStoreAppReceiveDocument))
 	http.HandleFunc("GET /api/v1/store-app/counts", apiMiddleware(moduleGate("wms", handleStoreAppCounts)))
 	http.HandleFunc("POST /api/v1/store-app/counts", apiMiddleware(moduleGate("wms", handleStoreAppCounts)))
+	http.HandleFunc("GET /api/v1/store-app/inspections", apiMiddleware(moduleGate("quality", handleStoreAppInspections)))
+	http.HandleFunc("POST /api/v1/store-app/inspections/result", apiMiddleware(moduleGate("quality", handleStoreAppInspectionResult)))
+	http.HandleFunc("POST /api/v1/store-app/inspections/dispose", apiMiddleware(moduleGate("quality", handleStoreAppInspectionDispose)))
+	http.HandleFunc("GET /api/v1/stock-age-inspections", apiMiddleware(moduleGate("quality", handleStockAgeInspections)))
+	http.HandleFunc("POST /api/v1/stock-age-inspections", apiMiddleware(moduleGate("quality", handleStockAgeInspections)))
 	http.HandleFunc("GET /api/v1/store-app/sources", apiMiddleware(moduleGate("inventory", handleStoreAppSources)))
 	http.HandleFunc("GET /api/v1/store-app/labels", apiMiddleware(moduleGate("stickers", handleStoreAppLabels)))
 	http.HandleFunc("POST /api/v1/store-app/labels", apiMiddleware(moduleGate("stickers", handleStoreAppLabels)))
@@ -512,6 +547,11 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/orders", apiMiddleware(moduleGate("oms", handleCreateSalesOrder)))
 	http.HandleFunc("POST /api/v1/orders/{id}/hold", apiMiddleware(moduleGate("oms", handlePlaceOrderHold)))
 	http.HandleFunc("POST /api/v1/orders/{id}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderHold)))
+	http.HandleFunc("POST /api/v1/orders/{id}/margin-release", apiMiddleware(moduleGate("oms", handleMarginRelease)))
+	http.HandleFunc("POST /api/v1/pricing/line", apiMiddleware(handlePricingLine))
+	http.HandleFunc("GET /api/v1/pricing/flags", apiMiddleware(moduleGate("oms", handlePricingFlags)))
+	http.HandleFunc("POST /api/v1/pricing/endings/preview", apiMiddleware(handlePriceEndingsPreview))
+	http.HandleFunc("POST /api/v1/pricing/endings/apply", apiMiddleware(handlePriceEndingsApply))
 	http.HandleFunc("POST /api/v1/orders/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelOrder)))
 	http.HandleFunc("POST /api/v1/orders/{id}/release-to-fulfillment", apiMiddleware(moduleGate("oms", handleReleaseOrderToFulfillment)))
 
@@ -523,6 +563,7 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/oms/orders", apiMiddleware(moduleGate("oms", handleOMSOrderList)))
 	http.HandleFunc("GET /api/v1/oms/orders/search", apiMiddleware(moduleGate("oms", handleOMSOrderSearch)))
 	http.HandleFunc("GET /api/v1/oms/orders/{id}", apiMiddleware(moduleGate("oms", handleOMSOrderDetail)))
+	http.HandleFunc("GET /api/v1/oms/promise", apiMiddleware(moduleGate("oms", handlePromisePreview)))
 	http.HandleFunc("GET /api/v1/oms/tiles", apiMiddleware(moduleGate("oms", handleOMSConsoleTiles)))
 	// Stage 73.2.14 exception queues.
 	http.HandleFunc("GET /api/v1/oms/queues", apiMiddleware(moduleGate("oms", handleOMSExceptionQueues)))
@@ -821,6 +862,15 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods/{id}/close", apiMiddleware(handleCloseAccountingPeriod))
+	http.HandleFunc("POST /api/v1/finance/periods/{id}/hold", apiMiddleware(handleHoldAccountingPeriod))
+	http.HandleFunc("POST /api/v1/finance/periods/{id}/release", apiMiddleware(handleReleaseAccountingPeriod))
+	http.HandleFunc("GET /api/v1/finance/gstr1-filed", apiMiddleware(handleGSTR1FiledMonths))
+	http.HandleFunc("POST /api/v1/finance/gstr1-filed/{month}", apiMiddleware(handleGSTR1MarkFiled))
+	http.HandleFunc("POST /api/v1/finance/gstr1-filed/{month}/unmark", apiMiddleware(handleGSTR1Unmark))
+	http.HandleFunc("GET /api/v1/finance/set-off/suggestions", apiMiddleware(handleSetOffSuggestions))
+	http.HandleFunc("GET /api/v1/finance/set-off/pairs/{id}/balances", apiMiddleware(handleSetOffBalances))
+	http.HandleFunc("GET /api/v1/finance/set-off/{id}/statement", apiMiddleware(handleSetOffStatement))
+	http.HandleFunc("POST /api/v1/finance/set-off/{id}/reverse", apiMiddleware(handleSetOffReverse))
 	http.HandleFunc("GET /api/v1/finance/periods/{id}/close-checklist", apiMiddleware(handlePeriodCloseChecklist))
 	// Stage 73.1.10 close tasks + controlled reopen, 73.2.16 bank workbench
 	// (handlers_finance_close.go).
@@ -958,7 +1008,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/einvoice/profiles/{gstin}/test", apiMiddleware(moduleGate("finance", handleTestEInvoiceProfile)))
 	http.HandleFunc("GET /api/v1/einvoice/documents", apiMiddleware(moduleGate("finance", handleListEInvoiceDocuments)))
 	http.HandleFunc("GET /api/v1/einvoice/documents/{id}", apiMiddleware(moduleGate("finance", handleGetEInvoiceDocument)))
-	http.HandleFunc("POST /api/v1/einvoice/documents/{id}/{action}", apiMiddleware(moduleGate("finance", handleEInvoiceDocumentAction)))
+	http.HandleFunc("POST /api/v1/einvoice/documents/{id}/{action}", apiMiddleware(moduleGate("finance", commandKeyed("einvoice.document.action", handleEInvoiceDocumentAction))))
 	http.HandleFunc("GET /api/v1/einvoice/badges/{doctype}", apiMiddleware(handleEInvoiceBadges))
 	http.HandleFunc("GET /api/v1/einvoice/reconciliation", apiMiddleware(moduleGate("finance", handleEInvoiceReconciliation)))
 	http.HandleFunc("POST /api/v1/einvoice/run", apiMiddleware(moduleGate("finance", handleRunEInvoiceWorker)))
@@ -1163,11 +1213,11 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/manufacturing/material-plan", apiMiddleware(moduleGate("manufacturing", handleProductionMaterialPlan))) // Stage 55.12
 	// 26.9.10/26.9.11 (P2, go-ahead 2026-07-27): capacity scheduling + subcontracting
 	http.HandleFunc("GET /api/v1/manufacturing/production-schedule", apiMiddleware(moduleGate("manufacturing", handleGetProductionSchedule)))
-	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/send", apiMiddleware(moduleGate("manufacturing", handleSendSubcontractOrder)))
-	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive", apiMiddleware(moduleGate("manufacturing", handleReceiveSubcontractOrder)))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/send", apiMiddleware(moduleGate("manufacturing", commandKeyed("manufacturing.subcontract.send", handleSendSubcontractOrder))))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive", apiMiddleware(moduleGate("manufacturing", commandKeyed("manufacturing.subcontract.receive", handleReceiveSubcontractOrder))))
 	// Stage 130.16 (74.3.3): job work lines and charges.
-	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive-lines", apiMiddleware(moduleGate("manufacturing", handleReceiveJobWorkLines)))
-	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/charge", apiMiddleware(moduleGate("manufacturing", handleJobWorkCharge)))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive-lines", apiMiddleware(moduleGate("manufacturing", commandKeyed("manufacturing.subcontract.receive_lines", handleReceiveJobWorkLines))))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/charge", apiMiddleware(moduleGate("manufacturing", commandKeyed("manufacturing.subcontract.charge", handleJobWorkCharge))))
 
 	// PIM Foundation MVP (Stage 15: module-gated - "pim")
 	// Dashboard (Stage 16.5a) reads the existing PIM snapshot/queue state;
@@ -1234,6 +1284,9 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/pim/import-templates/{id}/preview-mapping", apiMiddleware(moduleGate("pim", handlePIMImportTemplatePreviewMapping)))
 	http.HandleFunc("POST /api/v1/pim/import-templates/{id}/preview", apiMiddleware(moduleGate("pim", handlePIMImportTemplateRun(true))))
 	http.HandleFunc("POST /api/v1/pim/import-templates/{id}/import", apiMiddleware(moduleGate("pim", handlePIMImportTemplateRun(false))))
+	// Stage 146.5.4: one wide product sheet - Item fields, attributes and content.
+	http.HandleFunc("POST /api/v1/pim/product-sheet/preview", apiMiddleware(moduleGate("pim", handleProductSheet(false))))
+	http.HandleFunc("POST /api/v1/pim/product-sheet/import", apiMiddleware(moduleGate("pim", handleProductSheet(true))))
 	http.HandleFunc("GET /api/v1/pim/import-schedules", apiMiddleware(moduleGate("pim", handlePIMImportSchedules)))
 	http.HandleFunc("POST /api/v1/pim/import-schedules/{id}/rotate-hook-token", apiMiddleware(moduleGate("pim", handlePIMImportScheduleRotateHookToken)))
 	// Public: listed in middleware.go's publicRoutes. An external system
@@ -1251,6 +1304,10 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pim/feeds/{id}/run", apiMiddleware(moduleGate("pim", handlePIMFeedRun)))
 	http.HandleFunc("GET /api/v1/pim/design-values", apiMiddleware(moduleGate("pim", handlePIMDesignValues)))
 	http.HandleFunc("POST /api/v1/pim/design-values", apiMiddleware(moduleGate("pim", handlePIMDesignValues)))
+	http.HandleFunc("GET /api/v1/pim/stewardship", apiMiddleware(moduleGate("pim", handlePIMStewardship)))
+	http.HandleFunc("GET /api/v1/pim/stewardship/{attribute}", apiMiddleware(moduleGate("pim", handlePIMStewardshipDetail)))
+	http.HandleFunc("GET /api/v1/pim/media-order", apiMiddleware(moduleGate("pim", handlePIMMediaOrder)))
+	http.HandleFunc("POST /api/v1/pim/media-order", apiMiddleware(moduleGate("pim", handlePIMMediaOrder)))
 	http.HandleFunc("POST /api/v1/pim/design-tags", apiMiddleware(moduleGate("pim", handlePIMDesignTags)))
 	http.HandleFunc("GET /api/v1/pim/checklists", apiMiddleware(moduleGate("pim", handlePIMChecklists)))
 	http.HandleFunc("POST /api/v1/pim/checklists", apiMiddleware(moduleGate("pim", handlePIMChecklists)))
@@ -1338,7 +1395,7 @@ func registerRoutes() {
 	// and the inter-state decision server-side - see handlers_purchase_order.go.
 	http.HandleFunc("POST /api/v1/procurement/purchase-order/preview", apiMiddleware(moduleGate("procurement", handlePreviewPurchaseOrder)))
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/print", apiMiddleware(moduleGate("procurement", handlePrintPurchaseOrder)))
-	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/send", apiMiddleware(moduleGate("procurement", handleSendPurchaseOrder)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/send", apiMiddleware(moduleGate("procurement", commandKeyed("procurement.purchase_order.send", handleSendPurchaseOrder))))
 
 	// Stage 62: designs and combinations from inside the PO (read side), the
 	// printed GRN and its debit/credit notes, and posting a vendor credit note.
@@ -1357,9 +1414,9 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/receive", apiMiddleware(moduleGate("procurement", handleGRNStepsReceive)))
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/verify", apiMiddleware(moduleGate("procurement", handleGRNStepsVerify)))
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/price", apiMiddleware(moduleGate("procurement", handleGRNStepsPrice)))
-	http.HandleFunc("POST /api/v1/grn-steps/{id}/post/{child}", apiMiddleware(moduleGate("procurement", handleGRNStepsPostChild)))
-	http.HandleFunc("POST /api/v1/grn-steps/{id}/post-all", apiMiddleware(moduleGate("procurement", handleGRNStepsPostAll)))
-	http.HandleFunc("POST /api/v1/grn-steps/{id}/pay", apiMiddleware(moduleGate("procurement", handleGRNStepsPay)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/post/{child}", apiMiddleware(moduleGate("procurement", commandKeyed("procurement.grn.post_child", handleGRNStepsPostChild))))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/post-all", apiMiddleware(moduleGate("procurement", commandKeyed("procurement.grn.post_all", handleGRNStepsPostAll))))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/pay", apiMiddleware(moduleGate("procurement", commandKeyed("procurement.grn.pay", handleGRNStepsPay))))
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/correct", apiMiddleware(moduleGate("procurement", handleGRNStepsCorrect)))
 	// Stage 65.4: add a value (or a new attribute) to the PIM attributes from the PO.
 	http.HandleFunc("POST /api/v1/procurement/design-attribute", apiMiddleware(moduleGate("procurement", handleAddDesignAttributeValue)))
@@ -1377,6 +1434,10 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/sales/bulk-upload/runs", apiMiddleware(handleBulkSalesRuns))
 	http.HandleFunc("GET /api/v1/sales/bulk-upload/runs/{id}", apiMiddleware(handleBulkSalesRun))
 	http.HandleFunc("GET /api/v1/sales/bulk-upload/runs/{id}/file", apiMiddleware(handleBulkSalesRunFile))
+	// Stage 148.36: custom-order configurator (module custom_orders).
+	http.HandleFunc("GET /api/v1/sales/custom-orders/choices", apiMiddleware(moduleGate("custom_orders", handleCustomOrderChoices)))
+	http.HandleFunc("POST /api/v1/sales/custom-orders/quote", apiMiddleware(moduleGate("custom_orders", handleCustomOrderQuote)))
+	http.HandleFunc("POST /api/v1/sales/custom-orders", apiMiddleware(moduleGate("custom_orders", commandKeyed("custom_orders.create", handleCreateCustomOrder))))
 	// Stage 95: Design and Combination ID images - the PO's Images page, the
 	// Design / Item screens' image strip, the image read routes (any module),
 	// and the client's own image drive (Configuration -> Integrations).
@@ -1399,13 +1460,13 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/send", apiMiddleware(handlePrintDocumentSend))
 	// Stage 127.6: every document print recorded; Setup > Printing > Reprint.
 	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/log", apiMiddleware(handlePrintDocumentLog))
-	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/reprint-request", apiMiddleware(handleRequestReprint))           // Stage 130.16
-	http.HandleFunc("GET /api/v1/print/templates/{id}/versions", apiMiddleware(handlePrintTemplateVersions))                 // Stage 130.16
-	http.HandleFunc("POST /api/v1/print/templates/{id}/versions/{version}", apiMiddleware(handlePrintTemplateVersionAction)) // Stage 130.16
+	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/reprint-request", apiMiddleware(commandKeyed("print.reprint.request", handleRequestReprint))) // Stage 130.16
+	http.HandleFunc("GET /api/v1/print/templates/{id}/versions", apiMiddleware(handlePrintTemplateVersions))                                              // Stage 130.16
+	http.HandleFunc("POST /api/v1/print/templates/{id}/versions/{version}", apiMiddleware(handlePrintTemplateVersionAction))                              // Stage 130.16
 	http.HandleFunc("GET /api/v1/print/history", apiMiddleware(handleDocumentPrintHistory))
 	// Stage 130.16 (74.4): e-way bills.
 	http.HandleFunc("GET /api/v1/gst/ewaybills", apiMiddleware(handleListEWBs))
-	http.HandleFunc("POST /api/v1/gst/ewaybills/{doctype}/{id}/{action}", apiMiddleware(handleEWBAction))
+	http.HandleFunc("POST /api/v1/gst/ewaybills/{doctype}/{id}/{action}", apiMiddleware(commandKeyed("gst.ewaybill.action", handleEWBAction)))
 	http.HandleFunc("GET /api/v1/print/catalog", apiMiddleware(handlePrintCatalog))
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/excel", apiMiddleware(moduleGate("procurement", handleVendorPOExcel)))
 	// Stage 73.2.4 (D05): PO reconciliation and short-close.
@@ -1415,12 +1476,30 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/line/{n}/control", apiMiddleware(moduleGate("procurement", handlePOLineControl)))
 	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/line/{n}/stop", apiMiddleware(moduleGate("procurement", handlePOLineStop)))
 	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/line/{n}/close-rest", apiMiddleware(moduleGate("procurement", handlePOLineCloseRest)))
+	http.HandleFunc("/api/v1/procurement/vendor-link/public", apiMiddleware(moduleGate("procurement", handleVendorLinkPublic)))
+	http.HandleFunc("/api/v1/procurement/vendor-link/public/proposal", apiMiddleware(moduleGate("procurement", handleVendorLinkPublicProposal)))
+	http.HandleFunc("/api/v1/procurement/vendor-link/public/invoice", apiMiddleware(moduleGate("procurement", handleVendorLinkPublicInvoice)))
+	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/vendor-link", apiMiddleware(moduleGate("procurement", handleVendorLinkState)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/vendor-link", apiMiddleware(moduleGate("procurement", handleVendorLinkCreate)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/vendor-link/revoke", apiMiddleware(moduleGate("procurement", handleVendorLinkRevoke)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-link/proposal/{id}/apply", apiMiddleware(moduleGate("procurement", handleVendorLinkApply)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-link/proposal/{id}/reject", apiMiddleware(moduleGate("procurement", handleVendorLinkReject)))
+	http.HandleFunc("GET /api/v1/procurement/vendor-link/file/{id}", apiMiddleware(moduleGate("procurement", handleVendorLinkFile)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-link/file/{id}/review", apiMiddleware(moduleGate("procurement", handleVendorLinkFileReview)))
 	http.HandleFunc("POST /api/v1/transfer/cancel-lines", apiMiddleware(moduleGate("inventory", handleCancelTransferLines)))
 
 	// Vendor invoice 3-way match + payment (Stage 17.8)
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/match", apiMiddleware(moduleGate("procurement", handleMatchVendorInvoice)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay", apiMiddleware(moduleGate("procurement", handlePayVendorInvoice)))
+	// Bills with no PO (148.19)
+	http.HandleFunc("POST /api/v1/procurement/expense-bills", apiMiddleware(moduleGate("procurement", handleCreateExpenseBill)))
+	http.HandleFunc("POST /api/v1/procurement/expense-bills/{id}/link-po", apiMiddleware(moduleGate("procurement", handleLinkExpenseBill)))
+	http.HandleFunc("GET /api/v1/procurement/expense-bills", apiMiddleware(moduleGate("procurement", handleListExpenseBills)))
 	// Vendor advances (148.15) and volume rebate claims (148.17)
+	http.HandleFunc("GET /api/v1/finance/summary-invoices/preview", apiMiddleware(moduleGate("wholesale", handlePreviewSummaryInvoices)))
+	http.HandleFunc("POST /api/v1/finance/summary-invoices", apiMiddleware(moduleGate("wholesale", handleCreateSummaryInvoices)))
+	http.HandleFunc("GET /api/v1/procurement/dropship-lines", apiMiddleware(moduleGate("wholesale", handleOpenDropShipLines)))
+	http.HandleFunc("POST /api/v1/procurement/dropship-confirm", apiMiddleware(moduleGate("wholesale", handleConfirmDropShip)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-advances", apiMiddleware(moduleGate("procurement", handleGiveVendorAdvance)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-advances/{id}/apply", apiMiddleware(moduleGate("procurement", handleApplyVendorAdvance)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-advances/{id}/refund", apiMiddleware(moduleGate("procurement", handleRefundVendorAdvance)))
@@ -1472,6 +1551,12 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/marketplace/sku-exceptions", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSKUExceptions))))
 	http.HandleFunc("GET /api/v1/marketplace/connectors/health", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleConnectorHealth))))
 	http.HandleFunc("GET /api/v1/marketplace/channels/{channel}/setup-check", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSetupCheck)))) // Stage 130.19
+	// Stage 146.4.5: a channel's listings - pull, link by SKU or barcode, per-listing stock switch.
+	http.HandleFunc("GET /api/v1/marketplace/channels/{channel}/listings", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelListings))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/listings/pull", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelListingsPull))))
+	http.HandleFunc("GET /api/v1/marketplace/channels/{channel}/listings/link-preview", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelListingsLinkPreview))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/listings/link", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelListingsLink))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/listings/stock-sync", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelListingsStockSync))))
 	// Stage 35.7: virtual-bundle availability and stocked-kit warehouse moves.
 	http.HandleFunc("GET /api/v1/oms/bundles/{sku}/availability", apiMiddleware(moduleGate("oms", handleBundleAvailability)))
 	http.HandleFunc("POST /api/v1/wms/bundles/{operation}", apiMiddleware(moduleGate("wms", handleBundleAssembly)))
@@ -1662,9 +1747,11 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/admin/audit-logs/archives/{id}", apiMiddleware(handleReadAuditArchive))
 	http.HandleFunc("GET /api/v1/admin/audit-logs/archives/{id}/export", apiMiddleware(handleExportAuditArchive))
 	http.HandleFunc("POST /api/v1/admin/audit-logs/archives/{id}/restore", apiMiddleware(handleRestoreAuditArchive))
-	// Stage 49.11-49.12: Activity Log -> Security (handlers_security_ops.go).
+	// Stage 49.11-49.12: Settings -> Monitoring -> Security Events (handlers_security_ops.go).
 	http.HandleFunc("GET /api/v1/admin/audit-logs/forensic-export", apiMiddleware(handleForensicExport))
 	http.HandleFunc("GET /api/v1/admin/security/posture", apiMiddleware(handleSecurityPosture))
+	http.HandleFunc("GET /api/v1/admin/security/access-reviews", apiMiddleware(handleListAccessReviews))
+	http.HandleFunc("POST /api/v1/admin/security/access-reviews", apiMiddleware(handleRecordAccessReview))
 	http.HandleFunc("GET /api/v1/admin/security/trail", apiMiddleware(handleSecurityTrail))
 	http.HandleFunc("POST /api/v1/admin/security/detections/run", apiMiddleware(handleRunSecurityDetections))
 	http.HandleFunc("POST /api/v1/admin/security/sign-out-user", apiMiddleware(handleSignOutUserEverywhere))
@@ -1673,6 +1760,18 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/admin/security/freeze-integrations", apiMiddleware(handleFreezeIntegrations))
 	http.HandleFunc("GET /api/v1/admin/security/sessions", apiMiddleware(handleListPrivilegedSessions))
 	http.HandleFunc("POST /api/v1/admin/security/sessions/end", apiMiddleware(handleEndPrivilegedSession))
+	// Stage 49.11.6 / 49.12.5: optional security-event export, notification decisions.
+	http.HandleFunc("GET /api/v1/admin/security/export", apiMiddleware(handleSecurityExportStatus))
+	http.HandleFunc("POST /api/v1/admin/security/export", apiMiddleware(handleSecurityExportSave))
+	http.HandleFunc("POST /api/v1/admin/security/export/test", apiMiddleware(handleSecurityExportTest))
+	http.HandleFunc("POST /api/v1/admin/security/export/backfill", apiMiddleware(handleSecurityExportBackfill))
+	http.HandleFunc("GET /api/v1/admin/security/notify/matrix", apiMiddleware(handleNotifyMatrix))
+	http.HandleFunc("POST /api/v1/admin/security/notify/matrix", apiMiddleware(handleNotifyMatrixSave))
+	http.HandleFunc("GET /api/v1/admin/security/notify/decisions", apiMiddleware(handleNotifyDecisions))
+	http.HandleFunc("POST /api/v1/admin/security/notify/incidents", apiMiddleware(handleNotifyIncidentOpen))
+	http.HandleFunc("POST /api/v1/admin/security/notify/decide", apiMiddleware(handleNotifyDecide))
+	http.HandleFunc("POST /api/v1/admin/security/notify/review", apiMiddleware(handleNotifyReview))
+	http.HandleFunc("GET /api/v1/admin/security/notify/approvers", apiMiddleware(handleNotifyApprovers))
 
 	// Stage 49.6.8 - data-subject rights request lifecycle (engines/privacy_rights.go).
 	http.HandleFunc("POST /api/v1/admin/privacy/requests", apiMiddleware(handleCreateDataSubjectRequest))
@@ -1695,7 +1794,20 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/import-jobs/{id}", apiMiddleware(handleImportJobSummary))
 	http.HandleFunc("GET /api/v1/import-jobs/{id}/failed-rows.csv", apiMiddleware(handleImportJobFailedRows))
 	http.HandleFunc("POST /api/v1/import-jobs/{id}/resume", apiMiddleware(handleResumeImportJob))
+	// Stage 47.13.1: staged imports.
+	http.HandleFunc("POST /api/v1/import-batches", apiMiddleware(handleImportBatchCreate))
+	http.HandleFunc("GET /api/v1/import-batches", apiMiddleware(handleImportBatchList))
+	http.HandleFunc("GET /api/v1/import-batches/{id}", apiMiddleware(handleImportBatchGet))
+	http.HandleFunc("GET /api/v1/import-batches/{id}/rows", apiMiddleware(handleImportBatchRows))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/validate", apiMiddleware(handleImportBatchValidate))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/preview", apiMiddleware(handleImportBatchPreview))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/approve", apiMiddleware(handleImportBatchApprove))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/commit", apiMiddleware(handleImportBatchCommit))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/reconcile", apiMiddleware(handleImportBatchReconcile))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/discard", apiMiddleware(handleImportBatchDiscard))
 	http.HandleFunc("/api/v1/logs/system", apiMiddleware(handleSystemLogs))
+	// 158.3: the app's uncaught browser errors, written to the System Log.
+	http.HandleFunc("POST /api/v1/logs/browser-error", apiMiddleware(handleBrowserError))
 	// 24.16: the deliberate-panic test endpoint is dev/test tooling only -
 	// registered only outside production, matching the ENV-driven pattern
 	// environments.json/promote.ps1 (Stage 14) already established.

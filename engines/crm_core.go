@@ -42,28 +42,29 @@ import (
 
 // CRM error codes (internal/server/error_catalog_extensions.go).
 const (
-	CRMCodeCustomer  = "CRMPLT-1101"
-	CRMCodeConsent   = "CRMPLT-1102"
-	CRMCodeSegment   = "CRMPLT-1103"
-	CRMCodeTemplate  = "CRMPLT-1104"
-	CRMCodeSender    = "CRMPLT-1105"
-	CRMCodeCampaign  = "CRMPLT-1106"
-	CRMCodeJourney   = "CRMPLT-1107"
-	CRMCodeLink      = "CRMPLT-1108"
-	CRMCodeSlotFull  = "CRMPLT-1109"
-	CRMCodeVoucher   = "CRMPLT-1110"
-	CRMCodePipeline  = "CRMPLT-1111"
-	CRMCodeMerge     = "CRMPLT-1112"
-	CRMCodeMessage   = "CRMPLT-1113"
-	CRMCodeTicket    = "CRMPLT-1114"
-	CRMCodeList      = "CRMPLT-1115"
-	CRMCodeHold      = "CRMPLT-1116"
-	CRMCodeReferral  = "CRMPLT-1117"
-	CRMCodeErased    = "CRMPLT-1118"
-	CRMCodeNotFound  = "CRMPLT-1119"
-	CRMCodeTask      = "CRMPLT-1120"
-	CRMCodeFeedback  = "CRMPLT-1121"
-	CRMCodeQuotation = "CRMPLT-1122"
+	CRMCodeCustomer     = "CRMPLT-1101"
+	CRMCodeConsent      = "CRMPLT-1102"
+	CRMCodeSegment      = "CRMPLT-1103"
+	CRMCodeTemplate     = "CRMPLT-1104"
+	CRMCodeSender       = "CRMPLT-1105"
+	CRMCodeCampaign     = "CRMPLT-1106"
+	CRMCodeJourney      = "CRMPLT-1107"
+	CRMCodeLink         = "CRMPLT-1108"
+	CRMCodeSlotFull     = "CRMPLT-1109"
+	CRMCodeVoucher      = "CRMPLT-1110"
+	CRMCodePipeline     = "CRMPLT-1111"
+	CRMCodeMerge        = "CRMPLT-1112"
+	CRMCodeMessage      = "CRMPLT-1113"
+	CRMCodeTicket       = "CRMPLT-1114"
+	CRMCodeList         = "CRMPLT-1115"
+	CRMCodeHold         = "CRMPLT-1116"
+	CRMCodeReferral     = "CRMPLT-1117"
+	CRMCodeErased       = "CRMPLT-1118"
+	CRMCodeNotFound     = "CRMPLT-1119"
+	CRMCodeTask         = "CRMPLT-1120"
+	CRMCodeFeedback     = "CRMPLT-1121"
+	CRMCodeQuotation    = "CRMPLT-1122"
+	CRMCodeQuoteExpired = "CRMPLT-1130" // Stage 148.29
 )
 
 // ErrCRMNotFound is a CRM record that does not exist (or not in this client).
@@ -138,6 +139,8 @@ func init() {
 		Description: "On: the person who submitted a campaign can never approve it, whatever Approvals > who may approve their own documents says."})
 	reg(SettingDefinition{Key: "crm.public_link_base", Label: "Web address for customer links", Type: SettingTypeString, Default: "",
 		Description: "The address preference and feedback links in messages start with, for example https://minn.wholeops.in. Blank uses this server's own address when it is known."})
+	reg(SettingDefinition{Key: "crm.quote_expiry", Label: "Quotes expire on their valid-until date", Type: SettingTypeBool, Default: "false",
+		Description: "On: a quote past its valid-until date is marked Expired and cannot become an order; the deal's owner gets a reminder task 3 days before, once per quote. Revising an expired quote makes it a draft again."})
 	reg(SettingDefinition{Key: "crm.notice_version", Label: "Privacy notice version", Type: SettingTypeString, Default: "v1",
 		Description: "Stored with every consent the staff record, so you can tell which notice the customer agreed to. Change it when the notice text changes."})
 	reg(SettingDefinition{Key: "crm.sms_cost_per_part", Label: "SMS cost per part", Type: SettingTypeFloat, Default: "0.25", Min: settingBound(0),

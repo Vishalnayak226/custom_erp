@@ -46,33 +46,32 @@ async function loyJSON(url, fallback) {
   try { return await res.json(); } catch (e) { return fallback; }
 }
 
+// Stage 155.7: each pane is its own sidebar entry ("loyalty:<pane>").
+const LOY_PAGES = { customer: ['menu-loyalty', 'Customer Points'], tiers: ['menu-loyalty-tiers', 'Tiers'], movement: ['menu-loyalty-movement', 'Points Movement'], offers: ['menu-loyalty-offers', 'Vouchers & Campaigns'] };
 export async function renderLoyaltyView(root) {
+  const page = LOY_PAGES[currentViewTab] ? currentViewTab : 'customer';
+  currentViewTab = page;
+  setActiveMenu(LOY_PAGES[page][0]);
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
-    <div class="page-header" style="padding:16px 16px 0;"><h1 class="page-title">Loyalty</h1></div>
-    <div style="padding:0 16px 16px; display:grid; gap:12px;">
-      <div class="txn-tabs" role="tablist" style="display:flex; gap:6px;">
-        <button class="btn btn-outline btn-sm" type="button" data-loy-tab="customer">Customer</button>
-        <button class="btn btn-outline btn-sm" type="button" data-loy-tab="tiers">Tiers</button>
-        <button class="btn btn-outline btn-sm" type="button" data-loy-tab="movement">Points movement</button>
-        <button class="btn btn-outline btn-sm" type="button" data-loy-tab="offers">Vouchers &amp; campaigns</button>
-      </div>
+    <div class="page-header s-8ac016"><h1 class="page-title">${LOY_PAGES[page][1].replace('&', '&amp;')}</h1></div>
+    <div class="s-6792e0">
       <section data-loy-pane="customer">
-        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-          <div class="form-group" style="flex:1; min-width:240px;"><label class="form-label" for="loy-customer-display">Customer</label>
+        <div class="s-e42572">
+          <div class="form-group s-14cd8a"><label class="form-label" for="loy-customer-display">Customer</label>
             <input type="text" id="loy-customer-display" class="form-input" placeholder="Search by name or phone" autocomplete="off">
             <input type="hidden" id="loy-customer"></div>
           <button class="btn btn-outline" type="button" id="loy-adjust" disabled>Adjust points</button>
           <button class="btn btn-outline hidden" type="button" id="loy-transfer">Transfer points</button>
         </div>
-        <div id="loy-summary" class="txn-hint" style="margin:10px 0;">Pick a customer to see their points.</div>
+        <div id="loy-summary" class="txn-hint s-f4e719">Pick a customer to see their points.</div>
         <div id="loy-context"></div>
         <div class="table-wrapper"><table>
           <thead><tr><th>When</th><th>What</th><th>Points</th><th>From</th><th>Store</th><th>Cashier</th><th>Expires</th></tr></thead>
           <tbody id="loy-ledger"></tbody>
         </table></div>
-        <h3 style="font-size:14px; margin:14px 0 6px;">Adjustments</h3>
+        <h3 class="s-113139">Adjustments</h3>
         <div class="table-wrapper"><table>
           <thead><tr><th>When</th><th>Points</th><th>Reason</th><th>Note</th><th>Status</th></tr></thead>
           <tbody id="loy-adjustments"></tbody>
@@ -83,32 +82,32 @@ export async function renderLoyaltyView(root) {
           <thead><tr><th>Tier</th><th>Spend from</th><th>Earn multiplier</th><th>Benefits (shown at the till)</th><th>Grace days</th><th></th></tr></thead>
           <tbody id="loy-tiers"></tbody>
         </table></div>
-        <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" type="button" id="loy-tier-add">Add a tier</button></div>
+        <div class="s-8a77e5"><button class="btn btn-outline btn-sm" type="button" id="loy-tier-add">Add a tier</button></div>
       </section>
       <section data-loy-pane="movement" class="hidden">
-        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="s-e42572">
           <div class="form-group"><label class="form-label" for="loy-from">From</label><input type="date" id="loy-from" class="form-input"></div>
           <div class="form-group"><label class="form-label" for="loy-to">To</label><input type="date" id="loy-to" class="form-input"></div>
           <button class="btn btn-primary" type="button" id="loy-run">Show</button>
         </div>
-        <div class="table-wrapper" style="margin-top:10px;"><table>
+        <div class="table-wrapper s-d2c171"><table>
           <thead><tr><th>Movement</th><th>Points</th><th>Value</th></tr></thead>
           <tbody id="loy-movement"><tr><td colspan="3" class="txn-hint">Choose a period and click Show (blank = all time).</td></tr></tbody>
         </table></div>
       </section>
       <section data-loy-pane="offers" class="hidden">
-        <h3 style="font-size:14px; margin:0 0 6px;">Vouchers</h3>
+        <h3 class="s-09e886">Vouchers</h3>
         <div class="table-wrapper"><table>
           <thead><tr><th>Code</th><th>Gives</th><th>For</th><th>Where</th><th>Valid</th><th>Used</th><th>Now</th><th>Discount given</th></tr></thead>
           <tbody id="loy-vouchers"></tbody>
         </table></div>
-        <div style="margin:8px 0 14px;"><button class="btn btn-outline btn-sm" type="button" data-loy-open="Voucher">Add or edit vouchers</button></div>
-        <h3 style="font-size:14px; margin:0 0 6px;">Campaigns</h3>
+        <div class="s-1388c0"><button class="btn btn-outline btn-sm" type="button" data-loy-open="Voucher">Add or edit vouchers</button></div>
+        <h3 class="s-09e886">Campaigns</h3>
         <div class="table-wrapper"><table>
           <thead><tr><th>Campaign</th><th>Trigger</th><th>Sent by</th><th>Status</th><th>Message as sent</th><th>Would pick today</th><th>Skipped: no consent</th><th>Sent to</th><th>Sales since</th><th>Cost</th><th>Return</th></tr></thead>
           <tbody id="loy-campaigns"></tbody>
         </table></div>
-        <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" type="button" data-loy-open="Campaign">Add or edit campaigns</button></div>
+        <div class="s-8a77e5"><button class="btn btn-outline btn-sm" type="button" data-loy-open="Campaign">Add or edit campaigns</button></div>
       </section>
       <div id="loy-error" class="login-error hidden"></div>
     </div>`;
@@ -116,13 +115,10 @@ export async function renderLoyaltyView(root) {
   const q = id => panel.querySelector('#' + id);
   const show = tab => {
     panel.querySelectorAll('[data-loy-pane]').forEach(s => s.classList.toggle('hidden', s.dataset.loyPane !== tab));
-    panel.querySelectorAll('[data-loy-tab]').forEach(b => b.classList.toggle('btn-primary', b.dataset.loyTab === tab));
     if (tab === 'tiers') loadTiers(panel);
     if (tab === 'offers') loadOffers(panel);
   };
   panel.addEventListener('click', e => {
-    const t = e.target.dataset.loyTab;
-    if (t) show(t);
     // Vouchers and campaigns are set up on their own records.
     const open = e.target.dataset.loyOpen;
     if (open) { currentDoctype = open; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); }
@@ -133,7 +129,7 @@ export async function renderLoyaltyView(root) {
   q('loy-transfer').addEventListener('click', () => transferPoints(panel));
   q('loy-run').addEventListener('click', () => runMovement(panel));
   q('loy-tier-add').addEventListener('click', () => { loyTiers.push({ id: 0, tier: '', min_spend: 0, earn_multiplier: 1, benefits: '', grace_days: 0 }); drawTiers(panel); });
-  show('customer');
+  show(page);
 }
 
 async function loadCustomer(panel) {
@@ -179,7 +175,7 @@ async function adjustPoints(panel) {
     await showCustomAlert('Adjustments need a reason, and no Loyalty Adjustment reason codes exist yet. Add one under Setup -> Reason Codes.', 'Adjust points');
     return;
   }
-  const html = `<div class="form-group" style="margin-top:8px;"><label class="form-label">Points (+ to credit, - to debit)</label><input type="number" step="1" class="form-input" data-adj="points"></div>
+  const html = `<div class="form-group s-8a77e5"><label class="form-label">Points (+ to credit, - to debit)</label><input type="number" step="1" class="form-input" data-adj="points"></div>
     <div class="form-group"><label class="form-label">Reason</label><select class="form-select" data-adj="reason"><option value="">Choose a reason...</option>
       ${docs.map(c => `<option value="${loyEsc(c.id)}">${loyEsc(c.code || c.id)}${c.description ? ` - ${loyEsc(c.description)}` : ''}</option>`).join('')}</select></div>
     <div class="form-group"><label class="form-label">Note</label><input class="form-input" data-adj="note" placeholder="What happened (for the audit trail)"></div>`;
@@ -247,7 +243,7 @@ function loyForm(title, html, collect, wire) {
 async function transferPoints(panel) {
   const id = panel.querySelector('#loy-customer').value.trim();
   if (!id) return;
-  const picked = await loyForm('Transfer points', `<div class="form-group" style="margin-top:8px;"><label class="form-label">To customer</label>
+  const picked = await loyForm('Transfer points', `<div class="form-group s-8a77e5"><label class="form-label">To customer</label>
       <input class="form-input" data-xf="to-display" placeholder="Name or phone" autocomplete="off"><input type="hidden" data-xf="to"></div>
     <div class="form-group"><label class="form-label">Points</label><input type="number" step="1" class="form-input" data-xf="points"></div>`,
   x => ({ to_customer: x.querySelector('[data-xf="to"]').value.trim(), points: parseInt(x.querySelector('[data-xf="points"]').value, 10) || 0 }),
@@ -256,7 +252,7 @@ async function transferPoints(panel) {
   const res = await apiFetch('/api/v1/loyalty/transfers', { method: 'POST', body: JSON.stringify({ from_customer: id, ...picked }) });
   if (!res || !res.ok) { await showApiError(res, 'The transfer was not started.'); return; }
   const t = await res.json();
-  const code = await loyForm('Code from sender', '<div class="form-group" style="margin-top:8px;"><label class="form-label">Code</label><input class="form-input" data-xf="otp" inputmode="numeric" autocomplete="one-time-code"></div>',
+  const code = await loyForm('Code from sender', '<div class="form-group s-8a77e5"><label class="form-label">Code</label><input class="form-input" data-xf="otp" inputmode="numeric" autocomplete="one-time-code"></div>',
     x => x.querySelector('[data-xf="otp"]').value.trim());
   if (!code) return;
   const ok = await apiFetch(`/api/v1/loyalty/transfers/${encodeURIComponent(t.id)}/confirm`, { method: 'POST', body: JSON.stringify({ otp: code }) });
@@ -279,7 +275,7 @@ function drawTiers(panel) {
       <td><input type="number" min="0.01" step="0.05" class="form-input" data-f="earn_multiplier" value="${t.earn_multiplier}"></td>
       <td><input class="form-input" data-f="benefits" value="${loyEsc(t.benefits || '')}" placeholder="e.g. Free alterations"></td>
       <td><input type="number" min="0" step="1" class="form-input" data-f="grace_days" value="${t.grace_days || 0}"></td>
-      <td style="white-space:nowrap;"><button class="action-btn" type="button" data-tier-save="${i}">Save</button>
+      <td class="s-86abda"><button class="action-btn" type="button" data-tier-save="${i}">Save</button>
         ${t.id ? `<button class="action-btn action-btn-danger" type="button" data-tier-del="${i}">Delete</button>` : ''}</td></tr>`).join('')
     : '<tr><td colspan="6" class="txn-hint">No tiers yet - add one.</td></tr>';
   body.onclick = async e => {
@@ -335,9 +331,9 @@ async function loadCustomerContext(panel, id) {
   const offers = c.consent_sms || c.consent_whatsapp
     ? `Agreed to offers by ${[c.consent_sms ? 'SMS' : '', c.consent_whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' and ')}.`
     : 'Has not agreed to offers - no SMS or WhatsApp.';
-  box.innerHTML = `<div class="txn-hint" style="margin:0 0 10px;">${loyEsc(offers)} Points worth <strong>${money(c.points_value)}</strong>${c.expiring_soon ? ` &middot; ${c.expiring_soon} expire in 30 days` : ''}${c.pending ? ` &middot; ${c.pending} pending` : ''}.
+  box.innerHTML = `<div class="txn-hint s-759e41">${loyEsc(offers)} Points worth <strong>${money(c.points_value)}</strong>${c.expiring_soon ? ` &middot; ${c.expiring_soon} expire in 30 days` : ''}${c.pending ? ` &middot; ${c.pending} pending` : ''}.
       Spend counted for tiers: <strong>${money(c.spend)}</strong>${c.next_tier ? ` &middot; ${money(c.to_next_tier)} more reaches <strong>${loyEsc(c.next_tier)}</strong>` : ''}.</div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
+    <div class="s-7edd3d">
       <div class="table-wrapper"><table><thead><tr><th>Last bills</th><th>Date</th><th>Amount</th><th>Lines</th></tr></thead>
         <tbody>${rows(c.recent_bills || [], b => [b.cart_number, b.date, money(b.amount), b.lines], 'No bills yet.', 4)}</tbody></table></div>
       <div class="table-wrapper"><table><thead><tr><th>Returns</th><th>Bill</th><th>Status</th><th>Refund</th></tr></thead>
@@ -356,14 +352,14 @@ async function loadOffers(panel) {
   const money = n => Number(n || 0).toFixed(2);
   const vouchers = (v && v.vouchers) || [];
   panel.querySelector('#loy-vouchers').innerHTML = !v ? '<tr><td colspan="8" class="txn-hint">The vouchers could not be looked up.</td></tr>'
-    : vouchers.length ? vouchers.map(x => `<tr><td style="font-weight:600;">${loyEsc(x.code)}</td><td>${loyEsc(x.gives)}</td><td>${loyEsc(x.for)}</td><td>${loyEsc(x.where)}</td>
+    : vouchers.length ? vouchers.map(x => `<tr><td class="s-eed0f8">${loyEsc(x.code)}</td><td>${loyEsc(x.gives)}</td><td>${loyEsc(x.for)}</td><td>${loyEsc(x.where)}</td>
         <td>${loyEsc(x.valid_from || 'now')} to ${loyEsc(x.expiry_date || 'no end')}</td><td>${x.used_count}${x.max_uses ? ` of ${x.max_uses}` : ''}</td>
         <td style="color:${x.usable ? 'var(--success-color, #1a7f37)' : 'var(--text-muted, #6b7280)'};">${loyEsc(x.state)}</td><td>${money(x.discount_given)}</td></tr>`).join('')
     : '<tr><td colspan="8" class="txn-hint">No vouchers yet. Add one with the button below.</td></tr>';
   const campaigns = (c && c.campaigns) || [];
   panel.querySelector('#loy-campaigns').innerHTML = !c ? '<tr><td colspan="11" class="txn-hint">The campaigns could not be looked up.</td></tr>'
-    : campaigns.length ? campaigns.map(x => `<tr><td style="font-weight:600;">${loyEsc(x.name || x.id)}</td><td>${loyEsc(x.trigger)}</td>
-        <td>${x.note ? `<span style="color:var(--danger-color, #b3261e);">${loyEsc(x.note)}</span>` : loyEsc(x.channel)}</td><td>${loyEsc(x.status)}</td>
+    : campaigns.length ? campaigns.map(x => `<tr><td class="s-eed0f8">${loyEsc(x.name || x.id)}</td><td>${loyEsc(x.trigger)}</td>
+        <td>${x.note ? `<span class="s-a9b0eb">${loyEsc(x.note)}</span>` : loyEsc(x.channel)}</td><td>${loyEsc(x.status)}</td>
         <td>${loyEsc(x.message_preview || '-')}</td><td>${x.note ? 'No one' : x.status === 'Active' ? `${x.picks_today} customer${x.picks_today === 1 ? '' : 's'}` : 'Paused'}</td><td>${x.skipped_no_consent || 0}</td><td>${x.sent_to}</td>
         <td>${money(x.sales_since)}</td><td>${x.cost ? money(x.cost) : '-'}</td><td>${!x.sent_to ? 'Nothing sent yet' : x.roi == null ? '-' : `${Math.round(x.roi * 100)}%`}</td></tr>`).join('')
     : '<tr><td colspan="11" class="txn-hint">No campaigns yet. Add one with the button below.</td></tr>';

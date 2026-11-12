@@ -69,7 +69,7 @@ material release, configuration, role, device, legal or business-process change.
 
 Use [Returns and refunds](../kb/module-handbooks/returns-and-refunds.md) as an
 example of product instructions with explicit outcomes and recovery. The legacy
-[User SOP](../guides/USER_SOP.md) and [Admin SOP](../guides/ADMIN_SOP.md) remain
+[User SOP](../guides/user-sop.md) and [Admin SOP](../guides/admin-sop.md) remain
 parity-review inputs; this template does not approve them or discard their unique
 controls. Track onboarding, UAT and cutover through the
 [implementation workbook](onboarding-workbook.md).

@@ -27,9 +27,13 @@ test('real browser captures only complete clean sets and does not leak session d
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ role: 'Cashier', username: 'capture-operator' })); return;
     }
-    if (req.url === '/failure') { res.writeHead(401).end(); return; }
+    if (req.url === '/api/v1/help/index') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ screen_map: { reports: ['reports-guide'], scrolling: ['x'], modal: ['x'], overlay: ['x'], denied: ['x'], console: ['x'], exception: ['x'], network: ['x'], clipping: ['x'], fallback: ['x'], staleselect: ['x'] } })); return;
+    }
+    if (req.url === '/failure') { res.writeHead(401, { 'Content-Type': 'application/json' }).end('{}'); return; }
     res.setHeader('Content-Type', 'text/html');
-    res.end(`<!doctype html><html><head><link rel="icon" href="data:,"></head><body><main id="view-root"><h1>Fixture transaction list</h1><button>Refresh records</button></main><script>
+    res.end(`<!doctype html><html><head><link rel="icon" href="data:,"></head><body><main id="view-root"><h1>Fixture transaction list</h1><button>Refresh records</button></main><div class="modal-overlay" style="opacity:0"><div role="dialog" style="opacity:1">Closed editor</div></div><script>
       const view = location.hash.split('/').pop();
       if (view === 'overlay') document.body.insertAdjacentHTML('beforeend', '<div role="dialog">Unexpected dialog</div>');
       if (view === 'denied') document.querySelector('main').textContent = 'Access denied to this screen';
@@ -52,7 +56,7 @@ test('real browser captures only complete clean sets and does not leak session d
   });
   const base = `http://127.0.0.1:${server.address().port}`;
   const options = {
-    base, out: path.join(temp, 'success'), timeout: 5000, release: 'test-release', role: 'Cashier', tenant: 'fixture', fixture: 'synthetic-v1', theme: 'light', locale: 'en-IN', viewport: { width: 960, height: 720 },
+    base, out: path.join(temp, 'success'), timeout: 5000, release: 'test-release', commit: 'abc1234', role: 'Cashier', tenant: 'fixture', fixture: 'synthetic-v1', theme: 'light', locale: 'en-IN', viewport: { width: 960, height: 720 },
     storageState: { cookies: [], origins: [{ origin: base, localStorage: [
       { name: 'erp_token', value: 'capture-fixture-canary' }, { name: 'erp_role', value: 'Cashier' },
       { name: 'erp_username', value: 'capture-operator' }, { name: 'erp_tenant_id', value: 'fixture' },
@@ -73,6 +77,29 @@ test('real browser captures only complete clean sets and does not leak session d
     await assert.rejects(capture({ ...options, out, shots: [options.shots[0], { id: view, view, caption: view }] }, playwright));
     assert.equal(fs.existsSync(out), false, `${view} published a partial set`);
     assert.equal(fs.readdirSync(temp).some(name => name.startsWith('.erp-shots-')), false, 'temporary set was not cleaned');
+  }
+  // 47.15.6 failure modes, each proven by injecting it: no help mapping, unauthorized success, stale selector.
+  for (const [name, shot, reason] of [
+    ['nohelp', { id: 'nohelp', view: 'nohelp', caption: 'no help' }, /no help article is mapped/],
+    ['unauthorized', { id: 'unauthorized', view: 'reports', refusedRoles: ['Cashier'], caption: 'must be refused' }, /unauthorized success/],
+    ['stale', { id: 'stale', view: 'staleselect', selectors: ['#gone-since-the-redesign'], caption: 'stale' }, /stale selector #gone-since-the-redesign/],
+    ['http', { id: 'http', view: 'network', caption: 'http 401 not allowed' }, /fail/i],
+  ]) {
+    const out = path.join(temp, name);
+    await assert.rejects(capture({ ...options, out, shots: [options.shots[0], shot] }, playwright), name === 'http' ? /HTTP failure \(401\)|Network|console/i : reason);
+    assert.equal(fs.existsSync(out), false, `${name} published a partial set`);
+  }
+  // A refused role is recorded as refused (no image), and a declared HTTP status is allowed only where the shot says so.
+  const refused = await capture({ ...options, out: path.join(temp, 'refused'), shots: [{ id: 'denied-ok', view: 'denied', refusedRoles: ['Cashier'], caption: 'Cashier is refused' }] }, playwright);
+  assert.equal(refused.screenshots[0].outcome, 'refused-as-expected');
+  assert.equal(fs.existsSync(path.join(temp, 'refused', 'denied-ok.png')), false);
+  const allowed = await capture({ ...options, out: path.join(temp, 'allowed'), shots: [{ id: 'net-ok', view: 'network', allowedHttp: [401], caption: 'declared 401' }] }, playwright);
+  assert.equal(allowed.screenshots[0].outcome, 'captured');
+  // Tags: manifest and a sidecar per evidence file carry role, release, commit, viewport, locale, theme and fixture.
+  assert.equal(manifest.commit, 'abc1234');
+  for (const shot of manifest.screenshots) {
+    const side = JSON.parse(fs.readFileSync(path.join(options.out, `${shot.id}.json`), 'utf8'));
+    assert.deepEqual([side.role, side.release, side.commit, side.locale, side.theme, side.fixture, side.viewport.width, side.sha256], ['Cashier', 'test-release', 'abc1234', 'en-IN', 'light', 'synthetic-v1', 960, shot.sha256]);
   }
   await assert.rejects(capture({ ...options, out: path.join(temp, 'wrong-role'), role: 'Super Admin' }, playwright), /identity/);
 });

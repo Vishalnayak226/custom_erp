@@ -284,7 +284,7 @@ for _ in $(seq 1 20); do
 			echo "  2. For per-tenant hostnames, set TENANT_BASE_DOMAIN in /etc/erp/erp.env"
 			echo "     and give each tenant a host_slug (Stage 44)."
 			echo "  3. For a real edge WAF, put Cloudflare in front and re-run this"
-			echo "     script with --cloudflare (go_live_decisions.md section 5)."
+			echo "     script with --cloudflare (go-live-decisions.md section 5)."
 		fi
 		exit 0
 	fi

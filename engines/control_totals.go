@@ -265,6 +265,7 @@ func inventoryValuationControlTotals(tenantID string, _ map[string]string, rows 
 		return nil, err
 	}
 	summaryPaise += ownCostGap
+	summaryPaise -= memoValuePaise(tx, schema) // 148.16: memo units are the vendor's
 	ledger, err := glDebitBalanceAt(tx, schema, []string{"1200"}, cut)
 	if err != nil {
 		return nil, err

@@ -134,7 +134,7 @@ func init() {
 	// channel-order truth.
 	//
 	// Reservations are deliberately NOT a column here: inventory_reservation
-	// has no order_id (db/migration.sql §301), so the stock those imports
+	// has no order_id (db/migrations/migration.sql §301), so the stock those imports
 	// reserved cannot be attributed back to a mapping row by any query. See
 	// the note in micro_checklist.md 35.1.3 - that is a separate finding, not
 	// something this report can honestly show.

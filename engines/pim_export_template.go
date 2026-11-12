@@ -36,6 +36,7 @@ var pimExportChannelFields = map[string]bool{
 	"item_code": true, "title": true, "description": true, "image_count": true,
 	// 140.12.24: the main image's address and the channel's own category.
 	"image_url": true, "channel_category": true,
+	"image_url_2": true, "image_url_3": true, "image_url_4": true, "image_url_5": true, // 146.5.9
 	// 146.5.13: the Amazon product type of the item's category.
 	"product_type": true,
 }
@@ -434,14 +435,36 @@ func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportRes
 // category as the channel's category map names it.
 func channelExportExtras(tenantID, channel string) func(item, key string) (string, bool) {
 	schema, _ := db.GetTenantSchema(tenantID)
+	publicHost := "" // 146.5.9: the web address signed image addresses start with, when the feature is live
+	if PublicMediaEnabled(tenantID) {
+		publicHost = crmPublicBase(schema)
+	}
 	return func(item, key string) (string, bool) {
 		var v string
 		switch key {
-		case "image_url":
-			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'file_path', '') FROM %s.documents
+		case "image_url", "image_url_2", "image_url_3", "image_url_4", "image_url_5":
+			// 146.5.9: the channel's own image order, else today's (main first, sort order, id).
+			n := 0
+			if len(key) > len("image_url") {
+				n = int(key[len(key)-1]-'0') - 1
+			}
+			// 146.5.9: with public image addresses on (and a key and a web
+			// address in place) a picture kept in the ERP counts too and
+			// answers with its signed address; otherwise only a media path
+			// that is already a public web address, as before.
+			var mediaID, mediaPath string
+			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id, COALESCE(data->>'file_path', '') FROM %s.documents
 				WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND deleted_at IS NULL AND status = 'Active'
-				  AND data->>'file_path' ~* '^https?://'
-				ORDER BY (data->>'media_role' = 'Main') DESC, COALESCE((data->>'sort_order')::numeric, 0), id LIMIT 1`, schema), item).Scan(&v)
+				  AND (data->>'file_path' ~* '^https?://' OR ($4 AND data->>'file_type' IN ('image/jpeg', 'image/png', 'image/webp', 'image/gif')))
+				ORDER BY (data->'channel_positions'->>$2) IS NULL, CASE WHEN (data->'channel_positions'->>$2) ~ '^[0-9]{1,9}$' THEN (data->'channel_positions'->>$2)::int END,
+				  (data->>'media_role' = 'Main') DESC, COALESCE((data->>'sort_order')::numeric, 0), id LIMIT 1 OFFSET $3`, schema), item, channel, n, publicHost != "").Scan(&mediaID, &mediaPath)
+			if lp := strings.ToLower(mediaPath); strings.HasPrefix(lp, "http://") || strings.HasPrefix(lp, "https://") {
+				v = mediaPath
+			} else if mediaID != "" && publicHost != "" {
+				if p := PublicMediaPath(tenantID, mediaID); p != "" {
+					v = publicHost + p
+				}
+			}
 		case "channel_category":
 			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(m.data->>'channel_category', '') FROM %s.documents m, %s.documents i
 				WHERE m.doctype = 'ChannelCategoryMap' AND m.deleted_at IS NULL AND m.data->>'channel' = $1

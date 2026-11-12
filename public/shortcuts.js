@@ -732,9 +732,9 @@ function previewKeysCard(panel) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay open';
     overlay.style.zIndex = '1400';
-    overlay.innerHTML = `<div class="modal-container" style="max-width: 900px;" role="dialog" aria-modal="true" aria-label="Preview">
+    overlay.innerHTML = `<div class="modal-container s-e20971" role="dialog" aria-modal="true" aria-label="Preview">
       <div class="modal-header"><h3 class="modal-title">Preview</h3><button type="button" class="modal-close" aria-label="Close dialog" data-kp="close">×</button></div>
-      <div class="modal-body"><div class="sc-keys-card" data-kp="paper" style="width: 210mm; max-width: 100%; margin: 0 auto; box-sizing: border-box; padding: 10mm; background: #fff; color: #000; box-shadow: 0 1px 3px rgba(0,0,0,.25);"></div></div>
+      <div class="modal-body"><div class="sc-keys-card s-674ad6" data-kp="paper"></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-kp="close">Close</button><button type="button" class="btn btn-primary" data-kp="print">Print</button></div></div>`;
     overlay.querySelector('[data-kp="paper"]').appendChild(panel.cloneNode(true));
     document.body.appendChild(overlay);
@@ -773,15 +773,21 @@ function currentTitle(d) {
 }
 
 function placeStar() {
-  document.querySelectorAll('#view-root .sc-star').forEach(s => s.remove());
   const d = currentDest();
   // A screen's own title (h1.page-title), never a heading inside its content.
   const h = d && [...document.querySelectorAll('#view-root h1.page-title')].find(shown);
+  const on = !!d && !!(favs || []).find(f => destKey(f.dest) === destKey(d));
+  // 162.5: a star that is already right (the 300 ms after-render pass runs this a
+  // second time) is left alone, so the screen is not "still changing" for another
+  // 300 ms and nothing re-lays out.
+  const old = document.querySelectorAll('#view-root .sc-star');
+  if (h && old.length === 1 && old[0].dataset.dest === destKey(d) && old[0].classList.contains('on') === on && h.parentElement && h.parentElement.contains(old[0])) return;
+  old.forEach(s => s.remove());
   if (!h) return;
-  const on = !!(favs || []).find(f => destKey(f.dest) === destKey(d));
   const star = document.createElement('button');
   star.type = 'button';
   star.className = `sc-star${on ? ' on' : ''}`;
+  star.dataset.dest = destKey(d); // the kept star must be this screen's (its click is bound to d)
   star.textContent = on ? '★' : '☆';
   star.title = on ? 'Remove from favourites' : 'Add to favourites';
   star.setAttribute('aria-pressed', String(on));
@@ -891,10 +897,9 @@ function offerDraft(host) {
 // Saved views on a record list: a named search, kept as a UserShortcut.
 const viewCache = new Map();
 async function placeViews(fresh = false) {
-  document.querySelectorAll('#view-root .sc-views').forEach(v => v.remove());
-  if (currentView !== 'doctype-table' || !currentDoctype) return;
+  if (currentView !== 'doctype-table' || !currentDoctype) { document.querySelectorAll('#view-root .sc-views').forEach(v => v.remove()); return; }
   const search = document.querySelector('#view-root .table-controls .search-box');
-  if (!search) return;
+  if (!search) { document.querySelectorAll('#view-root .sc-views').forEach(v => v.remove()); return; }
   const doctype = currentDoctype;
   if (fresh || !viewCache.has(doctype)) {
     const res = await window.apiFetch(`/api/v1/doc/UserShortcut?owner=${encodeURIComponent(user())}&kind=List%20view&target=${encodeURIComponent(doctype)}&limit=100`).catch(() => null);
@@ -902,7 +907,7 @@ async function placeViews(fresh = false) {
     viewCache.set(doctype, await res.json());
   }
   const views = viewCache.get(doctype);
-  if (currentDoctype !== doctype || document.querySelector('#view-root .sc-views')) return;
+  if (currentDoctype !== doctype) return;
   const sel = document.createElement('select');
   sel.className = 'form-select sc-views';
   sel.setAttribute('aria-label', 'Saved views');
@@ -914,6 +919,11 @@ async function placeViews(fresh = false) {
     + views.filter(v => v !== current).map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join('')
     + (q && !current ? '<option value="@save">Save this search as a view…</option>' : '')
     + (current ? '<option value="@delete">Delete this view</option>' : '');
+  // 162.5: the same select is already there (the 300 ms after-render pass and the
+  // immediate one both land here) - leave the DOM alone.
+  const have = document.querySelectorAll('#view-root .sc-views');
+  if (have.length === 1 && have[0].innerHTML === sel.innerHTML && have[0].previousElementSibling === search) return;
+  have.forEach(v => v.remove());
   sel.addEventListener('change', async () => {
     const v = sel.value;
     sel.value = '';
@@ -954,6 +964,9 @@ function afterRender() {
   // Stage 152.4: the star goes on in the frame the screen does (this observer
   // runs before paint), so the title row never shifts when it arrives.
   if (favs) placeStar();
+  // 162.5: the saved-views box too, when its list is already cached - it no
+  // longer arrives 300 ms after the rest of the screen.
+  if (favs && currentView === 'doctype-table' && viewCache.has(currentDoctype)) placeViews();
   clearTimeout(afterTimer);
   afterTimer = setTimeout(async () => {
     const root = document.getElementById('view-root');

@@ -262,6 +262,10 @@ func StampPOPricing(tenantID string, payload map[string]interface{}) error {
 		}
 		orig[i] = cp
 	}
+	// Stage 148.35: lines keyed in packs become stock units first, so everything below prices pieces.
+	if _, err := StampPOPacks(tenantID, lines); err != nil {
+		return err
+	}
 
 	vendor := strings.TrimSpace(firstNonEmpty(str(payload, "vendor"), str(payload, "vendor_id")))
 	rows := loadVendorAgreementRows(tenantID, vendor)

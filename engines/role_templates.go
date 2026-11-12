@@ -14,7 +14,7 @@ import (
 // finding A-09).
 //
 // What shipped before this file: three roles, seeded doctype by doctype in
-// db/migration.sql and eighteen later migrations, with no statement anywhere
+// db/migrations/migration.sql and eighteen later migrations, with no statement anywhere
 // of what a role is FOR. The result is the finding: Cashier holds
 // doctype-level read on Payslip and EmployeeLoan - not because a cashier's
 // job needs a colleague's payslip, but because the row was convenient when
@@ -78,6 +78,8 @@ func (a AccessLevel) Permissions() (read, create, update, del bool) {
 // RoleTemplate is one role, described by the tasks it performs.
 type RoleTemplate struct {
 	Name string
+	// Landing is the screen the role opens first (role_landing overrides it).
+	Landing string
 	// Summary is the actual job. It is not decoration: every grant below
 	// has to be justifiable by this sentence, and the SoD catalog
 	// (sod_catalog.go) and the administrator preview both show it.
@@ -160,6 +162,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "Cashier",
+		Landing: "pos",
 		Summary: "Serves customers at the till: rings up sales, takes payment, handles receipted returns, looks up stock and prices.",
 		Modules: map[string]AccessLevel{
 			"POS": AccessOperate, "Sales": AccessOperate, "CRM": AccessOperate,
@@ -193,6 +196,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "Warehouse Manager",
+		Landing: "inventory",
 		Summary: "Owns a warehouse end to end: receiving, put-away strategy, waves, counts, quality holds and the people running them.",
 		Modules: map[string]AccessLevel{
 			"Inventory": AccessManage, "Inbound": AccessManage, "Quality": AccessOperate,
@@ -203,6 +207,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "Accounts Payable",
+		Landing: "finance",
 		Summary: "Processes what the company owes: vendor invoices, three-way match, payment proposals, expense reimbursement.",
 		Modules: map[string]AccessLevel{
 			"Procurement": AccessOperate, "Finance": AccessRead, "Master Data": AccessRead,
@@ -222,6 +227,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "Accounts Receivable",
+		Landing: "finance",
 		Summary: "Processes what the company is owed: customer invoices, credit notes, collections and receipt application.",
 		Modules: map[string]AccessLevel{
 			"Sales": AccessOperate, "Finance": AccessRead, "CRM": AccessRead,
@@ -236,6 +242,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "Accountant",
+		Landing: "finance",
 		Summary: "Owns the ledger: journals, period close, tax returns, fixed assets, the statements that come out of them.",
 		Modules: map[string]AccessLevel{
 			"Finance": AccessManage, "Reports": AccessOperate, "Master Data": AccessRead,
@@ -247,6 +254,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "HR Manager",
+		Landing: "hr",
 		Summary: "Owns the employee record and the payroll run: hiring, structures, attendance, payslips, grievances.",
 		Modules: map[string]AccessLevel{
 			"HR": AccessManage, "Master Data": AccessRead, "Reports": AccessOperate,
@@ -278,6 +286,7 @@ var roleTemplates = []RoleTemplate{
 	},
 	{
 		Name:    "Auditor",
+		Landing: "reports",
 		Summary: "Reads to verify, and changes nothing: transactions, evidence, the audit and system logs behind them.",
 		Modules: allModules(AccessRead),
 		Doctypes: map[string]AccessLevel{
@@ -349,6 +358,17 @@ var roleTemplates = []RoleTemplate{
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeOwner, ScopeEntity},
 	},
 	{
+		// 49.12.5 (user, 2026-11-12): a separate Privacy approver. It holds no
+		// record access at all - no modules, no doctypes - and one capability:
+		// read the notification decisions named to it and approve or send
+		// them back. It cannot decide, open an incident or edit the matrix,
+		// and it is never granted automatically: an Admin creates the role
+		// and gives it to a person.
+		Name:         RolePrivacyApprover,
+		Summary:      "Approves incident notification decisions named to it. Sees only those decisions; no other record, setting or screen.",
+		Capabilities: []string{CapPrivacyApproval},
+	},
+	{
 		// 140.12.25 (user, 2026-10-28, option 1): the product team - sets up
 		// PIM (attributes, families, content, media, channel maps, feeds) and
 		// fills items; never stock, prices on bills, money or users.
@@ -405,7 +425,7 @@ func allModules(level AccessLevel) map[string]AccessLevel {
 // later migration fails the build until Administrator/Auditor are considered.
 //
 // Stage 51.8: "Store" was removed (user decision, 2026-10-04). It existed only
-// for the `Stores` master, which `db/migrations_stage30_5_5_retire_stores.sql`
+// for the `Stores` master, which `db/migrations/migrations_stage30_5_5_retire_stores.sql`
 // permanently retired into `Location` on 2026-08-02 - no shipped doctype has
 // used the module since, so the entry was stale and tripped the completeness
 // test's own stale-entry arm. Location carries Stores' four former fields and

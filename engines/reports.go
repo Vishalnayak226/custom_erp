@@ -234,7 +234,7 @@ func vendorLedgerPage(tenantID, vendorFilter string, page ReportPage) ([]map[str
 		return nil, 0, err
 	}
 	// Stage 30.2.3: COALESCE'd for the same reason GetCustomerLedgerReport is
-	// (engines/finance_reports_stage26.go) - a PurchaseOrder missing either
+	// (engines/finance_reports.go) - a PurchaseOrder missing either
 	// text field would 503 the whole report on a NULL-into-string scan.
 	query := fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'vendor', '') AS vendor,

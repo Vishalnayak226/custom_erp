@@ -8,7 +8,7 @@
 function deskWhen(value) {
   if (!value) return '—';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? String(value) : formatDateTime(d);
 }
 
 const DESK_STEP = { Draft: 'assign', Assigned: 'start', InProgress: 'resolve', Resolved: 'close' };
@@ -25,14 +25,14 @@ async function renderServiceDeskPanel(container, doctype) {
 }
 
 async function renderTicketDesk(panel) {
-  panel.innerHTML = '<h2 style="font-size:16px;margin:0 0 8px;">Service desk</h2><p class="text-muted">Loading…</p>';
+  panel.innerHTML = '<h2 class="s-78a190">Service desk</h2><p class="text-muted">Loading…</p>';
   const res = await apiFetch(`/api/v1/service/desk${deskMineOnly ? '?mine=1' : ''}`);
   if (!res) return;
-  if (!res.ok) { panel.innerHTML = '<h2 style="font-size:16px;margin:0 0 8px;">Service desk</h2><p class="text-muted">The service desk could not be loaded.</p>'; return; }
+  if (!res.ok) { panel.innerHTML = '<h2 class="s-78a190">Service desk</h2><p class="text-muted">The service desk could not be loaded.</p>'; return; }
   const { tickets = [] } = await res.json();
   panel.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-      <h2 style="font-size:16px;margin:0;flex:1;">Service desk</h2>
+    <div class="s-9c33ed">
+      <h2 class="s-1a3007">Service desk</h2>
       <button class="btn btn-sm ${deskMineOnly ? 'btn-primary' : 'btn-outline'}" data-desk-scope="mine" aria-pressed="${deskMineOnly}">Mine and unassigned</button>
       <button class="btn btn-sm ${deskMineOnly ? 'btn-outline' : 'btn-primary'}" data-desk-scope="all" aria-pressed="${!deskMineOnly}">All open</button>
     </div>
@@ -40,18 +40,18 @@ async function renderTicketDesk(panel) {
     <div class="table-wrapper"><table>
       <thead><tr><th>Ticket</th><th>Customer</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Due</th><th>Contract</th><th>Next step</th></tr></thead>
       <tbody>${tickets.map(t => `<tr>
-        <td><button class="action-btn" data-desk-history="${escapeHTMLText(t.id)}" title="Show status history">${escapeHTMLText(t.id)}</button><div class="text-muted" style="font-size:12px;">${escapeHTMLText(t.description || '')}</div></td>
+        <td><button class="action-btn" data-desk-history="${escapeHTMLText(t.id)}" title="Show status history">${escapeHTMLText(t.id)}</button><div class="text-muted s-6cb285">${escapeHTMLText(t.description || '')}</div></td>
         <td>${escapeHTMLText(t.customer || '')}</td>
         <td>${escapeHTMLText(t.priority || '')}</td>
         <td>${escapeHTMLText(t.status)}</td>
         <td>${escapeHTMLText(t.assigned_to || 'Unassigned')}</td>
         <td>${t.due ? `<span class="badge ${t.overdue ? 'badge-danger' : 'badge-warning'}">${escapeHTMLText(t.due)}</span>` : escapeHTMLText(t.resolve_by_date || '—')}</td>
-        <td>${t.contract ? `${escapeHTMLText(t.contract.id)}<div class="text-muted" style="font-size:12px;">${escapeHTMLText(t.contract.coverage)}${t.contract.covered ? ` - ${escapeHTMLText(String(t.contract.visits_remaining))} visit(s) left` : ''}</div>` : '<span class="text-muted">No contract</span>'}</td>
+        <td>${t.contract ? `${escapeHTMLText(t.contract.id)}<div class="text-muted s-6cb285">${escapeHTMLText(t.contract.coverage)}${t.contract.covered ? ` - ${escapeHTMLText(String(t.contract.visits_remaining))} visit(s) left` : ''}</div>` : '<span class="text-muted">No contract</span>'}</td>
         <td>${DESK_STEP[t.status] ? `<button class="btn btn-outline btn-sm" data-desk-step="${DESK_STEP[t.status]}" data-desk-ticket="${escapeHTMLText(t.id)}">${escapeHTMLText(t.next_step)}</button>` : ''}</td>
       </tr>
       <tr class="hidden" data-desk-history-row="${escapeHTMLText(t.id)}"><td colspan="8">${(t.history || []).length === 0
         ? '<span class="text-muted">No status changes yet - logged ' + escapeHTMLText(deskWhen(t.created_at)) + '.</span>'
-        : `<ol style="margin:0;padding-left:18px;">${t.history.map(h => `<li>${escapeHTMLText(deskWhen(h.at))} - ${escapeHTMLText(h.change)}${h.by ? ` (${escapeHTMLText(h.by)})` : ''}</li>`).join('')}</ol>`}</td></tr>`).join('')}</tbody>
+        : `<ol class="s-b4dcbb">${t.history.map(h => `<li>${escapeHTMLText(deskWhen(h.at))} - ${escapeHTMLText(h.change)}${h.by ? ` (${escapeHTMLText(h.by)})` : ''}</li>`).join('')}</ol>`}</td></tr>`).join('')}</tbody>
     </table></div>`}`;
   panel.querySelectorAll('[data-desk-scope]').forEach(b => b.addEventListener('click', () => { deskMineOnly = b.dataset.deskScope === 'mine'; renderTicketDesk(panel); }));
   panel.querySelectorAll('[data-desk-history]').forEach(b => b.addEventListener('click', () => {
@@ -62,13 +62,13 @@ async function renderTicketDesk(panel) {
 
 function renderLookup(panel, title, label, base, render, suffix = '') {
   panel.innerHTML = `
-    <h2 style="font-size:16px;margin:0 0 8px;">${escapeHTMLText(title)}</h2>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="desk-lookup">${escapeHTMLText(label)}</label>
-        <input id="desk-lookup" class="form-input" style="width:240px;" placeholder="Pick from the list below or type it"></div>
+    <h2 class="s-78a190">${escapeHTMLText(title)}</h2>
+    <div class="s-58cada">
+      <div class="form-group s-ef0b7a"><label class="form-label" for="desk-lookup">${escapeHTMLText(label)}</label>
+        <input id="desk-lookup" class="form-input s-30196d" placeholder="Pick from the list below or type it"></div>
       <button class="btn btn-outline" id="desk-lookup-go">Show</button>
     </div>
-    <div id="desk-lookup-result" style="margin-top:12px;"></div>`;
+    <div id="desk-lookup-result" class="s-56f435"></div>`;
   const go = async () => {
     const id = panel.querySelector('#desk-lookup').value.trim();
     const host = panel.querySelector('#desk-lookup-result');

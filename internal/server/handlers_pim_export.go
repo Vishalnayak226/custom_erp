@@ -62,7 +62,7 @@ func handlePIMExportTemplateRun(w http.ResponseWriter, r *http.Request) {
 	if out.Extension != "csv" {
 		name = strings.TrimSuffix(name, ".csv") + "." + out.Extension
 	}
-	w.Header().Set("Content-Disposition", "attachment; filename="+name)
+	w.Header().Set("Content-Disposition", attachmentDisposition(name))
 	_, _ = w.Write(out.Data)
 }
 

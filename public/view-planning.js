@@ -19,17 +19,17 @@ async function renderSupplyProposalsTab(container) {
   panel.style.padding = '20px';
   panel.style.marginBottom = '16px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-location">Location</label>
-        <input type="text" id="sp-location" class="form-input" style="width: 180px;" autocomplete="off" value="${esc(planLocation)}"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-source">Propose from</label>
-        <select id="sp-source" class="form-select"><option value="reorder">Reorder points (all stock items)</option><option value="mrp">MRP (manufactured items and their materials)</option></select></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-lead">Lead time (days)</label>
-        <input type="number" id="sp-lead" class="form-input" style="width: 90px;" min="1" value="7"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-safety">Safety stock</label>
-        <input type="number" id="sp-safety" class="form-input" style="width: 90px;" min="0" value="0"></div>
+    <div class="s-608a43">
+      <div class="form-group s-50435f"><label class="form-label" for="sp-location">Location</label>
+        <input type="text" id="sp-location" class="form-input s-f9de92" autocomplete="off" value="${esc(planLocation)}"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="sp-source">Propose from</label>
+        <select id="sp-source" class="form-select"><option value="reorder">Reorder points (all stock items)</option><option value="mrp">MRP (manufactured items and their materials)</option><option value="backorder">Back orders</option></select></div>
+      <div class="form-group s-50435f"><label class="form-label" for="sp-lead">Lead time (days)</label>
+        <input type="number" id="sp-lead" class="form-input s-34deaa" min="1" value="7"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="sp-safety">Safety stock</label>
+        <input type="number" id="sp-safety" class="form-input s-34deaa" min="0" value="0"></div>
       <button class="btn btn-primary" id="sp-generate" type="button">Generate proposals</button>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-status">Show</label>
+      <div class="form-group s-50435f"><label class="form-label" for="sp-status">Show</label>
         <select id="sp-status" class="form-select">${['Proposed', 'Converted', 'Rejected', ''].map(s => `<option value="${s}"${s === planStatus ? ' selected' : ''}>${s || 'All'}</option>`).join('')}</select></div>
     </div>`;
   container.appendChild(panel);
@@ -68,7 +68,7 @@ async function generateProposals() {
 function spParts(p) {
   const bits = [[p.on_order, '+', 'PO'], [p.in_transit, '+', 'transit'], [p.inward, '+', 'inward'], [p.back_orders, '-', 'waiting']]
     .filter(b => Number(b[0]) > 0).map(b => `${b[1]}${num(b[0])} ${b[2]}`);
-  return bits.length ? `<div style="font-size: 11px; color: var(--text-muted);">${bits.join(' · ')}</div>` : '';
+  return bits.length ? `<div class="s-428d6b">${bits.join(' · ')}</div>` : '';
 }
 
 async function loadProposals() {
@@ -84,30 +84,30 @@ async function loadProposals() {
   const props = await res.json();
   const open = props.filter(p => p.status === 'Proposed');
   el.innerHTML = `
-    <div class="table-panel" style="overflow-x: auto;"><table>
+    <div class="table-panel s-987eb2"><table>
       <thead><tr>${open.length ? '<th><input type="checkbox" id="sp-all" aria-label="Select all open proposals"></th>' : ''}<th>Item</th><th>Location</th><th>From</th><th class="num">Available</th><th class="num">Needed</th><th class="num">Suggested</th><th class="num">Quantity</th><th>Supply by</th><th>Status</th><th>Became / why</th></tr></thead>
       <tbody>${props.length === 0
-        ? `<tr><td colspan="11" style="text-align:center; color:var(--text-muted);">No ${planStatus ? planStatus.toLowerCase() + ' ' : ''}proposals${loc ? ` at ${esc(loc)}` : ''}. Choose a location and <b>Generate proposals</b>.</td></tr>`
+        ? `<tr><td colspan="11" class="s-306094">No ${planStatus ? planStatus.toLowerCase() + ' ' : ''}proposals${loc ? ` at ${esc(loc)}` : ''}. Choose a location and <b>Generate proposals</b>.</td></tr>`
         : props.map(p => `<tr data-id="${esc(p.id)}">
           ${open.length ? `<td>${p.status === 'Proposed' ? `<input type="checkbox" class="sp-pick" aria-label="Select ${esc(p.item_name || p.sku)}">` : ''}</td>` : ''}
-          <td>${esc(p.item_name || p.sku)}<div style="font-size: 11px; color: var(--text-muted);">${esc(p.sku)}</div></td>
+          <td>${esc(p.item_name || p.sku)}<div class="s-428d6b">${esc(p.sku)}</div></td>
           <td>${esc(p.location)}</td>
-          <td>${esc(p.source)}${p.for_item ? `<div style="font-size: 11px;">for ${esc(p.for_item)}</div>` : ''}</td>
+          <td>${esc(p.source)}${p.for_item ? `<div class="s-a11453">for ${esc(p.for_item)}</div>` : ''}</td>
           <td class="num">${num(p.available)}${spParts(p)}</td><td class="num">${num(p.reorder_point)}</td><td class="num">${num(p.suggested_qty)}</td>
-          <td class="num">${p.status === 'Proposed' ? `<input type="number" class="form-input sp-qty" style="width: 90px;" min="0" value="${num(p.suggested_qty)}" aria-label="Quantity for ${esc(p.sku)}">` : num(p.approved_qty)}</td>
+          <td class="num">${p.status === 'Proposed' ? `<input type="number" class="form-input sp-qty s-34deaa" min="0" value="${num(p.suggested_qty)}" aria-label="Quantity for ${esc(p.sku)}">` : num(p.approved_qty)}</td>
           <td>${esc(p.action || '')}</td>
           <td><span class="badge ${p.status === 'Converted' ? 'badge-success' : p.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${esc(p.status)}</span></td>
-          <td>${p.target_id ? `${esc(p.target_doctype)} <b>${esc(p.target_id)}</b>` : ''}${p.reason ? `<div style="font-size: 11.5px;">${esc(p.reason)}</div>` : ''}${p.decided_by ? `<div style="font-size: 11px; color: var(--text-muted);">${esc(p.decided_by)} · ${esc((p.decided_at || '').slice(0, 10))}</div>` : ''}</td>
+          <td>${p.target_id ? `${esc(p.target_doctype)} <b>${esc(p.target_id)}</b>` : ''}${p.reason ? `<div class="s-957b2a">${esc(p.reason)}</div>` : ''}${p.decided_by ? `<div class="s-428d6b">${esc(p.decided_by)} · ${esc((p.decided_at || '').slice(0, 10))}</div>` : ''}</td>
         </tr>`).join('')}</tbody></table></div>
-    ${open.length ? `<div class="table-panel" style="padding: 16px; margin-top: 12px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-action">Supply the selected by</label>
+    ${open.length ? `<div class="table-panel s-6ef54a">
+      <div class="form-group s-50435f"><label class="form-label" for="sp-action">Supply the selected by</label>
         <select id="sp-action" class="form-select"><option value="Purchase">Purchase order</option><option value="Transfer">Transfer from another location</option><option value="Production">Production order</option></select></div>
-      <div class="form-group" style="margin-bottom: 0;" id="sp-vendor-wrap"><label class="form-label" for="sp-vendor">Vendor</label>
-        <input type="text" id="sp-vendor" class="form-input" style="width: 200px;" autocomplete="off"></div>
-      <div class="form-group hidden" style="margin-bottom: 0;" id="sp-from-wrap"><label class="form-label" for="sp-from">From location</label>
-        <input type="text" id="sp-from" class="form-input" style="width: 180px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-note">Note / reason</label>
-        <input type="text" id="sp-note" class="form-input" style="width: 220px;" maxlength="200"></div>
+      <div class="form-group s-50435f" id="sp-vendor-wrap"><label class="form-label" for="sp-vendor">Vendor</label>
+        <input type="text" id="sp-vendor" class="form-input s-0fff9b" autocomplete="off"></div>
+      <div class="form-group hidden s-50435f" id="sp-from-wrap"><label class="form-label" for="sp-from">From location</label>
+        <input type="text" id="sp-from" class="form-input s-f9de92" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="sp-note">Note / reason</label>
+        <input type="text" id="sp-note" class="form-input s-30080b" maxlength="200"></div>
       <button class="btn btn-primary" type="button" id="sp-approve">Approve selected</button>
       <button class="btn btn-outline" type="button" id="sp-reject">Reject selected</button>
     </div>` : ''}`;

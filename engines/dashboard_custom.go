@@ -3,7 +3,6 @@ package engines
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -505,16 +504,6 @@ func ReadyMadeDashboards() []CustomDashboard {
 			dsW("Accounts", "table", 0, 3, 12, 2, DatasetQuery{Dataset: "ledger", GroupBy: []string{"account"}, Measures: []DatasetMeasure{dsSum("debit"), dsSum("credit"), dsSum("net")}, Limit: 30}),
 		),
 	}
-}
-
-// ReadyMadeKeys is the shipped keys in order (tests).
-func ReadyMadeKeys() []string {
-	out := []string{}
-	for _, d := range ReadyMadeDashboards() {
-		out = append(out, d.ReadyMade)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // SettingDashboardRefresh is how often an open dashboard reloads (D5).

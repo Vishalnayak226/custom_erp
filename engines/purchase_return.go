@@ -382,6 +382,13 @@ func validatePurchaseReturnRules(tenantID, docID, priorStatus string, priorData,
 	if code != "" {
 		payload["reason_code"] = code
 	}
+	// 74.1.1: the code's severity as it is now; High sends the return for
+	// approval before it can post (PostPurchaseReturn).
+	if sev := reasonSeverityOf(tenantID, code, ReasonPurchaseReturn); sev != "" {
+		payload["reason_severity"] = sev
+	} else {
+		delete(payload, "reason_severity")
+	}
 	if strings.TrimSpace(strField(payload, "reason")) == "" {
 		return &ValidationError{Code: "PURCHA-0116", SubFor: "Reason for Return", Message: "a reason for returning the goods to the vendor is required"}
 	}
@@ -418,6 +425,8 @@ type PurchaseReturnPostResult struct {
 	DebitNoteID      string  `json:"debit_note_id,omitempty"`
 	DebitNotePosted  bool    `json:"debit_note_posted"`
 	DebitNoteWarning string  `json:"debit_note_warning,omitempty"`
+	// PendingApproval (74.1.1): a High-severity reason held the return; nothing posted.
+	PendingApproval bool `json:"pending_approval,omitempty"`
 }
 
 // PostPurchaseReturn moves a return's stock out, books its value, and raises
@@ -474,6 +483,15 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 	if strings.TrimSpace(strField(data, "reason")) == "" {
 		return nil, &ValidationError{Code: "PURCHA-0116", Message: "a reason for returning the goods to the vendor is required"}
 	}
+	// Stage 74.1.1: a High-severity reason code sends a Draft return for
+	// approval instead of posting; once Approved it posts as any return does.
+	if status == "Draft" && !gated && strField(data, "reason_severity") == ReasonSeverityHigh {
+		tx.Rollback() // release the row lock; the submit takes its own
+		if err := SubmitForApproval(tenantID, "PurchaseReturn", returnID, userID, ""); err != nil {
+			return nil, err
+		}
+		return &PurchaseReturnPostResult{ReturnID: returnID, PendingApproval: true}, nil
+	}
 
 	// Re-check against the GRN under its row lock: another return may have
 	// posted since this one was saved.
@@ -502,6 +520,12 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 			}
 		}
 		total = round2(total)
+	}
+	// Stage 148.16: units of a memo receipt are the vendor's: no debit note, no cost.
+	if memo, err := memoReturnTx(tx, schema, ctx.GRNID, lines); err != nil {
+		return nil, err
+	} else if memo {
+		valued, total = nil, 0
 	}
 	if ctx.Location == "" {
 		return nil, &ValidationError{Code: "PURCHA-0118", Message: fmt.Sprintf("goods receipt %s has no receiving location to return stock from", ctx.GRNID)}

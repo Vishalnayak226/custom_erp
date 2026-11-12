@@ -19,11 +19,76 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **220** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **234** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-28
+- [Part 2](release-notes-2.md) - 2026-08-04 to 2026-10-16
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-04
+
+## 2026-11-12
+
+**"all recommended" - four decisions built: strict transitions for the last eight approval / WMS / service record types, a High-severity reason that holds a purchase return or a transfer loss for approval, signed public image addresses for marketplace feeds, a Privacy approver role** *(code + tests + guides, session erp-4c, ask 165; NOT COMMITTED)*
+
+What changes for existing clients: PasswordResetRequest, SupplierSubmission, Appraisal, Grievance, LPN, SortSlot, ServiceTicket and Appointment refuse a status move with no rule (GLOBAL-0019), and rejecting one of the four approval records needs a reason; a purchase return or a transfer loss with a High-severity reason waits in Pending Approval; a new Privacy Approver role can be named on a notification decision. Public image addresses stay off until the owner sets `PUBLIC_MEDIA_SIGNING_KEY` and turns the setting on. Two migrations change metadata only (rules, a hold record type, one favourites grant); no client document is touched.
+
+**"Start Building next 20 items" - Cashier no longer sees PIM Reports, labelled fields and darker muted text, one number and date format everywhere, 2,764 inline styles moved to classes, faster screen switches and inbox, a batch-loading synthetic client, a release-candidate check at Deploy, threshold-splitting guard, joiner / mover / leaver approval, sign-in addresses, security-log history backfill, setup checks from the Finance pack** *(code + tests + guides, session erp-0c; NOT COMMITTED)*
+
+What changes for existing clients: a Cashier no longer sees PIM Reports; numbers and dates read the same on every screen (day-first, `03 Feb 2026`); saving an Employee no longer re-activates a disabled user and a leaving Employee disables their user; Users shows each user's last sign-in address; the Security tab gains Access review and, on the Event export box, History from / Send history; Deploy stops before the backup when the commit has no passing release-candidate record. Two new settings, both **Off**: `approvals.threshold_split_guard` and `security.identity_change_approval`.
+
+**"Once both done, Push and release ... DO all 4 of above" - the four steps left by "Implement all": the disk clean-up run, a duplicate price-override function removed, recommendations for the rest of the unused code, the old remote branches, then the release** *(session erp-30, was erp-0f)*
+
+Detail is in the tracker under *OPS › Repository & developer tooling* (103.1, 103.4.1, 103.5).
+
+## 2026-11-11
+
+**"Start next 20 open items building" - the ledger in the caller's transaction, 18 more keyed routes, locked-record answers, stated import totals, the reason-code catalogue, faster screen switches, long lists that filter every row, full-disk safety, Go 1.27.4 with govulncheck blocking, the upgrade channel, history / binary / backup secret scans, a bigger synthetic client** *(code + tests + guides, session erp-8c; NOT COMMITTED)*
+
+What changes for existing clients: reversing a journal voucher is one step and a second reversal is refused; editing a dispatched challan or a posted purchase return says what to do instead of a bare refusal; an opening-balance import can state its totals and approval refuses a file that does not tie; reason codes gain **Also used in**, **Severity** and **Needs a note**, plus 23 starter codes, and with codes required a transfer shortfall or a sales return needs a code; a second sign-off on a cutover pack is refused; switching back to an open screen no longer redraws its star and views twice; a filter or sort on a long list includes every row; a full disk leaves no partial audit archive or logo; new clients get every starter reason code; backups are written owner-only with the key kept off the command line (the restore drill too); Deploy honours the host's `UPGRADE_CHANNEL`.
+
+**"All approved" - the twelve ask-162 decisions taken as recommended; seven built: store-only material issue, a reason to close a period that is not ready, a role-aware sidebar, server-side sign-out and idle limit, rehearsal on for new clients, a release-evidence schedule, a footprint entry per release** *(code + tests + guides, session erp-e7; NOT COMMITTED)*
+
+What changes for existing clients: a Cashier no longer sees **Issue** / **Return unused** on Material Issue (Store Manager and HR/Admin do); closing a period with a failing check asks for a reason; the sidebar hides Trial balance, Chart of accounts, WMS labour and four PIM pages from roles that cannot read them; **Sign Out** now ends the session on the server. Unchanged unless a client chooses: the server idle limit is 0 (off); `platform.require_rehearsal` stays Off for existing clients (new clients start On).
+
+**"Implement all" - repository restructure, phase two: migrations in `db/migrations/`, about 480 files renamed, nine unused functions removed, a disk clean-up script for the owner** *(code layout + docs, session erp-0f, run header erp-28; NOT COMMITTED)*
+
+The owner's answer to the Stage 103 decisions and the renames §338 left until the other sessions were idle. Detail is in the tracker under *OPS › Repository & developer tooling*. The owner's explanation is section 6 of `docs/engineering/repository-restructure-2026-11-10.md`, and every old and new path is in `docs/archive/renamed-files-2026-11-11.md`.
+
+**"Build all recomended" - the reel review's three decisions built: Deploy alerts warning, browser errors in the System Log, a browser smoke run as a release gate** *(code + scripts + guides, session erp-10; NOT COMMITTED)*
+
+The user approved the recommended answers to §340's open decisions.
+
+**"Checklist is still organisation required" / "Stage 35 onwards it is not organised" - the stage write-ups filed by module in the archive** *(docs only)*
+
+After §337 the live tracker still ended with 67 `### Stage N` write-ups under Background notes, and the archive held 115 more in no order. A one-off script, not kept in the repo, moved them all into the archive's Background notes:
+
+## 2026-11-10
+
+**"WAtch all insta video and derview the insight and prepare which is required and which is not with reason" - six AI-coding reels judged against the ERP** *(review only, no code)*
+
+Six Instagram reels (CI and tests; SQL injection; exposed keys, open database and an id changed in the URL; the ponytail plugin; one agent with a playbook per job; "vibe coder vs AI engineer") were downloaded, transcribed with a local Whisper model and read frame by frame in scratch, then each claim was checked against the tree. Most is already in place: CI and the full suite on a fresh DB, parameterized SQL (the document filter key passes `safeFilterKeyRe` and the doctype's declared fields), no secrets in `public/`, tenant and insider isolation tests, human-gated destructive steps, skills and scripts as playbooks. Not adopted: ponytail (repeats Article 1 and loads every session), docs via MCP, per-PR agent review and auto fix-PRs, "strip semicolons" sanitizing. Four gaps filed as decisions with a recommendation each: 158.2 production alert webhook never checked, 158.3 browser errors never reported, 158.4 no clicked smoke check in the release, 158.5 UI rules only in Claude's memory (since answered by Article 7, item 159.1). Not committed. Detail: items 158.1-158.5.
+
+**"Arrange in proper std and structured way... one core rule like a constitution" - CONTRIBUTING.md, the layout guard, the root tidy** *(docs + one test + scripts, session erp-3f; NOT COMMITTED)*
+
+Items 159.1-159.3, 103.2, the root part of 103.1, `scripts/archive/` from 103.4, and 158.5 (answered) in `micro_checklist.md` under *OPS › Repository & developer tooling*. The full explanation the user asked for, with every move, deletion, rule and what waits, is `docs/engineering/repository-restructure-2026-11-10.md`.
+
+**"Checklist rebuild task" - the tracker rearranged by ERP module, skeleton permanent** *(docs + one script)*
+
+The user found 120+ stage sections too many to read. `docs/micro_checklist.md` and its archive are now arranged the same way: 24 permanent modules (PIM, PROC, INV, WMS, OMS, POS, CRM, FIN, TAX, HR, MFG, ASQ, RPT, PRT, CHN, DATA, CFG, TEN, SEC, PLAT, UI, OPS, QA, DOC) and 130 sub-modules, with each module's open and built counts in a Module map at the top. All 1,898 top-level items (491 live, 1,407 archived) were sorted into sub-modules by five classifier passes against one taxonomy, then spot-checked. Ids, text and order within a sub-module are unchanged, so code comments and the release commit message still find them. Stage write-ups, minus their items, sit under Background notes in each file, so old stage anchors still resolve. New asks get a run header at the end of the Asks log and items in their sub-module; no new stage sections. `docs/update-checklist-map.ps1` refreshes the counts and *Nothing open.* markers, prints the next free ask number, and fails on a skeleton that differs between the two files, an open item in the archive, or an item outside a module. The release runs it in G7. Its commit-title fallback now reads run headers as well as `## Stage` lines. A session filed Stage 158 the old way mid-rebuild; its five items were moved into modules the same day. Verified: open and built line counts, every item line and every prose line preserved; no broken links; doclint clean; brain claims the new script. CLAUDE.md's documentation conventions rewritten. Not committed. Detail: the "Checklist rebuild task" run header in the tracker's Asks log.
+
+**"WHich are built from checklist archive it" - built work moved out of micro_checklist** *(docs only)*
+
+Same split as §174, by a checkbox-and-status script: 35 closed stages moved whole, and from stages still open 10 closed sub-groups and 475 `[x]` items, into `docs/archive/micro_checklist_closed_stages.md` (724 `[x]` lines). A block moved only with no `[ ]` and no unfinished status or open decision; 12 stages flagged only by stale notes were checked by hand and moved. Stages 49, 146, 148, 155 left alone (other sessions' uncommitted edits). Relative links rewritten for the archive folder, all resolve; open-line count unchanged. Tracker 1,571 KB → 920 KB. Not committed. Detail: the 2026-11-10 entry at the top of micro_checklist.
+
+## 2026-11-05
+
+**"Build next 20 items" - Stage 148 Quality and optional modules, seven open bugs, the rest of Stage 146 with no blocker** *(code + tests + guides, session erp-22; NOT COMMITTED)*
+
+What changes for existing clients with no setting: an OMS bill now carries the order's shipping charge with its GST; a returned free gift credits the gift account the sale charged, not cost of goods sold; Ready to pay leaves out bills still waiting for their PO, which sit on a Waiting for PO tab; a PO routing rule must name roles that exist; download file names are cleaned; a product sheet saves whole or not at all. Everything else here stays off until a module or setting is turned on.
+
+**"Start building next 20 items" - Stage 148 Finance, Selling, Memo stock and Vendor link, five half-built Stage 49 items** *(code + tests + guides, session erp-4e; NOT COMMITTED)*
+
+The ask, the 20 items and the result are on the "Start building next 20 items" (erp-4e) header in `micro_checklist.md`; each item's line carries what was built, how it was verified and what is left. This section is the summary and what the run taught.
 
 ## 2026-11-04
 
@@ -35,7 +100,7 @@ The ask, the 20 items and the result are on the "Next 20" header in micro_checkl
 
 The user's ask, the items and the result are on the erp-60 claim header in micro_checklist.md; each item's line carries what was built under **erp-60 (2026-11-04)**. Peers were asked first; erp-48 keeps Stage 143. The user then added "take next piece of point not already being build" and "Once this is fixed, Take next 20", so the next run's header sits below this one.
 
-**"Once deployed, Start building next20 items" - the rest of Stage 146 plus half-built 47 / 49 / 157 parts** *(code + tests + guides, session erp-3f; NOT COMMITTED)*
+**"Once deployed, Start building next20 items" - the rest of Stage 146 plus half-built 47 / 49 / 157 parts** *(code + tests + guides, session erp-3f; in release 0.23.0 `cbf2799`)*
 
 The user's ask, the 20 items and the result are on the erp-3f claim header in micro_checklist.md; each item's line carries what was built under **erp-3f (2026-11-04)**. erp-79, erp-d8, erp-34, erp-48 and erp-f8 were asked first and claimed nothing.
 
@@ -420,82 +485,4 @@ Users were being signed out after 30 minutes. That was the idle auto-logout ever
 **Stage 66 — Smart HSN and GST rate suggestions; no number spinners** *(code + docs, NOT COMMITTED)*
 
 The HSN box now suggests codes instead of waiting for a number. A shipped master list (`engines/hsn_master.json`, 290 codes over the ten industries, GST 2.0 rates) is read against the item's name: the material words decide, so silver goes to 7113 and zircon, AD or gold-plated go to 7117; it also tells cloth from fabric from garment. Codes the client's own similar items already carry rank first, and the client's industry breaks ties. Choosing an industry loads its codes into the HSN Code list. The GST rate follows the code: auto-filled for single-rate codes, offered as price-banded choices for garments and footwear, and the client's own list rate always wins. Quick-create now asks Tax Treatment when the rate is 0. Number boxes lost their spinners, and wheel and arrow-key stepping, everywhere. Picker logic is in the lazy `view-pickers.js`, so the cold core shrank by 225 bytes. Detail: `micro_checklist.md` Stage 66.
-
-## 2026-10-16
-
-**Stage 61.6-61.11 — GRN batch numbers with full flexibility** *(code + docs; committed `f017bd2` and deployed 2026-10-17)*
-
-The user asked whether Stage 61 was "ready with expected flexibility"; the honest answer was no, six gaps were listed, and the user said build all of them, the expectation being drag-and-drop label design. Detail in micro_checklist.md Stage 61.
-
-**Stage 64 — every client kept in step with tenant_default; background failures reach the client's error log** *(code + docs)*
-
-Found while preparing the minn.wholeops.in handover: production's `tenant_minn` (provisioned 2026-09-22) was missing 16 tables, 11 columns (`audit_logs.signature`, so every audit write on that client failed), 53 record types with 446 fields, their permissions, 12 number series, all 230 status-change rules, the INR currency and the TDS sections; 10 of its tables drew ids from `tenant_default`'s sequences. Cause: most migrations change only `tenant_default`, the tenant-looping ones only reach clients that already exist, and provisioning clones a hand-kept table list. Fix at the two choke points: `db/tenant_schema_sync.go` (catalog-driven, insert-only) runs after every `-migrate` and inside `ProvisionTenantSchema`. Also: 11 per-client background-worker failure sites now go through `LogBackgroundJobError`, which records each distinct failure in that client's `system_error_logs` once an hour (the user: "all logs should be captured if a data issue is found; I should be able to browse the db and fix it in both instances"). Detail in micro_checklist.md Stage 64.
-
-## 2026-10-15
-
-**Stages 62 + 63 — designs inside the PO, multi-PO GRN at invoice price with automatic notes, designed transaction prints** *(code + docs, NOT COMMITTED)*
-
-The user: create SKUs / design combinations in the PO from the org's attribute matrix (design number new or reused per config); one GRN for several POs of a vendor; PO price and invoice price on every line, the vendor's invoice amount at the top, the difference raised as debit / credit notes — "never on hold"; then, mid-stage, "print templates customisable by the user, drag and drop, mapped product-wise, PO / Vendor PO (images, Excel) / Transfer Out / In / GRN / notes, brand always there, which store I am generating from". Detail in micro_checklist.md Stages 62 and 63.
-
-**Stage 61 — GRN batch numbers and scan-to-age lookup** *(code + docs, NOT COMMITTED)*
-
-The user: a SKU keeps one barcode, so "in each GRN, each Combination ID/SKU will have a batch number" (every SKU), and "after scanning I should know the batch, so I will know ageing or which day it came in". Detail in micro_checklist.md Stage 61.
-
-**Stage 60.8/60.9 — only the platform operator reaches other clients; one table per transaction** *(code + docs, NOT COMMITTED)*
-
-The user: "Only Super admin I can, no one else. Client can't change other" and "I need individual table for all txn ... I should be fixing it". Detail in micro_checklist.md 60.8/60.9.
-
-## 2026-10-14
-
-**Stage 60 — number series per transaction and store, item types, names not codes, platform data console** *(code + docs, NOT COMMITTED)*
-
-The user asked whether PO/GRN/barcode were ready and what was missing, then said "Build" with decisions: lengths 5 (purchase, HR) / 6 (stock, sales, production, assets); the store's Short Code inside numbers; Store Name / Store Code / Short Code / Facility Code with Facility Code for OMS; item types with barcode rules **and** behaviour; a raw-edit console over every table of any client with customer details hidden; no internal codes in the UI except Design, Combination and barcode. Full detail in micro_checklist.md Stage 60.
-
-## 2026-10-03
-
-**Stage 50 — BLD-041 completed: native ESM screen loading meets both cold budgets, preserves entitlement/error/help/print paths, no bundler or npm scripts** *(code + tests + docs)*
-
-**This supersedes the intermediate classic-script implementation and open status recorded in §180.** Expanded the split to 18 native ES modules; `public/app.js` retains the app shell, shared services, navigation and the existing access checks. A route's module is fetched only after `/api/v1/me/modules` has returned and `isMenuModuleVisible` permits it. `loadViewModule()` caches the in-flight import/result to avoid duplicate requests and adds a cache-busting retry URL after a failed import; the existing retry panel handles failure. No bundler, build output, package install or npm script is required. POS, standalone Returns and RF traceability have distinct modules, so first paint on POS does not download the other screens. Help and cross-domain reports/PIM actions use explicit lazy bridges. Shared document-table, formatting, QZ and print-sheet helpers stay in the shell to avoid a dependency waterfall when entering those screens.
-
-## 2026-10-02
-
-**Stage 50 — BLD-041 opened (lazy screen code and initial payload budgets): baseline measured, a classic-script lazy-loading approach decided over an ES-module rewrite, and the mechanism proven end-to-end on 4 real view groups (Manufacturing, Expenses, Fixed Assets, Stock Transfer) — small but real, verified payload reduction; item stays open** *(code + docs)*
-
-First session to touch BLD-041. Measured the real baseline first rather than assuming: three cold-cache HTTP runs against a disposable scratch server (`Accept-Encoding: gzip`) put cold-core (index.html + styles.css + db.js + components/erp-typeahead.js + app.js + qz-print.js) at 347,586 bytes (~339.4 KiB) against the 180 KiB budget, and initial JS alone at 307,602 bytes (~300.4 KiB) against the 120 KiB budget — `app.js` alone is ~96.7% of the JS total and the only lever that moves the needle.
-
-**Stage 50 — BLD-036's gap (2) closed for real (all ~28 remaining "Failed to load" sites individually re-verified, one genuine dead end found and fixed); gap (3) deliberately accepted as residual rather than chased a fourth time** *(code + docs)*
-
-Picked up where the 2026-10-01 thread left off: BLD-036 had three named gaps across three prior sessions, of which gap (1) (double-submit guard coverage) was already closed that same day. Two remained: (2) ~20 of the 54 "Failed to load" sites assessed as action-triggered, non-dead-end fetches but never individually re-verified one by one, and (3) several bespoke section-refresh functions (`loadYardBoard`, `loadWarehouseCockpit`, `loadOMSOrders`, and the same shape elsewhere in WMS/Finance) still blank-then-fill instead of the doctype-table's stale-while-revalidate pattern.
-
-## 2026-10-01
-
-**Stage 50 — BLD-036 continued again (recoverable empty/loading/error/offline states): double-submit guard swept across 18 more bespoke composers app-wide, and a real, unrelated third-instance timezone-skew bug found and honestly flagged (not fixed) while investigating a regression-run failure — item stays open** *(code + docs)*
-
-Picked up the prior thread's handoff verbatim: BLD-036 was left open on three named, narrower gaps (~30 bespoke composers outside the five guarded paths still unguarded; ~20 of 54 dead-end sites unaudited; the bespoke section-refresh screens still blank-then-fill). Confirmed via `git status` that the tree's uncommitted state was unchanged since that handoff. Given (1) is the most mechanical and lowest-risk of the three — a proven extraction pattern applied for a third time, not new design — worked it in full rather than splitting effort across all three.
-
-## 2026-09-30
-
-**Stage 50 — BLD-036 continued (recoverable empty/loading/error/offline states): double-submit guard extended to Approve/Reject and two bespoke composers, 13 more dead-end "Failed to load" screens given a real retry, stable-loading-layout genuinely assessed, and two real bugs caught by live-verifying the fixes themselves — still real progress, item stays open** *(code + docs)*
-
-Picked up the prior same-day thread's handoff verbatim: BLD-036 was left open on three explicitly named gaps (the double-submit guard covering only two of many save paths; only 1 of ~54 "Failed to load" dead-end messages swept; "stable loading layout" not assessed at all). Confirmed via `git status` that the tree's uncommitted state was unchanged since that handoff before starting, and worked all three gaps in the same pass rather than picking one.
-
-**Stage 50 — BLD-036 (recoverable empty/loading/error/offline states): a global API timeout added, a real duplicate-document-creation gap closed on the two highest-traffic save paths, and the Approvals dead-end load failure given a real retry — real progress, item stays open** *(code + docs)*
-
-Picked up as the next-ready item off the prior thread's handoff (BLD-036 — READY after BLD-035's shared-form fixes, which landed 2026-09-29). Confirmed via `git status` that the tree's uncommitted state (BLD-046/BLD-043/BLD-035/documentation-hygiene, `docs/ai_handover.md` §6) was unchanged since that handoff, then started fresh, touching `public/app.js` only.
-
-## 2026-09-29
-
-**Stage 50 — BLD-035 (consistent forms and truthful transaction outcomes): a hardcoded "saved" response replaced with the document's real status app-wide, five silent save/submit/decide call sites wired to show it, missing Date/Currency form fields fixed, and an unrelated Stage-51.1-era edit/delete routing bug found and fixed live** *(code + docs)*
-
-Continuing from the prior thread's priority order (BLD-035 first — DEPENDS on BLD-010/011/012, all done, and had sat READY across several sessions' handoffs without being picked up). Confirmed via `git status` that HEAD was still `afaf419` with the prior session's BLD-046/documentation-hygiene work uncommitted, then started fresh. Checked MC-031/042/082/089 before touching code — they live in `docs/qa/erp-maturity-checklist.md`, not `micro_checklist.md` (confirmed via grep first, per this file's own MC-089 sourcing note) — and found MC-042 ("approval transitions and user messages match economic outcome") already scored FAIL and MC-089 OPEN, so this was a real, acknowledged gap rather than a verify-and-close item.
-
-**Documentation hygiene — split `docs/micro_checklist.md` down to pending-only items, moving every closed item into the archive at item/sub-group granularity for the first time** *(docs only, no code change)*
-
-User asked to clean the live checklist down to pending work. Checked every live stage (20, 26, 31, 34, 38, 39, 47-52) against the file's own rule (a stage header may only be marked closed if 100% of its items are `[x]`) — none qualified, since every stage retains at least one genuinely open item (several from the 2026-09-28 session). The existing archive convention only ever moves a *whole* closed Stage, so at that granularity there was nothing new to move; asked the user how to proceed, and they chose the larger, non-standard option: pull every individual closed `[x]` item out of the still-open stages too, not just whole stages.
-
-## 2026-09-28
-
-**Stage 50 — BLD-046 (bounded imports, reports, exports and jobs): a real cross-worker tenant-scoping bug found and fixed, four bespoke tickers bounded, CSV import capped, one export converted to real streaming — real progress, item stays open on the "interrupted" leg** *(code + tests + docs)*
-
-Continuing the same thread that closed BLD-034 (§172) earlier the same day. Per the priority order the prior session handed off (BLD-046 first — DEPENDS on BLD-043, done; BLD-035 next). Confirmed genuinely unstarted via `git status`/the build checklist's own `[ ]` mark before touching anything.
 

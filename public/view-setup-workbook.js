@@ -47,28 +47,28 @@ export async function renderSetupWorkbook(host) {
   if (swPoll) { clearTimeout(swPoll); swPoll = null; }
   swFile = null;
   host.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin:0 0 14px;">Setup Workbook</h3>
-    <div style="display:grid; gap:18px; max-width:980px;">
+    <h3 class="s-afd9a1">Setup Workbook</h3>
+    <div class="s-835235">
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">1. Download</h4>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <h4 class="s-00f1b9">1. Download</h4>
+        <div class="s-d1c861">
           <button type="button" class="btn btn-outline" data-sw="template">Blank workbook</button>
           <button type="button" class="btn btn-outline" data-sw="export">This organisation's setup</button>
         </div>
       </section>
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">2. Upload and check</h4>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <label class="btn btn-outline" style="cursor:pointer; margin:0;">Choose workbook
-            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-sw="file" style="display:none;">
+        <h4 class="s-00f1b9">2. Upload and check</h4>
+        <div class="s-8ed0b3">
+          <label class="btn btn-outline s-a633c1">Choose workbook
+            <input type="file" hidden accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-sw="file">
           </label>
-          <span data-sw="file-name" class="text-muted" style="font-size:13px;">No file chosen</span>
+          <span data-sw="file-name" class="text-muted s-5e0faa">No file chosen</span>
           <button type="button" class="btn btn-primary" data-sw="preview" disabled>Preview</button>
         </div>
       </section>
       <div data-sw="result"></div>
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">Past uploads</h4>
+        <h4 class="s-00f1b9">Past uploads</h4>
         <div data-sw="runs"><p class="text-muted">Loading…</p></div>
       </section>
     </div>`;
@@ -97,19 +97,19 @@ async function swPreview(host, btn) {
   const res = await apiUpload(`${SW_API}/preview`, fd);
   btn.disabled = false;
   if (!res) { out.innerHTML = ''; return; }
-  if (!res.ok) { out.innerHTML = `<p style="color:var(--danger-color); font-size:14px;">${swEsc(await getErrorMessage(res, 'The workbook could not be read.'))}</p>`; return; }
+  if (!res.ok) { out.innerHTML = `<p class="s-196e02">${swEsc(await getErrorMessage(res, 'The workbook could not be read.'))}</p>`; return; }
   const plan = await res.json();
   const t = plan.totals || {};
   const toApply = (t.New || 0) + (t.Change || 0);
   out.innerHTML = `
     <section>
-      <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">3. Preview - nothing has changed yet</h4>
+      <h4 class="s-00f1b9">3. Preview - nothing has changed yet</h4>
       ${swTotalsHtml(t, false)}
-      ${plan.from_organisation && !plan.same_organisation ? `<p style="font-size:13px; margin:0 0 10px;">From another organisation (${swEsc(plan.from_organisation)}): matched by name and GSTIN, not code.</p>` : ''}
+      ${plan.from_organisation && !plan.same_organisation ? `<p class="s-0006b9">From another organisation (${swEsc(plan.from_organisation)}): matched by name and GSTIN, not code.</p>` : ''}
       ${swSheetsHtml(plan.sheets || [], false)}
-      <div style="display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+      <div class="s-a1de6b">
         <button type="button" class="btn btn-primary" data-sw="apply"${toApply ? '' : ' disabled'}>${toApply ? `Apply ${toApply} row${toApply === 1 ? '' : 's'}` : 'Nothing to apply'}</button>
-        ${t.Errors ? `<span style="font-size:13px; color:var(--danger-color);">${t.Errors} row${t.Errors === 1 ? ' has a problem and is' : 's have a problem and are'} left out - fix and upload again.</span>` : ''}
+        ${t.Errors ? `<span class="s-129b93">${t.Errors} row${t.Errors === 1 ? ' has a problem and is' : 's have a problem and are'} left out - fix and upload again.</span>` : ''}
       </div>
     </section>`;
   swWireToggles(out);
@@ -128,7 +128,7 @@ async function swApply(host, count, problems) {
   fd.append('file', swFile, swFile.name);
   const res = await apiUpload(`${SW_API}/apply`, fd);
   if (!res) { out.innerHTML = ''; return; }
-  if (!res.ok) { out.innerHTML = `<p style="color:var(--danger-color); font-size:14px;">${swEsc(await getErrorMessage(res, 'The workbook could not be applied.'))}</p>`; return; }
+  if (!res.ok) { out.innerHTML = `<p class="s-196e02">${swEsc(await getErrorMessage(res, 'The workbook could not be applied.'))}</p>`; return; }
   const { run_id: runID } = await res.json();
   swFollow(host, runID);
 }
@@ -142,7 +142,7 @@ async function swFollow(host, runID) {
   const run = await res.json();
   if (run.status === 'Running') {
     const done = run.progress_done || 0, total = run.progress_total || 0;
-    out.innerHTML = `<p style="font-size:14px;">Applying${run.progress_sheet ? ` <b>${swEsc(run.progress_sheet)}</b>` : ''}… ${total ? `${done} of ${total} sheets` : ''}</p>`;
+    out.innerHTML = `<p class="s-433de3">Applying${run.progress_sheet ? ` <b>${swEsc(run.progress_sheet)}</b>` : ''}… ${total ? `${done} of ${total} sheets` : ''}</p>`;
     swPoll = setTimeout(() => swFollow(host, runID), 1200);
     return;
   }
@@ -157,10 +157,10 @@ function swRunHtml(run) {
   const ok = run.status === 'Completed';
   return `
     <section>
-      <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">${ok ? 'Applied' : swEsc(run.status || 'Finished')}${run.file_name ? ` - ${swEsc(run.file_name)}` : ''}</h4>
-      ${run.message ? `<p style="font-size:13px;">${swEsc(run.message)}</p>` : ''}
+      <h4 class="s-00f1b9">${ok ? 'Applied' : swEsc(run.status || 'Finished')}${run.file_name ? ` - ${swEsc(run.file_name)}` : ''}</h4>
+      ${run.message ? `<p class="s-5e0faa">${swEsc(run.message)}</p>` : ''}
       ${swTotalsHtml(t, true)}
-      ${(t.Failed || t.Errors) ? '<p style="font-size:13px; margin:0 0 10px;">Fix the Failed and Problem rows and upload again.</p>' : ''}
+      ${(t.Failed || t.Errors) ? '<p class="s-0006b9">Fix the Failed and Problem rows and upload again.</p>' : ''}
       ${swSheetsHtml(run.sheets || [], true)}
     </section>`;
 }
@@ -169,7 +169,7 @@ function swTotalsHtml(t, applied) {
   const parts = applied
     ? [['done', t.Done], ['failed', t.Failed], ['error', t.Errors], ['same', t.Same], ['note', t.Notes]]
     : [['new', t.New], ['change', t.Change], ['same', t.Same], ['error', t.Errors], ['note', t.Notes]];
-  return `<div style="display:flex; gap:14px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">${parts
+  return `<div class="s-0e8c55">${parts
     .filter(([, n]) => n)
     .map(([k, n]) => `<span>${swBadge(k)} ${swEsc(n)}</span>`).join('') || '<span class="text-muted">The workbook has no rows.</span>'}</div>`;
 }
@@ -200,18 +200,18 @@ function swSheetsHtml(sheets, applied) {
       : [['new', s.new], ['change', s.change], ['error', s.errors], ['same', s.same], ['note', s.notes]];
     const open = shown.some(r => r.action === 'error' || r.result === 'failed');
     return `
-      <details class="table-panel" style="margin:0 0 10px; padding:0; min-height:0; display:block;"${open ? ' open' : ''}>
-        <summary style="padding:10px 14px; cursor:pointer; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-          <b style="min-width:140px;">${swEsc(s.sheet)}</b>
-          ${counts.filter(([, n]) => n).map(([k, n]) => `<span style="font-size:13px;">${swBadge(k)} ${swEsc(n)}</span>`).join('') || '<span class="text-muted" style="font-size:13px;">no rows</span>'}
+      <details class="table-panel s-da9f54"${open ? ' open' : ''}>
+        <summary class="s-c8814b">
+          <b class="s-4592c7">${swEsc(s.sheet)}</b>
+          ${counts.filter(([, n]) => n).map(([k, n]) => `<span class="s-5e0faa">${swBadge(k)} ${swEsc(n)}</span>`).join('') || '<span class="text-muted s-5e0faa">no rows</span>'}
         </summary>
         ${rows.length ? `
-        <div style="overflow-x:auto;">
+        <div class="s-0ddf06">
           <table>
-            <thead><tr><th style="width:60px;">Row</th><th>Record</th><th style="width:110px;"></th><th>What changes</th></tr></thead>
+            <thead><tr><th class="s-bd09c4">Row</th><th>Record</th><th class="s-607468"></th><th>What changes</th></tr></thead>
             <tbody>
-              ${shown.map(r => `<tr><td>${swEsc(r.row || '')}</td><td>${swEsc(r.key)}</td><td>${swBadge(swRowKind(r, applied))}</td><td style="font-size:13px;">${swChangesHtml(r)}</td></tr>`).join('')}
-              ${same ? `<tr data-sw-same-row><td colspan="4" class="text-muted" style="font-size:13px;"><a href="#" data-sw-show-same>Show ${same} unchanged</a></td></tr>` : ''}
+              ${shown.map(r => `<tr><td>${swEsc(r.row || '')}</td><td>${swEsc(r.key)}</td><td>${swBadge(swRowKind(r, applied))}</td><td class="s-5e0faa">${swChangesHtml(r)}</td></tr>`).join('')}
+              ${same ? `<tr data-sw-same-row><td colspan="4" class="text-muted s-5e0faa"><a href="#" data-sw-show-same>Show ${same} unchanged</a></td></tr>` : ''}
               ${rows.filter(r => r.action === 'same').map(r => `<tr data-sw-same class="hidden"><td>${swEsc(r.row || '')}</td><td>${swEsc(r.key)}</td><td>${swBadge('same')}</td><td></td></tr>`).join('')}
             </tbody>
           </table>
@@ -237,19 +237,19 @@ async function swRenderRuns(host) {
   const runs = await res.json();
   if (!runs.length) { box.innerHTML = '<p class="text-muted">No workbook has been applied here yet.</p>'; return; }
   box.innerHTML = `
-    <div class="table-panel" style="overflow-x:auto; min-height:0;">
+    <div class="table-panel s-7152b7">
       <table>
         <thead><tr><th>When</th><th>File</th><th>By</th><th>Status</th><th>Done</th><th>Failed</th><th></th></tr></thead>
         <tbody>${runs.map(r => {
           // started_at is UTC; created_at is the database's local clock without a zone.
           const at = r.started_at || r.created_at;
-          const when = at ? new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          const when = at ? formatDateTime(at) : '';
           const bad = r.status === 'Failed' || r.status === 'Interrupted' || r.status === 'Completed with errors';
           return `<tr>
             <td>${swEsc(when)}</td><td>${swEsc(r.file_name || '')}</td><td>${swEsc(r.created_by || '')}</td>
             <td><span class="badge ${bad ? 'badge-warning' : r.status === 'Running' ? 'badge-secondary' : 'badge-success'}">${swEsc(r.status || '')}</span></td>
             <td>${swEsc(r.success_rows || 0)}</td><td>${swEsc(r.failed_rows || 0)}</td>
-            <td style="white-space:nowrap;">
+            <td class="s-86abda">
               <button type="button" class="btn btn-outline btn-sm" data-sw-run="${swEsc(r.id)}">Details</button>
               <button type="button" class="btn btn-outline btn-sm" data-sw-file="${swEsc(r.id)}">Download file</button>
             </td></tr>`;

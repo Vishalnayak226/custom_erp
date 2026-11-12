@@ -8,7 +8,7 @@
 const Q = new URL(import.meta.url).search;
 const esc = (s) => escapeHTMLText(String(s ?? ''));
 const num = (v) => Number(v) || 0;
-const fmt = (v) => num(v).toLocaleString();
+const fmt = (v) => formatNumber(num(v));
 
 async function getJSON(url, fallback) {
   const res = await apiFetch(url);
@@ -44,44 +44,44 @@ export async function renderJobWorkTab(container) {
         || (d.sent_item_id ? `<div>${fmt(d.sent_qty)} ${esc(d.sent_item_id)} → ${esc(d.received_item_id)}</div>` : '');
     }
     // One line each: Sent | Accepted | Rejected | Loss | Still out, and the weight still out.
-    return bal.map(b => `<div style="margin-bottom:4px;">${esc(b.sku)}${b.output_sku && b.output_sku !== b.sku ? ` → ${esc(b.output_sku)} <span class="text-muted">(${fmt(b.output_qty)} made)</span>` : ''}
-      <div class="text-muted" style="font-size:12px;">Sent ${fmt(b.outward)} · accepted ${fmt(b.accepted)} · rejected ${fmt(b.rejected)} · loss ${fmt(b.loss)}${b.pending_loss ? ` <span class="badge badge-warning" title="Waiting for approval">+${fmt(b.pending_loss)}</span>` : ''}
+    return bal.map(b => `<div class="s-c81ce4">${esc(b.sku)}${b.output_sku && b.output_sku !== b.sku ? ` → ${esc(b.output_sku)} <span class="text-muted">(${fmt(b.output_qty)} made)</span>` : ''}
+      <div class="text-muted s-6cb285">Sent ${fmt(b.outward)} · accepted ${fmt(b.accepted)} · rejected ${fmt(b.rejected)} · loss ${fmt(b.loss)}${b.pending_loss ? ` <span class="badge badge-warning" title="Waiting for approval">+${fmt(b.pending_loss)}</span>` : ''}
         · <strong>still out ${fmt(open(b))}</strong>${(b.out_w || []).some(Boolean) ? ` · net / fine wt out ${openW(b, 1)} / ${openW(b, 2)}` : ''}</div></div>`).join('');
   };
-  list.innerHTML = `<div style="margin-bottom:10px;"><select class="form-select" data-jw-view style="width:200px;" aria-label="Show">
+  list.innerHTML = `<div class="s-761d3a"><select class="form-select s-2acaf3" data-jw-view aria-label="Show">
       ${[['all', 'All orders'], ['send', 'To send'], ['out', 'With job workers'], ['exceptions', 'Exceptions']].map(([k, l]) => `<option value="${k}" ${k === jwView ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="table-wrapper"><table><thead><tr><th>Order</th><th>Job worker</th><th>Lines</th><th>Due back</th><th>Status</th><th></th></tr></thead>
     <tbody>${shown.length ? shown.map(d => {
       const late = isOut(d) && d.due_date && d.due_date < today;
       const statSoon = isOut(d) && d.statutory_due && d.statutory_due <= soon;
       const bal = parse(d.jw_balance);
-      return `<tr><td style="font-family:monospace;">${esc(d.code || d.id)}${d.challan_number ? `<div class="text-muted" style="font-size:12px;">${esc(d.challan_number)}</div>` : ''}</td>
-        <td>${esc(d.vendor_id)}<div class="text-muted" style="font-size:12px;">${esc(d.location)}</div></td>
+      return `<tr><td class="s-72126d">${esc(d.code || d.id)}${d.challan_number ? `<div class="text-muted s-6cb285">${esc(d.challan_number)}</div>` : ''}</td>
+        <td>${esc(d.vendor_id)}<div class="text-muted s-6cb285">${esc(d.location)}</div></td>
         <td>${lineRows(d)}</td>
-        <td>${esc(d.due_date || '')}${late ? ' <span class="badge badge-danger">overdue</span>' : ''}${d.statutory_due ? `<div class="text-muted" style="font-size:12px;" title="ITC-04: inputs back within a year, capital goods within three">Statutory: ${esc(d.statutory_due)}${statSoon ? ' ⚠' : ''}</div>` : ''}</td>
-        <td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span>${num(d.processing_charges) ? `<div class="text-muted" style="font-size:12px;">Charges ${formatMoney(d.processing_charges)}</div>` : ''}</td>
-        <td style="white-space:nowrap;">${d.status === 'Draft' || d.status === 'Challan Pending' ? `<button type="button" class="action-btn" data-jw-act="send" data-id="${esc(d.id)}">Send</button> ` : ''}
+        <td>${esc(d.due_date || '')}${late ? ' <span class="badge badge-danger">overdue</span>' : ''}${d.statutory_due ? `<div class="text-muted s-6cb285" title="ITC-04: inputs back within a year, capital goods within three">Statutory: ${esc(d.statutory_due)}${statSoon ? ' ⚠' : ''}</div>` : ''}</td>
+        <td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span>${num(d.processing_charges) ? `<div class="text-muted s-6cb285">Charges ${formatMoney(d.processing_charges)}</div>` : ''}</td>
+        <td class="s-86abda">${d.status === 'Draft' || d.status === 'Challan Pending' ? `<button type="button" class="action-btn" data-jw-act="send" data-id="${esc(d.id)}">Send</button> ` : ''}
           ${isOut(d) && bal.length ? `<button type="button" class="action-btn" data-jw-act="receive" data-id="${esc(d.id)}">Receive</button> ` : ''}
           ${d.status === 'Sent' && !d.challan_id ? `<button type="button" class="action-btn" data-jw-act="legacy" data-id="${esc(d.id)}" title="Sent before job work lines: receive the output in one go">Receive</button> ` : ''}
           ${bal.some(b => b.accepted > 0) ? `<button type="button" class="action-btn" data-jw-act="charge" data-id="${esc(d.id)}">Book bill</button> ` : ''}
           ${d.challan_id ? `<button type="button" class="action-btn" data-jw-act="print" data-id="${esc(d.id)}">Print challan</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">${docs.length ? 'Nothing here in this view.' : 'No job work yet. + New Job Work Order starts one.'}</td></tr>`}</tbody></table></div>
-    <div data-jw-pane style="margin-top:14px;"></div>`;
+    }).join('') : `<tr><td colspan="6" class="s-b4fdf8">${docs.length ? 'Nothing here in this view.' : 'No job work yet. + New Job Work Order starts one.'}</td></tr>`}</tbody></table></div>
+    <div data-jw-pane class="s-d6f2af"></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group" style="margin:0;"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
-  form.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  form.innerHTML = `<div class="s-d9da29">
       ${field('jw-vendor', 'Job worker', 200)}${field('jw-store', 'From store', 150, `value="${esc(sessionStore())}"`)}${field('jw-due', 'Due back', 150, 'type="date"')}
-      <div class="form-group" style="margin:0;"><label class="form-label" for="jw-capital">Capital goods</label><select class="form-select" id="jw-capital" style="width:110px;"><option>No</option><option>Yes</option></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="jw-capital">Capital goods</label><select class="form-select s-607468" id="jw-capital"><option>No</option><option>Yes</option></select></div>
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item sent</th><th class="num">Qty</th><th>Lot</th><th class="num">Gross wt</th><th class="num">Net wt</th><th class="num">Fine wt</th><th>Purity</th><th>Comes back as</th><th class="num">Output per unit</th><th></th></tr></thead><tbody data-jw-lines></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-jw-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
+    <div class="s-ac2f58">
+      <input class="form-input s-3521b3" data-jw-add-input placeholder="Add by Design, Combination ID or barcode" autocomplete="off">
     </div>
-    <div class="login-error hidden" data-jw-error style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-jw-save>Save order</button></div>`;
+    <div class="login-error hidden s-56f435" data-jw-error></div>
+    <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-jw-save>Save order</button></div>`;
 
   container.appendChild(txnPagedSection({ id: 'jw-screen', title: 'Job Work', page: 'New job work order', count: docs.length, newLabel: 'New Job Work Order', form, list }));
   txnRestorePane('jw-screen');
@@ -108,16 +108,16 @@ export async function renderJobWorkTab(container) {
       return;
     }
     if (act === 'send') {
-      pane.innerHTML = `<h3 style="margin:0 0 8px;">Send ${esc(d.code || d.id)}</h3>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">${field('jws-vehicle', 'Vehicle no', 130)}${field('jws-lr', 'LR / AWB no', 130)}${field('jws-tr', 'Transporter', 160)}
+      pane.innerHTML = `<h3 class="s-df6718">Send ${esc(d.code || d.id)}</h3>
+        <div class="s-aad644">${field('jws-vehicle', 'Vehicle no', 130)}${field('jws-lr', 'LR / AWB no', 130)}${field('jws-tr', 'Transporter', 160)}
           <button type="button" class="btn btn-primary" data-jws-go>Send on a delivery challan</button></div>`;
       pane.querySelector('[data-jws-go]').addEventListener('click', () => post('/api/v1/manufacturing/subcontract-order/send', { id: d.id, transport_mode: 'Road',
         vehicle_no: pane.querySelector('#jws-vehicle').value, lr_awb_no: pane.querySelector('#jws-lr').value, transporter: pane.querySelector('#jws-tr').value }, `${d.code || d.id} sent.`));
       return;
     }
     if (act === 'charge') {
-      pane.innerHTML = `<h3 style="margin:0 0 8px;">Job worker's bill for ${esc(d.code || d.id)}</h3>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">${field('jwc-bill', 'Bill no', 150)}${field('jwc-amt', 'Amount', 130, 'type="number" min="0" step="0.01"')}
+      pane.innerHTML = `<h3 class="s-df6718">Job worker's bill for ${esc(d.code || d.id)}</h3>
+        <div class="s-aad644">${field('jwc-bill', 'Bill no', 150)}${field('jwc-amt', 'Amount', 130, 'type="number" min="0" step="0.01"')}
           <button type="button" class="btn btn-primary" data-jwc-go>Book</button></div>`;
       pane.querySelector('[data-jwc-go]').addEventListener('click', () => post('/api/v1/manufacturing/subcontract-order/charge', { id: d.id,
         bill_no: pane.querySelector('#jwc-bill').value.trim(), amount: num(pane.querySelector('#jwc-amt').value) }, 'Bill booked.'));
@@ -126,16 +126,16 @@ export async function renderJobWorkTab(container) {
     const bal = parse(d.jw_balance).filter(x => open(x) - x.pending_loss > 0);
     const transforms = (x) => x.output_sku && x.output_sku !== x.sku;
     const inp = (k, i, w = 70, extra = '') => `<input type="number" min="0" step="1" class="form-input" style="width:${w}px;text-align:right;" data-jwr="${k}" data-i="${i}" placeholder="0" ${extra}>`;
-    pane.innerHTML = `<h3 style="margin:0 0 8px;">What came back on ${esc(d.code || d.id)}</h3>
+    pane.innerHTML = `<h3 class="s-df6718">What came back on ${esc(d.code || d.id)}</h3>
       <div class="table-wrapper"><table><thead><tr><th>Line</th><th class="num">Still out</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Scrap</th><th class="num">Loss</th><th class="num">Output made</th><th class="num">Output rejected</th><th class="num">Net wt back</th><th class="num">Fine wt back</th><th>QC / reason</th></tr></thead>
       <tbody>${bal.map((x, i) => `<tr><td>${esc(x.sku)}${transforms(x) ? ` → ${esc(x.output_sku)}` : ''}</td><td class="num">${fmt(open(x) - x.pending_loss)}</td>
         <td class="num">${inp('accepted_qty', i)}</td><td class="num">${inp('rejected_qty', i)}</td><td class="num">${inp('scrap_qty', i)}</td><td class="num">${inp('loss_qty', i)}</td>
         <td class="num">${transforms(x) ? inp('output_qty', i, 80, 'placeholder="auto"') : '-'}</td><td class="num">${transforms(x) ? inp('output_rejected_qty', i, 80, 'placeholder="auto"') : '-'}</td>
-        <td class="num"><input type="number" min="0" step="0.001" class="form-input" style="width:80px;text-align:right;" data-jwr="net_weight" data-i="${i}"></td>
-        <td class="num"><input type="number" min="0" step="0.001" class="form-input" style="width:80px;text-align:right;" data-jwr="fine_weight" data-i="${i}"></td>
-        <td><input class="form-input" data-jwr="reason" data-i="${i}" style="min-width:140px;"></td></tr>`).join('')}</tbody></table></div>
-      <div class="txn-hint" style="margin-top:6px;">Rejected goes to QC hold; excess loss needs approval.</div>
-      <div style="margin-top:10px;"><button type="button" class="btn btn-primary" data-jwr-go>Receive</button></div>`;
+        <td class="num"><input type="number" min="0" step="0.001" class="form-input s-21b28d" data-jwr="net_weight" data-i="${i}"></td>
+        <td class="num"><input type="number" min="0" step="0.001" class="form-input s-21b28d" data-jwr="fine_weight" data-i="${i}"></td>
+        <td><input class="form-input s-4592c7" data-jwr="reason" data-i="${i}"></td></tr>`).join('')}</tbody></table></div>
+      <div class="txn-hint s-fe7b49">Rejected goes to QC hold; excess loss needs approval.</div>
+      <div class="s-d2c171"><button type="button" class="btn btn-primary" data-jwr-go>Receive</button></div>`;
     // Stage 148.1: an output that keeps codes or a lot gets them under its line.
     bal.forEach(async (x, i) => {
       if (!transforms(x)) return;
@@ -145,7 +145,7 @@ export async function renderJobWorkTab(container) {
       const row = pane.querySelector(`[data-jwr="accepted_qty"][data-i="${i}"]`)?.closest('tr');
       if (!row || (!mode.includes('Serial') && !mode.includes('Batch'))) return;
       const under = document.createElement('tr');
-      const box = (k, label) => `<input class="form-input" style="width:260px;margin-right:8px;" data-jwr="${k}" data-i="${i}" placeholder="${label}">`;
+      const box = (k, label) => `<input class="form-input s-ad5777" data-jwr="${k}" data-i="${i}" placeholder="${label}">`;
       under.innerHTML = `<td></td><td colspan="10">${mode.includes('Serial') ? box('output_serials', `Piece codes of ${esc(x.output_sku)}, comma between`) : ''}${mode.includes('Batch') ? box('output_batch_no', `Lot of ${esc(x.output_sku)}`) : ''}</td>`;
       row.after(under);
     });
@@ -173,13 +173,13 @@ export async function renderJobWorkTab(container) {
   const draw = () => {
     const cell = (k, i, w, type = 'number', step = 'any') => `<input type="${type}" ${type === 'number' ? `step="${step}" min="0"` : ''} class="form-input" style="width:${w}px;${type === 'number' ? 'text-align:right;' : ''}" data-jwl="${k}" data-i="${i}" value="${esc(jwLines[i][k] ?? '')}">`;
     form.querySelector('[data-jw-lines]').innerHTML = jwLines.length ? jwLines.map((l, i) => `<tr>
-        <td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td>
+        <td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div></td>
         <td class="num">${cell('qty', i, 80, 'number', '1')}</td><td>${cell('batch_no', i, 90, 'text')}</td>
         <td class="num">${cell('gross_weight', i, 80)}</td><td class="num">${cell('net_weight', i, 80)}</td><td class="num">${cell('fine_weight', i, 80)}</td>
-        <td>${cell('purity', i, 70, 'text')}</td><td><input class="form-input" data-jwl="output_sku" data-i="${i}" value="${esc(l.output_sku || '')}" style="width:150px;" placeholder="same item"></td>
+        <td>${cell('purity', i, 70, 'text')}</td><td><input class="form-input s-7c07cd" data-jwl="output_sku" data-i="${i}" value="${esc(l.output_sku || '')}" placeholder="same item"></td>
         <td class="num">${cell('output_per_unit', i, 80)}</td>
         <td><button type="button" class="action-btn action-btn-danger" data-jw-remove="${i}">Remove</button></td></tr>`).join('')
-      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:16px;">No lines yet.</td></tr>';
+      : '<tr><td colspan="10" class="s-f692de">No lines yet.</td></tr>';
     form.querySelectorAll('[data-jwl]').forEach(el => el.addEventListener('input', () => { jwLines[Number(el.dataset.i)][el.dataset.jwl] = el.value; }));
     form.querySelectorAll('[data-jwl="output_sku"]').forEach(el => attachLinkTypeahead(el, 'Item', { keepCode: true, noSetupHint: true, onPick: (doc) => { jwLines[Number(el.dataset.i)].output_sku = doc.code || doc.id; } }));
     form.querySelectorAll('[data-jw-remove]').forEach(el => el.addEventListener('click', () => { jwLines.splice(Number(el.dataset.jwRemove), 1); draw(); }));

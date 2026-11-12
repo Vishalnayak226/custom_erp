@@ -10,7 +10,7 @@ package engines
 // in front of it and no proof of a clean removal behind it.
 //
 // This file is the lifecycle state machine and its evidence trail. Storage is
-// db/migrations_stage49_1_5_tenant_lifecycle.sql; the operator entry point is
+// db/migrations/migrations_stage49_1_5_tenant_lifecycle.sql; the operator entry point is
 // cmd/tenantctl. Deliberately not an HTTP surface: platform-level tenant
 // creation and destruction is not something any request-bearing role should be
 // able to reach, and keeping it offline adds one CLI command to the attack

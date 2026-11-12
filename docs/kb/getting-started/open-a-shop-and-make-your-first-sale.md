@@ -126,7 +126,7 @@ You should not have to tell any other screen about that sale. Confirm it:
 |---|---|---|
 | Stock went down | **Stock » Inventory** | Quantity reduced by what you sold |
 | The sale was recorded | **Reports » Sales Register** | Your sale, with its total |
-| The books balanced | **Financial Accounting » Finance / GL** | Set **As Of Date** to today - debits equal credits, status reads "Balanced trial ledger" |
+| The books balanced | **Financial Accounting » Trial Balance** | Set **As Of Date** to today - debits equal credits, status reads "Balanced trial ledger" |
 | The money is owed to the vendor | **Reports » Vendor Ledger** | Your purchase order against that vendor |
 
 This table is the point of the whole exercise. Four screens nobody touched now

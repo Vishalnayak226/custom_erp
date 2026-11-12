@@ -14,7 +14,7 @@ async function renderBinToolsView(container) {
   const field = (id, label, w, ph) => `<div class="form-group"><label class="form-label" for="${id}">${label}</label>
     <input type="text" id="${id}" class="form-input" style="width: ${w}px;" autocomplete="off" placeholder="${ph || ''}"></div>`;
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${field('bt-location', 'Location', 150)}
       ${field('bt-zone', 'Zone (optional)', 130)}
       ${field('bt-aisles', 'Aisles', 100, 'A-C')}
@@ -26,9 +26,9 @@ async function renderBinToolsView(container) {
       <button class="btn btn-primary" id="bt-create" type="button">Create</button>
       <button class="btn btn-outline" id="bt-print" type="button">Print labels</button>
     </div>
-    <div id="bt-summary" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="bt-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <div id="bt-rows" style="margin-top: 12px;"></div>`;
+    <div id="bt-summary" class="s-e7706a"></div>
+    <div id="bt-error" class="login-error hidden s-4c0544"></div>
+    <div id="bt-rows" class="s-4bb900"></div>`;
   container.appendChild(panel);
 
   attachLinkTypeahead(document.getElementById('bt-location'), 'Location');
@@ -54,11 +54,11 @@ async function renderBinToolsView(container) {
     document.getElementById('bt-summary').textContent =
       `${data.total} bins - ${fresh} ${preview ? 'new' : 'created'}, ${data.existing} already there`;
     const shown = (data.rows || []).slice(0, 200);
-    document.getElementById('bt-rows').innerHTML = `<div style="overflow-x: auto;"><table class="data-table"><thead><tr>
+    document.getElementById('bt-rows').innerHTML = `<div class="s-987eb2"><table class="data-table"><thead><tr>
       <th>Bin</th><th>Aisle</th><th>Rack</th><th>Shelf</th><th>Position</th><th></th></tr></thead><tbody>${shown.map(r =>
       `<tr><td>${escapeHTMLText(r.code)}</td><td>${escapeHTMLText(r.aisle)}</td><td>${escapeHTMLText(r.rack)}</td>
        <td>${escapeHTMLText(r.level)}</td><td>${escapeHTMLText(r.position)}</td><td>${r.exists ? 'Exists' : ''}</td></tr>`).join('')}
-      </tbody></table></div>${data.rows.length > shown.length ? `<p style="color: var(--text-muted);">Showing ${shown.length} of ${data.rows.length}.</p>` : ''}`;
+      </tbody></table></div>${data.rows.length > shown.length ? `<p class="s-d59bb5">Showing ${shown.length} of ${data.rows.length}.</p>` : ''}`;
   }
 
   document.getElementById('bt-preview').addEventListener('click', () => run(true));

@@ -13,7 +13,7 @@ import (
 )
 
 // Stage 49.11.3 / 49.11.7 / 49.12.3 / 49.12.4: the client administrator's
-// Security pane (Activity Log -> Security). Everything here is scoped to the
+// Security pane (Settings -> Monitoring -> Security Events). Everything here is scoped to the
 // caller's own client by the resolved tenant; no route reads another client.
 
 // handleSecurityPosture: detections, evidence health and risky grants.
@@ -167,7 +167,7 @@ func handleForensicExport(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="evidence-%s-to-%s.zip"`, from.Format("20060102"), to.Format("20060102")))
+	w.Header().Set("Content-Disposition", attachmentDisposition("evidence-"+from.Format("20060102")+"-to-"+to.Format("20060102")+".zip"))
 	_, _ = w.Write(pack)
 }
 
@@ -233,4 +233,43 @@ func inboundWebhookGate(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// handleListAccessReviews: every Active user with the state of their last
+// access review (49.2.1).
+func handleListAccessReviews(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	list, err := engines.ListAccessReviews(r.Header.Get("Resolved-Tenant-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(list)
+}
+
+// handleRecordAccessReview confirms or revokes one user's access (49.2.1).
+func handleRecordAccessReview(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	var req struct {
+		UserID   string `json:"user_id"`
+		Decision string `json:"decision"`
+		Note     string `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'user_id' and 'decision' are required")
+		return
+	}
+	if forbidSupportUserTarget(w, r, req.UserID) {
+		return
+	}
+	if err := engines.RecordAccessReview(r.Context(), r.Header.Get("Resolved-Tenant-ID"), req.UserID, req.Decision, req.Note,
+		r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Username")); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }

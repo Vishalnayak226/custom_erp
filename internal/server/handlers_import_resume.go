@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"custom_erp/engines"
@@ -54,7 +53,7 @@ func handleImportJobFailedRows(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=failed_rows_%s.csv", jobID))
+	w.Header().Set("Content-Disposition", attachmentDisposition("failed_rows_"+jobID+".csv"))
 	_, _ = w.Write(body)
 }
 

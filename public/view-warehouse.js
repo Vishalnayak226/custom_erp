@@ -79,46 +79,46 @@ async function renderPutawayView(container) {
   waitPanel.style.padding = '24px';
   waitPanel.style.marginBottom = '24px';
   waitPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <h2 style="font-size: 16px; font-weight: 700; margin: 0; flex: 1;">Waiting for putaway</h2>
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <h2 class="s-1c0c36">Waiting for putaway</h2>
+      <div class="form-group s-50435f">
         <label class="form-label" for="putaway-wait-location">Location</label>
-        <input type="text" id="putaway-wait-location" class="form-input" style="width: 180px;" autocomplete="off">
+        <input type="text" id="putaway-wait-location" class="form-input s-f9de92" autocomplete="off">
       </div>
     </div>
-    <div id="putaway-waiting" style="margin-top: 12px;"></div>`;
+    <div id="putaway-waiting" class="s-4bb900"></div>`;
   container.appendChild(waitPanel);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="putaway-bin">Bin Code</label>
-        <input type="text" id="putaway-bin" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="putaway-bin" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="putaway-sku">SKU</label>
-        <input type="text" id="putaway-sku" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="putaway-sku" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="putaway-qty">Qty</label>
-        <input type="number" id="putaway-qty" class="form-input" style="width: 90px;" min="1" value="1">
+        <input type="number" id="putaway-qty" class="form-input s-34deaa" min="1" value="1">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="putaway-owner">Owner (3PL client, optional)</label>
-        <input type="text" id="putaway-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Whose stock">
+        <input type="text" id="putaway-owner" class="form-input s-56cae7" autocomplete="off" placeholder="Whose stock">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="putaway-location">Location (for Suggest Bin)</label>
-        <input type="text" id="putaway-location" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="putaway-location" class="form-input s-21b277" autocomplete="off">
       </div>
       <button class="btn btn-outline" id="putaway-suggest-btn" type="button">Suggest Bin</button>
       <button class="btn btn-primary" id="putaway-submit-btn" type="button">Put Away</button>
     </div>
-    <div id="putaway-suggest-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="putaway-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="putaway-suggest-result" class="s-e7706a"></div>
+    <div id="putaway-form-error" class="login-error hidden s-4c0544"></div>
   `;
   container.appendChild(panel);
 
@@ -151,7 +151,7 @@ async function renderPutawayView(container) {
   xdockWrap.className = 'table-panel';
   xdockWrap.style.padding = '16px 24px';
   xdockWrap.style.marginTop = '24px';
-  xdockWrap.innerHTML = '<summary style="cursor: pointer; font-weight: 600;">Cross-dock instead of shelving (advanced)</summary>';
+  xdockWrap.innerHTML = '<summary class="s-7df4e0">Cross-dock instead of shelving (advanced)</summary>';
   container.appendChild(xdockWrap);
 
   // Stage 26.5.3: cross-dock/flow-through putaway - an alternative to
@@ -160,25 +160,25 @@ async function renderPutawayView(container) {
   const xdockPanel = document.createElement('div');
   xdockPanel.style.padding = '16px 0 0';
   xdockPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Cross-Dock Staging</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-79bd22">Cross-Dock Staging</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="xdock-sku">SKU</label>
-        <input type="text" id="xdock-sku" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="xdock-sku" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="xdock-location">Location</label>
-        <input type="text" id="xdock-location" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="xdock-location" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="xdock-qty">Qty on hand to place</label>
-        <input type="number" id="xdock-qty" class="form-input" style="width: 90px;" min="1" value="1">
+        <input type="number" id="xdock-qty" class="form-input s-34deaa" min="1" value="1">
       </div>
       <button class="btn btn-outline" id="xdock-check-btn" type="button">Check Opportunity</button>
       <button class="btn btn-primary" id="xdock-stage-btn" type="button">Stage for Cross-Dock</button>
     </div>
-    <div id="xdock-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="xdock-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="xdock-result" class="s-e7706a"></div>
+    <div id="xdock-form-error" class="login-error hidden s-4bb900"></div>
   `;
   xdockWrap.appendChild(xdockPanel);
   document.getElementById('xdock-check-btn').addEventListener('click', checkCrossDockOpportunity);
@@ -192,24 +192,24 @@ async function renderPutawayView(container) {
   const planPanel = document.createElement('div');
   planPanel.style.padding = '24px 0 0';
   planPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Planned Cross-Dock / Flow-Through / Transship</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-79bd22">Planned Cross-Dock / Flow-Through / Transship</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="xplan-sku">SKU</label>
-        <input type="text" id="xplan-sku" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="xplan-sku" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="xplan-location">Location</label>
-        <input type="text" id="xplan-location" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="xplan-location" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="xplan-qty">Qty on hand to stage</label>
-        <input type="number" id="xplan-qty" class="form-input" style="width: 90px;" min="1" value="1">
+        <input type="number" id="xplan-qty" class="form-input s-34deaa" min="1" value="1">
       </div>
       <button class="btn btn-primary" id="xplan-stage-btn" type="button">Stage Against Plan</button>
     </div>
-    <div id="xplan-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="xplan-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="xplan-result" class="s-e7706a"></div>
+    <div id="xplan-form-error" class="login-error hidden s-4bb900"></div>
   `;
   xdockWrap.appendChild(planPanel);
   document.getElementById('xplan-stage-btn').addEventListener('click', submitPlannedCrossDockPutaway);
@@ -371,15 +371,15 @@ async function loadPutawayWaiting() {
   if (putawayFromGRN && (putawayFromGRN.skus || []).length) {
     const mine = new Set(putawayFromGRN.skus);
     rows = [...rows.filter(p => mine.has(p.sku)), ...rows.filter(p => !mine.has(p.sku))];
-    fromGRN = `<p style="margin: 0 0 8px;">From goods receipt <b>${escapeHTMLText(putawayFromGRN.grn)}</b>: its items are listed first.</p>`;
+    fromGRN = `<p class="s-49f975">From goods receipt <b>${escapeHTMLText(putawayFromGRN.grn)}</b>: its items are listed first.</p>`;
   }
   if (!work.has_bins) {
-    el.innerHTML = `<p style="margin: 0; color: var(--text-muted);">No bins are set up${loc ? ' at ' + escapeHTMLText(loc) : ''} yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['Bin'])}>Set up bins</button></p>`;
+    el.innerHTML = `<p class="s-aeec17">No bins are set up${loc ? ' at ' + escapeHTMLText(loc) : ''} yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['Bin'])}>Set up bins</button></p>`;
     return;
   }
-  el.innerHTML = fromGRN + (rows.length === 0 ? `<p style="margin: 0; color: var(--text-muted);">Nothing waiting${loc ? ' at ' + escapeHTMLText(loc) : ''} - every received unit is in a bin.</p>` : `<div style="overflow-x: auto;"><table>
+  el.innerHTML = fromGRN + (rows.length === 0 ? `<p class="s-aeec17">Nothing waiting${loc ? ' at ' + escapeHTMLText(loc) : ''} - every received unit is in a bin.</p>` : `<div class="s-987eb2"><table>
     <thead><tr><th>Item</th><th>Location</th><th class="num">On hand</th><th class="num">In bins</th><th class="num">Waiting</th><th></th></tr></thead>
-    <tbody>${rows.map(p => `<tr><td>${escapeHTMLText(p.name || p.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(p.sku)}</div></td>
+    <tbody>${rows.map(p => `<tr><td>${escapeHTMLText(p.name || p.sku)}<div class="s-428d6b">${escapeHTMLText(p.sku)}</div></td>
       <td>${escapeHTMLText(p.location)}</td><td class="num">${p.on_hand}</td><td class="num">${p.binned}</td><td class="num"><b>${p.waiting}</b></td>
       <td><button type="button" class="btn btn-outline btn-sm" data-putaway-sku="${escapeHTMLText(p.sku)}" data-putaway-loc="${escapeHTMLText(p.location)}" data-putaway-qty="${p.waiting}" data-putaway-grn="${escapeHTMLText(p.grn || '')}">Put away</button></td></tr>`).join('')}</tbody></table></div>`);
   el.querySelectorAll('[data-putaway-sku]').forEach(btn => btn.addEventListener('click', async () => {
@@ -397,7 +397,7 @@ async function loadPutawayWaiting() {
 
 // Stage 42.3.5 - Place Hold: the only creation path for a Hold document
 // (generic create is blocked by role_permissions, see
-// db/migrations_stage42_3_5_holdcode.sql) - same single-panel-form shape as
+// db/migrations/migrations_stage42_3_5_holdcode.sql) - same single-panel-form shape as
 // Putaway above, posting to its own action endpoint instead of the generic
 // doc API.
 async function renderPlaceHoldView(container) {
@@ -415,36 +415,36 @@ async function renderPlaceHoldView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hold-code">Hold Code</label>
-        <input type="text" id="hold-code" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="hold-code" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hold-sku">SKU</label>
-        <input type="text" id="hold-sku" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="hold-sku" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hold-location">Location</label>
-        <input type="text" id="hold-location" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="hold-location" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hold-batch">Batch / Lot No (optional)</label>
-        <input type="text" id="hold-batch" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="hold-batch" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hold-qty">Qty</label>
-        <input type="number" id="hold-qty" class="form-input" style="width: 90px;" min="1" value="1">
+        <input type="number" id="hold-qty" class="form-input s-34deaa" min="1" value="1">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hold-reason">Reason (optional)</label>
-        <input type="text" id="hold-reason" class="form-input" style="width: 220px;" autocomplete="off">
+        <input type="text" id="hold-reason" class="form-input s-30080b" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="hold-submit-btn" type="button">Place Hold</button>
     </div>
-    <div id="hold-impact" aria-live="polite" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="hold-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <div id="hold-result" aria-live="polite" style="margin-top:16px;"></div>
+    <div id="hold-impact" aria-live="polite" class="s-e7706a"></div>
+    <div id="hold-form-error" class="login-error hidden s-4c0544"></div>
+    <div id="hold-result" aria-live="polite" class="s-1b0f49"></div>
   `;
   container.appendChild(panel);
 
@@ -476,7 +476,7 @@ async function showHoldImpact() {
   const a = await res.json();
   const ats = Number(a.ats) || 0;
   el.innerHTML = `At ${escapeHTMLText(loc)}: on hand <b>${Number(a.on_hand) || 0}</b>, already held <b>${Number(a.hold_qty) || 0}</b>, available to sell <b>${ats}</b>.` +
-    (qty > 0 ? ` A hold of ${qty} leaves <b>${ats - qty}</b> to sell until a release is approved${qty > ats ? ' - <span style="color: var(--danger-color);">more than is available to sell</span>' : ''}. On-hand stock does not change.` : '');
+    (qty > 0 ? ` A hold of ${qty} leaves <b>${ats - qty}</b> to sell until a release is approved${qty > ats ? ' - <span class="s-aeae78">more than is available to sell</span>' : ''}. On-hand stock does not change.` : '');
 }
 
 async function submitPlaceHold() {
@@ -543,30 +543,30 @@ async function renderYardBoardView(container) {
   panel.style.padding = '24px';
   panel.style.marginBottom = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="yard-appt">Booked appointment (optional)</label>
-        <select id="yard-appt" class="form-select" style="width: 260px;"><option value="">Not booked</option></select>
+        <select id="yard-appt" class="form-select s-5341bb"><option value="">Not booked</option></select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="yard-trailer">Trailer No</label>
-        <input type="text" id="yard-trailer" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="yard-trailer" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="yard-carrier">Carrier (optional)</label>
-        <input type="text" id="yard-carrier" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="yard-carrier" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="yard-driver">Driver (optional)</label>
-        <input type="text" id="yard-driver" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="yard-driver" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="yard-slot">Yard Slot (optional)</label>
-        <input type="text" id="yard-slot" class="form-input" style="width: 110px;" autocomplete="off">
+        <input type="text" id="yard-slot" class="form-input s-148b84" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="yard-checkin-btn" type="button">Check In</button>
     </div>
-    <div id="yard-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="yard-form-error" class="login-error hidden s-4c0544"></div>
   `;
   const body = document.createElement('div');
   body.id = 'yard-board-body';
@@ -594,7 +594,7 @@ async function renderYardBoardView(container) {
 async function loadYardBoard(liveBody = null) {
   const body = liveBody?.isConnected ? liveBody : document.getElementById('yard-board-body');
   if (!body) return;
-  body.innerHTML = '<div class="table-panel" style="padding:24px;">Loading yard status…</div>';
+  body.innerHTML = '<div class="table-panel s-ddaf9e">Loading yard status…</div>';
   const res = await apiFetch('/api/v1/doc/YardCheckIn');
   if (!res) return;
   if (!res.ok) {
@@ -607,7 +607,7 @@ async function loadYardBoard(liveBody = null) {
   const active = (records || []).filter(r => r.status !== 'Departed').sort((a, b) => (a.trailer_no || '').localeCompare(b.trailer_no || ''));
 
   if (active.length === 0) {
-    body.innerHTML = '<div class="table-panel" style="padding:24px; color:var(--text-muted);">No trailers currently in the yard.</div>';
+    body.innerHTML = '<div class="table-panel s-b98465">No trailers currently in the yard.</div>';
     return;
   }
   // Stage 55.7: what each trailer brought, from its appointment.
@@ -616,7 +616,7 @@ async function loadYardBoard(liveBody = null) {
   const delivery = r => {
     const a = apptById[r.appointment_id];
     if (!a) return '-';
-    return `${escapeHTMLText(a.appointment_type || '')}${a.asn_id ? ` · ASN ${escapeHTMLText(a.asn_id)}` : a.po_id ? ` · PO ${escapeHTMLText(a.po_id)}` : ''}<div style="font-size: 11px; color: var(--text-muted);">booked ${escapeHTMLText(a.appointment_date)} ${escapeHTMLText(a.start_time)}, door ${escapeHTMLText(a.dock_door)}</div>`;
+    return `${escapeHTMLText(a.appointment_type || '')}${a.asn_id ? ` · ASN ${escapeHTMLText(a.asn_id)}` : a.po_id ? ` · PO ${escapeHTMLText(a.po_id)}` : ''}<div class="s-428d6b">booked ${escapeHTMLText(a.appointment_date)} ${escapeHTMLText(a.start_time)}, door ${escapeHTMLText(a.dock_door)}</div>`;
   };
   const receiveBtn = r => {
     const a = apptById[r.appointment_id];
@@ -723,13 +723,13 @@ window.assignYardDoor = async function(id) {
   const rows = doors.map(d => {
     const at = yard.find(y => y.status === 'AtDoor' && y.dock_door === d.code && y.id !== id);
     const todays = booked.filter(a => a.dock_door === d.code).map(a => `${escapeHTMLText(a.start_time)} ${escapeHTMLText(a.trailer_no || a.carrier || a.appointment_type)}`).join(', ');
-    return `<tr><td><b>${escapeHTMLText(d.code)}</b><div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(d.door_type || '')}</div></td>
+    return `<tr><td><b>${escapeHTMLText(d.code)}</b><div class="s-428d6b">${escapeHTMLText(d.door_type || '')}</div></td>
       <td>${at ? `<span class="badge badge-danger">Occupied</span> trailer ${escapeHTMLText(at.trailer_no)}` : '<span class="badge badge-success">Free</span>'}</td>
-      <td style="font-size: 12px;">${todays || '-'}</td>
+      <td class="s-11fcdc">${todays || '-'}</td>
       <td>${at ? '' : `<button type="button" class="btn btn-primary btn-sm" data-door="${escapeHTMLText(d.code)}">Spot here</button>`}</td></tr>`;
   }).join('');
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 640px;" role="dialog" aria-modal="true" aria-labelledby="yard-door-title">
+    <div class="modal-container s-5fa6d7" role="dialog" aria-modal="true" aria-labelledby="yard-door-title">
       <div class="modal-header"><h3 class="modal-title" id="yard-door-title">Assign to a dock door</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-yard-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
       <div class="modal-body">${doors.length ? `<table><thead><tr><th>Door</th><th>Now</th><th>Booked today</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
@@ -792,28 +792,28 @@ async function renderAppointmentCalendarView(container) {
   controls.style.padding = '16px 24px';
   controls.style.marginBottom = '24px';
   controls.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+    <div class="s-53ef53">
       <button class="btn btn-outline" id="cal-prev-btn" type="button">&larr;</button>
-      <input type="date" id="cal-date" class="form-input" style="width: 160px;" value="${calendarDate}">
+      <input type="date" id="cal-date" class="form-input s-56cae7" value="${calendarDate}">
       <button class="btn btn-outline" id="cal-next-btn" type="button">&rarr;</button>
       <button class="btn btn-outline" id="cal-view-toggle" type="button">${calendarWeekView ? 'Switch to Day' : 'Switch to Week'}</button>
-      <div style="flex:1;"></div>
+      <div class="s-97445a"></div>
       <button class="btn btn-primary" id="cal-new-btn" type="button">+ New Appointment</button>
     </div>
-    <div id="cal-new-form" class="hidden" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color); display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-door">Dock Door</label><input type="text" id="cal-door" class="form-input" style="width:120px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-type">Type</label>
-        <select id="cal-type" class="form-select" style="width:120px;"><option value="Inbound">Inbound</option><option value="Outbound">Outbound</option></select>
+    <div id="cal-new-form" class="hidden s-7e52c7">
+      <div class="form-group s-50435f"><label class="form-label" for="cal-door">Dock Door</label><input type="text" id="cal-door" class="form-input s-465bfe" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-type">Type</label>
+        <select id="cal-type" class="form-select s-465bfe"><option value="Inbound">Inbound</option><option value="Outbound">Outbound</option></select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-carrier">Carrier</label><input type="text" id="cal-carrier" class="form-input" style="width:120px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-trailer">Trailer No</label><input type="text" id="cal-trailer" class="form-input" style="width:120px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-asn">ASN it brings (optional)</label><input type="text" id="cal-asn" class="form-input" style="width:150px;" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-appt-date">Date</label><input type="date" id="cal-appt-date" class="form-input" style="width:150px;" value="${calendarDate}"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-start">Start</label><input type="time" id="cal-start" class="form-input" style="width:120px;" value="09:00"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-end">End</label><input type="time" id="cal-end" class="form-input" style="width:120px;" value="10:00"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-carrier">Carrier</label><input type="text" id="cal-carrier" class="form-input s-465bfe" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-trailer">Trailer No</label><input type="text" id="cal-trailer" class="form-input s-465bfe" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-asn">ASN it brings (optional)</label><input type="text" id="cal-asn" class="form-input s-7c07cd" autocomplete="off"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-appt-date">Date</label><input type="date" id="cal-appt-date" class="form-input s-7c07cd" value="${calendarDate}"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-start">Start</label><input type="time" id="cal-start" class="form-input s-465bfe" value="09:00"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="cal-end">End</label><input type="time" id="cal-end" class="form-input s-465bfe" value="10:00"></div>
       <button class="btn btn-primary" id="cal-save-btn" type="button">Save</button>
     </div>
-    <div id="cal-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="cal-form-error" class="login-error hidden s-4bb900"></div>
   `;
   container.appendChild(controls);
 
@@ -855,7 +855,7 @@ function calendarWeekDates() {
 async function loadAppointmentCalendar() {
   const body = document.getElementById('cal-body');
   if (!body) return;
-  body.innerHTML = '<div class="table-panel" style="padding:24px;">Loading appointments…</div>';
+  body.innerHTML = '<div class="table-panel s-ddaf9e">Loading appointments…</div>';
 
   const [doorsRes, apptRes] = await Promise.all([
     apiFetch('/api/v1/doc/DockDoor'),
@@ -870,7 +870,7 @@ async function loadAppointmentCalendar() {
   const allAppts = await apptRes.json();
 
   if (doors.length === 0) {
-    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No active dock doors yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['DockDoor'])}>Set up dock doors</button></div>`;
+    body.innerHTML = `<div class="table-panel s-b98465">No active dock doors yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['DockDoor'])}>Set up dock doors</button></div>`;
     return;
   }
 
@@ -881,12 +881,12 @@ async function loadAppointmentCalendar() {
 
   if (calendarWeekView) {
     const dates = calendarWeekDates();
-    let html = '<table style="min-width:900px;"><thead><tr><th>Door</th>' + dates.map(d => `<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+    let html = '<table class="s-70ca29"><thead><tr><th>Door</th>' + dates.map(d => `<th>${d}</th>`).join('') + '</tr></thead><tbody>';
     for (const door of doors) {
       html += `<tr><td><strong>${escapeHTMLText(door.code)}</strong></td>`;
       for (const date of dates) {
         const dayAppts = allAppts.filter(a => a.dock_door === door.code && a.appointment_date === date && a.status !== 'Cancelled');
-        html += `<td style="vertical-align:top; min-width:110px;">${dayAppts.map(a => apptChip(a)).join('')}</td>`;
+        html += `<td class="s-b35312">${dayAppts.map(a => apptChip(a)).join('')}</td>`;
       }
       html += '</tr>';
     }
@@ -895,13 +895,13 @@ async function loadAppointmentCalendar() {
   } else {
     const hours = [];
     for (let h = 6; h <= 22; h++) hours.push(h);
-    let html = '<div style="display:flex; flex-direction:column; gap:6px;">';
-    html += '<div style="display:flex;"><div style="width:100px;"></div>' + hours.map(h => `<div style="flex:1; font-size:11px; color:var(--text-muted); text-align:center;">${String(h).padStart(2, '0')}:00</div>`).join('') + '</div>';
+    let html = '<div class="s-fb92c9">';
+    html += '<div class="s-75816c"><div class="s-db4cf1"></div>' + hours.map(h => `<div class="s-eb0501">${String(h).padStart(2, '0')}:00</div>`).join('') + '</div>';
     for (const door of doors) {
       const dayAppts = allAppts.filter(a => a.dock_door === door.code && a.appointment_date === calendarDate && a.status !== 'Cancelled');
-      html += `<div style="display:flex; align-items:center; border-top:1px solid var(--border-color); padding-top:6px;">
-        <div style="width:100px; font-weight:600; font-size:13px;">${escapeHTMLText(door.code)}</div>
-        <div style="position:relative; flex:1; height:32px; background:var(--bg-subtle, #f5f5f7); border-radius:4px;">`;
+      html += `<div class="s-2fefde">
+        <div class="s-f2576b">${escapeHTMLText(door.code)}</div>
+        <div class="s-a11938">`;
       for (const a of dayAppts) {
         const startMin = timeToMinutes(a.start_time), endMin = timeToMinutes(a.end_time);
         const rangeStart = 6 * 60, rangeEnd = 22 * 60;
@@ -1012,15 +1012,15 @@ async function renderRFReceivingView(container) {
   setupPanel.style.marginBottom = '16px';
   setupPanel.style.maxWidth = '480px';
   setupPanel.innerHTML = `
-    <div class="form-group" style="margin-bottom: 12px;">
+    <div class="form-group s-5beb8f">
       <label class="form-label" for="rf-location-input">Receiving Location</label>
       <input type="text" id="rf-location-input" class="form-input" autocomplete="off">
     </div>
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="rf-asn-input">Scan or Enter ASN - or pick a delivery below</label>
-      <input type="text" id="rf-asn-input" class="form-input" placeholder="ASN number, then Enter" autocomplete="off" style="font-size:18px; padding:14px;">
+      <input type="text" id="rf-asn-input" class="form-input s-a1c01f" placeholder="ASN number, then Enter" autocomplete="off">
     </div>
-    <div id="rf-setup-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="rf-setup-error" class="login-error hidden s-4bb900"></div>
     <div id="rf-expected"></div>
   `;
   container.appendChild(setupPanel);
@@ -1060,11 +1060,11 @@ async function loadRFExpected() {
   const work = await res.json();
   const asns = work.asns || [];
   el.innerHTML = asns.length === 0
-    ? `<p style="color: var(--text-muted); margin: 12px 0 0;">No deliveries expected${loc ? ' at ' + escapeHTMLText(loc) : ''}.</p>`
-    : `<div style="margin-top: 14px; font-weight: 600;">Expected deliveries</div>` + asns.map(a => `
-      <button type="button" data-rf-asn="${escapeHTMLText(a.id)}" style="display:block; width:100%; text-align:left; padding:12px; margin-top:8px; min-height:44px; border:1px solid var(--border-color); border-radius:8px; background:transparent; color:inherit; cursor:pointer;">
+    ? `<p class="s-fc2d2d">No deliveries expected${loc ? ' at ' + escapeHTMLText(loc) : ''}.</p>`
+    : `<div class="s-70b1aa">Expected deliveries</div>` + asns.map(a => `
+      <button type="button" data-rf-asn="${escapeHTMLText(a.id)}" class="s-3e7158">
         <b>${escapeHTMLText(a.asn_number || a.id)}</b> · PO ${escapeHTMLText(a.po_id || '-')}${a.vendor ? ' · ' + escapeHTMLText(a.vendor) : ''}
-        <div style="font-size:12px; color: var(--text-muted);">${a.lines} line(s), ${a.units} unit(s) at ${escapeHTMLText(a.location)} · ${escapeHTMLText(a.stage)}</div>
+        <div class="s-6db503">${a.lines} line(s), ${a.units} unit(s) at ${escapeHTMLText(a.location)} · ${escapeHTMLText(a.stage)}</div>
       </button>`).join('');
   el.querySelectorAll('[data-rf-asn]').forEach(b => b.addEventListener('click', () => {
     document.getElementById('rf-asn-input').value = b.dataset.rfAsn;
@@ -1132,31 +1132,31 @@ function renderRFReceivingBody(status) {
   const left = pending ? pending.expectedQty - pending.receivedQty : 0;
 
   body.innerHTML = `
-    <div class="table-panel" style="padding:20px; margin-bottom:16px;">
-      <div class="text-muted" style="font-size:13px; margin-bottom:10px;">ASN ${escapeHTMLText(rfReceivingASNId)} &mdash; ${doneLines} of ${totalLines} SKU(s) fully received</div>
-      <div class="form-group ${pending ? 'hidden' : ''}" style="margin-bottom:0;">
+    <div class="table-panel s-924e0a">
+      <div class="text-muted s-afa980">ASN ${escapeHTMLText(rfReceivingASNId)} &mdash; ${doneLines} of ${totalLines} SKU(s) fully received</div>
+      <div class="form-group ${pending ? 'hidden' : ''} s-ef0b7a">
         <label class="form-label" for="rf-scan-input">Scan Carton SKU</label>
-        <input type="text" id="rf-scan-input" class="form-input" placeholder="Scan or type SKU, then Enter" autocomplete="off" style="font-size:22px; padding:16px;">
+        <input type="text" id="rf-scan-input" class="form-input s-ec2de5" placeholder="Scan or type SKU, then Enter" autocomplete="off">
       </div>
-      <div class="form-group ${pending ? '' : 'hidden'}" style="margin-bottom:0;">
+      <div class="form-group ${pending ? '' : 'hidden'} s-ef0b7a">
         <label class="form-label" for="rf-qty-input">How many ${escapeHTMLText(pending ? pending.sku : '')}? ${left} still expected</label>
-        <input type="number" id="rf-qty-input" class="form-input" min="1" max="${left}" value="${left}" style="font-size:22px; padding:16px;">
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <button class="btn btn-primary" id="rf-qty-ok" type="button" style="flex:1; min-height:44px;">Confirm</button>
-          <button class="btn btn-outline" id="rf-qty-cancel" type="button" style="min-height:44px;">Cancel</button>
+        <input type="number" id="rf-qty-input" class="form-input s-ec2de5" min="1" max="${left}" value="${left}">
+        <div class="s-f12844">
+          <button class="btn btn-primary s-f5eb58" id="rf-qty-ok" type="button">Confirm</button>
+          <button class="btn btn-outline s-99fb93" id="rf-qty-cancel" type="button">Cancel</button>
         </div>
       </div>
-      <div id="rf-scan-error" class="login-error ${status && status.error ? '' : 'hidden'}" style="margin-top:10px;">${status && status.error ? escapeHTMLText(status.error) : ''}</div>
-      <div id="rf-scan-confirm" style="margin-top:10px; font-size:14px;">${status && status.ok ? `<span class="badge badge-success">${escapeHTMLText(status.ok)}</span>` : ''}</div>
-      <button class="btn btn-outline btn-sm ${status && status.assist ? '' : 'hidden'}" id="rf-assist-btn" type="button" style="margin-top:8px; min-height:44px;">Get a supervisor</button>
+      <div id="rf-scan-error" class="login-error ${status && status.error ? '' : 'hidden'} s-d2c171">${status && status.error ? escapeHTMLText(status.error) : ''}</div>
+      <div id="rf-scan-confirm" class="s-f952d3">${status && status.ok ? `<span class="badge badge-success">${escapeHTMLText(status.ok)}</span>` : ''}</div>
+      <button class="btn btn-outline btn-sm ${status && status.assist ? '' : 'hidden'} s-6159f9" id="rf-assist-btn" type="button">Get a supervisor</button>
     </div>
-    <div class="table-panel" style="padding:0; margin-bottom:16px;">
+    <div class="table-panel s-3a5033">
       <div class="table-wrapper"><table>
         <thead><tr><th>SKU</th><th>Received / Expected</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </div>
-    <button class="btn btn-primary" id="rf-post-btn" type="button" style="width:100%; padding:14px; font-size:16px;" ${rfReceivingLines.length === 0 || pending ? 'disabled' : ''}>Post Receipt (${rfReceivingLines.length} line(s))</button>
+    <button class="btn btn-primary s-c8a59a" id="rf-post-btn" type="button" ${rfReceivingLines.length === 0 || pending ? 'disabled' : ''}>Post Receipt (${rfReceivingLines.length} line(s))</button>
   `;
   const scanInput = document.getElementById('rf-scan-input');
   scanInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmRFScan(); } });
@@ -1273,11 +1273,11 @@ async function postRFReceipt() {
   document.getElementById('rf-asn-input').value = '';
   const body = document.getElementById('rf-receiving-body');
   body.innerHTML = `
-    <div class="table-panel" style="padding:20px;">
+    <div class="table-panel s-769fed">
       <div><span class="badge badge-success">Received</span> ${totalQty} unit(s) on ${escapeHTMLText(grn.id || grn.code || 'the goods receipt')} against ASN ${escapeHTMLText(asnDone)}.</div>
-      <p style="color: var(--text-muted); margin: 8px 0 12px;">The stock is at ${escapeHTMLText(location)} and not in a bin yet.</p>
-      <button class="btn btn-primary" id="rf-putaway-now" type="button" style="width:100%; min-height:44px;">Put it away now</button>
-      <button class="btn btn-outline" id="rf-next-asn" type="button" style="width:100%; min-height:44px; margin-top:8px;">Receive the next delivery</button>
+      <p class="s-03516a">The stock is at ${escapeHTMLText(location)} and not in a bin yet.</p>
+      <button class="btn btn-primary s-a3ca04" id="rf-putaway-now" type="button">Put it away now</button>
+      <button class="btn btn-outline s-5215bb" id="rf-next-asn" type="button">Receive the next delivery</button>
     </div>`;
   document.getElementById('rf-putaway-now').addEventListener('click', () => { window.location.hash = '#/view/putaway'; });
   document.getElementById('rf-next-asn').addEventListener('click', () => { body.innerHTML = ''; loadRFExpected(); document.getElementById('rf-asn-input').focus(); });
@@ -1303,26 +1303,26 @@ async function renderSortationView(container) {
   controls.style.padding = '20px';
   controls.style.marginBottom = '16px';
   controls.innerHTML = `
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0;">
+    <div class="s-97380c">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="sort-station">Sort Station</label>
-        <input type="text" id="sort-station" class="form-input" style="width:160px;" autocomplete="off">
+        <input type="text" id="sort-station" class="form-input s-28c0f6" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="sort-load-btn" type="button">Load Slots</button>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="sort-num-slots">Slots</label>
-        <input type="number" id="sort-num-slots" class="form-input" style="width:90px;" min="1" max="500" placeholder="24">
+        <input type="number" id="sort-num-slots" class="form-input s-581be4" min="1" max="500" placeholder="24">
       </div>
       <button class="btn btn-outline" id="sort-provision-btn" type="button" title="Create this station's slots (an existing slot is kept)">Set up slots</button>
     </div>
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:12px;">
-      <div class="form-group" style="margin-bottom:0;">
+    <div class="s-a55fec">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="sort-wave-id">Wave</label>
-        <input type="text" id="sort-wave-id" class="form-input" style="width:180px;" autocomplete="off" placeholder="Wave to sort">
+        <input type="text" id="sort-wave-id" class="form-input s-54f91a" autocomplete="off" placeholder="Wave to sort">
       </div>
       <button class="btn btn-secondary" id="sort-wave-btn" type="button">Assign the whole wave</button>
     </div>
-    <div id="sort-setup-error" class="login-error hidden" style="margin-top:12px;"></div>
+    <div id="sort-setup-error" class="login-error hidden s-56f435"></div>
   `;
   container.appendChild(controls);
 
@@ -1331,18 +1331,18 @@ async function renderSortationView(container) {
   assignPanel.style.padding = '20px';
   assignPanel.style.marginBottom = '16px';
   assignPanel.innerHTML = `
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0;">
+    <div class="s-97380c">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="sort-task-id">Fulfillment Task / Order</label>
-        <input type="text" id="sort-task-id" class="form-input" style="width:180px;" autocomplete="off">
+        <input type="text" id="sort-task-id" class="form-input s-54f91a" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="sort-sku">SKU (optional)</label>
-        <input type="text" id="sort-sku" class="form-input" style="width:140px;" autocomplete="off">
+        <input type="text" id="sort-sku" class="form-input s-830eb9" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="sort-qty-expected">Qty Expected (optional)</label>
-        <input type="number" id="sort-qty-expected" class="form-input" style="width:100px;" min="0">
+        <input type="number" id="sort-qty-expected" class="form-input s-db4cf1" min="0">
       </div>
       <button class="btn btn-secondary" id="sort-assign-btn" type="button">Assign to Slot</button>
     </div>
@@ -1389,11 +1389,11 @@ async function loadSortationSlots() {
   const data = await res.json();
   const slots = data.slots || [];
   if (slots.length === 0) {
-    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No slots set up for station ${escapeHTMLText(station)} yet.</div>`;
+    body.innerHTML = `<div class="table-panel s-b98465">No slots set up for station ${escapeHTMLText(station)} yet.</div>`;
     return;
   }
   body.innerHTML = `
-    <div class="table-panel" style="padding:0;">
+    <div class="table-panel s-41d7d7">
       <div class="table-wrapper"><table>
         <thead><tr><th>Slot</th><th>Status</th><th>Order</th><th>SKU</th><th>Confirmed / Expected</th><th></th></tr></thead>
         <tbody>${slots.map(s => `<tr>
@@ -1401,7 +1401,7 @@ async function loadSortationSlots() {
             <td>${s.qty_confirmed} / ${s.qty_expected || '?'}</td>
             <td>
               ${(s.status === 'Assigned' || s.status === 'Filled') ? `
-                <input type="number" min="1" value="1" class="form-input sort-confirm-qty" data-slot="${s.doc_id}" style="width:70px; display:inline-block;">
+                <input type="number" min="1" value="1" class="form-input sort-confirm-qty s-0a0665" data-slot="${s.doc_id}">
                 <button class="btn btn-sm btn-secondary sort-confirm-btn" data-slot="${s.doc_id}" type="button">Confirm</button>` : ''}
               ${s.status === 'Filled' ? `<button class="btn btn-sm btn-secondary sort-clear-btn" data-slot="${s.doc_id}" type="button">Clear</button>` : ''}
               ${s.status === 'Filled' && s.fulfillment_task_id ? `<a class="btn btn-sm btn-outline" href="#/view/oms:pack" title="All of this order is in its slot">Pack</a>` : ''}
@@ -1471,29 +1471,29 @@ async function renderLoadingDockView(container) {
   setupPanel.style.padding = '20px';
   setupPanel.style.marginBottom = '16px';
   setupPanel.innerHTML = `
-    <div id="load-open-list"><span style="color: var(--text-muted);">Loading open loads...</span></div>
-    <hr style="margin:16px 0;">
-    <div style="font-weight: 600; margin-bottom: 8px;">Open a new load</div>
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0;">
+    <div id="load-open-list"><span class="s-d59bb5">Loading open loads...</span></div>
+    <hr class="s-f63b87">
+    <div class="s-13dc58">Open a new load</div>
+    <div class="s-97380c">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="load-dock-door">Dock Door</label>
-        <input type="text" id="load-dock-door" class="form-input" style="width:140px;" autocomplete="off">
+        <input type="text" id="load-dock-door" class="form-input s-830eb9" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="load-trailer">Trailer</label>
-        <input type="text" id="load-trailer" class="form-input" style="width:140px;" autocomplete="off">
+        <input type="text" id="load-trailer" class="form-input s-830eb9" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="load-manifest">Manifest ID (optional)</label>
-        <input type="text" id="load-manifest" class="form-input" style="width:160px;" autocomplete="off">
+        <input type="text" id="load-manifest" class="form-input s-28c0f6" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="load-expected-count">Expected Cartons (optional)</label>
-        <input type="number" id="load-expected-count" class="form-input" style="width:120px;" min="0">
+        <input type="number" id="load-expected-count" class="form-input s-465bfe" min="0">
       </div>
       <button class="btn btn-primary" id="load-create-btn" type="button">Open New Load</button>
     </div>
-    <div id="load-setup-error" class="login-error hidden" style="margin-top:12px;"></div>
+    <div id="load-setup-error" class="login-error hidden s-56f435"></div>
   `;
   container.appendChild(setupPanel);
 
@@ -1520,10 +1520,10 @@ async function loadOpenLoads() {
   const work = await res.json();
   outboundReady = work.ready_to_load || [];
   const loads = work.loads || [];
-  el.innerHTML = `<div style="font-weight: 600; margin-bottom: 8px;">Open loads (${loads.length}) · ${outboundReady.length} package(s) ready to load</div>` + (loads.length === 0
-    ? '<p style="margin: 0; color: var(--text-muted);">No load is open at a door.</p>'
-    : `<div style="overflow-x: auto;"><table><thead><tr><th>Load</th><th>Door</th><th>Trailer</th><th>Manifest</th><th class="num">Scanned</th><th>Status</th><th></th></tr></thead><tbody>
-      ${loads.map(l => `<tr><td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(l.doc_id)}</td><td>${escapeHTMLText(l.dock_door)}</td><td>${escapeHTMLText(l.trailer_no)}</td><td>${escapeHTMLText(l.manifest_id || '-')}</td>
+  el.innerHTML = `<div class="s-13dc58">Open loads (${loads.length}) · ${outboundReady.length} package(s) ready to load</div>` + (loads.length === 0
+    ? '<p class="s-aeec17">No load is open at a door.</p>'
+    : `<div class="s-987eb2"><table><thead><tr><th>Load</th><th>Door</th><th>Trailer</th><th>Manifest</th><th class="num">Scanned</th><th>Status</th><th></th></tr></thead><tbody>
+      ${loads.map(l => `<tr><td class="s-fc459a">${escapeHTMLText(l.doc_id)}</td><td>${escapeHTMLText(l.dock_door)}</td><td>${escapeHTMLText(l.trailer_no)}</td><td>${escapeHTMLText(l.manifest_id || '-')}</td>
         <td class="num">${l.scanned_carton_count}${l.expected_carton_count ? ' / ' + l.expected_carton_count : ''}</td><td><span class="badge">${escapeHTMLText(l.status)}</span></td>
         <td><button type="button" class="btn btn-outline btn-sm" data-open-load="${escapeHTMLText(l.doc_id)}">Open</button></td></tr>`).join('')}</tbody></table></div>`);
   el.querySelectorAll('[data-open-load]').forEach(b => b.addEventListener('click', () => { loadingCurrentTaskId = b.dataset.openLoad; loadLoadingDock(); }));
@@ -1570,36 +1570,36 @@ async function loadLoadingDock() {
   const packages = data.packages || [];
 
   body.innerHTML = `
-    <div class="table-panel" style="padding:20px; margin-bottom:16px;">
-      <div class="text-muted" style="font-size:13px; margin-bottom:10px;">
+    <div class="table-panel s-924e0a">
+      <div class="text-muted s-afa980">
         Load ${escapeHTMLText(task.doc_id)} &mdash; door ${escapeHTMLText(task.dock_door)}, trailer ${escapeHTMLText(task.trailer_no)} &mdash;
         <span class="badge">${escapeHTMLText(task.status)}</span> &mdash; ${task.scanned_carton_count} scanned${task.expected_carton_count ? ' / ' + task.expected_carton_count + ' expected' : ''}
       </div>
       ${(task.status === 'Planned' || task.status === 'Loading') ? `
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group s-ef0b7a">
           <label class="form-label" for="load-scan-input">Scan Package / Carton</label>
-          <input type="text" id="load-scan-input" class="form-input" placeholder="Scan or type package code, then Enter" autocomplete="off" style="font-size:20px; padding:14px;">
+          <input type="text" id="load-scan-input" class="form-input s-d1fe2d" placeholder="Scan or type package code, then Enter" autocomplete="off">
         </div>
-        <div id="load-scan-error" class="login-error hidden" style="margin-top:10px;"></div>
-        <button class="btn btn-primary" id="load-complete-btn" type="button" style="margin-top:12px;" ${task.scanned_carton_count === 0 ? 'disabled' : ''}>Complete Load</button>
+        <div id="load-scan-error" class="login-error hidden s-d2c171"></div>
+        <button class="btn btn-primary s-56f435" id="load-complete-btn" type="button" ${task.scanned_carton_count === 0 ? 'disabled' : ''}>Complete Load</button>
       ` : ''}
       ${task.status === 'Loaded' ? `
-        <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:8px;">
-          <div class="form-group" style="margin-bottom:0;">
+        <div class="s-acae54">
+          <div class="form-group s-ef0b7a">
             <label class="form-label" for="load-pallets-out">Pallets Out</label>
-            <input type="number" id="load-pallets-out" class="form-input" style="width:100px;" min="0" value="${task.pallet_exchange_out || 0}">
+            <input type="number" id="load-pallets-out" class="form-input s-db4cf1" min="0" value="${task.pallet_exchange_out || 0}">
           </div>
-          <div class="form-group" style="margin-bottom:0;">
+          <div class="form-group s-ef0b7a">
             <label class="form-label" for="load-pallets-in">Pallets In</label>
-            <input type="number" id="load-pallets-in" class="form-input" style="width:100px;" min="0" value="${task.pallet_exchange_in || 0}">
+            <input type="number" id="load-pallets-in" class="form-input s-db4cf1" min="0" value="${task.pallet_exchange_in || 0}">
           </div>
           <button class="btn btn-secondary" id="load-depart-btn" type="button">Record Exchange &amp; Depart</button>
           <button class="btn btn-secondary" id="load-print-bol-btn" type="button">Print Bill of Lading</button>
         </div>
       ` : ''}
-      ${task.status === 'Departed' ? `<button class="btn btn-secondary" id="load-print-bol-btn" type="button" style="margin-top:8px;">Print Bill of Lading</button>` : ''}
+      ${task.status === 'Departed' ? `<button class="btn btn-secondary s-8a77e5" id="load-print-bol-btn" type="button">Print Bill of Lading</button>` : ''}
     </div>
-    <div class="table-panel" style="padding:0;">
+    <div class="table-panel s-41d7d7">
       <div class="table-wrapper"><table>
         <thead><tr><th>Package</th><th>Order</th><th>Weight (kg)</th></tr></thead>
         <tbody>${packages.length === 0 ? '<tr><td colspan="3">No cartons scanned yet.</td></tr>' : packages.map(p => `<tr><td>${p.package_code}</td><td>${p.order_id || '&mdash;'}</td><td>${p.weight_kg || '&mdash;'}</td></tr>`).join('')}</tbody>
@@ -1608,8 +1608,8 @@ async function loadLoadingDock() {
     ${(task.status === 'Planned' || task.status === 'Loading') ? (() => {
       // Stage 55.8: what is still to go on this trailer.
       const waiting = outboundReady.filter(p => !task.manifest_id || p.manifest_id === task.manifest_id);
-      return `<div class="table-panel" style="padding:16px; margin-top:16px;"><b>Still to load${task.manifest_id ? ` on manifest ${escapeHTMLText(task.manifest_id)}` : ''}: ${waiting.length}</b>
-        ${waiting.length ? `<div style="font-size: 13px; margin-top: 6px;">${waiting.map(p => `${escapeHTMLText(p.id)}${p.order_id ? ` (${escapeHTMLText(p.order_id)})` : ''}`).join(' · ')}</div>` : ''}</div>`;
+      return `<div class="table-panel s-acada0"><b>Still to load${task.manifest_id ? ` on manifest ${escapeHTMLText(task.manifest_id)}` : ''}: ${waiting.length}</b>
+        ${waiting.length ? `<div class="s-c4d349">${waiting.map(p => `${escapeHTMLText(p.id)}${p.order_id ? ` (${escapeHTMLText(p.order_id)})` : ''}`).join(' · ')}</div>` : ''}</div>`;
     })() : ''}`;
 
   const scanInput = document.getElementById('load-scan-input');
@@ -1670,25 +1670,23 @@ async function loadLoadingDock() {
 // from rendering. No dock/appointment strip - 42.3 (dock scheduling)
 // doesn't exist yet, and the plan's own note says that section is populated
 // there, not here.
-let cockpitTab = 'cockpit';
+// Stage 155.4: each page is its own sidebar entry ("warehouse-cockpit:<page>").
+const COCKPIT_PAGES = { cockpit: ['menu-warehouse-cockpit', 'Warehouse Cockpit'], labour: ['menu-wms-labour', 'Labour'], billing: ['menu-wms-billing', 'Warehouse Billing'] };
 async function renderWarehouseCockpitView(container) {
+  const cockpitTab = COCKPIT_PAGES[currentViewTab] ? currentViewTab : 'cockpit';
+  currentViewTab = cockpitTab;
+  setActiveMenu(COCKPIT_PAGES[cockpitTab][0]);
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Warehouse Cockpit</h1>
+      <h1 class="page-title">${COCKPIT_PAGES[cockpitTab][1]}</h1>
     </div>
   `;
   container.appendChild(header);
 
   // Stage 55.8: labour and billing live beside the cockpit, in their own
   // lazy module.
-  const tabs = document.createElement('div');
-  tabs.style.cssText = 'display: flex; gap: 8px; margin-bottom: 16px;';
-  tabs.innerHTML = [['cockpit', 'Cockpit'], ['labour', 'Labour'], ['billing', 'Billing']].map(([id, label]) =>
-    `<button type="button" class="btn ${cockpitTab === id ? 'btn-primary' : 'btn-outline'} btn-sm" data-cockpit-tab="${id}">${label}</button>`).join('');
-  container.appendChild(tabs);
-  tabs.querySelectorAll('[data-cockpit-tab]').forEach(b => b.addEventListener('click', () => { cockpitTab = b.dataset.cockpitTab; renderView('warehouse-cockpit'); }));
   if (cockpitTab !== 'cockpit') {
     const mod = await import('./view-wms-labour.js' + new URL(import.meta.url).search);
     if (cockpitTab === 'labour') await mod.renderLabourTab(container, inboundLocation);
@@ -1701,10 +1699,10 @@ async function renderWarehouseCockpitView(container) {
   controls.style.padding = '24px';
   controls.style.marginBottom = '24px';
   controls.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="cockpit-location">Location</label>
-        <input type="text" id="cockpit-location" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="cockpit-location" class="form-input s-56cae7" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="cockpit-refresh-btn" type="button">Refresh</button>
     </div>
@@ -1727,10 +1725,10 @@ async function loadWarehouseCockpit(liveBody = null) {
   if (!body) return;
   const location = document.getElementById('cockpit-location').value.trim();
   if (!location) {
-    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">Enter a Location and click Refresh.</div>`;
+    body.innerHTML = `<div class="table-panel s-b98465">Enter a Location and click Refresh.</div>`;
     return;
   }
-  body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">Loading...</div>`;
+  body.innerHTML = `<div class="table-panel s-b98465">Loading...</div>`;
   const res = await apiFetch(`/api/v1/wms/cockpit?location_code=${encodeURIComponent(location)}`);
   if (!res) return;
   if (!res.ok) {
@@ -1742,8 +1740,8 @@ async function loadWarehouseCockpit(liveBody = null) {
   const c = await res.json();
 
   const section = (title, inner) => `
-    <div class="table-panel" style="padding:24px; margin-bottom:24px;">
-      <h2 style="font-size:16px; font-weight:700; margin-bottom:12px;">${title}</h2>
+    <div class="table-panel s-87c933">
+      <h2 class="s-e6a1ea">${title}</h2>
       ${inner}
     </div>`;
   const empty = 'No records.';
@@ -1787,10 +1785,10 @@ async function loadWarehouseCockpit(liveBody = null) {
           <td>${waveNextStatus[w.status] ? `<button class="btn btn-sm btn-secondary wave-advance-btn" data-wave="${escapeHTMLText(w.wave_id)}" data-next="${waveNextStatus[w.status]}" type="button">${waveNextStatus[w.status]}</button>` : ''}</td>
         </tr>`).join('')}</tbody>
     </table>
-    <div style="display:flex; gap:8px; align-items:flex-end; margin-top:16px; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0;">
+    <div class="s-e915a3">
+      <div class="form-group s-ef0b7a">
         <label class="form-label" for="cockpit-wave-template">Wave Template ID</label>
-        <input type="text" id="cockpit-wave-template" class="form-input" style="width:220px;" autocomplete="off">
+        <input type="text" id="cockpit-wave-template" class="form-input s-0fac91" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="cockpit-run-template-btn" type="button">Run Template Now</button>
     </div>`;
@@ -1871,35 +1869,35 @@ async function renderBinConditionsView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bincond-bin">Bin Code</label>
-        <input type="text" id="bincond-bin" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="bincond-bin" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bincond-sku">SKU</label>
-        <input type="text" id="bincond-sku" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="bincond-sku" class="form-input s-56cae7" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bincond-qty">Qty</label>
-        <input type="number" id="bincond-qty" class="form-input" style="width: 90px;" min="1" value="1">
+        <input type="number" id="bincond-qty" class="form-input s-34deaa" min="1" value="1">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bincond-owner">Owner (3PL client, optional)</label>
-        <input type="text" id="bincond-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Whose stock">
+        <input type="text" id="bincond-owner" class="form-input s-56cae7" autocomplete="off" placeholder="Whose stock">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bincond-from">From Condition</label>
-        <select id="bincond-from" class="form-input" style="width: 130px;">${options}</select>
+        <select id="bincond-from" class="form-input s-27652d">${options}</select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="bincond-to">To Condition</label>
-        <select id="bincond-to" class="form-input" style="width: 130px;">${options}</select>
+        <select id="bincond-to" class="form-input s-27652d">${options}</select>
       </div>
       <button class="btn btn-primary" id="bincond-submit-btn" type="button">Move</button>
     </div>
-    <div id="bincond-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <p style="margin: 12px 0 0; color: var(--text-muted); font-size: 13px;">Moves the stock to that condition's location at once.</p>
+    <div id="bincond-form-error" class="login-error hidden s-4c0544"></div>
+    <p class="s-bdc0e8">Moves the stock to that condition's location at once.</p>
   `;
   container.appendChild(panel);
   document.getElementById('bincond-to').value = 'Damaged';
@@ -1960,31 +1958,31 @@ async function renderLPNView(container) {
   assignPanel.style.padding = '24px';
   assignPanel.style.marginBottom = '24px';
   assignPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Assign Bin Stock to an LPN</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-fcb488">Assign Bin Stock to an LPN</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="lpn-code">LPN Code</label>
-        <input type="text" id="lpn-code" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="lpn-code" class="form-input s-0a9e77" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="lpn-bin">Bin Code</label>
-        <input type="text" id="lpn-bin" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="lpn-bin" class="form-input s-0a9e77" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="lpn-sku">SKU</label>
-        <input type="text" id="lpn-sku" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="lpn-sku" class="form-input s-0a9e77" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="lpn-condition">Condition</label>
-        <select id="lpn-condition" class="form-input" style="width: 120px;">${BIN_STOCK_CONDITIONS.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+        <select id="lpn-condition" class="form-input s-5187b6">${BIN_STOCK_CONDITIONS.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="lpn-qty">Qty</label>
-        <input type="number" id="lpn-qty" class="form-input" style="width: 90px;" min="1" value="1">
+        <input type="number" id="lpn-qty" class="form-input s-34deaa" min="1" value="1">
       </div>
       <button class="btn btn-primary" id="lpn-assign-btn" type="button">Assign</button>
     </div>
-    <div id="lpn-assign-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="lpn-assign-error" class="login-error hidden s-4bb900"></div>
   `;
   container.appendChild(assignPanel);
 
@@ -1992,15 +1990,15 @@ async function renderLPNView(container) {
   lookupPanel.className = 'table-panel';
   lookupPanel.style.padding = '24px';
   lookupPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Look Up an LPN's Contents</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-fcb488">Look Up an LPN's Contents</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="lpn-lookup-code">LPN Code</label>
-        <input type="text" id="lpn-lookup-code" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="lpn-lookup-code" class="form-input s-0a9e77" autocomplete="off">
       </div>
       <button class="btn btn-outline" id="lpn-lookup-btn" type="button">Look Up</button>
     </div>
-    <div id="lpn-contents-result" style="margin-top: 16px;"></div>
+    <div id="lpn-contents-result" class="s-4c0544"></div>
   `;
   container.appendChild(lookupPanel);
 
@@ -2041,7 +2039,7 @@ async function lookupLPNContents() {
   if (!res.ok) { await showApiError(res, 'Failed to look up LPN contents.', 'Lookup Failed'); return; }
   const lines = await res.json();
   if (lines.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No contents found for LPN ${escapeHTMLText(lpnCode)}.</p>`;
+    resultEl.innerHTML = `<p class="s-d59bb5">No contents found for LPN ${escapeHTMLText(lpnCode)}.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2071,10 +2069,10 @@ async function renderBinReplenishmentView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="replen-location">Location</label>
-        <input type="text" id="replen-location" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="replen-location" class="form-input s-56cae7" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="replen-fetch-btn" type="button">Get Suggestions</button>
     </div>
@@ -2094,7 +2092,7 @@ async function fetchBinReplenishmentSuggestions() {
   if (!res.ok) { await showApiError(res, 'Failed to fetch replenishment suggestions.', 'Fetch Failed'); return; }
   const suggestions = await res.json();
   if (suggestions.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bins are below their min qty at ${escapeHTMLText(location)}.</p>`;
+    resultEl.innerHTML = `<p class="s-d59bb5">No bins are below their min qty at ${escapeHTMLText(location)}.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2152,15 +2150,15 @@ async function renderLocationMovementView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="locmove-location">Location</label>
-        <input type="text" id="locmove-location" class="form-input" style="width: 220px;" autocomplete="off" placeholder="Search by name">
+        <input type="text" id="locmove-location" class="form-input s-30080b" autocomplete="off" placeholder="Search by name">
       </div>
       <button class="btn btn-primary" id="locmove-load-btn" type="button">Show Bin Stock</button>
     </div>
-    <div id="locmove-form" class="hidden" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px;"></div>
-    <div id="locmove-result"><p style="color: var(--text-muted);">Choose a location to see what each bin holds.</p></div>
+    <div id="locmove-form" class="hidden s-7fcc1a"></div>
+    <div id="locmove-result"><p class="s-d59bb5">Choose a location to see what each bin holds.</p></div>
   `;
   container.appendChild(txnPagedSection({ id: 'locmove-screen', title: 'Location Movement', page: 'New movement',
     count: '', newLabel: 'New Movement', form: panel, list: history }));
@@ -2179,7 +2177,7 @@ async function loadLocationMovementHistory() {
   const res = await apiFetch('/api/v1/doc/WarehouseTask?task_type=Move&sort=recent&limit=200');
   if (!res) return;
   if (!res.ok) {
-    el.innerHTML = `<p style="padding: 16px; color: var(--danger-color);">Failed to load past movements. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['location-movement'])}>Try Again</button></p>`;
+    el.innerHTML = `<p class="s-3359ff">Failed to load past movements. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['location-movement'])}>Try Again</button></p>`;
     return;
   }
   const moves = await res.json();
@@ -2190,10 +2188,10 @@ async function loadLocationMovementHistory() {
       <thead><tr><th>Moved</th><th>Location</th><th>Item</th><th>From bin</th><th>To bin</th><th class="num">Qty</th><th>Batch</th><th>Reason</th></tr></thead>
       <tbody>
         ${moves.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moved between bins yet.</td></tr>`
+          ? `<tr><td colspan="8" class="s-306094">No stock moved between bins yet.</td></tr>`
           : moves.map(m => `
             <tr>
-              <td>${m.updated_at ? escapeHTMLText(new Date(m.updated_at).toLocaleString()) : ''}</td>
+              <td>${m.updated_at ? escapeHTMLText(formatDateTime(m.updated_at)) : ''}</td>
               <td>${escapeHTMLText(m.location_code || '')}</td>
               <td>${escapeHTMLText(m.item || '')}</td>
               <td>${escapeHTMLText(m.from_bin || '')}</td>
@@ -2217,7 +2215,7 @@ async function loadLocationMovementStock() {
   if (!res.ok) { await showApiError(res, 'Failed to load bin stock.', 'Load Failed'); return; }
   locMoveRows = await res.json();
   if (locMoveRows.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bin at this location holds any stock yet.</p>`;
+    resultEl.innerHTML = `<p class="s-d59bb5">No bin at this location holds any stock yet.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2227,7 +2225,7 @@ async function loadLocationMovementStock() {
         ${locMoveRows.map((r, idx) => `
           <tr>
             <td>${escapeHTMLText(r.bin_code)}</td>
-            <td>${escapeHTMLText(r.item_name || r.sku)}<div style="font-size: 11.5px; color: var(--text-muted);">${escapeHTMLText(r.sku)}</div></td>
+            <td>${escapeHTMLText(r.item_name || r.sku)}<div class="s-fbbffe">${escapeHTMLText(r.sku)}</div></td>
             <td class="num">${r.qty}</td>
             <td>${(r.batches || []).map(escapeHTMLText).join(', ') || '&mdash;'}</td>
             <td><button class="action-btn" data-locmove-idx="${idx}">Move</button></td>
@@ -2246,31 +2244,31 @@ function openLocationMoveForm(idx) {
   const formEl = document.getElementById('locmove-form');
   const batches = r.batches || [];
   formEl.innerHTML = `
-    <h3 style="margin: 0 0 12px; font-size: 16px;">Move ${escapeHTMLText(r.item_name || r.sku)} out of bin ${escapeHTMLText(r.bin_code)} (${r.qty} here)</h3>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <h3 class="s-49f91d">Move ${escapeHTMLText(r.item_name || r.sku)} out of bin ${escapeHTMLText(r.bin_code)} (${r.qty} here)</h3>
+    <div class="s-608a43">
       ${batches.length ? `
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="locmove-batch">Batch</label>
-        <select id="locmove-batch" class="form-input" style="width: 150px;">
+        <select id="locmove-batch" class="form-input s-0a9e77">
           ${batches.length > 1 ? '<option value="">Choose a batch</option>' : ''}
           ${batches.map(b => `<option value="${escapeHTMLText(b)}">${escapeHTMLText(b)}</option>`).join('')}
         </select>
       </div>` : ''}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="locmove-qty">Quantity</label>
-        <input type="number" id="locmove-qty" class="form-input" style="width: 110px;" min="1" max="${r.qty}" value="${r.qty}">
+        <input type="number" id="locmove-qty" class="form-input s-148b84" min="1" max="${r.qty}" value="${r.qty}">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="locmove-to-bin">To Bin</label>
-        <input type="text" id="locmove-to-bin" class="form-input" style="width: 200px;" autocomplete="off" placeholder="Bin at this location">
+        <input type="text" id="locmove-to-bin" class="form-input s-0fff9b" autocomplete="off" placeholder="Bin at this location">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="locmove-reason">Reason (optional)</label>
-        <input type="text" id="locmove-reason" class="form-input" style="width: 220px;" placeholder="e.g. re-slotting, damaged shelf">
+        <input type="text" id="locmove-reason" class="form-input s-30080b" placeholder="e.g. re-slotting, damaged shelf">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="locmove-owner">Owner (3PL client, optional)</label>
-        <input type="text" id="locmove-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Whose stock">
+        <input type="text" id="locmove-owner" class="form-input s-56cae7" autocomplete="off" placeholder="Whose stock">
       </div>
       <button class="btn btn-primary" id="locmove-submit-btn" type="button">Move Stock</button>
       <button class="btn btn-outline" id="locmove-cancel-btn" type="button">Cancel</button>
@@ -2338,9 +2336,9 @@ async function renderWavePickingView(container) {
   locPanel.style.padding = '16px 24px';
   locPanel.style.marginBottom = '16px';
   locPanel.innerHTML = `
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label" for="wave-location">Location</label>
-      <input type="text" id="wave-location" class="form-input" style="width: 200px;" autocomplete="off">
+      <input type="text" id="wave-location" class="form-input s-0fff9b" autocomplete="off">
     </div>`;
   container.appendChild(locPanel);
   const body = document.createElement('div');
@@ -2358,7 +2356,7 @@ async function loadWaveWork() {
   const body = document.getElementById('wave-body');
   if (!body) return;
   const loc = (document.getElementById('wave-location')?.value || '').trim();
-  if (!loc) { body.innerHTML = '<div class="table-panel" style="padding: 24px; color: var(--text-muted);">Choose the location to see its orders ready to pick.</div>'; return; }
+  if (!loc) { body.innerHTML = '<div class="table-panel s-a63e81">Choose the location to see its orders ready to pick.</div>'; return; }
   const res = await apiFetch(`/api/v1/wms/outbound-work?location=${encodeURIComponent(loc)}`);
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Could not load the outbound work.', 'Wave Picking'); return; }
@@ -2378,26 +2376,26 @@ async function loadWaveWork() {
     return out.join(' ');
   };
   body.innerHTML = `
-    <div class="table-panel" style="padding: 20px; margin-bottom: 16px;">
-      <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 8px;">1. Orders ready to wave (${eligible.length})</h2>
-      ${eligible.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">Nothing to wave.</p>' : `
-      <div style="overflow-x: auto;"><table>
+    <div class="table-panel s-fa5702">
+      <h2 class="s-73e0de">1. Orders ready to wave (${eligible.length})</h2>
+      ${eligible.length === 0 ? '<p class="s-aeec17">Nothing to wave.</p>' : `
+      <div class="s-987eb2"><table>
         <thead><tr><th><input type="checkbox" id="wave-all" aria-label="Select all"></th><th>Task</th><th>Order</th><th>Status</th><th class="num">Lines</th><th class="num">Units</th><th>Owner</th></tr></thead>
         <tbody>${eligible.map(t => `<tr><td><input type="checkbox" class="wave-pick" value="${escapeHTMLText(t.id)}" aria-label="Select ${escapeHTMLText(t.id)}"></td>
-          <td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(t.id)}</td><td>${escapeHTMLText(t.customer || t.order_id)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(t.order_id)}</div></td>
+          <td class="s-fc459a">${escapeHTMLText(t.id)}</td><td>${escapeHTMLText(t.customer || t.order_id)}<div class="s-428d6b">${escapeHTMLText(t.order_id)}</div></td>
           <td>${escapeHTMLText(t.status)}</td><td class="num">${t.lines}</td><td class="num">${t.units}</td><td>${escapeHTMLText(t.owner_id || '')}</td></tr>`).join('')}</tbody></table></div>
-      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
-        <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="wave-target">Into</label>
+      <div class="s-cdbe80">
+        <div class="form-group s-50435f"><label class="form-label" for="wave-target">Into</label>
           <select id="wave-target" class="form-select"><option value="">A new wave</option>${openWaves.filter(w => w.status).map(w => `<option value="${escapeHTMLText(w.wave_id)}">${escapeHTMLText(w.wave_id)} (${escapeHTMLText(w.status)}, ${w.tasks} task(s))</option>`).join('')}</select></div>
         <button class="btn btn-primary" id="wave-assign-btn" type="button" disabled>Put 0 selected into the wave</button>
       </div>`}
-      <div id="wave-assign-result" style="margin-top: 10px; font-size: 13px;"></div>
+      <div id="wave-assign-result" class="s-fe3d9d"></div>
     </div>
-    <div class="table-panel" style="padding: 20px; margin-bottom: 16px;">
-      <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 8px;">2. Open waves (${openWaves.length})</h2>
-      ${openWaves.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">No open waves at this location.</p>' : `<div style="overflow-x: auto;"><table>
+    <div class="table-panel s-fa5702">
+      <h2 class="s-73e0de">2. Open waves (${openWaves.length})</h2>
+      ${openWaves.length === 0 ? '<p class="s-aeec17">No open waves at this location.</p>' : `<div class="s-987eb2"><table>
         <thead><tr><th>Wave</th><th>Status</th><th class="num">Tasks</th><th class="num">To pick</th><th class="num">Picking</th><th class="num">Packed</th><th class="num">Dispatched</th><th></th></tr></thead>
-        <tbody>${openWaves.map(w => `<tr><td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(w.wave_id)}</td><td>${escapeHTMLText(w.status || 'untracked')}</td>
+        <tbody>${openWaves.map(w => `<tr><td class="s-fc459a">${escapeHTMLText(w.wave_id)}</td><td>${escapeHTMLText(w.status || 'untracked')}</td>
           <td class="num">${w.tasks}</td><td class="num">${st(w, 'Pending')}</td><td class="num">${st(w, 'Picking')}</td><td class="num">${st(w, 'Packed')}</td><td class="num">${st(w, 'Dispatched')}</td>
           <td>${nextStep(w)}</td></tr>`).join('')}</tbody></table></div>`}
     </div>
@@ -2451,19 +2449,19 @@ async function submitWavePickList(waveId) {
   // allocated lots (FEFO), so a non-traceability warehouse sees the same six
   // columns it always has.
   const waveHasBatches = (data.pick_lines || []).some(l => l.batch_no);
-  let html = `<div class="table-panel" style="padding: 20px;"><h3 style="font-size: 14px; font-weight: 700; margin: 0 0 8px;">Pick list for ${escapeHTMLText(waveId)} (zone/aisle/rack walking order)</h3>`;
+  let html = `<div class="table-panel s-11b271"><h3 class="s-dccedf">Pick list for ${escapeHTMLText(waveId)} (zone/aisle/rack walking order)</h3>`;
   if (waveHasBatches) {
-    html += `<p class="text-muted" style="font-size:12px; margin:0 0 8px;">Allocated <b>FEFO</b> &mdash; pick the exact batch shown.</p>`;
+    html += `<p class="text-muted s-196c3c">Allocated <b>FEFO</b> &mdash; pick the exact batch shown.</p>`;
   }
   html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th>${waveHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Pick Qty</th></tr></thead><tbody>`;
   html += data.pick_lines.length === 0
-    ? `<tr><td colspan="${waveHasBatches ? 7 : 6}" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
+    ? `<tr><td colspan="${waveHasBatches ? 7 : 6}" class="s-306094">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
     : data.pick_lines.map(l => `<tr><td>${escapeHTMLText(l.zone || '')}</td><td>${escapeHTMLText(l.aisle || '')}</td><td>${escapeHTMLText(l.rack || '')}</td><td>${escapeHTMLText(l.bin_code)}</td><td>${escapeHTMLText(l.sku)}</td>${waveHasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.pick_qty}</td></tr>`).join('');
   html += `</tbody></table>`;
-  html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-order allocation</h3>`;
+  html += `<h3 class="s-5857f3">Per-order allocation</h3>`;
   html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
   html += data.allocations.length === 0
-    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders.</td></tr>`
+    ? `<tr><td colspan="4" class="s-306094">No allocations &mdash; no stock could be reserved for these orders.</td></tr>`
     : data.allocations.map(a => `<tr><td>${escapeHTMLText(a.task_id)}</td><td>${escapeHTMLText(a.sku)}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
   html += `</tbody></table></div>`;
   resultEl.innerHTML = html;
@@ -2506,15 +2504,15 @@ async function renderMobilePickingView(container) {
   loadPanel.style.marginBottom = '16px';
   loadPanel.style.maxWidth = '420px';
   loadPanel.innerHTML = `
-    <div class="form-group" style="margin-bottom: 10px;">
+    <div class="form-group s-39ae4d">
       <label class="form-label" for="picker-location">Location</label>
       <input type="text" id="picker-location" class="form-input" autocomplete="off">
     </div>
-    <div class="form-group" style="margin-bottom:0;">
+    <div class="form-group s-ef0b7a">
       <label class="form-label" for="mobile-pick-wave-id">Wave</label>
-      <select id="mobile-pick-wave-id" class="form-select" style="width: 100%; min-height: 44px;"><option value="">Choose a released wave...</option></select>
+      <select id="mobile-pick-wave-id" class="form-select s-dfe536"><option value="">Choose a released wave...</option></select>
     </div>
-    <div id="mobile-pick-error" class="login-error hidden" style="margin-top:10px;"></div>
+    <div id="mobile-pick-error" class="login-error hidden s-d2c171"></div>
   `;
   container.appendChild(loadPanel);
 
@@ -2594,7 +2592,7 @@ function renderMobilePickCard() {
     // Nothing could be allocated: say which orders are short rather than
     // implying the wave is empty.
     if (mobilePickAllocations.length) { renderMobilePickSummary(); return; }
-    wrap.innerHTML = `<div class="table-panel" style="padding:24px; text-align:center; color:var(--text-muted);">No pick lines for this wave - nothing in it is in a bin yet.</div>`;
+    wrap.innerHTML = `<div class="table-panel s-84fb5d">No pick lines for this wave - nothing in it is in a bin yet.</div>`;
     return;
   }
   const line = mobilePickLines[mobilePickIndex];
@@ -2602,19 +2600,19 @@ function renderMobilePickCard() {
   const speechSupported = 'speechSynthesis' in window;
   const listenSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   wrap.innerHTML = `
-    <div class="table-panel" style="padding:24px; text-align:center;">
-      <div class="text-muted" style="font-size:13px; margin-bottom:12px;">Line ${mobilePickIndex + 1} of ${total} · ${done} confirmed · ${total - done} to go</div>
-      <div style="font-size:32px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px;">${escapeHTMLText(line.sku)}</div>
-      <div style="font-size:15px; color:var(--text-muted); margin-bottom:16px;">Zone ${escapeHTMLText(line.zone || '-')} / Aisle ${escapeHTMLText(line.aisle || '-')} / Rack ${escapeHTMLText(line.rack || '-')} / Bin ${escapeHTMLText(line.bin_code)}</div>
-      ${line.batch_no ? `<div style="font-size:15px; margin-bottom:16px; line-height:1.7;">Batch ${batchCellHTML(line)}</div>` : ''}
-      <div style="font-size:48px; font-weight:800; color:var(--primary-color); margin-bottom:20px;">${line.pick_qty}${line.shortfall ? ` <span class="badge badge-warning" style="font-size:14px; vertical-align:middle;">short ${line.shortfall}</span>` : ''}</div>
-      ${mobilePickConfirmed.has(mobilePickIndex) ? '<div style="margin-bottom: 12px;"><span class="badge badge-success">Confirmed</span></div>' : ''}
-      <div style="display:flex; gap:10px; justify-content:center; margin-bottom:14px;">
-        <button class="btn btn-outline" id="mobile-pick-prev" type="button" style="min-height:44px;" ${mobilePickIndex === 0 ? 'disabled' : ''}>Previous</button>
-        <button class="btn btn-primary" id="mobile-pick-next" type="button" style="min-height:44px;">Confirm &amp; Next</button>
+    <div class="table-panel s-bf54b4">
+      <div class="text-muted s-7d28eb">Line ${mobilePickIndex + 1} of ${total} · ${done} confirmed · ${total - done} to go</div>
+      <div class="s-bbe22d">${escapeHTMLText(line.sku)}</div>
+      <div class="s-bbe32e">Zone ${escapeHTMLText(line.zone || '-')} / Aisle ${escapeHTMLText(line.aisle || '-')} / Rack ${escapeHTMLText(line.rack || '-')} / Bin ${escapeHTMLText(line.bin_code)}</div>
+      ${line.batch_no ? `<div class="s-0c0dfd">Batch ${batchCellHTML(line)}</div>` : ''}
+      <div class="s-0dd80a">${line.pick_qty}${line.shortfall ? ` <span class="badge badge-warning s-4e9b21">short ${line.shortfall}</span>` : ''}</div>
+      ${mobilePickConfirmed.has(mobilePickIndex) ? '<div class="s-5beb8f"><span class="badge badge-success">Confirmed</span></div>' : ''}
+      <div class="s-e5b6bb">
+        <button class="btn btn-outline s-99fb93" id="mobile-pick-prev" type="button" ${mobilePickIndex === 0 ? 'disabled' : ''}>Previous</button>
+        <button class="btn btn-primary s-99fb93" id="mobile-pick-next" type="button">Confirm &amp; Next</button>
       </div>
       ${speechSupported || listenSupported ? `
-      <div style="display:flex; gap:10px; justify-content:center; padding-top:14px; border-top:1px solid var(--border-color);">
+      <div class="s-b1f36b">
         ${speechSupported ? `<button class="btn btn-outline btn-sm" id="mobile-pick-speak" type="button">Speak Item</button>` : ''}
         ${listenSupported ? `<button class="btn btn-outline btn-sm" id="mobile-pick-listen" type="button">${mobilePickRecognition ? 'Stop Listening' : 'Listen ("next"/"confirm")'}</button>` : ''}
       </div>` : ''}
@@ -2644,12 +2642,12 @@ function renderMobilePickSummary() {
   const full = Object.keys(byTask).filter(id => byTask[id].short.length === 0);
   const short = Object.keys(byTask).filter(id => byTask[id].short.length > 0);
   wrap.innerHTML = `
-    <div class="table-panel" style="padding:24px;">
-      <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">${mobilePickLines.length ? `Wave ${escapeHTMLText(mobilePickWave)}: all ${mobilePickLines.length} line(s) picked` : `Nothing to pick in wave ${escapeHTMLText(mobilePickWave)} - the bin stock these orders need is missing or already held for other orders`}</div>
-      <p style="margin: 0 0 8px;">${full.length} order(s) complete${short.length ? `, ${short.length} short` : ''}.</p>
-      ${short.length ? `<ul style="margin: 0 0 12px; padding-left: 18px;">${short.map(id => `<li>${escapeHTMLText(id)}: ${escapeHTMLText(byTask[id].short.join(', '))} - not packed: finish it on Fulfillment when the stock is there, or reject it there to send it to another location</li>`).join('')}</ul>` : ''}
-      <button class="btn btn-primary" id="mobile-pick-pack" type="button" style="width: 100%; min-height: 44px;" ${full.length ? '' : 'disabled'}>Mark ${full.length} order(s) packed</button>
-      <div id="mobile-pick-pack-result" style="margin-top: 10px; font-size: 13px;"></div>
+    <div class="table-panel s-ddaf9e">
+      <div class="s-c8a282">${mobilePickLines.length ? `Wave ${escapeHTMLText(mobilePickWave)}: all ${mobilePickLines.length} line(s) picked` : `Nothing to pick in wave ${escapeHTMLText(mobilePickWave)} - the bin stock these orders need is missing or already held for other orders`}</div>
+      <p class="s-49f975">${full.length} order(s) complete${short.length ? `, ${short.length} short` : ''}.</p>
+      ${short.length ? `<ul class="s-928f72">${short.map(id => `<li>${escapeHTMLText(id)}: ${escapeHTMLText(byTask[id].short.join(', '))} - not packed: finish it on Fulfillment when the stock is there, or reject it there to send it to another location</li>`).join('')}</ul>` : ''}
+      <button class="btn btn-primary s-dfe536" id="mobile-pick-pack" type="button" ${full.length ? '' : 'disabled'}>Mark ${full.length} order(s) packed</button>
+      <div id="mobile-pick-pack-result" class="s-fe3d9d"></div>
     </div>`;
   const btn = document.getElementById('mobile-pick-pack');
   btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Packing...', async () => {
@@ -2665,7 +2663,7 @@ function renderMobilePickSummary() {
       }
       out.push(`${id}: ${ok ? 'packed' : `not changed (${doc ? doc.status : 'not found'})`}`);
     }
-    document.getElementById('mobile-pick-pack-result').innerHTML = `${escapeHTMLText(out.join(' · '))}<div style="margin-top: 8px;"><a href="#/view/loading-dock">Next: load the packed orders</a></div>`;
+    document.getElementById('mobile-pick-pack-result').innerHTML = `${escapeHTMLText(out.join(' · '))}<div class="s-0d69e4"><a href="#/view/loading-dock">Next: load the packed orders</a></div>`;
     btn.disabled = true;
   }));
 }
@@ -2742,9 +2740,9 @@ async function renderCycleCountView(container) {
   importPanel.style.padding = '24px';
   importPanel.style.marginBottom = '24px';
   importPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">1. Enter counted quantities</h2>
+    <h2 class="s-fcb488">1. Enter counted quantities</h2>
     <button class="btn btn-outline" id="cyclecount-open-lines-btn" type="button">Manage Count Lines</button>
-    ${stockContext?.sku && stockContext?.location ? `<div class="notice" style="margin-top:12px;">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>` : ''}
+    ${stockContext?.sku && stockContext?.location ? `<div class="notice s-56f435">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>` : ''}
   `;
   container.appendChild(importPanel);
 
@@ -2752,16 +2750,16 @@ async function renderCycleCountView(container) {
   reconcilePanel.className = 'table-panel';
   reconcilePanel.style.padding = '24px';
   reconcilePanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">2. Reconcile a session</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-fcb488">2. Reconcile a session</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="cyclecount-session">Count Session</label>
-        <input type="text" id="cyclecount-session" class="form-input" style="width: 220px;">
+        <input type="text" id="cyclecount-session" class="form-input s-30080b">
       </div>
       <button class="btn btn-primary" id="cyclecount-reconcile-btn" type="button">Reconcile Session</button>
     </div>
-    <div id="cyclecount-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <div id="cyclecount-result" style="margin-top: 16px;"></div>
+    <div id="cyclecount-form-error" class="login-error hidden s-4c0544"></div>
+    <div id="cyclecount-result" class="s-4c0544"></div>
   `;
   container.appendChild(reconcilePanel);
 
@@ -2773,9 +2771,9 @@ async function renderCycleCountView(container) {
   linesPanel.style.padding = '24px';
   linesPanel.style.marginTop = '24px';
   linesPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">3. Session lines</h2>
+    <h2 class="s-fcb488">3. Session lines</h2>
     <button class="btn btn-outline" id="cyclecount-lines-btn" type="button">Show lines</button>
-    <div id="cyclecount-lines" style="margin-top: 12px;"></div>
+    <div id="cyclecount-lines" class="s-4bb900"></div>
   `;
   container.appendChild(linesPanel);
 
@@ -2786,15 +2784,15 @@ async function renderCycleCountView(container) {
   abcPanel.style.padding = '24px';
   abcPanel.style.marginTop = '24px';
   abcPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">4. ABC cycle-count planner</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-fcb488">4. ABC cycle-count planner</h2>
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
         <label class="form-label" for="abc-location">Location</label>
-        <input type="text" id="abc-location" class="form-input" style="width: 160px;" autocomplete="off">
+        <input type="text" id="abc-location" class="form-input s-56cae7" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="abc-plan-btn" type="button">Get Plan</button>
     </div>
-    <div id="abc-plan-result" style="margin-top: 16px;"></div>
+    <div id="abc-plan-result" class="s-4c0544"></div>
   `;
   container.appendChild(abcPanel);
 
@@ -2857,9 +2855,9 @@ async function submitCycleCountReconcile() {
     <span class="badge badge-warning">${data.pending_approval || 0} pending approval</span>
     ${data.recount_requested ? `&nbsp;<span class="badge badge-warning">${data.recount_requested} sent for recount</span>` : ''}
     ${data.awaiting_count ? `&nbsp;<span class="badge badge-secondary">${data.awaiting_count} recount${data.awaiting_count === 1 ? '' : 's'} not counted yet</span>` : ''}
-    ${recounts.length ? `<table style="margin-top: 12px;"><thead><tr><th>Item</th><th>Location</th><th>Why</th><th>Recount line</th></tr></thead><tbody>
-      ${recounts.map(rc => `<tr><td>${escapeHTMLText(rc.sku)}</td><td>${escapeHTMLText(rc.location)}</td><td>${escapeHTMLText(rc.trigger)}</td><td style="font-family: monospace;">${escapeHTMLText(rc.recount_line_id)}</td></tr>`).join('')}
-      </tbody></table><p style="color: var(--text-muted); margin-top: 8px;">Give each recount line to a different counter.</p>` : ''}
+    ${recounts.length ? `<table class="s-4bb900"><thead><tr><th>Item</th><th>Location</th><th>Why</th><th>Recount line</th></tr></thead><tbody>
+      ${recounts.map(rc => `<tr><td>${escapeHTMLText(rc.sku)}</td><td>${escapeHTMLText(rc.location)}</td><td>${escapeHTMLText(rc.trigger)}</td><td class="s-355794">${escapeHTMLText(rc.recount_line_id)}</td></tr>`).join('')}
+      </tbody></table><p class="s-0b2e36">Give each recount line to a different counter.</p>` : ''}
   `;  await loadCycleCountLines(); // Stage 55.6
 }
 
@@ -2887,20 +2885,20 @@ async function loadCycleCountLines() {
   };
   const actions = l => {
     const out = [];
-    if (l.recount_of && l.counted_qty === undefined && l.status === 'Draft') out.push(`<input type="number" class="form-input cc-recount-qty" data-line="${escapeHTMLText(l.id)}" style="width: 90px;" aria-label="Recount quantity"> <button class="action-btn" data-cc-act="recount-submit" data-line="${escapeHTMLText(l.id)}">Save recount</button>`);
+    if (l.recount_of && l.counted_qty === undefined && l.status === 'Draft') out.push(`<input type="number" class="form-input cc-recount-qty s-34deaa" data-line="${escapeHTMLText(l.id)}" aria-label="Recount quantity"> <button class="action-btn" data-cc-act="recount-submit" data-line="${escapeHTMLText(l.id)}">Save recount</button>`);
     if (!l.recount_of && (l.status === 'Pending Approval' || l.status === 'Draft') && l.variance !== undefined && Number(l.variance) !== 0) out.push(`<button class="action-btn" data-cc-act="recount" data-line="${escapeHTMLText(l.id)}">Recount</button>`);
     if (l.status === 'Pending Approval') out.push('<a href="#/view/approvals">Approvals</a>');
     if (l.status === 'Approved') out.push(`<button class="action-btn" data-cc-act="post" data-line="${escapeHTMLText(l.id)}">Post</button>`);
     if (l.recount_line_id) out.push(`<small>recount: ${escapeHTMLText(l.recount_line_id)}</small>`);
     return out.join(' ');
   };
-  el.innerHTML = lines.length === 0 ? '<p style="color: var(--text-muted);">No lines in this session yet.</p>' : `<div style="overflow-x: auto;"><table>
+  el.innerHTML = lines.length === 0 ? '<p class="s-d59bb5">No lines in this session yet.</p>' : `<div class="s-987eb2"><table>
     <thead><tr><th>Item</th><th>Location / bin</th><th>Status</th><th class="num">Counted</th><th class="num">Book</th><th class="num">Difference</th><th>Reason</th><th></th></tr></thead>
     <tbody>${lines.map(l => `<tr>
-      <td>${escapeHTMLText(l.item_name || l.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}${l.recount_of ? ' · blind recount' : ''}</div></td>
+      <td>${escapeHTMLText(l.item_name || l.sku)}<div class="s-428d6b">${escapeHTMLText(l.sku)}${l.recount_of ? ' · blind recount' : ''}</div></td>
       <td>${escapeHTMLText(l.location)}${l.bin ? ` / ${escapeHTMLText(l.bin)}` : ''}</td>
-      <td><span class="badge ${l.status === 'Posted' ? 'badge-success' : l.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${escapeHTMLText(l.status)}</span>${l.recount_trigger ? `<div style="font-size: 11px;">${escapeHTMLText(l.recount_trigger)}</div>` : ''}</td>
-      <td class="num">${n(l.counted_qty)}${l.first_count_qty !== undefined ? `<div style="font-size: 11px;">first count ${n(l.first_count_qty)}</div>` : ''}</td>
+      <td><span class="badge ${l.status === 'Posted' ? 'badge-success' : l.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${escapeHTMLText(l.status)}</span>${l.recount_trigger ? `<div class="s-a11453">${escapeHTMLText(l.recount_trigger)}</div>` : ''}</td>
+      <td class="num">${n(l.counted_qty)}${l.first_count_qty !== undefined ? `<div class="s-a11453">first count ${n(l.first_count_qty)}</div>` : ''}</td>
       <td class="num">${n(l.system_qty)}</td><td class="num">${n(l.variance)}</td>
       <td>${reasonCell(l)}</td><td>${actions(l)}</td></tr>`).join('')}</tbody></table></div>`;
   el.querySelectorAll('.cc-reason').forEach(sel => sel.addEventListener('change', async () => {
@@ -2937,7 +2935,7 @@ async function fetchABCCycleCountPlan() {
   if (!res.ok) { await showApiError(res, 'Failed to fetch the ABC cycle-count plan.', 'Fetch Failed'); return; }
   const plan = await res.json();
   if (plan.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No SKUs on hand at ${escapeHTMLText(location)}.</p>`;
+    resultEl.innerHTML = `<p class="s-d59bb5">No SKUs on hand at ${escapeHTMLText(location)}.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2946,7 +2944,7 @@ async function fetchABCCycleCountPlan() {
       <tbody>
         ${plan.map(s => `
           <tr>
-            <td style="font-family: monospace;">${s.sku}</td>
+            <td class="s-355794">${s.sku}</td>
             <td><span class="badge badge-secondary">${s.tier}</span></td>
             <td>${s.daily_velocity.toFixed(2)}</td>
             <td>${s.days_since_last_count < 0 ? 'never' : s.days_since_last_count}</td>

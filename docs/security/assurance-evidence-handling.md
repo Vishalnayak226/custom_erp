@@ -21,7 +21,7 @@ superseded_by: none
 audit findings, customer security questionnaires, incident records and legal
 documents are stored, shared and eventually retired — as distinct from the
 *content* of a finding, which belongs in
-[risk_register.md](risk_register.md), or an incident record, which belongs
+[risk-register.md](risk-register.md), or an incident record, which belongs
 to [vulnerability-disclosure-lifecycle.md](vulnerability-disclosure-lifecycle.md)'s
 process.
 
@@ -50,7 +50,7 @@ after they already exist and are scattered is how they end up under-protected.
    and **not** email/chat, both of which have no retention or access control
    this project manages). The moment a second person needs access, that
    access is granted by name, not by a shared credential — the same
-   principle [threat_model.md](threat_model.md) and the identity-lifecycle
+   principle [threat-model.md](threat-model.md) and the identity-lifecycle
    items elsewhere in Stage 49.2 already apply to production credentials.
 2. **Retained, with an expiry, not forever.** A restricted document has a
    named retention period tied to its purpose (a pentest report: until the

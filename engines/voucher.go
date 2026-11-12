@@ -9,7 +9,7 @@ import (
 )
 
 // Stage 26.7.2: Voucher/coupon issuance + redemption. Voucher is a flat-
-// schema Master doctype (db/migrations_stage26_7_crm_loyalty.sql) - create/
+// schema Master doctype (db/migrations/migrations_stage26_7_crm_loyalty.sql) - create/
 // list/edit/bulk-CSV-issuance all come free from the existing generic
 // doctype/BulkImportCSV machinery, zero bespoke code needed for those.
 // Redemption is the one thing that needs real logic (expiry/max-uses/

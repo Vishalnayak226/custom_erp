@@ -22,7 +22,7 @@ func TestPublicAPIIdempotencyAndTraffic(t *testing.T) {
 		t.Fatalf("inspect Stage 38.3 tables: %v", err)
 	}
 	if !tablesExist {
-		t.Skip("db/migrations_stage38_3_5_9_public_api_spine.sql has not been applied to this database")
+		t.Skip("db/migrations/migrations_stage38_3_5_9_public_api_spine.sql has not been applied to this database")
 	}
 
 	const credentialID = "00000000-0000-4000-8000-0000000038a5"

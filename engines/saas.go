@@ -93,7 +93,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	// 49.1.5: re-running provisioning over a tenant whose one-time credential
 	// has already been rotated would overwrite a real, in-use admin password
 	// (step 5's ON CONFLICT DO UPDATE) - the same class of hazard as R-01,
-	// where re-running db/migration.sql resets rotated seed passwords. Refuse
+	// where re-running db/migrations/migration.sql resets rotated seed passwords. Refuse
 	// that case specifically; a tenant that was created and never logged into
 	// can still be re-provisioned, which is what makes an interrupted first
 	// attempt recoverable.
@@ -183,7 +183,8 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"api_idempotency_keys",
 		"api_request_log",
 		"async_jobs",
-		"api_oauth_tokens", // Stage 38.2d
+		"api_oauth_tokens",  // Stage 38.2d
+		"ai_access_clients", // Stage 148.37: structure only, like api_credentials; no key is copied
 		"industry_lock",
 	}
 
@@ -202,7 +203,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		// cloned like every other tenant-local table. Established core tables
 		// still fail loudly below exactly as before - that is the 26.11.2 bug
 		// this guard is deliberately narrow enough not to re-open.
-		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" || table == "api_oauth_tokens" || table == "bin_stock_batch" || table == "bin_stock_owner" || table == "async_jobs" || table == "industry_lock" {
+		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" || table == "api_oauth_tokens" || table == "ai_access_clients" || table == "bin_stock_batch" || table == "bin_stock_owner" || table == "async_jobs" || table == "industry_lock" {
 			var templateExists bool
 			if err = tx.QueryRow(`SELECT to_regclass('tenant_default.` + table + `') IS NOT NULL`).Scan(&templateExists); err != nil {
 				return "", fmt.Errorf("failed to inspect %s template: %v", table, err)
@@ -261,7 +262,9 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	// every Item links to one (blank reads as Product), so a tenant without
 	// them could not save an Item. Copied from tenant_default like the seed
 	// tables above. Stage 72.8: the seeded gift card profile rides along.
-	if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents SELECT * FROM tenant_default.documents WHERE doctype IN ('ItemType', 'StoredValueProfile') ON CONFLICT DO NOTHING`, schemaName)); err != nil {
+	// 163.1: so do the starter reason codes (created by 'system'), or a new
+	// client's code-required exceptions would have nothing to pick.
+	if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents SELECT * FROM tenant_default.documents WHERE doctype IN ('ItemType', 'StoredValueProfile') OR (doctype = 'ReasonCode' AND created_by = 'system') ON CONFLICT DO NOTHING`, schemaName)); err != nil {
 		return "", fmt.Errorf("failed to seed item types: %v", err)
 	}
 
@@ -322,7 +325,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	}
 	// Stage 125: Super Admin is the platform operator's alone, so the approval
 	// and field rules copied from tenant_default name Admin - the same as
-	// db/migrations_stage125_4_clients_admin_role.sql does for live clients.
+	// db/migrations/migrations_stage125_4_clients_admin_role.sql does for live clients.
 	for _, stmt := range []string{
 		`UPDATE %[1]s.approval_rules SET required_role = 'Admin' WHERE required_role IN ('Super Admin', 'HR/Admin')`,
 		`INSERT INTO %[1]s.field_permissions (role, doctype_name, fieldname, allow_read, allow_write)
@@ -338,12 +341,19 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	if err = narrowNewClientSeedGrantsTx(tx, schemaName); err != nil {
 		return "", err
 	}
-	// Stage 49.10.6b (2): a new client starts with self-approval off. Saved as
-	// the client's own setting, so the registered default - what an existing
-	// client that never chose reads - is unchanged, and no live client moves.
-	if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.system_settings (key, value, updated_at, updated_by)
-		VALUES ($1, $2, now(), 'system') ON CONFLICT (key) DO NOTHING`, schemaName), SettingSelfApproval, NewClientSelfApproval); err != nil {
-		return "", fmt.Errorf("failed to set the new client's self-approval: %v", err)
+	// Stage 49.10.6b (2): a new client starts with self-approval off; 162.19:
+	// and with a sandbox rehearsal required before a connector goes live.
+	// Saved as the client's own settings, so the registered defaults - what an
+	// existing client that never chose reads - are unchanged, and no live
+	// client moves.
+	for _, s := range [][2]string{
+		{SettingSelfApproval, NewClientSelfApproval},
+		{SettingRequireRehearsal, "true"},
+	} {
+		if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.system_settings (key, value, updated_at, updated_by)
+			VALUES ($1, $2, now(), 'system') ON CONFLICT (key) DO NOTHING`, schemaName), s[0], s[1]); err != nil {
+			return "", fmt.Errorf("failed to set the new client's %s: %v", s[0], err)
+		}
 	}
 
 	// 6. (49.1.5) Record the one-time credential and its expiry, and open the

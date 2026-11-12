@@ -51,7 +51,7 @@ Three roles are built into the codebase by name (`engines/roles.go`):
 
 A tenant is not limited to these three. `Supplier` is a real fourth role
 seen throughout the app and the permission matrix (a supplier login scoped
-to their own vendor's PIM submissions — see `ADMIN_GUIDE.md` §B.2), and
+to their own vendor's PIM submissions — see `admin-guide.md` §B.2), and
 because permissions are just rows in a table keyed by role name, any string
 can be granted rights and used as a role. The catch: the **Roles** screen's
 "Add or Update a Grant" form populates its Role dropdown from
@@ -68,7 +68,7 @@ Stage 40.3 renamed the top role's **display name** from `HR/Admin` to
 read like a job title rather than a privilege level. This is precise to get
 right because the rename is partial by design:
 
-- The migration (`db/migrations_stage40_3_super_admin_role.sql`) rewrote the
+- The migration (`db/migrations/migrations_stage40_3_super_admin_role.sql`) rewrote the
   stored value across `users`, `role_permissions`, `approval_rules`,
   `approval_log` and `field_permissions` — new rows and freshly-migrated
   tenants store the literal string `Super Admin`.
@@ -154,7 +154,7 @@ reproduce all 108 rows.
 Below record-type grants sits a finer-grained layer: **field permissions**,
 one row per (role, doctype, field) with independent `allow_read` and
 `allow_write` flags (`engines/field_permissions.go`, table
-`field_permissions`, migrated in `db/migrations_stage16_field_permissions.sql`).
+`field_permissions`, migrated in `db/migrations/migrations_stage16_field_permissions.sql`).
 Three functions apply it at different points the generic document engine
 already goes through (`internal/server/handlers_core_doc_engine.go`):
 
@@ -180,7 +180,7 @@ already goes through (`internal/server/handlers_core_doc_engine.go`):
 > it. The table holds only what a migration inserted — in the base install
 > exactly two rows: `('Cashier', 'Item', 'cost_price', ...)` and
 > `('Cashier', 'Item', 'gst_rate', ...)`, both read- and write-denied
-> (`db/migrations_stage16_field_permissions.sql`). On top of those, a fixed
+> (`db/migrations/migrations_stage16_field_permissions.sql`). On top of those, a fixed
 > list of sensitive fields declared in code (payroll figures, bank details,
 > connector secrets — `engines/sensitive_fields.go`) is hidden by default for
 > every client; table rows can only tighten that, never loosen it. Setting up

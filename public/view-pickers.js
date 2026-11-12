@@ -977,11 +977,11 @@ function masterCodeSetupRow(series, label, codeInput) {
   const lengths = [3, 4, 5, 6, 7, 8].map(n => `<option value="${n}"${n === series.length ? ' selected' : ''}>${n}</option>`).join('');
   row.innerHTML = `
     <span class="form-label">${escapeHTMLText(label)} code format (asked once)</span>
-    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <label style="display:flex; gap:6px; align-items:center;">Prefix
-        <input class="form-input" name="_code_prefix" maxlength="6" style="width:90px; text-transform:uppercase;" value="${escapeHTMLText(series.prefix)}"></label>
-      <label style="display:flex; gap:6px; align-items:center;">Digits
-        <select class="form-select" name="_code_length" style="width:80px;">${lengths}</select></label>
+    <div class="s-fadcde">
+      <label class="s-5ef167">Prefix
+        <input class="form-input s-69ab4f" name="_code_prefix" maxlength="6" value="${escapeHTMLText(series.prefix)}"></label>
+      <label class="s-5ef167">Digits
+        <select class="form-select s-8573ba" name="_code_length">${lengths}</select></label>
       <span>First code: <strong class="master-code-preview"></strong></span>
     </div>`;
   const prefix = row.querySelector('[name="_code_prefix"]');
@@ -1240,12 +1240,12 @@ function openLineUpload({ title = 'Upload lines', template = 'lines', onRows }) 
   overlay.className = 'modal-overlay open';
   overlay.id = 'line-upload-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 560px;" role="dialog" aria-modal="true" aria-labelledby="line-upload-title">
+    <div class="modal-container s-6a9c85" role="dialog" aria-modal="true" aria-labelledby="line-upload-title">
       <div class="modal-header"><h3 class="modal-title" id="line-upload-title">${escapeHTMLText(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-lu-close>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button></div>
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="modal-body s-63bcac">
         <div><button type="button" class="btn btn-outline btn-sm" data-lu-template>Download template</button></div>
         <input type="file" accept=".csv,text/csv,text/plain" class="form-input" data-lu-file aria-label="CSV file">
         <div data-lu-summary class="txn-hint"></div>
@@ -1288,8 +1288,8 @@ function openLineUpload({ title = 'Upload lines', template = 'lines', onRows }) 
       else ready.push({ sku: r.sku, name: r.name, qty: rows[i].qty });
     });
     summary.innerHTML = `<b>${ready.length} line${ready.length === 1 ? '' : 's'} ready.</b>`
-      + (missing.length ? `<div style="color:var(--danger-color);">Not an item (${missing.length}): ${escapeHTMLText(missing.slice(0, 20).join(', '))}${missing.length > 20 ? ', ...' : ''}</div>` : '')
-      + (badQty.length ? `<div style="color:var(--danger-color);">No quantity (${badQty.length}): ${escapeHTMLText(badQty.slice(0, 20).join(', '))}</div>` : '');
+      + (missing.length ? `<div class="s-25f4ca">Not an item (${missing.length}): ${escapeHTMLText(missing.slice(0, 20).join(', '))}${missing.length > 20 ? ', ...' : ''}</div>` : '')
+      + (badQty.length ? `<div class="s-25f4ca">No quantity (${badQty.length}): ${escapeHTMLText(badQty.slice(0, 20).join(', '))}</div>` : '');
     add.disabled = !ready.length;
   });
   add.addEventListener('click', () => guardAgainstDoubleSubmit(add, 'Adding...', async () => {

@@ -71,7 +71,7 @@ async function crmDeal(host, id) {
       <h3 class="crm-section">Follow-ups</h3>${crmTable([{ label: 'Task', html: t => `${crmChip(t.kind_label)} ${crmEsc(t.title)}` }, { label: 'Due', html: t => crmDate(t.due_at, true) }, { label: 'Status', html: t => crmStatus(t.status) }, { label: 'Outcome', key: 'outcome' }], tasks, { empty: 'No follow-ups.' })}
       <button class="btn btn-outline btn-sm" type="button" id="dl-fu">+ Call, meeting or task</button>
     </section><section><h3 class="crm-section">Quotation ${q && q.status ? crmStatus(q.status) : ''}</h3>
-      <table class="crm-table" id="ql"><thead><tr><th>Item code</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th><th></th></tr></thead><tbody></tbody></table>
+      <table class="crm-table" id="ql"><thead><tr><th>Item code</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th>${q && q.margins ? '<th class="num">Margin</th>' : ''}<th></th></tr></thead><tbody></tbody></table>
       ${open ? '<button class="btn btn-outline btn-sm" type="button" id="ql-add">+ Line</button>' : ''}
       <div class="crm-form-row">${crmField('ql-vu', 'Valid until', crmInput('ql-vu', (q && q.quotation && q.quotation.valid_until) || '', `type="date" ${open ? '' : 'disabled'}`))}
         ${crmField('ql-terms', 'Terms', crmInput('ql-terms', (q && q.quotation && q.quotation.terms) || '', open ? '' : 'disabled'))}</div>
@@ -82,20 +82,27 @@ async function crmDeal(host, id) {
     </section></div>`;
   body.querySelectorAll('[data-cust]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); crmGo('customers', 'customer', { id: a.dataset.cust }); }));
   const tbody = body.querySelector('#ql tbody');
-  const rows = lines.map(l => ({ sku: l.sku, qty: l.qty, rate: l.rate, name: l.name }));
+  const rows = lines.map(l => ({ sku: l.sku, qty: l.qty, rate: l.rate, name: l.name, why: l.why || '', floor_reason: l.floor_reason || '' }));
+  // 148.26: the margin column, only for a role the server sent cost to.
+  const costBySku = {};
+  ((q && q.margins) || []).forEach(m => { if (m.cost > 0) costBySku[m.sku] = m.cost; });
+  const showMargin = !!(q && q.margins);
+  const lineMargin = (l) => { const c = costBySku[l.sku], r = Number(l.rate) || 0; return c > 0 && r > 0 ? `${crmMoney((r - c) * (Number(l.qty) || 0))} · ${Math.round((r - c) / r * 1000) / 10}%` : '—'; };
+  let needReason = rows.some(l => l.floor_reason); // 148.26: a refused below-floor rate opens the box
   const paintLines = () => {
-    tbody.innerHTML = rows.map((l, i) => `<tr><td>${open ? `<input class="form-input" data-q="sku" data-i="${i}" value="${crmEsc(l.sku)}">` : crmEsc(l.sku)}${l.name ? `<small class="crm-sub">${crmEsc(l.name)}</small>` : ''}</td>
+    tbody.innerHTML = rows.map((l, i) => `<tr><td>${open ? `<input class="form-input" data-q="sku" data-i="${i}" value="${crmEsc(l.sku)}">` : crmEsc(l.sku)}${l.name ? `<small class="crm-sub">${crmEsc(l.name)}</small>` : ''}${l.why ? `<small class="crm-sub">${crmEsc(l.why)}</small>` : ''}${needReason && open ? `<input class="form-input" data-q="floor_reason" data-i="${i}" placeholder="Why this rate" value="${crmEsc(l.floor_reason || '')}">` : (l.floor_reason ? `<small class="crm-sub">${crmEsc(l.floor_reason)}</small>` : '')}</td>
       <td class="num">${open ? `<input class="form-input crm-num" data-q="qty" data-i="${i}" value="${crmEsc(l.qty)}" inputmode="numeric">` : l.qty}</td>
       <td class="num">${open ? `<input class="form-input crm-num" data-q="rate" data-i="${i}" value="${crmEsc(l.rate)}" inputmode="decimal">` : crmMoney(l.rate)}</td>
-      <td class="num">${crmMoney((Number(l.qty) || 0) * (Number(l.rate) || 0))}</td><td>${open ? `<button class="action-btn" data-qrm="${i}">Remove</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="text-muted">No lines yet.</td></tr>';
+      <td class="num">${crmMoney((Number(l.qty) || 0) * (Number(l.rate) || 0))}</td>${showMargin ? `<td class="num">${lineMargin(l)}</td>` : ''}<td>${open ? `<button class="action-btn" data-qrm="${i}">Remove</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="${showMargin ? 6 : 5}" class="text-muted">No lines yet.</td></tr>`;
     body.querySelector('#ql-total').textContent = crmMoney(rows.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0));
   };
   paintLines();
-  tbody.addEventListener('change', (e) => { const el = e.target; if (el.dataset.q) { rows[Number(el.dataset.i)][el.dataset.q] = el.dataset.q === 'sku' ? el.value.trim() : Number(el.value); paintLines(); } });
+  tbody.addEventListener('change', (e) => { const el = e.target; if (el.dataset.q) { rows[Number(el.dataset.i)][el.dataset.q] = (el.dataset.q === 'sku' || el.dataset.q === 'floor_reason') ? el.value.trim() : Number(el.value); if (el.dataset.q === 'rate' || el.dataset.q === 'sku') rows[Number(el.dataset.i)].why = ''; paintLines(); } });
   tbody.addEventListener('click', (e) => { const b = e.target.closest('[data-qrm]'); if (b) { rows.splice(Number(b.dataset.qrm), 1); paintLines(); } });
   body.querySelector('#ql-add')?.addEventListener('click', () => { rows.push({ sku: '', qty: 1, rate: 0 }); paintLines(); });
   const saveQ = async (submit) => {
-    const r = await crmApi(`opportunities/${encodeURIComponent(id)}/quotation`, { method: 'POST', body: { lines: rows.map(l => ({ sku: l.sku, qty: Number(l.qty) || 0, rate: Number(l.rate) || 0 })), valid_until: crmVal(body, 'ql-vu'), terms: crmVal(body, 'ql-terms'), submit } });
+    const r = await crmApi(`opportunities/${encodeURIComponent(id)}/quotation`, { method: 'POST', body: { lines: rows.map(l => ({ sku: l.sku, qty: Number(l.qty) || 0, rate: Number(l.rate) || 0, ...(l.floor_reason ? { floor_reason: l.floor_reason } : {}) })), valid_until: crmVal(body, 'ql-vu'), terms: crmVal(body, 'ql-terms'), submit },
+      onRefused: (e) => { if (e && e.code === 'SALESP-0624') { needReason = true; paintLines(); } } });
     if (r) { showToast(submit ? 'Sent for approval (Approvals).' : 'Quotation saved.', { variant: 'success' }); crmDeal(host, id); }
   };
   body.querySelector('#ql-save')?.addEventListener('click', () => saveQ(false));

@@ -239,8 +239,23 @@ func handleCreateMaterialRequest(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
+// handleIssueMaterial is the store's step (162.2): a role that may only ask
+// for material (Cashier) cannot issue it. The store is a role that may edit
+// material issues or take material back (create on MaterialReturn). Every
+// store role already holds the second right from 130.15's seed, so no
+// tenant's grant is rewritten (49.3.7).
 func handleIssueMaterial(w http.ResponseWriter, r *http.Request) {
-	if !requireCreate(w, r, engines.MaterialIssueDoctype) {
+	tenantID, role := r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Role")
+	allowed, err := checkPermission(tenantID, role, engines.MaterialIssueDoctype, "update")
+	if err == nil && !allowed {
+		allowed, err = checkPermission(tenantID, role, engines.MaterialReturnDoctype, "create")
+	}
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !allowed {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "You do not have permission to issue material")
 		return
 	}
 	if err := engines.IssueMaterial(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID")); err != nil {

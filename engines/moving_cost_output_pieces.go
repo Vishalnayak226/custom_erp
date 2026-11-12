@@ -162,6 +162,9 @@ func (t *pickPackTask) checkScannedPiece(tenantID, schema, sku, code string) err
 	if location, _ := t.data["location_code"].(string); piece.LocationCode != location {
 		return fmt.Errorf("piece %s is at %s, not %s", code, piece.LocationCode, location)
 	}
+	if herr := pieceHoldRefusal(*piece, orderCustomerID(tenantID, strField(t.data, "order_id"))); herr != nil { // Stage 148.41
+		return herr
+	}
 	holder, _ := json.Marshal([]map[string]interface{}{{"serial_nos": []string{code}}})
 	var other string
 	err = db.DB.QueryRow(fmt.Sprintf(`

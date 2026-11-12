@@ -8,7 +8,7 @@
 function apiAccessWhen(value) {
   if (!value) return '—';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? String(value) : formatDateTime(d);
 }
 
 async function renderAPIAccessPanel(container) {
@@ -20,7 +20,7 @@ async function renderAPIAccessPanel(container) {
   const res = await apiFetch('/api/v1/admin/api-credentials');
   if (!res) return;
   if (!res.ok) {
-    panel.innerHTML = '<h2 style="font-size:16px;font-weight:700;margin:0 0 12px;">API access</h2>';
+    panel.innerHTML = '<h2 class="s-db89ac">API access</h2>';
     const msg = document.createElement('p');
     msg.className = 'text-muted';
     msg.textContent = res.status === 403 ? 'Only a Super Admin can issue or change API access.' : 'API access could not be loaded.';
@@ -36,21 +36,23 @@ async function renderAPIAccessPanel(container) {
   form.className = 'table-panel';
   form.style.padding = '24px';
   form.innerHTML = `
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="api-cred-name">Name</label>
-        <input id="api-cred-name" class="form-input" placeholder="e.g. Shopify stock sync" style="width:220px;"></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="api-cred-mode">Sign-in type</label>
-        <select id="api-cred-mode" class="form-select" style="width:240px;">
+    <div class="s-2ff289">
+      <div class="form-group s-ef0b7a"><label class="form-label" for="api-cred-name">Name</label>
+        <input id="api-cred-name" class="form-input s-0fac91" placeholder="e.g. Shopify stock sync"></div>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="api-cred-purpose">Purpose</label>
+        <input id="api-cred-purpose" class="form-input s-54f91a" placeholder="e.g. Shopify sync" maxlength="80"></div>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="api-cred-mode">Sign-in type</label>
+        <select id="api-cred-mode" class="form-select s-30196d">
           <option value="api_key">API key - sent on every call</option>
           <option value="oauth_client">OAuth client - exchanges its secret for a 15-minute token</option>
         </select></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="api-cred-expiry">Expires on (optional)</label>
-        <input id="api-cred-expiry" type="date" class="form-input" style="width:170px;"></div>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="api-cred-expiry">Expires on (optional)</label>
+        <input id="api-cred-expiry" type="date" class="form-input s-d52ddd"></div>
     </div>
-    <fieldset style="border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;margin:0 0 12px;">
-      <legend class="form-label" style="padding:0 4px;">Scopes - tick only what the integration needs</legend>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;">${scopes.map(s => `
-        <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" class="api-cred-scope" value="${escapeHTMLText(s)}"> ${escapeHTMLText(s)}</label>`).join('')}</div>
+    <fieldset class="s-d62557">
+      <legend class="form-label s-13ea1c">Scopes - tick only what the integration needs</legend>
+      <div class="s-df49cb">${scopes.map(s => `
+        <label class="s-5ef167"><input type="checkbox" class="api-cred-scope" value="${escapeHTMLText(s)}"> ${escapeHTMLText(s)}</label>`).join('')}</div>
     </fieldset>
     <button class="btn btn-primary" id="api-cred-issue">Issue</button>`;
 
@@ -59,13 +61,14 @@ async function renderAPIAccessPanel(container) {
   list.innerHTML = `
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Name</th><th>Type</th><th>Client ID / key prefix</th><th>Scopes</th><th>Status</th><th>Expires</th><th>Last used</th><th>Owner</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Purpose</th><th>Type</th><th>Client ID / key prefix</th><th>Scopes</th><th>Status</th><th>Expires</th><th>Last used</th><th>Owner</th><th>Actions</th></tr></thead>
         <tbody>${credentials.length === 0
-          ? '<tr><td colspan="9" class="text-muted">No API access issued yet. Nothing outside this system can call the public API.</td></tr>'
+          ? '<tr><td colspan="10" class="text-muted">No API access issued yet. Nothing outside this system can call the public API.</td></tr>'
           : credentials.map(c => `<tr>
             <td>${escapeHTMLText(c.name)}</td>
+            <td>${escapeHTMLText(c.purpose || '')}</td>
             <td>${c.auth_mode === 'oauth_client' ? 'OAuth client' : 'API key'}</td>
-            <td style="font-family:monospace;">${escapeHTMLText(c.key_prefix)}</td>
+            <td class="s-72126d">${escapeHTMLText(c.key_prefix)}</td>
             <td>${escapeHTMLText((c.scopes || []).join(', '))}</td>
             <td>${escapeHTMLText(c.status)}${c.rotated_from ? ' <span class="text-muted">(rotated)</span>' : ''}</td>
             <td>${escapeHTMLText(c.expires_at ? apiAccessWhen(c.expires_at) : 'Never')}</td>
@@ -77,7 +80,7 @@ async function renderAPIAccessPanel(container) {
           </tr>`).join('')}</tbody>
       </table>
     </div>
-    <div id="api-cred-traffic" style="margin:12px 16px;"></div>`;
+    <div id="api-cred-traffic" class="s-ac2a5b"></div>`;
 
   panel.appendChild(txnPagedSection({ id: 'api-access', title: 'API access', page: 'New API access', count: credentials.length,
     newLabel: 'New API access', form, list, heading: 'h2' }));
@@ -102,6 +105,8 @@ async function renderAPIAccessPanel(container) {
     const expiry = panel.querySelector('#api-cred-expiry').value;
     const payload = { name, scopes: chosen, auth_mode: panel.querySelector('#api-cred-mode').value };
     if (expiry) payload.expires_at = `${expiry}T23:59:59Z`;
+    const purpose = panel.querySelector('#api-cred-purpose').value.trim();
+    if (purpose) payload.purpose = purpose;
     await guardAgainstDoubleSubmit(event.currentTarget, 'Issuing…', async () => {
       const r = await apiFetch('/api/v1/admin/api-credentials', { method: 'POST', body: JSON.stringify(payload) });
       if (!r) return;
@@ -140,7 +145,7 @@ async function renderAPIAccessPanel(container) {
       : `<div class="table-wrapper"><table><thead><tr><th>When</th><th>Call</th><th>Status</th><th>Outcome</th><th>Correlation ID</th></tr></thead><tbody>${entries.map(e => `<tr>
           <td>${escapeHTMLText(apiAccessWhen(e.created_at))}</td><td>${escapeHTMLText(`${e.method} ${e.path}`)}</td>
           <td>${escapeHTMLText(String(e.status_code))}</td><td>${escapeHTMLText(e.outcome || '')}</td>
-          <td style="font-family:monospace;">${escapeHTMLText(e.correlation_id || '')}</td></tr>`).join('')}</tbody></table></div>`;
+          <td class="s-72126d">${escapeHTMLText(e.correlation_id || '')}</td></tr>`).join('')}</tbody></table></div>`;
   }));
 }
 

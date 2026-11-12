@@ -1066,4 +1066,13 @@ var reportNumbers = map[string]string{
 	"vendor-scorecard":                                         "R9040",
 	"expected-arrivals":                                        "R9045",
 	"goods-before-po":                                          "R9055",
+	"memo-stock":                                               "R2054",
+	"held-pieces":                                              "R3083",
+	"late-promise-lines":                                       "R1034",
+	"backorder-list":                                           "R2060",
+	"inspection-lots":                                          "R9060",
+	"stock-age-inspections-due":                                "R9061",
+	"summary-invoice-groups":                                   "R3090",
+	"dropship-open-lines":                                      "R3091",
+	"sales-incentives":                                         "R3095",
 }

@@ -140,7 +140,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// 49.2.2: bcrypt only, fails closed. This used to also accept an exact
 	// string match against the stored password_hash ("fallback check for
-	// local seed configs") - every seeded hash in db/migration.sql is a real
+	// local seed configs") - every seeded hash in db/migrations/migration.sql is a real
 	// bcrypt hash, so that fallback had no legitimate caller, and its
 	// failure mode is the wrong direction for a security control: if
 	// password_hash were ever a plaintext value (a bad migration, a manual
@@ -210,14 +210,14 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// browser was remembered after a correct code; it then counts as the
 	// code, and the password above was still checked.
 	rememberedDevice := false
-	if engines.RequiresMFA(u.Role) && req.DeviceToken != "" {
+	if engines.RequiresMFAAtLogin(tenantID, u.ID, u.Role) && req.DeviceToken != "" {
 		if enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID); mfaErr == nil && enabled &&
 			engines.TrustedMFADevice(tenantID, u.ID, req.DeviceToken, u.CredentialVersion) {
 			rememberedDevice = true
 			engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "MFA_REMEMBERED_DEVICE", "Password correct; authenticator code skipped on a remembered device")
 		}
 	}
-	if engines.RequiresMFA(u.Role) && !rememberedDevice {
+	if engines.RequiresMFAAtLogin(tenantID, u.ID, u.Role) && !rememberedDevice {
 		enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID)
 		if mfaErr != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve MFA status")
@@ -257,10 +257,10 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// silently defeat every location-scoped authorization check in
 	// handleGenericDoc (a Store Manager's token claimed "HO" access same as
 	// everyone else's). Falls back to "HO" for legacy rows via the column's
-	// own DEFAULT (db/migrations_stage24_security.sql), so an unassigned
+	// own DEFAULT (db/migrations/migrations_stage24_security.sql), so an unassigned
 	// user behaves exactly as before rather than losing access.
 	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode, u.CredentialVersion)
-	engines.RecordSignIn(tenantID, u.ID) // 49.2.1: dormant-account clock
+	engines.RecordSignInFrom(r.Context(), tenantID, u.ID) // 49.2.1: dormant-account clock
 	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
 	engines.RecordPrivilegedSession(r.Context(), tenantID, u.ID, u.Username, u.Role, token, u.CredentialVersion)
 
@@ -376,7 +376,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
-	engines.RecordSignIn(tenantID, userID) // 49.2.1
+	engines.RecordSignInFrom(r.Context(), tenantID, userID) // 49.2.1
 	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
 	engines.RecordPrivilegedSession(r.Context(), tenantID, userID, username, role, token, credentialVersion)
 	engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
@@ -493,7 +493,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
-	engines.RecordSignIn(tenantID, userID) // 49.2.1
+	engines.RecordSignInFrom(r.Context(), tenantID, userID) // 49.2.1
 	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
 	engines.RecordPrivilegedSession(r.Context(), tenantID, userID, username, role, token, credentialVersion)
 

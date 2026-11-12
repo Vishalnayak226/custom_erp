@@ -19,7 +19,7 @@
 # `source erp.env && backup.sh` leaves DATABASE_URL as a *shell* variable that this
 # script -- a child process -- never sees, and the job dies on the `: "${DATABASE_URL:?...}"`
 # check below. The old form sat in this header for months and would have failed
-# every night had anyone pasted it into a crontab; see docs/operations/restore_drill_log.md
+# every night had anyone pasted it into a crontab; see docs/operations/restore-drill-log.md
 # (2026-08-07).
 #
 # Restore a whole-database backup:
@@ -54,6 +54,9 @@
 #   openssl enc -d -aes-256-cbc -pbkdf2 -in FILE.dump.enc -pass pass:"$BACKUP_ENCRYPTION_KEY" \
 #     | pg_restore -d "$SCRATCH_DATABASE_URL" --no-owner
 set -euo pipefail
+# Item 49.6.6: every file this script writes (the dump before it is sealed, the
+# sealed copy, the sidecar) is readable by its owner only.
+umask 077
 
 # ---------------------------------------------------------------------------
 # Failure alerting (Stage 43.2, closing 26.11.7's "nothing alerts if the
@@ -61,7 +64,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Until now this script's only output was an appended line in
 # /var/log/erp-backup.log, so a failed 02:00 run was invisible until somebody
-# thought to look -- and hypercare_plan.md's "two consecutive failed nightly
+# thought to look -- and hypercare-plan.md's "two consecutive failed nightly
 # backups" rollback trigger cannot fire on a signal nobody receives.
 #
 # Posts to the same OPS_ALERT_WEBHOOK_URL the Go server uses
@@ -278,7 +281,7 @@ media_sync() {
 # objects under <prefix>/media/ deletes the only off-box copy of every
 # unchanged image, receipt and invoice copy once it is older than the rule:
 # the copy would hold only the last 30 days of uploads. The rule lives in the
-# bucket, set by hand in the provider's console (docs/operations/backup_restore.md:
+# bucket, set by hand in the provider's console (docs/operations/backup-restore.md:
 # scope the 30-day rule to <prefix>/database/ and <prefix>/tenant/). This reads
 # the bucket's lifecycle rules - one signed, read-only GET - and alerts
 # BACKUP_MEDIA_EXPIRES when an enabled expiry rule covers media/. Returns 0
@@ -310,7 +313,7 @@ media_retention_check() {
       ;;
     *)
       rm -f "$body"
-      echo "[WARN] media retention: could not read the bucket's lifecycle rules (HTTP ${code:-none}) - check by hand that no expiry rule covers $media (docs/operations/backup_restore.md)" >&2
+      echo "[WARN] media retention: could not read the bucket's lifecycle rules (HTTP ${code:-none}) - check by hand that no expiry rule covers $media (docs/operations/backup-restore.md)" >&2
       return 3
       ;;
   esac
@@ -338,7 +341,7 @@ media_retention_check() {
     hits="$hits${hits:+; }rule '${id:-unnamed}' (prefix '${rule_prefix}', $when)"
   done <<< "$rules"
   if [ -n "$hits" ]; then
-    alert_ops BACKUP_MEDIA_EXPIRES "the bucket deletes the media copy: $hits. Media goes up once, so an unchanged file loses its only off-box copy - scope the rule to $(offsite_prefix)/database/ and $(offsite_prefix)/tenant/ (docs/operations/backup_restore.md)"
+    alert_ops BACKUP_MEDIA_EXPIRES "the bucket deletes the media copy: $hits. Media goes up once, so an unchanged file loses its only off-box copy - scope the rule to $(offsite_prefix)/database/ and $(offsite_prefix)/tenant/ (docs/operations/backup-restore.md)"
     return 1
   fi
   echo "media retention: no expiry rule covers $media"
@@ -419,7 +422,9 @@ if [ -n "$TENANT_SCHEMA" ]; then
 else
   pg_dump -F c -f "$dump" "$DATABASE_URL"
 fi
-openssl enc -aes-256-cbc -pbkdf2 -salt -in "$dump" -out "$enc" -pass pass:"$BACKUP_ENCRYPTION_KEY"
+# env:, not pass: - an argument is visible to every user in the process list.
+export BACKUP_ENCRYPTION_KEY
+openssl enc -aes-256-cbc -pbkdf2 -salt -in "$dump" -out "$enc" -pass env:BACKUP_ENCRYPTION_KEY
 rm -f "$dump"
 sha256sum "$enc" > "$enc.sha256"
 enc_done=1 # 49.13.7: from here a failed run keeps the finished, checksummed backup

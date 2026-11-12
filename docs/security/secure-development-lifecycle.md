@@ -18,9 +18,9 @@ superseded_by: none
 # Secure development lifecycle, dependency and release-artifact supply chain
 
 **Stage 49.9** — established 2026-09-06. Companion to
-[threat_model.md](threat_model.md) (persona P7 "developer/CI account
+[threat-model.md](threat-model.md) (persona P7 "developer/CI account
 compromise", misuse case M-11 "ship a back door", crown jewel #9 "release
-artifact and migrations") and [risk_register.md](risk_register.md) (R-09).
+artifact and migrations") and [risk-register.md](risk-register.md) (R-09).
 
 Not a duplicate of [secure-development.md](secure-development-lifecycle.md#ssdf-practice-mapping-and-release-evidence) (Stage 48,
 `SEC-SDLC-001`): that document maps this repository's practice to NIST SP
@@ -32,13 +32,13 @@ transitive impact" line and its "CI vulnerability tool currently installs
 `@latest`" gap (now fixed — see §49.9.4) actually true of the tree, not just
 asked for.
 
-> **Status of this document.** Written the same way threat_model.md was:
+> **Status of this document.** Written the same way threat-model.md was:
 > every claim points at something in this repository — a file, a test, a
 > workflow step — not at a plan. Sections §49.9.2 and parts of §49.9.5/§49.9.8
 > describe GitHub repository *settings* this build session cannot apply
 > itself; those are marked **[needs decision: org owner]** rather than
 > written as prose that implies they're done. This is not a certification —
-> the same domain approvals threat_model.md names (security, infrastructure,
+> the same domain approvals threat-model.md names (security, infrastructure,
 > product) still apply before this is treated as an accepted control set.
 
 ## 0. What "before runtime" buys, and what it doesn't
@@ -72,7 +72,7 @@ scoped, follow-on work.
 **Mechanism, not yet a hard gate.** `.github/pull_request_template.md`'s
 "Security / privacy / permissions" line now asks explicitly for the fields
 49.9.1 names — affected crown jewels/trust boundaries (cite
-[threat_model.md](threat_model.md) §2/§3), abuse cases (cite §5 or add one),
+[threat-model.md](threat-model.md) §2/§3), abuse cases (cite §5 or add one),
 capabilities/fields/scopes touched, data classification/retention, secrets
 or egress introduced, failure/recovery behavior, and what test proves it —
 with an explicit "why not" for a change that touches none of them. This is
@@ -157,7 +157,7 @@ position than most codebases start from.
   fork-PR secret model.
 - **Rotate-not-just-delete.** Already the documented procedure elsewhere in
   this repository (`deploy/README.md`'s rotation guidance, the 29.8 signing-key
-  rotation keyring cited in threat_model.md crown jewel #1) — 49.9.3 does not
+  rotation keyring cited in threat-model.md crown jewel #1) — 49.9.3 does not
   change it, just cross-references it here so the SDLC document doesn't
   silently omit secret rotation.
 
@@ -186,7 +186,7 @@ each run — the tool version is pinned, the analysis stays current).
 | Dependency/action-pinning gate | Every push and PR | `internal/supplychain` tests, called out by name in a dedicated CI step (49.9.4/49.9.8). |
 | Fuzz tests | Not yet applicable | No `func Fuzz*` exists in this codebase today. Not fabricated for this Stage — a fuzz target is only worth writing against a real parser/decoder boundary (e.g. a future binary import format), and inventing one now would test nothing real. Recorded here as an explicit "none exist," not a silent gap. |
 | Representative DAST / deployment scan against an isolated release candidate | **[needs decision]** — not built | Requires a running isolated instance of the release candidate (the binary the new `release-artifact` CI job now produces is the right candidate to point this at) plus DAST tooling (e.g. an OWASP ZAP baseline scan). Standing this up needs a disposable Postgres + app instance inside CI or a short-lived cloud sandbox, which is materially more infrastructure than "small Go tooling," and doing it half-built (a scan with no real findings triage process behind it) would produce false assurance rather than real coverage. Left as a scoped follow-up, not attempted this session. |
-| False-positive suppression | Owner/reason/expiry required | Already the pattern in this codebase, not newly invented: `internal/securityscan/bypass_test.go`'s `reviewedBypassFindings` and this document's own `[needs decision]` markers carry an owner and a reason; `risk_register.md`'s `Review` column is the expiry mechanism. Any govulncheck/gitleaks suppression added in future must follow the same shape — an inline `//nolint`-style comment with no reason and no review date is exactly what 49.9.5 asks not to allow, and none exists in this codebase today. |
+| False-positive suppression | Owner/reason/expiry required | Already the pattern in this codebase, not newly invented: `internal/securityscan/bypass_test.go`'s `reviewedBypassFindings` and this document's own `[needs decision]` markers carry an owner and a reason; `risk-register.md`'s `Review` column is the expiry mechanism. Any govulncheck/gitleaks suppression added in future must follow the same shape — an inline `//nolint`-style comment with no reason and no review date is exactly what 49.9.5 asks not to allow, and none exists in this codebase today. |
 
 ## 49.9.6 — Hermetic / reproducible release
 
@@ -199,7 +199,7 @@ after `build-and-test` passes, on a `v*` tag push or manual dispatch):
   refuses to build if go.mod/go.sum don't already describe every import,
   `-trimpath` removes the build machine's absolute file paths from the
   binary (removing one common source of non-reproducibility).
-- Locked toolchain: `actions/setup-go` pinned to an exact patch (`1.27.1`,
+- Locked toolchain: `actions/setup-go` pinned to an exact patch (`1.27.4`,
   matching `go.mod`'s `go` directive exactly) via a pinned action commit.
 - Locked modules: `go.sum` already pins every module's content hash; `go mod
   verify` checks it.
@@ -219,7 +219,7 @@ raw binary hashes is the documented alternative 49.9.6 explicitly allows
 this project takes the second option, and names why.
 
 - Migration and static-asset identity: `cmd/releasemanifest` hashes every
-  `db/*.sql` file (in the same filename-sorted order CI's own "Apply database
+  `db/migrations/*.sql` file (in the same filename-sorted order CI's own "Apply database
   schema" step uses) into one `migration_set` digest, and every file under
   `public/` into one `static_asset_set` digest — so "what schema and what
   frontend shipped with this binary" is part of the same evidence record,
@@ -290,7 +290,7 @@ includes the full `go test ./... -race`, `govulncheck`, `gitleaks` and
 `internal/supplychain` gates — a failure in any of them means the manifest
 job never runs) → the artifact's own checksum → the migration set and
 static asset set it was built with. What it does not yet reach: **exceptions**
-(this document's own `[needs decision]` markers and `risk_register.md`'s open
+(this document's own `[needs decision]` markers and `risk-register.md`'s open
 rows are the closest existing analogue, not yet linked by ID into the
 manifest itself) and **deployment/rollback/monitoring evidence** (that lives
 on the droplet — `deploy/deploy.ps1`'s own `DEPLOY-OK` marker check,

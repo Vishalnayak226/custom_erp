@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -100,24 +101,39 @@ func postApprovedPrepaidExpenseSchedule(tenantID, scheduleID string) {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedPrepaidExpenseSchedule", fmt.Sprintf("schedule %s has a non-positive amount, not posted", scheduleID), "")
 		return
 	}
-	if err := PostDoubleEntry(tenantID, "PrepaidExpenseSchedule", scheduleID,
-		map[string]int64{"1800": amountPaise}, map[string]int64{"1100": amountPaise},
-		"", fmt.Sprintf("PrepaidExpenseSchedule:%s:PAY", scheduleID)); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedPrepaidExpenseSchedule", fmt.Sprintf("schedule %s: GL posting failed: %v", scheduleID, err), "")
-		return
-	}
 	data["recognized_months"] = 0
 	data["next_recognition_date"] = time.Now().AddDate(0, 1, 0).Format("2006-01-02")
 	marshaled, err := json.Marshal(data)
 	if err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedPrepaidExpenseSchedule", fmt.Sprintf("schedule %s posted but could not stamp recognition start: %v", scheduleID, err), "")
+		LogSystemError(tenantID, "", "ERROR", "postApprovedPrepaidExpenseSchedule", fmt.Sprintf("schedule %s: could not stamp recognition start: %v", scheduleID, err), "")
 		return
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(
-		`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'PrepaidExpenseSchedule' AND id = $2`, schema),
-		marshaled, scheduleID); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedPrepaidExpenseSchedule", fmt.Sprintf("schedule %s: failed to stamp recognition start: %v", scheduleID, err), "")
+	if err := postPrepaidScheduleTx(tenantID, schema, scheduleID, amountPaise, marshaled); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedPrepaidExpenseSchedule", fmt.Sprintf("schedule %s: %v", scheduleID, err), "")
 	}
+}
+
+// postPrepaidScheduleTx posts the upfront outlay and stamps the recognition
+// start in ONE transaction (Stage 162.9): a failure at the stamp rolls the GL
+// back too, so the next pass posts it once instead of the GL and the schedule
+// disagreeing. The posting key makes a repeat a no-op.
+func postPrepaidScheduleTx(tenantID, schema, scheduleID string, amountPaise int64, stamped []byte) error {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "PrepaidExpenseSchedule", scheduleID,
+		map[string]int64{"1800": amountPaise}, map[string]int64{"1100": amountPaise},
+		"", fmt.Sprintf("PrepaidExpenseSchedule:%s:PAY", scheduleID)); err != nil {
+		return fmt.Errorf("GL posting failed: %w", err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'PrepaidExpenseSchedule' AND id = $2`, schema),
+		stamped, scheduleID); err != nil {
+		return fmt.Errorf("failed to stamp recognition start: %w", err)
+	}
+	return tx.Commit()
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +191,7 @@ func monthlyRecognitionPaise(totalAmount float64, termMonths, recognizedMonths i
 	return perMonth
 }
 
-func advanceAmortizationSchedule(schema, doctype, scheduleID string, newRecognizedMonths, termMonths int) error {
+func advanceAmortizationSchedule(tx *sql.Tx, schema, doctype, scheduleID string, newRecognizedMonths, termMonths int) error {
 	status := "Active"
 	if doctype == "PrepaidExpenseSchedule" {
 		status = "Approved"
@@ -183,13 +199,34 @@ func advanceAmortizationSchedule(schema, doctype, scheduleID string, newRecogniz
 	if newRecognizedMonths >= termMonths {
 		status = "Completed"
 	}
-	_, err := db.DB.Exec(fmt.Sprintf(`
+	_, err := tx.Exec(fmt.Sprintf(`
 		UPDATE %s.documents SET
 			data = jsonb_set(jsonb_set(data, '{recognized_months}', to_jsonb($1::int)), '{next_recognition_date}', to_jsonb($2::text)),
 			status = $3, updated_at = CURRENT_TIMESTAMP
 		WHERE doctype = $4 AND id = $5`, schema),
 		newRecognizedMonths, time.Now().AddDate(0, 1, 0).Format("2006-01-02"), status, doctype, scheduleID)
 	return err
+}
+
+// recognizeAmortizationTx posts one installment and advances the schedule in
+// one transaction (Stage 162.9): a failure at the advance rolls the GL back, so
+// the next tick recognises the month once. The posting key already makes a
+// repeat of the same month a no-op, and the advance sets absolute values, so a
+// second worker doing the same month changes nothing.
+func recognizeAmortizationTx(tenantID, schema, doctype string, s amortizationSchedule, debits, credits map[string]int64) error {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := PostDoubleEntryTx(tx, tenantID, schema, doctype, s.id, debits, credits,
+		"", fmt.Sprintf("%s:%s:RECOGNIZE:%d", doctype, s.id, s.recognizedMonths)); err != nil {
+		return err
+	}
+	if err := advanceAmortizationSchedule(tx, schema, doctype, s.id, s.recognizedMonths+1, s.termMonths); err != nil {
+		return fmt.Errorf("failed to advance: %w", err)
+	}
+	return tx.Commit()
 }
 
 func runDeferredRevenueRecognition(tenantID, schema string) (recognized int, err error) {
@@ -202,14 +239,9 @@ func runDeferredRevenueRecognition(tenantID, schema string) (recognized int, err
 		if amountPaise <= 0 {
 			continue
 		}
-		if err := PostDoubleEntry(tenantID, "DeferredRevenueSchedule", s.id,
-			map[string]int64{"2600": amountPaise}, map[string]int64{"4100": amountPaise},
-			"", fmt.Sprintf("DeferredRevenueSchedule:%s:RECOGNIZE:%d", s.id, s.recognizedMonths)); err != nil {
+		if err := recognizeAmortizationTx(tenantID, schema, "DeferredRevenueSchedule", s,
+			map[string]int64{"2600": amountPaise}, map[string]int64{"4100": amountPaise}); err != nil {
 			LogSystemError(tenantID, "", "ERROR", "runDeferredRevenueRecognition", fmt.Sprintf("schedule %s: %v", s.id, err), "")
-			continue
-		}
-		if err := advanceAmortizationSchedule(schema, "DeferredRevenueSchedule", s.id, s.recognizedMonths+1, s.termMonths); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "runDeferredRevenueRecognition", fmt.Sprintf("schedule %s posted but failed to advance: %v", s.id, err), "")
 			continue
 		}
 		recognized++
@@ -230,14 +262,9 @@ func runPrepaidExpenseRecognition(tenantID, schema string) (recognized int, err 
 		if amountPaise <= 0 {
 			continue
 		}
-		if err := PostDoubleEntry(tenantID, "PrepaidExpenseSchedule", s.id,
-			map[string]int64{s.linkedID: amountPaise}, map[string]int64{"1800": amountPaise},
-			"", fmt.Sprintf("PrepaidExpenseSchedule:%s:RECOGNIZE:%d", s.id, s.recognizedMonths)); err != nil {
+		if err := recognizeAmortizationTx(tenantID, schema, "PrepaidExpenseSchedule", s,
+			map[string]int64{s.linkedID: amountPaise}, map[string]int64{"1800": amountPaise}); err != nil {
 			LogSystemError(tenantID, "", "ERROR", "runPrepaidExpenseRecognition", fmt.Sprintf("schedule %s: %v", s.id, err), "")
-			continue
-		}
-		if err := advanceAmortizationSchedule(schema, "PrepaidExpenseSchedule", s.id, s.recognizedMonths+1, s.termMonths); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "runPrepaidExpenseRecognition", fmt.Sprintf("schedule %s posted but failed to advance: %v", s.id, err), "")
 			continue
 		}
 		recognized++
@@ -449,7 +476,7 @@ func ValidatePriceListVersionDocument(tenantID string, payload map[string]interf
 	if strings.TrimSpace(pimString(payload["vendor"])) != "" { // Stage 148.6: a vendor agreement
 		return ValidateVendorAgreementRows(payload)
 	}
-	return nil
+	return validateCustomerListRows(payload) // Stage 148.26: only rows using the new keys
 }
 
 // postApprovedPriceListVersion closes any other Active version of the SAME
@@ -492,6 +519,7 @@ func postApprovedPriceListVersion(tenantID, versionID string) {
 		supersededTo, versionID, priceListCode); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedPriceListVersion", fmt.Sprintf("version %s: failed to supersede prior open-ended versions: %v", versionID, err), "")
 	}
+	flagOpenLinesForPriceChange(tenantID, versionID) // Stage 148.26: flags open lines, never reprices
 }
 
 // ResolvePriceForSKU finds the Approved PriceListVersion for priceListCode
@@ -527,6 +555,9 @@ func ResolvePriceForSKU(tenantID, priceListCode, sku, asOfDate string) (price fl
 		return 0, false, nil
 	}
 	for _, item := range items {
+		if customerRowOnly(item) { // 148.26: a karat / weight band or quota row is the B2B resolver's
+			continue
+		}
 		if pimString(item["sku"]) == sku {
 			p, _ := parityNumber(item["price"])
 			return p, true, nil

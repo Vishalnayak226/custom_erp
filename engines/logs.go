@@ -164,7 +164,7 @@ func logAuditEvent(tenantID, userID, action, status, details string, meta auditR
 
 // Stage 49.13.7: a lost audit event must never be silent. The business call
 // that wanted it has already happened, so the write is not retried blindly;
-// instead every loss is counted (Activity Log -> Security shows the count
+// instead every loss is counted (Settings -> Monitoring -> Security Events shows the count
 // and the last reason) and pages through SendOpsAlert at most once per
 // auditLossAlertEvery, so a database outage does not become an alert storm.
 const auditLossAlertEvery = 10 * time.Minute

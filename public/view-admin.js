@@ -23,10 +23,10 @@ async function renderPrefixConfigsView(container) {
     <div class="page-title-section">
       <h1 class="page-title">Prefix Configurations</h1>
     </div>
-    <div style="display: flex; gap: 8px; align-items: center;">
-      <select id="prefix-group-filter" class="form-input" aria-label="Group" style="width: auto;"></select>
+    <div class="s-0da5f4">
+      <select id="prefix-group-filter" class="form-input s-7e375a" aria-label="Group"></select>
       <button class="btn btn-primary" ${actionAttrs('addPrefixConfig')}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="s-7cc88f"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         <span>New Series</span>
       </button>
     </div>
@@ -61,7 +61,7 @@ async function renderPrefixConfigsView(container) {
     .forEach(r => { if (!groups.has(r.group)) groups.set(r.group, []); groups.get(r.group).push(r.c); });
   groups.forEach((rows, group) => {
     html += `<tbody data-series-group="${escapeHTMLText(group)}">
-      <tr><td colspan="10" style="font-weight: 600; background: var(--surface-subtle);">${escapeHTMLText(group)} <span class="text-muted" style="font-weight: 400;">${rows.length}</span></td></tr>`;
+      <tr><td colspan="10" class="s-d04ff7">${escapeHTMLText(group)} <span class="text-muted s-7c8ebd">${rows.length}</span></td></tr>`;
     rows.forEach(c => { html += prefixConfigRow(c, stores, restarts); });
     html += `</tbody>`;
   });
@@ -103,14 +103,14 @@ function prefixConfigRow(c, stores, restarts) {
   const tooLong = seriesProblem(c);
   return `
       <tr>
-        <td style="font-weight:600;">${escapeHTMLText(seriesDisplayName(c.doc_type))}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(c.prefix)}</td>
+        <td class="s-eed0f8">${escapeHTMLText(seriesDisplayName(c.doc_type))}</td>
+        <td class="s-355794">${escapeHTMLText(c.prefix)}</td>
         <td>${c.padding_width}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(c.suffix || '')}</td>
+        <td class="s-355794">${escapeHTMLText(c.suffix || '')}</td>
         <td>${c.record_code ? restarts.NEVER || 'Never' : (isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
         <td>${c.record_code || c.include_store === false ? 'No' : 'Yes'}</td>
         <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, stores[0]))}${tooLong ? `<div class="series-too-long" style="font-size: 12px; font-family: inherit;">${tooLong.store ? escapeHTMLText(tooLong.store.name) + ': ' : ''}${tooLong.short}</div>` : ''}</td>
+        <td class="s-355794">${escapeHTMLText(prefixConfigSample(c, stores[0]))}${tooLong ? `<div class="series-too-long s-6fa5c6">${tooLong.store ? escapeHTMLText(tooLong.store.name) + ': ' : ''}${tooLong.short}</div>` : ''}</td>
         <td>${c.active_status ? 'Active' : 'Inactive'}</td>
         <td><button class="btn btn-outline btn-sm" ${actionAttrs('editPrefixConfig', [c.doc_type])}>Edit</button></td>
       </tr>
@@ -356,7 +356,7 @@ function ensureEditPrefixModal() {
   if (document.getElementById('edit-prefix-modal')) return;
   document.body.insertAdjacentHTML('beforeend', `
 <div class="modal-overlay" id="edit-prefix-modal">
-  <div class="modal-container" style="max-width: 760px;">
+  <div class="modal-container s-c06a24">
     <div class="modal-header">
       <h3 class="modal-title" id="edit-prefix-title">Number Series</h3>
       <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeEditPrefixModal">
@@ -364,17 +364,17 @@ function ensureEditPrefixModal() {
       </button>
     </div>
     <form id="edit-prefix-form" data-act="submitEditPrefix" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="modal-body s-64bd62">
         <div class="form-group">
           <label class="form-label" for="edit-prefix-doctype">Transaction</label>
           <input type="text" class="form-input" id="edit-prefix-doctype" required placeholder="Pick a transaction or record type, e.g. Purchase order, Vendor" list="edit-prefix-doctype-list" autocomplete="off" data-act="previewEditPrefix" data-act-on="input">
           <datalist id="edit-prefix-doctype-list"></datalist>
-          <div id="edit-prefix-kind-note" class="text-muted" style="font-size: 12.5px; margin-top: 4px;"></div>
+          <div id="edit-prefix-kind-note" class="text-muted s-0ecbb3"></div>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+        <div class="s-abb3d2">
           <div class="form-group">
             <label class="form-label" for="edit-prefix-prefix">Prefix</label>
-            <input type="text" class="form-input" id="edit-prefix-prefix" maxlength="20" style="text-transform: uppercase;" data-act="previewEditPrefix" data-act-on="input">
+            <input type="text" class="form-input s-3d59ac" id="edit-prefix-prefix" maxlength="20" data-act="previewEditPrefix" data-act-on="input">
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-separator">Separator</label>
@@ -390,10 +390,10 @@ function ensureEditPrefixModal() {
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-suffix">Suffix (optional)</label>
-            <input type="text" class="form-input" id="edit-prefix-suffix" maxlength="20" style="text-transform: uppercase;" data-act="previewEditPrefix" data-act-on="input">
+            <input type="text" class="form-input s-3d59ac" id="edit-prefix-suffix" maxlength="20" data-act="previewEditPrefix" data-act-on="input">
           </div>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+        <div class="s-6945e1">
           <div class="form-group">
             <label class="form-label" for="edit-prefix-reset">Restart numbering</label>
             <select class="form-select" id="edit-prefix-reset" required data-act="previewEditPrefix" data-act-on="change">
@@ -430,12 +430,12 @@ function ensureEditPrefixModal() {
         </div>
         <div class="form-group">
           <span class="form-label">Next number looks like</span>
-          <div id="edit-prefix-preview" style="font-family: Consolas, Monaco, monospace; font-size: 15px; padding: 8px 10px; border: 1px dashed var(--border-color); border-radius: 6px;"></div>
+          <div id="edit-prefix-preview" class="s-0b748d"></div>
           <div id="edit-prefix-length" role="status" aria-live="polite"></div>
         </div>
         <div class="form-group" id="edit-prefix-stores-group">
           <span class="form-label">Store-wise code and suffix (optional - blank uses the store's Short Code and the series' suffix)</span>
-          <div id="edit-prefix-stores" style="max-height: 260px; overflow-y: auto;"></div>
+          <div id="edit-prefix-stores" class="s-7e76f2"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -513,11 +513,11 @@ function openEditPrefixModal(c) {
     const label = escapeHTMLText(st.name);
     return `<tr>
       <td>${label}</td>
-      <td style="font-family: monospace;">${escapeHTMLText(st.short_code || '-')}</td>
+      <td class="s-355794">${escapeHTMLText(st.short_code || '-')}</td>
       <td>${input(i, 'code', o.code, 'Code in the number for ' + label, 10)}</td>
       ${legacy ? `<td>${input(i, 'prefix', o.prefix, 'Own prefix for ' + label, 20)}</td>` : ''}
       <td>${input(i, 'suffix', o.suffix, 'Suffix for ' + label, 20)}</td>
-      <td style="font-family: monospace;" data-store-sample="${i}"></td>
+      <td class="s-355794" data-store-sample="${i}"></td>
     </tr>`;
   }).join('');
   box.innerHTML = stores.length
@@ -697,7 +697,7 @@ async function renderApprovalRulesView(container) {
       <h1 class="page-title">Approval Rules</h1>
     </div>
     <button class="btn btn-primary" ${actionAttrs('openApprovalRuleModal')}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="s-7cc88f"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       <span>New Rule</span>
     </button>
   `;
@@ -708,16 +708,16 @@ async function renderApprovalRulesView(container) {
   panel.innerHTML = `
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Doctype</th><th>Min Amount</th><th>Max Amount</th><th>Required Role</th><th style="text-align:right;">Actions</th></tr></thead>
+        <thead><tr><th>Doctype</th><th>Min Amount</th><th>Max Amount</th><th>Required Role</th><th class="s-54c2af">Actions</th></tr></thead>
         <tbody>
-          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No approval rules configured. Use <b>Save Rule</b> above to require approval for a record type &mdash; without a rule, documents skip maker-checker entirely.</td></tr>' : state.approvalRules.map(r => `
+          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" class="s-306094">No approval rules configured. Use <b>Save Rule</b> above to require approval for a record type &mdash; without a rule, documents skip maker-checker entirely.</td></tr>' : state.approvalRules.map(r => `
             <tr>
-              <td style="font-weight:600;" title="${escapeHTMLText(r.doctype)}">${escapeHTMLText(getDoctypeLabel(r.doctype))}</td>
+              <td class="s-eed0f8" title="${escapeHTMLText(r.doctype)}">${escapeHTMLText(getDoctypeLabel(r.doctype))}</td>
               <td>${escapeHTMLText(String(r.min_amount))}</td>
               <td>${r.max_amount == null ? 'No limit' : escapeHTMLText(String(r.max_amount))}</td>
               <td><span class="badge badge-secondary">${escapeHTMLText(r.required_role)}</span></td>
-              <td style="text-align:right;">
-                <button class="action-btn" title="Edit" aria-label="Edit the ${escapeHTMLText(r.doctype)} approval rule" style="margin-right:4px;" ${actionAttrs('openApprovalRuleModal', [r.id])}>
+              <td class="s-54c2af">
+                <button class="action-btn s-c6b76b" title="Edit" aria-label="Edit the ${escapeHTMLText(r.doctype)} approval rule" ${actionAttrs('openApprovalRuleModal', [r.id])}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
                 <button class="action-btn action-btn-danger" title="Delete" aria-label="Delete the ${escapeHTMLText(r.doctype)} approval rule" ${actionAttrs('deleteApprovalRuleRow', [r.id])}>
@@ -768,16 +768,16 @@ function renderApprovalRoutingPanel(container, rules) {
   panel.className = 'table-panel';
   panel.style.cssText = 'padding:16px 24px;margin-top:24px;';
   panel.innerHTML = `
-    <h2 style="font-size:16px;margin:0 0 8px;">Who approves what</h2>
-    <ul style="margin:0 0 12px;padding-left:18px;">${coverage}</ul>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="approval-check-type">Record type</label>
+    <h2 class="s-78a190">Who approves what</h2>
+    <ul class="s-d93bcd">${coverage}</ul>
+    <div class="s-58cada">
+      <div class="form-group s-ef0b7a"><label class="form-label" for="approval-check-type">Record type</label>
         <select id="approval-check-type" class="form-select">${Object.keys(byType).sort().map(dt => `<option value="${escapeHTMLText(dt)}">${escapeHTMLText(dt)}</option>`).join('')}</select></div>
-      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="approval-check-amount">Amount</label>
-        <input id="approval-check-amount" type="number" min="0" step="0.01" class="form-input" style="width:140px;"></div>
-      <p id="approval-check-result" role="status" style="margin:0 0 6px;"></p>
+      <div class="form-group s-ef0b7a"><label class="form-label" for="approval-check-amount">Amount</label>
+        <input id="approval-check-amount" type="number" min="0" step="0.01" class="form-input s-830eb9"></div>
+      <p id="approval-check-result" role="status" class="s-ad7f18"></p>
     </div>
-    <p style="margin:12px 0 0;"><a href="#" id="approval-rule-history">Rule changes are in the Activity Log (SAVE_APPROVAL_RULE / DELETE_APPROVAL_RULE)</a></p>`;
+    <p class="s-d870e8"><a href="#" id="approval-rule-history">Rule changes are in the Activity Log (SAVE_APPROVAL_RULE / DELETE_APPROVAL_RULE)</a></p>`;
   container.appendChild(panel);
   const typeEl = panel.querySelector('#approval-check-type');
   const amountEl = panel.querySelector('#approval-check-amount');
@@ -896,7 +896,7 @@ function renderDynamicLabelsView(container) {
     html += `
       <tr>
         <td>${escapeHTMLText(orig)}</td>
-        <td style="font-weight:600; color:var(--primary-color);">${escapeHTMLText(custom)}</td>
+        <td class="s-7f6c47">${escapeHTMLText(custom)}</td>
         <td>
           <button class="action-btn action-btn-danger" ${actionAttrs('deleteLabelReplacement', [orig])}>Remove</button>
         </td>
@@ -974,30 +974,30 @@ async function renderExtensionHooksView(container) {
   hookFormPanel.style.padding = '24px';
   hookFormPanel.style.marginBottom = '24px';
   hookFormPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Register a Hook</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-bfc163">Register a Hook</h2>
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hook-point">Hook Point</label>
-        <select id="hook-point" class="form-select" style="width: 190px;">
+        <select id="hook-point" class="form-select s-771bd0">
           <option value="document.before_save">document.before_save</option>
           <option value="document.after_save">document.after_save</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hook-doctype">Doctype</label>
-        <input type="text" id="hook-doctype" class="form-input" placeholder="e.g. Item, or * for every doctype" style="width: 200px;">
+        <input type="text" id="hook-doctype" class="form-input s-0fff9b" placeholder="e.g. Item, or * for every doctype">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hook-target-url">Target URL (https://)</label>
-        <input type="text" id="hook-target-url" class="form-input" placeholder="https://client-endpoint.example.com/hook" style="width: 320px;">
+        <input type="text" id="hook-target-url" class="form-input s-4810b3" placeholder="https://client-endpoint.example.com/hook">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="hook-timeout">Timeout (ms)</label>
-        <input type="number" id="hook-timeout" class="form-input" value="3000" min="1" max="10000" style="width: 100px;">
+        <input type="number" id="hook-timeout" class="form-input s-da190a" value="3000" min="1" max="10000">
       </div>
       <button class="btn btn-primary" id="hook-register-btn">Register Hook</button>
     </div>
-    <div id="hook-form-error" class="login-error hidden" style="margin-bottom: 0;"></div>
+    <div id="hook-form-error" class="login-error hidden s-50435f"></div>
   `;
   container.appendChild(hookFormPanel);
 
@@ -1009,16 +1009,16 @@ async function renderExtensionHooksView(container) {
       <thead><tr><th>Hook Point</th><th>Doctype</th><th>Target URL</th><th>Enabled</th><th>Timeout</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
         ${hooks.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No extension hooks registered yet. Use <b>Register Hook</b> above to let an external system subscribe to an event.</td></tr>`
+          ? `<tr><td colspan="8" class="s-306094">No extension hooks registered yet. Use <b>Register Hook</b> above to let an external system subscribe to an event.</td></tr>`
           : hooks.map(h => `
             <tr>
               <td>${escapeHTMLText(h.hook_point)}${h.api_version ? ` <span class="text-muted">v${Number(h.api_version)}${h.api_sunset ? `, served until ${escapeHTMLText(h.api_sunset)}` : ''}</span>` : ''}</td>
-              <td style="font-weight:600;" title="${escapeHTMLText(h.doctype)}">${h.doctype === '*' ? 'Every record type' : escapeHTMLText(getDoctypeLabel(h.doctype))}</td>
-              <td style="font-family: monospace; max-width: 280px; overflow-wrap: anywhere;">${escapeHTMLText(h.target_url)}</td>
+              <td class="s-eed0f8" title="${escapeHTMLText(h.doctype)}">${h.doctype === '*' ? 'Every record type' : escapeHTMLText(getDoctypeLabel(h.doctype))}</td>
+              <td class="s-e6d304">${escapeHTMLText(h.target_url)}</td>
               <td><span class="badge ${h.enabled ? 'badge-success' : 'badge-secondary'}">${h.enabled ? 'Enabled' : 'Disabled'}</span></td>
               <td>${h.timeout_ms}ms</td>
               <td>${h.created_by || ''}</td>
-              <td>${h.created_at ? new Date(h.created_at).toLocaleString() : ''}</td>
+              <td>${h.created_at ? formatDateTime(h.created_at) : ''}</td>
               <td>
                 <button class="action-btn" ${actionAttrs('viewExtensionHookLog', [h.id])}>View Log</button>
                 <button class="action-btn action-btn-danger" ${actionAttrs('deleteExtensionHookRow', [h.id])}>Delete</button>
@@ -1034,19 +1034,19 @@ async function renderExtensionHooksView(container) {
   tokenPanel.className = 'table-panel';
   tokenPanel.style.padding = '24px';
   tokenPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Issue an Extension Token</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-79bd22">Issue an Extension Token</h2>
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="token-scope-doctype">Scope Doctype</label>
-        <input type="text" id="token-scope-doctype" class="form-input" placeholder="e.g. Item" style="width: 200px;">
+        <input type="text" id="token-scope-doctype" class="form-input s-0fff9b" placeholder="e.g. Item">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="token-ttl">TTL (minutes, max 1440)</label>
-        <input type="number" id="token-ttl" class="form-input" value="60" min="1" max="1440" style="width: 100px;">
+        <input type="number" id="token-ttl" class="form-input s-da190a" value="60" min="1" max="1440">
       </div>
       <button class="btn btn-primary" id="token-issue-btn">Issue Token</button>
     </div>
-    <div id="token-form-error" class="login-error hidden" style="margin-bottom: 0;"></div>
+    <div id="token-form-error" class="login-error hidden s-50435f"></div>
   `;
   container.appendChild(tokenPanel);
 
@@ -1114,6 +1114,9 @@ async function renderExtensionHooksView(container) {
   // module is the one the loader published.
   const apiAccess = await loadViewModule('/view-api-access.js' + new URL(import.meta.url).search);
   await apiAccess.renderAPIAccessPanel(container);
+  // Stage 148.37: AI assistants (shown only when the ai_access module is on).
+  const aiAccess = await loadViewModule('/view-ai-access.js' + new URL(import.meta.url).search);
+  await aiAccess.renderAIAccessPanel(container);
 }
 
 window.deleteExtensionHookRow = async function(hookId) {
@@ -1162,7 +1165,7 @@ async function renderExtensionHookLogView(container) {
   if (!hookId) {
     const empty = document.createElement('div');
     empty.className = 'table-panel';
-    empty.innerHTML = `<p style="padding:16px; color:var(--text-muted);">No hook chosen. Open <strong>Extension Hooks</strong> and press <strong>View Log</strong> on the hook whose calls you want to see.</p>`;
+    empty.innerHTML = `<p class="s-de2e81">No hook chosen. Open <strong>Extension Hooks</strong> and press <strong>View Log</strong> on the hook whose calls you want to see.</p>`;
     container.appendChild(empty);
     return;
   }
@@ -1179,13 +1182,13 @@ async function renderExtensionHookLogView(container) {
       <thead><tr><th>Called At</th><th>Response Status</th><th>Latency</th><th>Error</th></tr></thead>
       <tbody>
         ${entries.length === 0
-          ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No calls logged yet for this hook. Entries appear here the first time its event fires.</td></tr>`
+          ? `<tr><td colspan="4" class="s-306094">No calls logged yet for this hook. Entries appear here the first time its event fires.</td></tr>`
           : entries.map(e => `
             <tr>
-              <td>${e.called_at ? new Date(e.called_at).toLocaleString() : ''}</td>
+              <td>${e.called_at ? formatDateTime(e.called_at) : ''}</td>
               <td>${e.response_status != null ? `<span class="badge ${e.response_status >= 200 && e.response_status < 300 ? 'badge-success' : 'badge-danger'}">${e.response_status}</span>` : '<span class="badge badge-secondary">-</span>'}</td>
               <td>${e.latency_ms}ms</td>
-              <td style="color:var(--danger-color);">${escapeHTMLText(e.error || '')}</td>
+              <td class="s-25f4ca">${escapeHTMLText(e.error || '')}</td>
             </tr>
           `).join('')}
       </tbody>
@@ -1245,7 +1248,12 @@ function showOneTimeSecretDialog(title, message, secretValue) {
 }
 
 // Render Activity Log (internal name still Log Hub) & panic dashboard logs
+// Stage 155.3: each log is its own sidebar entry ("audit-logs:<log>").
+const LOG_PAGES = { audit: 'Activity Log', system: 'System Errors', integration: 'Integration Payloads', jobs: 'Async Jobs', security: 'Security Events' };
 async function renderLogHubView(container) {
+  const logTab = LOG_PAGES[currentViewTab] ? currentViewTab : 'audit';
+  currentViewTab = logTab;
+  setActiveMenu(logTab === 'audit' ? 'menu-audit-logs' : `menu-log-${logTab}`);
   const auditRes = await apiFetch('/api/v1/logs/audit');
   const auditLoadFailed = !!auditRes && !auditRes.ok;
   const auditLogs = auditRes && auditRes.ok ? await auditRes.json() : [];
@@ -1269,32 +1277,17 @@ async function renderLogHubView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Activity Log</h1>
+      <h1 class="page-title">${LOG_PAGES[logTab]}</h1>
     </div>
-    <button class="btn btn-outline" id="log-hub-panic-test">
-      <span>Test Panic Recovery</span>
-    </button>
+    ${logTab === 'audit' ? '<button class="btn btn-outline" id="log-hub-panic-test"><span>Test Panic Recovery</span></button>' : ''}
   `;
   container.appendChild(header);
-
-  // Tab switcher for the three log panes
-  const tabBar = document.createElement('div');
-  tabBar.className = 'tab-bar';
-  tabBar.style.cssText = 'display:flex; flex-wrap:wrap; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border-color);';
-  tabBar.innerHTML = `
-    <button class="log-hub-tab active" data-tab="audit" style="padding:10px 20px; border:none; background:var(--card-bg); cursor:pointer; font-weight:600; border-bottom:2px solid var(--primary-color); margin-bottom:-2px; color:var(--primary-color);">Audit Logs</button>
-    <button class="log-hub-tab" data-tab="system" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">System Errors</button>
-    <button class="log-hub-tab" data-tab="integration" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Integration Payloads</button>
-    <button class="log-hub-tab" data-tab="jobs" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Async Jobs</button>
-    <button class="log-hub-tab" data-tab="security" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Security</button>
-  `;
-  container.appendChild(tabBar);
 
   // Tab content container
   const tabContent = document.createElement('div');
   tabContent.id = 'log-hub-tab-content';
   container.appendChild(tabContent);
-  header.querySelector('#log-hub-panic-test').addEventListener('click', triggerPanicRecovery);
+  header.querySelector('#log-hub-panic-test')?.addEventListener('click', triggerPanicRecovery);
   tabContent.addEventListener('click', (event) => {
     const retry = event.target.closest('[data-integration-retry-id]');
     if (retry) {
@@ -1316,8 +1309,8 @@ async function renderLogHubView(container) {
   function renderAuditPane() {
     tabContent.innerHTML = `
       <div class="table-panel">
-        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Audit Logs</h3>
-        ${auditLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load audit logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
+        <h3 class="s-d965ea">Audit Logs</h3>
+        ${auditLoadFailed ? `<p class="s-3b614c">Failed to load audit logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -1329,12 +1322,12 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${auditLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No audit logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : auditLogs.map(l => `
+              ${auditLogs.length === 0 ? '<tr><td colspan="4" class="s-306094">No audit logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : auditLogs.map(l => `
                 <tr>
                   <td>${escapeHTMLText(l.user_id)}</td>
                   <td>${escapeHTMLText(l.action)}</td>
-                  <td style="font-size:12px;">${escapeHTMLText(l.details)}</td>
-                  <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(l.created_at)}</td>
+                  <td class="s-6cb285">${escapeHTMLText(l.details)}</td>
+                  <td class="s-73e1c9">${escapeHTMLText(l.created_at)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1347,8 +1340,8 @@ async function renderLogHubView(container) {
   function renderSystemPane() {
     tabContent.innerHTML = `
       <div class="table-panel">
-        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">System Panic & Error Logs</h3>
-        ${sysLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load system logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
+        <h3 class="s-d965ea">System Panic & Error Logs</h3>
+        ${sysLoadFailed ? `<p class="s-3b614c">Failed to load system logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -1360,12 +1353,12 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${systemLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No system logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : systemLogs.map(l => `
-                <tr style="cursor:pointer;" data-log-id="${escapeHTMLText(l.log_id)}" tabindex="0" role="button">
+              ${systemLogs.length === 0 ? '<tr><td colspan="4" class="s-306094">No system logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : systemLogs.map(l => `
+                <tr class="s-3b6a3a" data-log-id="${escapeHTMLText(l.log_id)}" tabindex="0" role="button">
                   <td><span class="badge badge-secondary">${escapeHTMLText(l.severity)}</span></td>
                   <td>${escapeHTMLText(l.module_source)}</td>
-                  <td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(l.error_message)}</td>
-                  <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(l.created_at)}</td>
+                  <td class="s-8cadba">${escapeHTMLText(l.error_message)}</td>
+                  <td class="s-73e1c9">${escapeHTMLText(l.created_at)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1378,8 +1371,8 @@ async function renderLogHubView(container) {
   function renderIntegrationPane() {
     tabContent.innerHTML = `
       <div class="table-panel">
-        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Integration Payloads</h3>
-        ${intLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load integration logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
+        <h3 class="s-d965ea">Integration Payloads</h3>
+        ${intLoadFailed ? `<p class="s-3b614c">Failed to load integration logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -1393,15 +1386,15 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${intLogs.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No integration payloads found for the current filter. Widen the date range or clear the filter above.</td></tr>' : intLogs.map(l => `
+              ${intLogs.length === 0 ? '<tr><td colspan="6" class="s-306094">No integration payloads found for the current filter. Widen the date range or clear the filter above.</td></tr>' : intLogs.map(l => `
                 <tr>
-                  <td style="font-weight:600;">${escapeHTMLText(l.event_name)}</td>
+                  <td class="s-eed0f8">${escapeHTMLText(l.event_name)}</td>
                   <td><span class="badge ${l.status === 'Dispatched' || l.status === 'Success' ? 'badge-success' : l.status === 'Failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(l.status)}</span></td>
                   <td>${escapeHTMLText(l.attempts)}</td>
-                  <td style="font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTMLText(JSON.stringify(l.payload || {}))}">${escapeHTMLText(JSON.stringify(l.payload || {}))}</td>
-                  <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(l.created_at)}</td>
+                  <td class="s-9a3fc7" title="${escapeHTMLText(JSON.stringify(l.payload || {}))}">${escapeHTMLText(JSON.stringify(l.payload || {}))}</td>
+                  <td class="s-73e1c9">${escapeHTMLText(l.created_at)}</td>
                   <td>
-                    ${l.status === 'Failed' ? `<button class="btn btn-sm btn-outline" data-integration-retry-id="${escapeHTMLText(l.id)}">Retry</button>` : '<span style="color:var(--text-muted); font-size:12px;">-</span>'}
+                    ${l.status === 'Failed' ? `<button class="btn btn-sm btn-outline" data-integration-retry-id="${escapeHTMLText(l.id)}">Retry</button>` : '<span class="s-adb23a">-</span>'}
                   </td>
                 </tr>
               `).join('')}
@@ -1434,8 +1427,8 @@ async function renderLogHubView(container) {
   function renderJobsPane() {
     tabContent.innerHTML = `
       <div class="table-panel">
-        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Async Jobs</h3>
-        ${jobsLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load async jobs. <button class="btn btn-outline btn-sm" id="log-hub-jobs-retry-btn">Try Again</button></p>` : ''}
+        <h3 class="s-d965ea">Async Jobs</h3>
+        ${jobsLoadFailed ? `<p class="s-3b614c">Failed to load async jobs. <button class="btn btn-outline btn-sm" id="log-hub-jobs-retry-btn">Try Again</button></p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -1451,20 +1444,20 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${jobs.length === 0 ? '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No async jobs found for the current filter.</td></tr>' : jobs.map(j => `
+              ${jobs.length === 0 ? '<tr><td colspan="8" class="s-306094">No async jobs found for the current filter.</td></tr>' : jobs.map(j => `
                 <tr>
-                  <td style="font-weight:600;">${escapeHTMLText(j.job_type)}</td>
-                  <td style="font-size:11px;">${escapeHTMLText(j.actor || '-')}</td>
+                  <td class="s-eed0f8">${escapeHTMLText(j.job_type)}</td>
+                  <td class="s-11a508">${escapeHTMLText(j.actor || '-')}</td>
                   <td><span class="badge ${jobStatusBadgeClass(j.status)}">${escapeHTMLText(j.status)}</span></td>
                   <td>${j.attempts}/${j.max_attempts}</td>
                   <td>${j.progress_pct}%</td>
-                  <td style="font-size:11px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTMLText(j.last_error || '')}">${escapeHTMLText(j.last_error || '-')}</td>
-                  <td style="font-size:11px; white-space:nowrap;">${j.updated_at}</td>
+                  <td class="s-c6e5af" title="${escapeHTMLText(j.last_error || '')}">${escapeHTMLText(j.last_error || '-')}</td>
+                  <td class="s-73e1c9">${j.updated_at}</td>
                   <td>
                     ${(j.status === 'Failed' || j.status === 'DeadLettered' || j.status === 'Cancelled') ? `<button class="btn btn-sm btn-outline" data-job-action="retry" data-job-id="${escapeHTMLText(j.id)}">Retry</button>` : ''}
                     ${(j.status === 'Quarantined') ? `<button class="btn btn-sm btn-outline" data-job-action="retry" data-job-id="${escapeHTMLText(j.id)}">Replay</button>` : ''}
                     ${(j.status === 'Pending' || j.status === 'Leased') ? `<button class="btn btn-sm btn-outline" data-job-action="cancel" data-job-id="${escapeHTMLText(j.id)}">Cancel</button>` : ''}
-                    ${(j.status === 'Succeeded') ? '<span style="color:var(--text-muted); font-size:12px;">-</span>' : ''}
+                    ${(j.status === 'Succeeded') ? '<span class="s-adb23a">-</span>' : ''}
                   </td>
                 </tr>
               `).join('')}
@@ -1501,37 +1494,14 @@ async function renderLogHubView(container) {
     reloadJobs();
   };
 
-  // Tab switching logic
-  tabBar.querySelectorAll('.log-hub-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabBar.querySelectorAll('.log-hub-tab').forEach(b => {
-        b.style.borderBottom = '2px solid transparent';
-        b.style.background = 'transparent';
-        b.style.color = 'var(--text-muted)';
-        b.classList.remove('active');
-      });
-      btn.style.borderBottom = '2px solid var(--primary-color)';
-      btn.style.background = 'var(--card-bg)';
-      btn.style.color = 'var(--primary-color)';
-      btn.classList.add('active');
-
-      const tab = btn.getAttribute('data-tab');
-      if (tab === 'audit') renderAuditPane();
-      else if (tab === 'system') renderSystemPane();
-      else if (tab === 'integration') renderIntegrationPane();
-      else if (tab === 'jobs') renderJobsPane();
-      else if (tab === 'security') import('./view-security.js' + new URL(import.meta.url).search).then(m => m.renderSecurityPane(tabContent));
-    });
-  });
-
-  // Default: show audit logs
-  renderAuditPane();
+  if (logTab === 'security') import('./view-security.js' + new URL(import.meta.url).search).then(m => m.renderSecurityPane(tabContent));
+  else ({ audit: renderAuditPane, system: renderSystemPane, integration: renderIntegrationPane, jobs: renderJobsPane })[logTab]();
 
   window.viewStackTrace = async function(logId) {
     const log = systemLogs.find(x => x.log_id === logId);
     if (!log) return;
     // 47.14.1: named by module and time, not by the log row's UUID (kept as the last line for support).
-    await showCustomAlert(`${log.module_source || 'System'} - ${log.created_at ? new Date(log.created_at).toLocaleString() : ''}
+    await showCustomAlert(`${log.module_source || 'System'} - ${log.created_at ? formatDateTime(log.created_at) : ''}
 
 ${log.stack_trace || 'No trace available.'}
 
@@ -1549,7 +1519,7 @@ window.retryIntegrationEvent = async function(eventId) {
   if (!res) return;
   if (res.ok) {
     await showCustomAlert('Integration event queued for retry.', 'Retry Initiated');
-    renderView('audit-logs');
+    renderView('audit-logs:integration');
   } else {
     await showApiError(res, 'Failed to retry integration event.');
   }
@@ -1605,10 +1575,10 @@ async function renderSetupPathPanel(host) {
     : s.optional ? ['', 'Optional'] : s.waiting_for.length ? ['', 'Waiting'] : ['', 'To do'];
   const toCheck = steps.reduce((n, s) => n + setupFailingChecks(s).length, 0);
   details.innerHTML = `
-    <summary style="cursor:pointer;font-weight:600;">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${toCheck
-      ? ` <span class="badge badge-warning" style="margin-left:6px;">${toCheck} to check</span>` : ''}${next
-      ? ` <span class="text-muted" style="font-weight:400;">· Next: ${escapeHTMLText(next.label)}</span> <button type="button" class="btn btn-primary btn-sm" data-setup-next style="margin-left:10px;">Continue</button>` : ''}</summary>
-    <ol style="margin:12px 0 0;padding-left:20px;display:grid;gap:10px;">${steps.map(s => {
+    <summary class="s-160dd9">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${toCheck
+      ? ` <span class="badge badge-warning s-391ef1">${toCheck} to check</span>` : ''}${next
+      ? ` <span class="text-muted s-7e3a94">· Next: ${escapeHTMLText(next.label)}</span> <button type="button" class="btn btn-primary btn-sm s-78fa54" data-setup-next>Continue</button>` : ''}</summary>
+    <ol class="s-5c6f1c">${steps.map(s => {
       const [cls, text] = badge(s);
       return `<li data-step-id="${escapeHTMLText(s.id)}"${s.next ? ' style="font-weight:500;"' : ''}>
         <span class="badge ${cls}">${text}</span>
@@ -1617,7 +1587,7 @@ async function renderSetupPathPanel(host) {
         ${s.view
           ? `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-view="${escapeHTMLText(s.view)}">${s.next ? 'Start here' : 'Open'}</button>`
           : (s.doctypes || []).map(dt => `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-doctype="${escapeHTMLText(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</button>`).join(' ')}
-        ${s.note ? `<div class="text-muted" style="font-size:12.5px;margin-top:2px;">${escapeHTMLText(s.note)}</div>` : ''}
+        ${s.note ? `<div class="text-muted s-269fff">${escapeHTMLText(s.note)}</div>` : ''}
         ${s.state && !['Ready', 'Draft'].includes(s.state) ? `<span class="badge ${s.state === 'Invalid' ? 'badge-danger' : ''}" data-setup-state>${escapeHTMLText(s.state)}</span>` : ''}
         <button type="button" class="action-btn" data-setup-history="${escapeHTMLText(s.id)}">History</button>
         ${setupCheckLines(s)}
@@ -1653,10 +1623,10 @@ async function toggleSetupHistory(details, stepId) {
   const line = h => h.kind === 'Note'
     ? `<li><b>Note</b> ${escapeHTMLText(h.note)}${h.attachment ? ` <span class="text-muted">[${escapeHTMLText(h.attachment)}]</span>` : ''} <span class="text-muted">- ${escapeHTMLText(h.changed_by)}, ${escapeHTMLText(h.changed_at)}</span></li>`
     : `<li>${h.from_state ? `${escapeHTMLText(h.from_state)} &rarr; ` : ''}<b>${escapeHTMLText(h.to_state)}</b> <span class="text-muted">- ${escapeHTMLText(h.changed_by)}, ${escapeHTMLText(h.changed_at)}</span></li>`;
-  box.innerHTML = `<ul data-setup-history-list style="margin:6px 0 0;padding-left:18px;font-size:12.5px;">${history.map(line).join('') || '<li class="text-muted">Nothing yet.</li>'}</ul>
-    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-      <input class="form-input" data-setup-note placeholder="Note" maxlength="2000" style="flex:2;min-width:160px;">
-      <input class="form-input" data-setup-attach placeholder="Attachment" maxlength="500" style="flex:1;min-width:120px;">
+  box.innerHTML = `<ul data-setup-history-list class="s-1e202e">${history.map(line).join('') || '<li class="text-muted">Nothing yet.</li>'}</ul>
+    <div class="s-a65a69">
+      <input class="form-input s-b8f210" data-setup-note placeholder="Note" maxlength="2000">
+      <input class="form-input s-300ade" data-setup-attach placeholder="Attachment" maxlength="500">
       <button type="button" class="btn btn-outline btn-sm" data-setup-note-add>Add</button></div>`;
   box.querySelector('[data-setup-note-add]').addEventListener('click', async () => {
     const note = box.querySelector('[data-setup-note]').value, attachment = box.querySelector('[data-setup-attach]').value;
@@ -1680,12 +1650,12 @@ function setupFailingChecks(s) {
 function setupCheckLines(s) {
   const lines = setupFailingChecks(s).map(c => {
     const warn = c.severity !== 'Blocking';
-    return `<div data-setup-check="${escapeHTMLText(c.id)}" style="font-size:12.5px;margin-top:4px;font-weight:400;">
+    return `<div data-setup-check="${escapeHTMLText(c.id)}" class="s-f35a6a">
       <span class="badge ${warn ? 'badge-warning' : 'badge-danger'}">${warn ? 'Warning' : 'Fix'}</span>
       ${escapeHTMLText(c.label)}${c.detail ? `<span class="text-muted"> - ${escapeHTMLText(c.detail)}</span>` : ''}</div>`;
   });
   if (s.state === 'Awaiting Approval') {
-    lines.unshift('<div style="font-size:12.5px;margin-top:4px;font-weight:400;"><span class="badge">Awaiting approval</span></div>');
+    lines.unshift('<div class="s-f35a6a"><span class="badge">Awaiting approval</span></div>');
   }
   return lines.join('');
 }
@@ -1699,8 +1669,8 @@ async function mountSetupGuideCard(host) {
   const left = steps.filter(s => !s.done && !s.optional);
   if (!left.length) return;
   const next = left.find(s => s.next) || left[0];
-  host.innerHTML = `<div class="table-panel" style="padding:16px 20px;margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-    <div style="flex:1;min-width:220px;"><strong>Finish setting up</strong> <span class="text-muted">- ${left.length} step${left.length === 1 ? '' : 's'} to go. Next: ${escapeHTMLText(next.label)}.</span></div>
+  host.innerHTML = `<div class="table-panel s-6da4d3">
+    <div class="s-cdf035"><strong>Finish setting up</strong> <span class="text-muted">- ${left.length} step${left.length === 1 ? '' : 's'} to go. Next: ${escapeHTMLText(next.label)}.</span></div>
     <button type="button" class="btn btn-primary btn-sm" id="setup-guide-go">Continue setup</button></div>`;
   host.querySelector('#setup-guide-go').addEventListener('click', () => {
     window.configOpenSetupGuide = true;
@@ -1718,6 +1688,7 @@ async function mountSetupGuideCard(host) {
 // module the registry gains later shows under "Other" until it is filed here.
 const CONFIG_GROUPS = [
   { title: 'Company', modules: ['Industry', 'Setup Workbook', 'App branding', 'Localization', 'Printing'] },
+  { title: 'Go-live', modules: ['Go-live scope', 'Structure', 'Finance start', 'Cutover', 'Go-live gate'] }, // 47.12 / 49.17.3
   { title: 'Selling', modules: ['Point of Sale', 'Store app', 'Sales & Returns', 'OMS', 'CRM', 'Loyalty'] },
   { title: 'Buying and stock', modules: ['Procurement', 'Procurement & GRN', 'Inventory', 'Item fields', 'Warehouse', 'Stock Transfer', 'PIM', 'Manufacturing'] },
   { title: 'Money and tax', modules: ['Finance', 'GST & Compliance', 'HR & Payroll'] },
@@ -1739,6 +1710,11 @@ const CONFIG_HINTS = {
   'Procurement & GRN': 'Delivery dates · late receipts',
   'Inventory': 'Barcodes · batches · e-way bill',
   'Item fields': 'What the item form asks',
+  'Go-live scope': 'Five-minute questions',
+  'Structure': 'Entity · location · dimension',
+  'Finance start': 'Periods · chart · opening',
+  'Cutover': 'Totals · backup · sign-off',
+  'Go-live gate': 'Support · keys · acceptance',
   'Warehouse': 'Cycle counts · stock ownership',
   'Stock Transfer': 'Transfers in transit',
   'PIM': 'Bulk edit · thumbnails',
@@ -1821,6 +1797,7 @@ async function renderConfigurationView(container) {
   modules.push(CONFIG_ITEM_FIELDS_MODULE);
   // Stage 82: the industry; Stage 128: the Setup Workbook - everything at once.
   modules.unshift(CONFIG_INDUSTRY_MODULE, CONFIG_SETUP_WORKBOOK_MODULE);
+  if (state.permissions.isAdmin) modules.push(...Object.keys(CONFIG_GOLIVE_MODULES)); // 47.12 / 49.17.3: admin only
   configModules = modules;
   // The address names the module (configuration:<module>); an unknown or
   // unavailable one opens the overview, and the address says so.
@@ -1956,6 +1933,8 @@ const CONFIG_INDUSTRY_MODULE = 'Industry';
 const CONFIG_ITEM_FIELDS_MODULE = 'Item fields';
 // Stage 128: the whole setup from one Excel file (view-setup-workbook.js).
 const CONFIG_SETUP_WORKBOOK_MODULE = 'Setup Workbook';
+// 47.12 / 49.17.3: the go-live pages, lazy (view-golive.js).
+const CONFIG_GOLIVE_MODULES = { 'Go-live scope': 'scope', 'Structure': 'graph', 'Finance start': 'finance', 'Cutover': 'cutover', 'Go-live gate': 'golive' };
 
 async function renderConfigIndustry(host) {
   host.innerHTML = '<p class="text-muted">Loading…</p>';
@@ -1975,24 +1954,24 @@ async function renderConfigIndustry(host) {
   if (configSelectedModule !== CONFIG_INDUSTRY_MODULE) return; // moved on meanwhile
   const current = lock.locked ? String(lock.industry_code || '').toUpperCase() : '';
   const nameOf = code => (list.find(i => i.code === code) || {}).name || code;
-  const setOn = lock.set_at ? new Date(lock.set_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const setOn = lock.set_at ? formatDateTime(lock.set_at, true) : '';
   host.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin:0 0 12px;">Industry</h3>
-    <p style="margin:0 0 16px; font-size:14px;">${current
+    <h3 class="s-b20fe6">Industry</h3>
+    <p class="s-f6bdf1">${current
       ? `Current: <b>${cfgEsc(nameOf(current))}</b> <span class="text-muted">· set by ${cfgEsc(lock.set_by || '')}${setOn ? ` on ${cfgEsc(setOn)}` : ''}${lock.override_count ? ` · changed ${cfgEsc(String(lock.override_count))} time(s) since` : ''}</span>`
       : 'No industry chosen yet.'}</p>
-    <div role="radiogroup" aria-label="Industry" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap:10px;">
+    <div role="radiogroup" aria-label="Industry" class="s-c7b32e">
       ${list.map(i => `
         <label data-cfg-industry="${cfgEsc(i.code)}" style="display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid ${i.code === current ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius:8px; cursor:pointer; background:var(--panel-bg);">
-          <input type="radio" name="cfg-industry" value="${cfgEsc(i.code)}"${i.code === current ? ' checked' : ''} style="margin-top:3px;">
+          <input type="radio" name="cfg-industry" value="${cfgEsc(i.code)}"${i.code === current ? ' checked' : ''} class="s-c00d39">
           <span><b>${cfgEsc(i.name)}</b>${i.code === current ? ' <span class="badge badge-success">Current</span>' : ''}
-            ${i.focus ? `<span class="text-muted" style="display:block; font-size:12px; margin-top:4px;">${cfgEsc(i.focus)}</span>` : ''}</span>
+            ${i.focus ? `<span class="text-muted s-55d9e7">${cfgEsc(i.focus)}</span>` : ''}</span>
         </label>`).join('')}
     </div>
-    <div id="cfg-industry-change" class="hidden" style="margin-top:18px; padding:16px; border:1px solid var(--border-color); border-radius:8px; max-width:720px;">
-      <p id="cfg-industry-effect" style="margin:0 0 12px; font-size:14px;"></p>
+    <div id="cfg-industry-change" class="hidden s-22059c">
+      <p id="cfg-industry-effect" class="s-7d6706"></p>
       ${current ? `<label class="form-label" for="cfg-industry-reason">Reason for the change<span class="required">*</span></label>
-      <textarea id="cfg-industry-reason" class="form-input" rows="2" style="width:100%; margin:6px 0 12px;" placeholder="Kept in the audit log, e.g. client moved from clothing to jewellery"></textarea>` : ''}
+      <textarea id="cfg-industry-reason" class="form-input s-41f41e" rows="2" placeholder="Kept in the audit log, e.g. client moved from clothing to jewellery"></textarea>` : ''}
       <button type="button" class="btn btn-primary" id="cfg-industry-apply"></button>
     </div>`;
 
@@ -2104,7 +2083,7 @@ const cfgCredentialMeta = (row) => `${cfgEsc(row.saved_by || '—')} · ${cfgWhe
 
 function configIntegrationSectionHtml(def, rows, unavailable) {
   const existing = rows.length
-    ? `<table class="data-table" style="margin:10px 0 14px; width:100%;">
+    ? `<table class="data-table s-781285">
          <thead><tr>${def.fields.map(f => `<th>${cfgEsc(f.label)}</th>`).join('')}<th>Active</th><th>Owner · Last used · Expires</th><th></th></tr></thead>
          <tbody>${rows.map(row => `<tr>${def.fields.map(f => {
            const v = row[f.name] == null ? '' : String(row[f.name]);
@@ -2112,7 +2091,7 @@ function configIntegrationSectionHtml(def, rows, unavailable) {
          }).join('')}<td>${row.active === false ? 'No' : 'Yes'}</td><td>${cfgCredentialMeta(row)}</td>
          <td><button type="button" class="action-btn" data-cfgint-disconnect="${cfgEsc(String(row[def.keyField] || ''))}">Disconnect</button></td></tr>`).join('')}</tbody>
        </table>`
-    : `<p class="page-subtitle" style="margin:8px 0 14px; font-size:13px;">${unavailable
+    : `<p class="page-subtitle s-de149b">${unavailable
         ? 'This integration is not enabled for your account, or its credentials could not be read.'
         : 'No entries configured yet.'}</p>`;
 
@@ -2125,11 +2104,11 @@ function configIntegrationSectionHtml(def, rows, unavailable) {
     </div>`).join('');
 
   return `
-    <section style="margin-bottom:30px; max-width:760px;" data-cfgint-section="${cfgEsc(def.id)}">
-      <h3 style="margin:0 0 4px; font-size:15px; font-weight:600;">${cfgEsc(def.title)}</h3>
+    <section class="s-438c47" data-cfgint-section="${cfgEsc(def.id)}">
+      <h3 class="s-aa7fd9">${cfgEsc(def.title)}</h3>
       ${existing}
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">${inputs}
-        <div class="form-group" style="margin:0 0 12px;"><label class="form-label" for="cfgint-${def.id}-expires_at">Expires (optional)</label>
+      <div class="s-bd5cff">${inputs}
+        <div class="form-group s-249d01"><label class="form-label" for="cfgint-${def.id}-expires_at">Expires (optional)</label>
           <input type="date" class="form-input" id="cfgint-${def.id}-expires_at"></div>
       </div>
       <button class="btn btn-secondary" id="cfgint-save-${def.id}">Save ${cfgEsc(def.title.split(' ')[0])} entry</button>
@@ -2198,6 +2177,12 @@ function renderConfigFields() {
     updateConfigDirtyState();
     return;
   }
+  if (!configSearch && CONFIG_GOLIVE_MODULES[configSelectedModule]) {
+    const page = CONFIG_GOLIVE_MODULES[configSelectedModule];
+    loadViewModule('/view-golive.js').then(m => page === 'scope' ? m.renderGoLiveScope(host) : page === 'graph' ? m.renderGoLiveGraph(host) : m.renderGoLivePack(host, page));
+    updateConfigDirtyState();
+    return;
+  }
   const items = configSearch
     ? configSettings.filter(s => `${s.label} ${s.description || ''} ${s.key} ${s.module}`.toLowerCase().includes(configSearch))
     : configSettings.filter(s => s.module === configSelectedModule);
@@ -2223,17 +2208,17 @@ function configFieldHtml(s) {
   // An unsaved edit survives switching module or searching: the control
   // shows what Save will write, not the stored value.
   if (Object.prototype.hasOwnProperty.call(configDirty, s.key)) s = { ...s, value: configDirty[s.key] };
-  const unit = s.unit ? `<span style="color:var(--text-muted); font-size:13px; margin-left:8px;">${cfgEsc(s.unit)}</span>` : '';
+  const unit = s.unit ? `<span class="s-d08563">${cfgEsc(s.unit)}</span>` : '';
   let control = '';
   if (s.type === 'bool') {
     const checked = String(s.value) === 'true' ? 'checked' : '';
-    control = `<label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-        <input type="checkbox" id="${id}" ${checked} style="width:16px; height:16px;">
-        <span style="font-size:13px; color:var(--text-muted);">Enabled when checked</span>
+    control = `<label class="s-404e10">
+        <input type="checkbox" id="${id}" ${checked} class="s-6b1bde">
+        <span class="s-b14cdc">Enabled when checked</span>
       </label>`;
   } else if (s.type === 'select') {
     const opts = (s.options || []).map(o => `<option value="${cfgEsc(o.value)}" ${String(o.value) === String(s.value) ? 'selected' : ''}>${cfgEsc(o.label)}</option>`).join('');
-    control = `<select id="${id}" class="form-select" style="max-width:280px;">${opts}</select>${unit}`;
+    control = `<select id="${id}" class="form-select s-2f3f7d">${opts}</select>${unit}`;
   } else if (s.type === 'int' || s.type === 'float') {
     const min = (s.min !== null && s.min !== undefined) ? `min="${s.min}"` : '';
     const max = (s.max !== null && s.max !== undefined) ? `max="${s.max}"` : '';
@@ -2241,16 +2226,16 @@ function configFieldHtml(s) {
     const step = s.type === 'float' ? 'step="any"' : 'step="1"';
     // Stage 127.1: an optional number may be left blank - its description says what blank means.
     const blank = s.optional ? 'placeholder="Blank: the rule described"' : '';
-    control = `<input type="number" id="${id}" class="form-input" value="${cfgEsc(s.value)}" ${min} ${max} ${step} ${blank} style="max-width:200px; display:inline-block;">${unit}`;
+    control = `<input type="number" id="${id}" class="form-input s-e9d117" value="${cfgEsc(s.value)}" ${min} ${max} ${step} ${blank}>${unit}`;
   } else {
-    control = `<input type="text" id="${id}" class="form-input" value="${cfgEsc(s.value)}" style="max-width:360px; display:inline-block;">${unit}`;
+    control = `<input type="text" id="${id}" class="form-input s-a1233e" value="${cfgEsc(s.value)}">${unit}`;
   }
   return `
-    <div class="form-group" style="margin-bottom:22px; max-width:640px;">
-      <label class="form-label" for="${id}" style="font-weight:600;">${cfgEsc(s.label)}${configSearch ? ` <span class="badge">${cfgEsc(s.module)}</span>` : ''}</label>
-      ${s.description ? `<p class="page-subtitle" style="margin:2px 0 8px; font-size:12.5px;">${cfgEsc(s.description)}</p>` : ''}
+    <div class="form-group s-d28718">
+      <label class="form-label s-eed0f8" for="${id}">${cfgEsc(s.label)}${configSearch ? ` <span class="badge">${cfgEsc(s.module)}</span>` : ''}</label>
+      ${s.description ? `<p class="page-subtitle s-1fa41a">${cfgEsc(s.description)}</p>` : ''}
       <div>${control}</div>
-      ${s.default !== undefined && String(s.default) !== String(s.value) ? `<p class="text-muted" style="margin:4px 0 0; font-size:12px;">Default: ${cfgEsc(s.default)}${s.unit ? ' ' + cfgEsc(s.unit) : ''}</p>` : ''}
+      ${s.default !== undefined && String(s.default) !== String(s.value) ? `<p class="text-muted s-4a2dc7">Default: ${cfgEsc(s.default)}${s.unit ? ' ' + cfgEsc(s.unit) : ''}</p>` : ''}
     </div>
   `;
 }
@@ -2366,8 +2351,8 @@ async function renderSystemStatusView(container) {
     const banner = document.createElement('div');
     banner.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:20px;';
     banner.innerHTML = warnings.map(w => `
-      <div class="badge ${w.code === 'DR-0214' ? 'badge-danger' : 'badge-warning'}" style="display:flex; padding:10px 14px; font-size:13px; font-weight:500; white-space:normal;">
-        <span style="font-weight:700; margin-right:8px;">${escapeHTMLText(w.code)}</span> ${escapeHTMLText(w.message)}
+      <div class="badge ${w.code === 'DR-0214' ? 'badge-danger' : 'badge-warning'} s-b8d9fd">
+        <span class="s-c8e27a">${escapeHTMLText(w.code)}</span> ${escapeHTMLText(w.message)}
       </div>
     `).join('');
     container.appendChild(banner);
@@ -2385,16 +2370,16 @@ async function renderSystemStatusView(container) {
     </div>
     <div class="stat-card">
       <span class="stat-label">Last Backup</span>
-      <div style="margin-top:4px;"><span class="badge ${backupOverdue ? 'badge-danger' : backupData.last_backup_at ? 'badge-success' : 'badge-warning'}">${backupData.last_backup_at ? escapeHTMLText(backupData.last_backup_at) : 'Never recorded'}</span></div>
+      <div class="s-96ad60"><span class="badge ${backupOverdue ? 'badge-danger' : backupData.last_backup_at ? 'badge-success' : 'badge-warning'}">${backupData.last_backup_at ? escapeHTMLText(backupData.last_backup_at) : 'Never recorded'}</span></div>
     </div>
     <div class="stat-card">
       <span class="stat-label">Last Restore Drill</span>
-      <div style="margin-top:4px;"><span class="badge ${drillOverdue || !backupData.last_restore_drill_at ? 'badge-warning' : 'badge-success'}">${backupData.last_restore_drill_at ? escapeHTMLText(backupData.last_restore_drill_at) : 'Never recorded'}</span></div>
+      <div class="s-96ad60"><span class="badge ${drillOverdue || !backupData.last_restore_drill_at ? 'badge-warning' : 'badge-success'}">${backupData.last_restore_drill_at ? escapeHTMLText(backupData.last_restore_drill_at) : 'Never recorded'}</span></div>
     </div>
     ${alerting ? `<div class="stat-card">
       <span class="stat-label">Incident alerts</span>
-      <div style="margin-top:4px;"><span class="badge ${alerting.delivery_would_be_sent && alerting.responder_configured ? 'badge-success' : 'badge-warning'}">${alerting.delivery_would_be_sent ? (alerting.responder_configured ? `Delivered to ${escapeHTMLText(alerting.responder)}` : 'Delivered - no responder named') : alerting.webhook_configured ? 'Configured, not sent (external side effects off here)' : 'Never configured'}</span></div>
-      ${(alerting.unconfigured_variables || []).length ? `<div class="text-muted" style="font-size:11px;margin-top:4px;">Set ${escapeHTMLText(alerting.unconfigured_variables.join(', '))} on the server - runbook: docs/operations/incident_runbook.md</div>` : ''}
+      <div class="s-96ad60"><span class="badge ${alerting.delivery_would_be_sent && alerting.responder_configured ? 'badge-success' : 'badge-warning'}">${alerting.delivery_would_be_sent ? (alerting.responder_configured ? `Delivered to ${escapeHTMLText(alerting.responder)}` : 'Delivered - no responder named') : alerting.webhook_configured ? 'Configured, not sent (external side effects off here)' : 'Never configured'}</span></div>
+      ${(alerting.unconfigured_variables || []).length ? `<div class="text-muted s-30e0ac">Set ${escapeHTMLText(alerting.unconfigured_variables.join(', '))} on the server - runbook: docs/operations/incident-runbook.md</div>` : ''}
     </div>` : ''}
   `;
   container.appendChild(statsRow);
@@ -2404,22 +2389,22 @@ async function renderSystemStatusView(container) {
   envPanel.className = 'table-panel';
   envPanel.style.marginTop = '20px';
   envPanel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Latest Deployment by Environment</h3>
+    <h3 class="s-280765">Latest Deployment by Environment</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>App Version</th><th>Promoted By</th><th>Promoted At</th></tr></thead>
         <tbody>
-          ${envRows.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployments recorded yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : envRows.map(d => `
+          ${envRows.length === 0 ? '<tr><td colspan="6" class="s-306094">No deployments recorded yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : envRows.map(d => `
             <tr>
-              <td style="font-weight:600; text-transform:capitalize;">${escapeHTMLText(d.environment)}</td>
+              <td class="s-b44fff">${escapeHTMLText(d.environment)}</td>
               <td>
                 <span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(d.build_status)}</span>
-                ${d.code ? `<div style="font-size:11px; color:var(--danger-strong); margin-top:2px;">${escapeHTMLText(d.code)}: ${escapeHTMLText(d.message)}</div>` : ''}
+                ${d.code ? `<div class="s-292a21">${escapeHTMLText(d.code)}: ${escapeHTMLText(d.message)}</div>` : ''}
               </td>
-              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${escapeHTMLText((d.git_commit || '').slice(0, 10))}</td>
+              <td class="s-3aae58">${escapeHTMLText((d.git_commit || '').slice(0, 10))}</td>
               <td>${escapeHTMLText(d.app_version || '')}</td>
               <td>${escapeHTMLText(d.promoted_by || '')}</td>
-              <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(d.promoted_at || '')}</td>
+              <td class="s-73e1c9">${escapeHTMLText(d.promoted_at || '')}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2432,19 +2417,19 @@ async function renderSystemStatusView(container) {
   historyPanel.className = 'table-panel';
   historyPanel.style.marginTop = '20px';
   historyPanel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Deployment History</h3>
+    <h3 class="s-280765">Deployment History</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>Promoted By</th><th>Promoted At</th><th>Notes</th></tr></thead>
         <tbody>
-          ${(deployData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployment history yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : deployData.history.map(d => `
+          ${(deployData.history || []).length === 0 ? '<tr><td colspan="6" class="s-306094">No deployment history yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : deployData.history.map(d => `
             <tr>
-              <td style="text-transform:capitalize;">${escapeHTMLText(d.environment)}</td>
+              <td class="s-6fedee">${escapeHTMLText(d.environment)}</td>
               <td><span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(d.build_status)}</span></td>
-              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${escapeHTMLText((d.git_commit || '').slice(0, 10))}</td>
+              <td class="s-3aae58">${escapeHTMLText((d.git_commit || '').slice(0, 10))}</td>
               <td>${escapeHTMLText(d.promoted_by || '')}</td>
-              <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(d.promoted_at || '')}</td>
-              <td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(d.notes || '')}</td>
+              <td class="s-73e1c9">${escapeHTMLText(d.promoted_at || '')}</td>
+              <td class="s-8cadba">${escapeHTMLText(d.notes || '')}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2457,22 +2442,22 @@ async function renderSystemStatusView(container) {
   backupPanel.className = 'table-panel';
   backupPanel.style.marginTop = '20px';
   backupPanel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Backup &amp; Restore Drill History</h3>
+    <h3 class="s-280765">Backup &amp; Restore Drill History</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Type</th><th>Environment</th><th>Status</th><th>Detail</th><th>Started</th><th>Finished</th></tr></thead>
         <tbody>
-          ${(backupData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No backup/restore runs recorded yet. Backups are driven by the deployment scripts &mdash; see the Admin Guide.</td></tr>' : backupData.history.map(o => `
+          ${(backupData.history || []).length === 0 ? '<tr><td colspan="6" class="s-306094">No backup/restore runs recorded yet. Backups are driven by the deployment scripts &mdash; see the Admin Guide.</td></tr>' : backupData.history.map(o => `
             <tr>
-              <td style="text-transform:capitalize;">${(o.run_type || '').replace('_', ' ')}</td>
-              <td style="text-transform:capitalize;">${o.environment}</td>
+              <td class="s-6fedee">${(o.run_type || '').replace('_', ' ')}</td>
+              <td class="s-6fedee">${o.environment}</td>
               <td>
                 <span class="badge ${o.status === 'success' ? 'badge-success' : o.status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${o.status}</span>
-                ${o.code ? `<div style="font-size:11px; color:var(--danger-strong); margin-top:2px;">${o.code}: ${o.message}</div>` : ''}
+                ${o.code ? `<div class="s-292a21">${o.code}: ${o.message}</div>` : ''}
               </td>
-              <td style="font-size:12px; color:var(--text-muted);">${o.detail || ''}</td>
-              <td style="font-size:11px; white-space:nowrap;">${o.started_at || ''}</td>
-              <td style="font-size:11px; white-space:nowrap;">${o.finished_at || ''}</td>
+              <td class="s-8cadba">${o.detail || ''}</td>
+              <td class="s-73e1c9">${o.started_at || ''}</td>
+              <td class="s-73e1c9">${o.finished_at || ''}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2522,37 +2507,37 @@ async function renderTenantEntitlementsView(container) {
   provisionPanel.style.padding = '16px';
   provisionPanel.style.marginBottom = '20px';
   provisionPanel.innerHTML = `
-    <div id="provision-tenant-toggle" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
-      <h3 style="font-size:16px; font-weight:600; margin:0;">+ Provision New Tenant</h3>
-      <span id="provision-tenant-chevron" style="color:var(--text-muted);">&#9656;</span>
+    <div id="provision-tenant-toggle" class="s-705e30">
+      <h3 class="s-dc34d8">+ Provision New Tenant</h3>
+      <span id="provision-tenant-chevron" class="s-5872de">&#9656;</span>
     </div>
-    <div id="provision-tenant-form" class="hidden" style="margin-top:16px; display:flex; flex-direction:column; gap:12px;">
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <div class="form-group" style="margin-bottom:0;">
+    <div id="provision-tenant-form" class="hidden s-989ca5">
+      <div class="s-c79bb0">
+        <div class="form-group s-ef0b7a">
           <label class="form-label" for="provision-tenant-id">Tenant ID</label>
-          <input type="text" id="provision-tenant-id" class="form-input" placeholder="e.g. acme_co" style="width:220px;">
+          <input type="text" id="provision-tenant-id" class="form-input s-0fac91" placeholder="e.g. acme_co">
         </div>
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group s-ef0b7a">
           <label class="form-label" for="provision-schema-name">Schema Name</label>
-          <input type="text" id="provision-schema-name" class="form-input" placeholder="e.g. tenant_acme" style="width:220px;">
+          <input type="text" id="provision-schema-name" class="form-input s-0fac91" placeholder="e.g. tenant_acme">
         </div>
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group s-ef0b7a">
           <label class="form-label" for="provision-trial-days">Free trial (days)</label>
-          <input type="number" id="provision-trial-days" class="form-input" min="0" max="365" value="30" style="width:140px;">
-          <div class="text-muted" style="font-size:11px; margin-top:4px;">0 = paying client; paused when the trial ends.</div>
+          <input type="number" id="provision-trial-days" class="form-input s-830eb9" min="0" max="365" value="30">
+          <div class="text-muted s-30e0ac">0 = paying client; paused when the trial ends.</div>
         </div>
       </div>
       <div>
-        <label class="stat-label" style="display:block; margin-bottom:6px;">Packages (leave all unchecked to provision the full suite)</label>
-        <div style="display:flex; flex-wrap:wrap; gap:12px;">
+        <label class="stat-label s-3bcc24">Packages (leave all unchecked to provision the full suite)</label>
+        <div class="s-627a69">
           ${packages.filter(p => p.package_key !== 'erp_full').map(p => `
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400;">
+            <label class="s-be3876">
               <input type="checkbox" class="provision-package-checkbox" value="${p.package_key}"> ${p.display_name}
             </label>
           `).join('')}
         </div>
       </div>
-      <div id="provision-tenant-error" class="login-error hidden" style="margin-bottom:0;"></div>
+      <div id="provision-tenant-error" class="login-error hidden s-ef0b7a"></div>
       <div>
         <button class="btn btn-primary" id="provision-tenant-btn">Provision Tenant</button>
       </div>
@@ -2597,7 +2582,7 @@ async function renderTenantEntitlementsView(container) {
     const data = await res.json();
     await showOneTimeSecretDialog(
       'Tenant Provisioned',
-      `Tenant "${data.tenant_id}" is ready${data.trial_ends_at ? `, on a free trial until ${new Date(data.trial_ends_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}. Admin login is username "${data.admin_username}", password shown once below - store it now, it cannot be retrieved again:`,
+      `Tenant "${data.tenant_id}" is ready${data.trial_ends_at ? `, on a free trial until ${formatDateTime(data.trial_ends_at, true)}` : ''}. Admin login is username "${data.admin_username}", password shown once below - store it now, it cannot be retrieved again:`,
       data.admin_password
     );
     renderView('tenant-entitlements');
@@ -2607,8 +2592,8 @@ async function renderTenantEntitlementsView(container) {
   pickerPanel.className = 'table-panel';
   pickerPanel.style.padding = '16px';
   pickerPanel.innerHTML = `
-    <label class="stat-label" for="tenant-entitlements-select" style="display:block; margin-bottom:6px;">Tenant</label>
-    <select id="tenant-entitlements-select" class="form-select" style="width:320px; max-width:100%;">
+    <label class="stat-label s-3bcc24" for="tenant-entitlements-select">Tenant</label>
+    <select id="tenant-entitlements-select" class="form-select s-43f22a">
       <option value="">Select a tenant...</option>
       ${tenants.map(t => `<option value="${t.tenant_id}">${t.name} (${t.tenant_id})</option>`).join('')}
     </select>
@@ -2621,21 +2606,21 @@ async function renderTenantEntitlementsView(container) {
 
   function renderBody(tenantId, modules) {
     bodyContainer.innerHTML = `
-      <div class="table-panel" style="margin-top:20px;">
-        <h3 style="font-size:16px; font-weight:600; margin-bottom:4px; padding:16px 16px 0;">Apply a Plan</h3>
-        <div style="padding:0 16px 16px; display:flex; flex-wrap:wrap; gap:8px;">
+      <div class="table-panel s-a26bda">
+        <h3 class="s-edd1fb">Apply a Plan</h3>
+        <div class="s-09c84b">
           ${packages.map(p => `<button class="btn btn-outline btn-sm" title="${(p.modules || []).join(', ')}" ${actionAttrs('applyTenantPackage', [tenantId, p.package_key])}>${p.display_name}</button>`).join('')}
         </div>
       </div>
-      <div class="table-panel" style="margin-top:20px;">
-        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Module Entitlements</h3>
+      <div class="table-panel s-a26bda">
+        <h3 class="s-280765">Module Entitlements</h3>
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>Module</th><th style="width:100px;">Status</th></tr></thead>
+            <thead><tr><th>Module</th><th class="s-db4cf1">Status</th></tr></thead>
             <tbody>
-              ${modules.length === 0 ? '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">No modules registered. Use <b>Provision Tenant</b> above to grant this tenant its product modules.</td></tr>' : modules.map(m => `
+              ${modules.length === 0 ? '<tr><td colspan="2" class="s-306094">No modules registered. Use <b>Provision Tenant</b> above to grant this tenant its product modules.</td></tr>' : modules.map(m => `
                 <tr>
-                  <td>${m.display_name}${m.is_core ? '<span class="badge badge-secondary" style="margin-left:8px;">Always On</span>' : ''}</td>
+                  <td>${m.display_name}${m.is_core ? '<span class="badge badge-secondary s-5dd2a6">Always On</span>' : ''}</td>
                   <td>
                     ${m.is_core
                       ? `<span class="badge badge-success">Enabled</span>`
@@ -2732,7 +2717,7 @@ async function renderTenantUsageView(container) {
     </div>
     <div class="stat-card">
       <span class="stat-label">Tenants At Concurrency Cap</span>
-      <div style="margin-top:4px;"><span class="badge ${atCapCount > 0 ? 'badge-danger' : 'badge-success'}">${atCapCount}</span></div>
+      <div class="s-96ad60"><span class="badge ${atCapCount > 0 ? 'badge-danger' : 'badge-success'}">${atCapCount}</span></div>
     </div>
   `;
   container.appendChild(statsRow);
@@ -2745,7 +2730,7 @@ async function renderTenantUsageView(container) {
       <table>
         <thead><tr><th>Tenant</th><th>Active Users</th><th>In-Flight Requests</th><th>Configured Limits</th></tr></thead>
         <tbody>
-          ${rows.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No tenants found. Tenants are created by the control-plane provisioning flow &mdash; see the Admin Guide.</td></tr>' : rows.map(t => {
+          ${rows.length === 0 ? '<tr><td colspan="4" class="s-306094">No tenants found. Tenants are created by the control-plane provisioning flow &mdash; see the Admin Guide.</td></tr>' : rows.map(t => {
             const pctOfCap = t.concurrency_cap > 0 ? t.in_flight_requests / t.concurrency_cap : 0;
             const concurrencyBadge = pctOfCap >= 1 ? 'badge-danger' : pctOfCap >= 0.5 ? 'badge-warning' : 'badge-success';
             const maxUsers = t.configured_limits && t.configured_limits.max_users;
@@ -2753,10 +2738,10 @@ async function renderTenantUsageView(container) {
             const otherLimits = Object.entries(t.configured_limits || {}).filter(([k]) => k !== 'max_users');
             return `
               <tr>
-                <td style="font-weight:600;">${t.name} <span style="color:var(--text-muted); font-weight:400;">(${t.tenant_id})</span></td>
+                <td class="s-eed0f8">${t.name} <span class="s-9b0454">(${t.tenant_id})</span></td>
                 <td><span class="badge ${usersBadge}">${t.active_users}${maxUsers != null ? ' / ' + maxUsers : ''}</span></td>
                 <td><span class="badge ${concurrencyBadge}">${t.in_flight_requests} / ${t.concurrency_cap}</span></td>
-                <td>${otherLimits.length === 0 ? '<span style="color:var(--text-muted); font-size:12px;">-</span>' : otherLimits.map(([k, v]) => `<span class="badge badge-secondary" style="margin-right:4px;">${k}: ${v}</span>`).join('')}</td>
+                <td>${otherLimits.length === 0 ? '<span class="s-adb23a">-</span>' : otherLimits.map(([k, v]) => `<span class="badge badge-secondary s-c6b76b">${k}: ${v}</span>`).join('')}</td>
               </tr>
             `;
           }).join('')}
@@ -2810,10 +2795,10 @@ async function renderPlatformConsoleView(container) {
   controls.className = 'table-panel';
   controls.style.cssText = 'padding: 16px; min-height: 0;';
   controls.innerHTML = `
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end;">
+    <div class="s-270dd3">
       <div class="form-group"><label class="form-label" for="pc-tenant">Client</label>
         <select id="pc-tenant" class="form-select">${tenants.map(t => `<option value="${escapeHTMLText(t.tenant_id)}" ${t.tenant_id === consoleState.tenant ? 'selected' : ''}>${escapeHTMLText(t.name || t.tenant_id)}</option>`).join('')}</select></div>
-      <div class="form-group" style="grid-column: span 2;"><label class="form-label" for="pc-table">Table</label>
+      <div class="form-group s-87c5d4"><label class="form-label" for="pc-table">Table</label>
         <select id="pc-table" class="form-select"></select></div>
       <div class="form-group"><label class="form-label" for="pc-q">Find</label>
         <input id="pc-q" class="form-input" placeholder="number, code or name" value="${escapeHTMLText(consoleState.q)}"></div>
@@ -2892,20 +2877,20 @@ async function loadConsoleRows(results) {
   const from = page.total ? consoleState.offset + 1 : 0;
   const to = consoleState.offset + (page.rows || []).length;
   results.innerHTML = `
-    <div class="table-panel" style="padding: 12px 16px; min-height: 0;">
-      <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <div class="table-panel s-a3ee3e">
+      <div class="s-566928">
         <div><b>${escapeHTMLText(page.table)}</b> - rows ${from}-${to} of ${page.total}${page.read_only ? ' - view only' : ''}</div>
         <div>
           <button class="btn btn-outline btn-sm" id="pc-prev" ${consoleState.offset === 0 ? 'disabled' : ''}>Previous</button>
           <button class="btn btn-outline btn-sm" id="pc-next" ${to >= page.total ? 'disabled' : ''}>Next</button>
         </div>
       </div>
-      <div style="overflow-x: auto;">
+      <div class="s-987eb2">
         <table>
           <thead><tr>${canEdit ? '<th></th>' : ''}${cols.map(c => `<th title="${escapeHTMLText(c.name + ' (' + c.type + ')')}">${escapeHTMLText(c.label || c.name)}${c.key ? ' (key)' : ''}</th>`).join('')}</tr></thead>
           <tbody>${(page.rows || []).map((r, i) => `<tr>${canEdit ? `<td><button class="btn btn-outline btn-sm" data-pc-edit="${i}">Edit</button></td>` : ''}${cols.map(c => {
             const text = consoleCellText(r[c.name]);
-            return `<td style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Consolas, Monaco, monospace; font-size: 12px;" title="${escapeHTMLText(text.slice(0, 500))}">${escapeHTMLText(text.slice(0, 160))}</td>`;
+            return `<td class="s-a58ace" title="${escapeHTMLText(text.slice(0, 500))}">${escapeHTMLText(text.slice(0, 160))}</td>`;
           }).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}">No rows.</td></tr>`}</tbody>
         </table>
       </div>
@@ -2933,7 +2918,7 @@ function consoleInput(c, text) {
     return `<select class="form-select" data-pc-col="${escapeHTMLText(c.name)}"><option value=""></option>${opts.map(o => `<option ${o === text ? 'selected' : ''}>${escapeHTMLText(o)}</option>`).join('')}</select>`;
   }
   if (c.type.startsWith('json') || c.type === 'JSONTable' || c.type === 'JSONMap' || text.length > 80) {
-    return `<textarea class="form-textarea" rows="${Math.min(16, text.split('\n').length + 1)}" data-pc-col="${escapeHTMLText(c.name)}" style="font-family: monospace; font-size: 12px;">${escapeHTMLText(text)}</textarea>`;
+    return `<textarea class="form-textarea s-fc459a" rows="${Math.min(16, text.split('\n').length + 1)}" data-pc-col="${escapeHTMLText(c.name)}">${escapeHTMLText(text)}</textarea>`;
   }
   // Stage 127.1: a Number field or a numeric column takes a number.
   if (c.type === 'Number' || /^(integer|bigint|smallint|numeric|real|double precision|decimal)/.test(c.type)) {
@@ -2952,17 +2937,17 @@ function openConsoleEditor(results, row) {
     const text = consoleValueText(row[c.name]);
     const label = escapeHTMLText(c.label || c.name);
     if (!c.editable) {
-      return `<div class="form-group"><span class="form-label">${label}</span><div class="text-muted" style="font-family: monospace; overflow-wrap: anywhere;">${c.masked ? 'hidden' : escapeHTMLText(text.slice(0, 300))}${c.key ? ' (key)' : ''}</div></div>`;
+      return `<div class="form-group"><span class="form-label">${label}</span><div class="text-muted s-1c67ca">${c.masked ? 'hidden' : escapeHTMLText(text.slice(0, 300))}${c.key ? ' (key)' : ''}</div></div>`;
     }
     return `<div class="form-group"><label class="form-label">${label} <span class="text-muted">(${escapeHTMLText(c.type)})</span></label>${consoleInput(c, text)}
-      <label style="font-size: 12px;"><input type="checkbox" data-pc-null="${escapeHTMLText(c.name)}" ${row[c.name] === null || row[c.name] === undefined ? 'checked' : ''}> empty</label></div>`;
+      <label class="s-11fcdc"><input type="checkbox" data-pc-null="${escapeHTMLText(c.name)}" ${row[c.name] === null || row[c.name] === undefined ? 'checked' : ''}> empty</label></div>`;
   };
   editor.innerHTML = `
-    <div style="border-top: 1px solid var(--border-color); margin-top: 16px; padding-top: 12px;">
-      <h3 style="margin: 0 0 8px;">Edit ${escapeHTMLText(page.table)} ${escapeHTMLText(Object.values(key).join(' / '))}</h3>
+    <div class="s-09d86d">
+      <h3 class="s-49f975">Edit ${escapeHTMLText(page.table)} ${escapeHTMLText(Object.values(key).join(' / '))}</h3>
       <p class="text-muted">Screen rules are not re-run.</p>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">${page.columns.map(fieldFor).join('')}</div>
-      <div style="display: flex; gap: 8px; margin-top: 12px;">
+      <div class="s-1ed4bd">${page.columns.map(fieldFor).join('')}</div>
+      <div class="s-5c223c">
         <button class="btn btn-primary" id="pc-save">Save changes</button>
         <button class="btn btn-secondary" id="pc-cancel">Cancel</button>
       </div>

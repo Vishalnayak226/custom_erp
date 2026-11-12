@@ -12,7 +12,7 @@ import (
 
 // Stage 26.7.4: Campaign definition (birthday/lapsed-customer triggers) +
 // communication log. Campaign is a flat-schema Master doctype
-// (db/migrations_stage26_7_4_campaign.sql) - create/list/edit come free
+// (db/migrations/migrations_stage26_7_4_campaign.sql) - create/list/edit come free
 // from the generic doctype machinery, zero bespoke code for those.
 // StartCampaignWorker is the only new engine logic: a daily-granularity
 // scan that calls the already-built-but-previously-uncalled

@@ -1,0 +1,519 @@
+{
+  "schema_version": 1,
+  "kind": "journeylab.journeys",
+  "generated_at": "2026-11-10T17:47:05Z",
+  "base_url": "http://localhost:8730",
+  "database": "custom_erp_5c_c",
+  "db_stats_source": "pg_stat_database",
+  "host": "windows/amd64, 8 CPU",
+  "overall": "fail",
+  "journeys": [
+    {
+      "id": "J1",
+      "title": "First sale",
+      "status": "fail",
+      "reason": "reconciliation did not tie",
+      "roles": [
+        "jl-cash",
+        "jl-sm",
+        "jl-sms"
+      ],
+      "wall_ms": 79650.85,
+      "steps": [
+        {
+          "name": "transfer order to the shop",
+          "role": "jl-sm",
+          "wall_ms": 893.32,
+          "http": {
+            "calls": 2,
+            "errors": 0,
+            "retries": 0,
+            "req_bytes": 173,
+            "resp_bytes": 116,
+            "api_p50_ms": 317.88,
+            "api_p95_ms": 575.44,
+            "api_max_ms": 575.44,
+            "business_writes": 2
+          },
+          "http_statuses": [
+            200,
+            200
+          ],
+          "db": {
+            "source": "pg_stat_database",
+            "query_count": 0,
+            "query_count_available": false,
+            "db_time_ms": 6172.01,
+            "transactions": 42,
+            "rollbacks": 0,
+            "tuples_inserted": 0,
+            "tuples_updated": 0,
+            "tuples_deleted": 0,
+            "blocks_read": 0,
+            "blocks_hit": 20709,
+            "db_growth_bytes": 8192,
+            "heap_growth_bytes": 8192,
+            "index_growth_bytes": 0,
+            "wal_bytes": 6256688,
+            "audit_rows_added": 4,
+            "outbox_rows_added": 0
+          },
+          "server_process": {
+            "available": true,
+            "cpu_ms": 31.25,
+            "rss_kb": 43956,
+            "peak_rss_kb": 48956
+          }
+        },
+        {
+          "name": "approve and dispatch the transfer",
+          "role": "jl-sm",
+          "wall_ms": 481.78,
+          "http": {
+            "calls": 2,
+            "errors": 0,
+            "retries": 0,
+            "req_bytes": 149,
+            "resp_bytes": 137,
+            "api_p50_ms": 229.79,
+            "api_p95_ms": 251.99,
+            "api_max_ms": 251.99,
+            "business_writes": 2
+          },
+          "http_statuses": [
+            200,
+            200
+          ],
+          "db": {
+            "source": "pg_stat_database",
+            "query_count": 0,
+            "query_count_available": false,
+            "db_time_ms": 4767.76,
+            "transactions": 26,
+            "rollbacks": 2,
+            "tuples_inserted": 0,
+            "tuples_updated": 0,
+            "tuples_deleted": 0,
+            "blocks_read": 0,
+            "blocks_hit": 18217,
+            "db_growth_bytes": 0,
+            "heap_growth_bytes": 0,
+            "index_growth_bytes": 0,
+            "wal_bytes": 3401024,
+            "audit_rows_added": 5,
+            "outbox_rows_added": 0
+          },
+          "server_process": {
+            "available": true,
+            "cpu_ms": 31.25,
+            "rss_kb": 44948,
+            "peak_rss_kb": 48956
+          }
+        },
+        {
+          "name": "shop receives the transfer",
+          "role": "jl-sms",
+          "wall_ms": 326.12,
+          "http": {
+            "calls": 1,
+            "errors": 0,
+            "retries": 0,
+            "req_bytes": 86,
+            "resp_bytes": 179,
+            "api_p50_ms": 326.12,
+            "api_p95_ms": 326.12,
+            "api_max_ms": 326.12,
+            "business_writes": 1
+          },
+          "http_statuses": [
+            200
+          ],
+          "db": {
+            "source": "pg_stat_database",
+            "query_count": 0,
+            "query_count_available": false,
+            "db_time_ms": 4856.15,
+            "transactions": 41,
+            "rollbacks": 0,
+            "tuples_inserted": 0,
+            "tuples_updated": 0,
+            "tuples_deleted": 0,
+            "blocks_read": 0,
+            "blocks_hit": 16807,
+            "db_growth_bytes": 0,
+            "heap_growth_bytes": 0,
+            "index_growth_bytes": 0,
+            "wal_bytes": 7593872,
+            "audit_rows_added": 3,
+            "outbox_rows_added": 0
+          },
+          "server_process": {
+            "available": true,
+            "cpu_ms": 0,
+            "rss_kb": 44948,
+            "peak_rss_kb": 48956
+          }
+        },
+        {
+          "name": "open the till",
+          "role": "jl-cash",
+          "wall_ms": 134.53,
+          "http": {
+            "calls": 1,
+            "errors": 0,
+            "retries": 0,
+            "req_bytes": 37,
+            "resp_bytes": 70,
+            "api_p50_ms": 134.53,
+            "api_p95_ms": 134.53,
+            "api_max_ms": 134.53,
+            "business_writes": 1
+          },
+          "http_statuses": [
+            200
+          ],
+          "db": {
+            "source": "pg_stat_database",
+            "query_count": 0,
+            "query_count_available": false,
+            "db_time_ms": 4350.4,
+            "transactions": 59,
+            "rollbacks": 0,
+            "tuples_inserted": 4,
+            "tuples_updated": 3,
+            "tuples_deleted": 0,
+            "blocks_read": 0,
+            "blocks_hit": 20476,
+            "db_growth_bytes": 0,
+            "heap_growth_bytes": 0,
+            "index_growth_bytes": 0,
+            "wal_bytes": 7798784,
+            "audit_rows_added": 2,
+            "outbox_rows_added": 0
+          },
+          "server_process": {
+            "available": true,
+            "cpu_ms": 0,
+            "rss_kb": 44956,
+            "peak_rss_kb": 48956
+          }
+        },
+        {
+          "name": "quote and checkout",
+          "role": "jl-cash",
+          "wall_ms": 590.41,
+          "http": {
+            "calls": 2,
+            "errors": 0,
+            "retries": 0,
+            "req_bytes": 229,
+            "resp_bytes": 1275,
+            "api_p50_ms": 156.06,
+            "api_p95_ms": 434.35,
+            "api_max_ms": 434.35,
+            "business_writes": 2
+          },
+          "http_statuses": [
+            200,
+            200
+          ],
+          "db": {
+            "source": "pg_stat_database",
+            "query_count": 0,
+            "query_count_available": false,
+            "db_time_ms": 4811.35,
+            "transactions": 108,
+            "rollbacks": 2,
+            "tuples_inserted": 0,
+            "tuples_updated": 0,
+            "tuples_deleted": 0,
+            "blocks_read": 0,
+            "blocks_hit": 29216,
+            "db_growth_bytes": 16384,
+            "heap_growth_bytes": 16384,
+            "index_growth_bytes": 0,
+            "wal_bytes": 8350576,
+            "audit_rows_added": 3,
+            "outbox_rows_added": 1
+          },
+          "server_process": {
+            "available": true,
+            "cpu_ms": 62.5,
+            "rss_kb": 45988,
+            "peak_rss_kb": 48956
+          }
+        },
+        {
+          "name": "close the till",
+          "role": "jl-cash",
+          "wall_ms": 145.85,
+          "http": {
+            "calls": 2,
+            "errors": 0,
+            "retries": 0,
+            "req_bytes": 108,
+            "resp_bytes": 466,
+            "api_p50_ms": 68.24,
+            "api_p95_ms": 77.61,
+            "api_max_ms": 77.61,
+            "business_writes": 1
+          },
+          "http_statuses": [
+            200,
+            200
+          ],
+          "db": {
+            "source": "pg_stat_database",
+            "query_count": 0,
+            "query_count_available": false,
+            "db_time_ms": 5509.06,
+            "transactions": 92,
+            "rollbacks": 0,
+            "tuples_inserted": 3,
+            "tuples_updated": 2,
+            "tuples_deleted": 0,
+            "blocks_read": 1,
+            "blocks_hit": 6924,
+            "db_growth_bytes": 0,
+            "heap_growth_bytes": 0,
+            "index_growth_bytes": 0,
+            "wal_bytes": 8537600,
+            "audit_rows_added": 3,
+            "outbox_rows_added": 0
+          },
+          "server_process": {
+            "available": true,
+            "cpu_ms": 0,
+            "rss_kb": 45988,
+            "peak_rss_kb": 48956
+          }
+        }
+      ],
+      "summary": {
+        "http": {
+          "calls": 10,
+          "errors": 0,
+          "retries": 0,
+          "req_bytes": 782,
+          "resp_bytes": 2243,
+          "api_p50_ms": 229.79,
+          "api_p95_ms": 575.44,
+          "api_max_ms": 575.44,
+          "business_writes": 9
+        },
+        "db": {
+          "source": "pg_stat_database",
+          "query_count": 0,
+          "query_count_available": false,
+          "db_time_ms": 30466.73,
+          "transactions": 368,
+          "rollbacks": 4,
+          "tuples_inserted": 7,
+          "tuples_updated": 5,
+          "tuples_deleted": 0,
+          "blocks_read": 1,
+          "blocks_hit": 112349,
+          "db_growth_bytes": 24576,
+          "heap_growth_bytes": 24576,
+          "index_growth_bytes": 0,
+          "wal_bytes": 41938544,
+          "audit_rows_added": 20,
+          "outbox_rows_added": 1
+        },
+        "server_cpu_ms": 125,
+        "server_rss_kb_end": 45988,
+        "server_peak_rss_kb": 48956,
+        "business_writes": 9,
+        "heap_bytes_per_1k_tx": 2730666.67,
+        "index_bytes_per_1k_tx": 0,
+        "wal_bytes_per_1k_tx": 4659838222.22,
+        "audit_rows_per_1k_tx": 2222.22,
+        "outbox_rows_per_1k_tx": 111.11
+      },
+      "reconciliation": [
+        {
+          "kind": "gl",
+          "name": "ledger total debits = credits",
+          "pass": false,
+          "difference": 777,
+          "detail": "debits 8096081, credits 8095304"
+        },
+        {
+          "kind": "money",
+          "name": "every voucher balances (debits = credits per document)",
+          "pass": false,
+          "difference": 1,
+          "detail": "1 unbalanced voucher(s)"
+        },
+        {
+          "kind": "stock",
+          "name": "no negative on-hand",
+          "pass": true,
+          "detail": "0 row(s) below zero"
+        },
+        {
+          "kind": "stock",
+          "name": "JL-I1 at JL-W1 moved by -20 (transferred to the shop)",
+          "pass": true,
+          "detail": "expected -20, observed -20"
+        },
+        {
+          "kind": "stock",
+          "name": "JL-I1 at JL-S1 moved by +18 (received less the sale)",
+          "pass": true,
+          "detail": "expected +18, observed +18"
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: advance-outstanding-ageing",
+          "pass": true
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-ap-aging",
+          "pass": true,
+          "detail": "A receipt is carried at its taxable cost; the GST on its bill goes to 1500 GST Input Credit when paid, so an item here is the goods value still owed, not the bi"
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-ar-aging",
+          "pass": true
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-gst-document-tax-detail",
+          "pass": true,
+          "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-gstr-1-b2b-b2c-summary",
+          "pass": true,
+          "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-gstr-1-hsn-summary",
+          "pass": true,
+          "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-hsn-tax-summary",
+          "pass": true,
+          "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: cat-sales-register",
+          "pass": true,
+          "detail": "Ledger is the revenue and output GST posted for these same bills and invoices. A difference is a sale whose posting failed or an invoice not yet posted - check "
+        },
+        {
+          "kind": "stock",
+          "name": "engine: cat-stock-valuation-summary",
+          "pass": false,
+          "difference": -7.77,
+          "detail": "Ledger is the inventory control account. A difference is stock valued at standard cost (never received, so never posted) or a movement whose posting failed - ch"
+        },
+        {
+          "kind": "stock",
+          "name": "engine: custody-with-party",
+          "pass": true
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: gst-return-summary",
+          "pass": true,
+          "detail": "Detail is the tax lines View Details lists; summary is the Total Tax Liability column."
+        },
+        {
+          "kind": "stock",
+          "name": "engine: inventory-valuation",
+          "pass": false,
+          "difference": -7.77,
+          "detail": "A remaining difference is stock moved without a GL entry (e.g. cycle-count variances, which post no GL) or GL posted to 1200 without stock (a journal) - review "
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: payables-ageing",
+          "pass": true,
+          "detail": "A receipt is carried at its taxable cost; the GST on its bill goes to 1500 GST Input Credit when paid, so an item here is the goods value still owed, not the bi"
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: po-commitments",
+          "pass": true,
+          "detail": "No GL account carries purchase-order commitments, so there is no ledger tie for this report. Goods received but not yet paid sit in 2100 GRN Suspense: -0.00 at "
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: points-liability",
+          "pass": true,
+          "detail": "Points are expensed when redeemed (Loyalty -\u003e Account for loyalty points), so no GL account carries this liability and there is no ledger tie. Choose \"liability"
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: print-evidence",
+          "pass": true
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: receivables-ageing",
+          "pass": true
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: sales-register",
+          "pass": true,
+          "detail": "Ledger is the revenue and output GST posted for these same sales. A difference is bill-level discounts and offers (the register shows the line price before them"
+        },
+        {
+          "kind": "stock",
+          "name": "engine: stock-pools",
+          "pass": true
+        },
+        {
+          "kind": "subledger",
+          "name": "engine: store-credit-liability",
+          "pass": true
+        },
+        {
+          "kind": "audit",
+          "name": "audit checkpoint sealed",
+          "pass": true,
+          "detail": "rows 1575-1629 sealed"
+        },
+        {
+          "kind": "audit",
+          "name": "audit evidence verifies (no tampered row, no bad checkpoint)",
+          "pass": true,
+          "detail": "398 signed row(s) verified, 1231 unsigned legacy, 0 unverifiable, 18 checkpoint(s) verified"
+        },
+        {
+          "kind": "audit",
+          "name": "audit checkpoints present",
+          "pass": true,
+          "detail": "18 verified checkpoint(s)"
+        },
+        {
+          "kind": "audit",
+          "name": "journey left audit rows",
+          "pass": true,
+          "detail": "20 audit row(s) added during the journey"
+        }
+      ]
+    }
+  ],
+  "browser": {
+    "source": "from_browser_suite",
+    "status": "not_provided",
+    "note": "accessibility and help usability need a real browser; run the browser suite and pass its output with -browser-evidence"
+  },
+  "limits": [
+    "journeys are driven over HTTP as each role; screen behaviour comes only from the browser section",
+    "wall time, CPU and memory are for this machine and this data size; compare runs on the same host",
+    "CPU and RSS are the server process's own; database CPU is not included",
+    "database figures come from pg_stat_database: they count transactions and tuples, not individual queries (query_count_available is false); use a cluster with pg_stat_statements for query counts"
+  ]
+}

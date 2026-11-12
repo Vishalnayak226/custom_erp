@@ -99,7 +99,7 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required', 
     msgEl.textContent = message;
     
     // Create an input field dynamically
-    extraEl.innerHTML = `<input type="${escapeHTMLText(inputType)}" id="custom-dialog-prompt-input" class="form-input" style="width: 100%; margin-top: 12px;" value="${escapeHTMLText(defaultValue)}">`;
+    extraEl.innerHTML = `<input type="${escapeHTMLText(inputType)}" id="custom-dialog-prompt-input" class="form-input s-d25a61" value="${escapeHTMLText(defaultValue)}">`;
     extraEl.classList.remove('hidden');
     cancelBtn.style.display = '';
 
@@ -306,18 +306,18 @@ function renderErrorPanel(container, message, retryFn, status) {
   const kind = status === 403 ? 0 : status === 404 ? 1 : 2;
   container.innerHTML = '';
   const errPanel = document.createElement('div');
-  errPanel.className = 'table-panel';
+  errPanel.className = 'table-panel state-' + ['denied', 'missing', 'error'][kind]; // 47.14.6
   errPanel.style.padding = '48px';
   errPanel.style.textAlign = 'center';
   errPanel.innerHTML = `
-    <div style="max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center;">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="${kind === 2 ? '#ef4444' : 'currentColor'}" stroke-width="1.5">
+    <div class="s-97ed11">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
-      <h2 style="font-size: 20px; font-weight: 600;">${['No access', 'Not found', 'Something Went Wrong'][kind]}</h2>
-      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">${escapeHTMLText(message)} ${['Ask your administrator for access.', 'It may have been deleted, or the link is old.', 'Nothing was changed. Trying again is safe.'][kind]}</p>
+      <h2 class="s-0e284a">${['No access', 'Not found', 'Something Went Wrong'][kind]}</h2>
+      <p class="text-muted s-ecdd89">${escapeHTMLText(message)} ${['Ask your administrator for access.', 'It may have been deleted, or the link is old.', 'Nothing was changed. Trying again is safe.'][kind]}</p>
       ${kind === 2 ? '<button class="btn btn-primary" id="error-panel-retry-btn">Try Again</button>' : ''}
     </div>
   `;
@@ -355,7 +355,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '77';
+const VIEW_MODULE_VERSION = '78';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -365,7 +365,8 @@ function loadViewModule(src) {
   if (viewModuleCacheBust) params.push(`reset=${viewModuleCacheBust}`);
   if (attempt > 1) params.push(`retry=${attempt}`);
   const requestURL = `${src}${src.includes('?') ? '&' : '?'}${params.join('&')}`;
-  const pending = import(requestURL).then(module => {
+  // 49.4.3: classes that replaced inline style attributes in view code.
+  const pending = Promise.all([import(requestURL), loadViewStyles('view-inline.css')]).then(([module]) => {
     Object.assign(window, module);
     return module;
   }).catch(error => {
@@ -438,6 +439,7 @@ const LAZY_VIEW_MODULES = {
   'extension-hooks': ['view-admin.js', 'renderExtensionHooksView', 'Extension Hooks'],
   'extension-hook-log': ['view-admin.js', 'renderExtensionHookLogView', 'Extension Hook Log'],
   'audit-logs': ['view-admin.js', 'renderLogHubView', 'Integration Logs'],
+  'privacy-approvals': ['view-security-notify.js', 'renderPrivacyApprovalsView', 'Privacy approvals'], // 49.12.5
   configuration: ['view-admin.js', 'renderConfigurationView', 'Configuration', 'config.css'],
   'system-status': ['view-admin.js', 'renderSystemStatusView', 'System Status'],
   'tenant-entitlements': ['view-admin.js', 'renderTenantEntitlementsView', 'Tenant Entitlements'],
@@ -942,6 +944,34 @@ function paintLastShell() {
   } catch (e) { /* none saved */ }
 }
 
+// 158.3: an uncaught error in the app's own scripts goes to the System Log
+// (severity BROWSER) instead of waiting for the user to report it. Signed in
+// only, five a page, each once; silent and never retried (not apiFetch, whose
+// failures show dialogs).
+const reportedErrors = new Set();
+function reportBrowserError(message, stack, where) {
+  try {
+    const token = localStorage.getItem('erp_token'), msg = String(message || '').slice(0, 500);
+    if (!token || !msg || reportedErrors.has(msg) || reportedErrors.size >= 5) return;
+    reportedErrors.add(msg);
+    fetch('/api/v1/logs/browser-error', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ message: msg, where, stack: String(stack || '').split(location.origin).join('').slice(0, 4000), screen: location.hash.split('?')[0].slice(0, 80) })
+    }).catch(() => {});
+  } catch (e) { /* reporting must never raise an error of its own */ }
+}
+window.addEventListener('error', (e) => {
+  // Extensions and other sites' scripts arrive here too, with no file of ours.
+  if (!e.filename || !e.filename.startsWith(location.origin + '/')) return;
+  reportBrowserError(e.message, e.error?.stack, `${e.filename.slice(location.origin.length).split("?")[0]}:${e.lineno}:${e.colno}`);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  if (!r || r.name === 'AbortError') return; // a view switch or a timeout, already handled
+  reportBrowserError(r.message || String(r), r.stack, '');
+});
+
 // API Helper wrapper
 // BLD-036: apiFetch had no timeout at all - a hung connection (dead proxy,
 // stalled DB, a Wi-Fi drop mid-request) waited forever with no
@@ -963,7 +993,17 @@ function beginViewReads(view) {
   viewReadsOpen = true; viewReads = 0; viewReadView = view;
 }
 function endViewReads() { viewReadsOpen = false; }
+// 47.11.2: a settled view keeps reading - paging, a filter, a search, a report run. Those reads belong to
+// the view and are dropped, quietly, when it is left. Writes never are, nor is anything the shell keeps
+// (favourites, the inbox, the catalog): pass keepAcrossViews for a read that must outlive its view.
+function isViewBoundRead(url) {
+  const path = String(url).split('?')[0];
+  if (path.startsWith('/api/v1/reports/run/')) return true;
+  const pre = '/api/v1/doc/';
+  return path.startsWith(pre) && path.length > pre.length && !path.includes('/', pre.length) && path.slice(pre.length) !== 'UserShortcut';
+}
 function noteViewRead(url) {
+  if (!viewReadsOpen) return;
   const budget = VIEW_READ_BUDGET[viewReadView] || VIEW_READ_BUDGET.default;
   if (++viewReads === budget + 1 && (/^(localhost|127.0.0.1)$/.test(location.hostname) || document.getElementById('environment-banner'))) console.warn(`[view-budget] ${viewReadView}: over ${budget} reads on open`, url);
 }
@@ -1026,7 +1066,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
   const timeoutMs = options.timeoutMs === 0 ? 0 : (options.timeoutMs || DEFAULT_API_TIMEOUT_MS);
   const controller = options.signal ? null : new AbortController();
   const timeoutId = controller && timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const viewSignal = controller && isRead && viewReadsOpen ? viewAbort.signal : null;
+  const viewSignal = controller && isRead && !options.keepAcrossViews && (viewReadsOpen || isViewBoundRead(url)) ? viewAbort.signal : null;
   const onViewAbort = () => controller.abort();
   if (viewSignal) { noteViewRead(url); viewSignal.addEventListener('abort', onViewAbort); }
 
@@ -1146,7 +1186,7 @@ async function apiUpload(url, formData, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS) {
 // record form already used for PurchaseRequisition's code field.
 function autoNumberField(label, seriesKey, width = '180px') {
   return `
-    <div class="form-group" style="margin-bottom: 0;">
+    <div class="form-group s-50435f">
       <label class="form-label">${label}</label>
       <input type="text" class="form-input" style="width: ${width};" readonly tabindex="-1"
              placeholder="Auto (${seriesKey} series)"
@@ -1170,7 +1210,7 @@ function autoNumberField(label, seriesKey, width = '180px') {
 // the other four fixes followed.
 function employeePickerField(id, width = '200px') {
   return `
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="${id}">Employee</label>
         <input type="text" id="${id}" class="form-input" style="width: ${width};"
                placeholder="Search, or click to browse" autocomplete="off">
@@ -3276,6 +3316,9 @@ function logout(message) {
   stopIdleTimeout();
   const overlay = document.getElementById('signout-overlay');
   if (overlay) overlay.classList.remove('hidden');
+  // 162.15: end the session on the server too (plain fetch: a refused token must not loop back here).
+  const tok = localStorage.getItem('erp_token');
+  if (tok) fetch('/api/v1/auth/logout', { method: 'POST', keepalive: true, headers: { 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default', Authorization: 'Bearer ' + tok } }).catch(() => {});
   localStorage.removeItem('erp_token');
   localStorage.removeItem('erp_username');
   localStorage.removeItem('erp_role');
@@ -3774,7 +3817,9 @@ const MENU_PERMISSION_MAP = {
   'menu-vendor-invoices': { doctypes: ['VendorInvoice'] },
   'menu-payment-proposals': { doctypes: ['PaymentProposal', 'VendorInvoice'] },
   'menu-bank-reconciliation': { doctypes: ['BankAccount', 'BankStatementLine'] },
-  'menu-finance-notes': { doctypes: ['DebitNote', 'CreditNote', 'VendorCreditNote'] },
+  'menu-finance-notes': { doctypes: ['DebitNote'] },
+  'menu-finance-vcn': { doctypes: ['VendorCreditNote'] },
+  'menu-finance-cn': { doctypes: ['CreditNote'] },
   'menu-sales-invoices': { doctypes: ['SalesInvoice'] },
   'menu-journal-vouchers': { doctypes: ['JournalVoucher'] },
 
@@ -3808,11 +3853,17 @@ const MENU_PERMISSION_MAP = {
   // opened these from the menu into "no permission" and a stuck Loading.
   'menu-putaway': { doctypes: ['ASN'] }, // GET /wms/inbound-work reads ASN
   'menu-crm-pipeline': { doctypes: ['SalesQuotation'] }, // /crm/opportunities
+  'menu-crm-tickets': { doctypes: ['ServiceTicket'] },
+  'menu-crm-settings': { update: 'Campaign' }, // the server's can_manage
   'menu-einvoice': { capability: 'finance.statements' }, // /einvoice/documents (on top of data-like Finance)
+  // 162.4: a screen whose data the role cannot read is hidden, on top of the borrowed module rule.
+  'menu-finance-trial-balance': { capability: 'finance.statements' },
+  'menu-finance-chart-of-accounts': { capability: 'finance.statements' },
   // Stage 42.2.10: same role-open convention as the rest of the WMS
   // floor-ops screens (handlers_warehouse_task.go's cockpit route has no
   // role_permissions check either).
   'menu-warehouse-cockpit': { modules: ['Inventory'] },
+  'menu-wms-labour': { doctypes: ['LaborOperation', 'LaborStandard'] }, // 162.4
   'menu-bin-conditions': { modules: ['Inventory'] },
   'menu-bin-tools': { modules: ['Inventory'] },
   'menu-cycle-count': { modules: ['Inventory'] },
@@ -3867,6 +3918,14 @@ const MENU_PERMISSION_MAP = {
 
   'menu-manufacturing': { doctypes: ['BOM', 'ProductionOrder'] },
   'menu-pim': { modules: ['PIM'] },
+  // 162.4: each PIM page's own data, on top of the borrowed module rule (Dashboard, Media Library,
+  // Checklists and Reports only need the module).
+  'menu-pim-templates': { doctypes: ['ChannelCategoryTemplate'] },
+  'menu-pim-feeds': { doctypes: ['PIMFeed'] },
+  'menu-pim-design-values': { doctypes: ['ProductAttributeValue'] },
+  'menu-pim-stewardship': { doctypes: ['AttributeStewardship'] },
+  // 163.3: the reports read content, media and attribute values; any one of them shows the page.
+  'menu-pim-reports': { doctypes: ['ProductContent', 'ProductMedia', 'ProductAttributeValue'] },
 
   'menu-users': { adminOnly: true },
   'menu-roles': { adminOnly: true },
@@ -3876,6 +3935,7 @@ const MENU_PERMISSION_MAP = {
   'menu-doctype-builder': { devOnly: true },
   'menu-extension-hooks': { devOnly: true },
   'menu-audit-logs': { adminOnly: true },
+  'menu-privacy-approvals': { adminOnly: true, capability: 'admin.privacy-approval' }, // 49.12.5
   // System Status dashboard (Stage 26.1.2) - reuses the same HR/Admin-only
   // gate as the ops-visibility endpoints it reads (requireHRAdmin on
   // handleDeploymentStatus/handleBackupStatus, Stage 25.8).
@@ -4200,6 +4260,12 @@ const MENU_MODULE_MAP = {
       "audit-logs"
     ]
   },
+  "menu-privacy-approvals": {
+    "module": "core",
+    "views": [
+      "privacy-approvals"
+    ]
+  },
   "@system-status": {
     "module": "core",
     "views": [
@@ -4338,6 +4404,7 @@ function isMenuRuleVisible(rule) {
   if (rule.capability) return state.permissions.isAdmin || state.permissions.capabilities.has(rule.capability); // 132.18
   if (rule.devOnly) return state.permissions.isSuperAdmin; // 125.6
   if (rule.opOnly) return state.permissions.isOperator; // 132.10: the server's operator allowlist
+  if (rule.update) return canUpdateDoctype(rule.update);
   if (rule.doctypes) return state.permissions.isAdmin || rule.doctypes.some(canReadDoctype);
   // 57.17: a module shows once the role can read anything in it.
   if (rule.modules) {
@@ -4479,6 +4546,7 @@ async function fetchAndApplyModules() {
       state.modules = {
         enabled: new Set(data.enabled_modules || []),
         solePackage: data.sole_package || null,
+        nav: data.nav,
         loaded: true
       };
     }
@@ -4788,13 +4856,6 @@ function setupEventListeners() {
     renderView('pos');
   });
 
-  document.getElementById('menu-finance').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-finance');
-    closeSubmenus();
-    renderView('finance');
-  });
-
 	document.getElementById('menu-oms').addEventListener('click', (e) => {
 		e.preventDefault();
 		setActiveMenu('menu-oms');
@@ -4821,14 +4882,6 @@ function setupEventListeners() {
       renderView('returns');
     });
   }
-  // Stage 73.2.11: the Loyalty screen (view-loyalty.js).
-  document.getElementById('menu-loyalty')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-loyalty');
-    closeSubmenus();
-    renderView('loyalty');
-  });
-
   document.getElementById('menu-approvals').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-approvals');
@@ -4855,13 +4908,6 @@ function setupEventListeners() {
     setActiveMenu('menu-bank-reconciliation');
     closeSubmenus();
     renderView('bank-reconciliation');
-  });
-
-  document.getElementById('menu-finance-notes').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-finance-notes');
-    closeSubmenus();
-    renderView('finance-notes');
   });
 
   document.getElementById('menu-sales-invoices').addEventListener('click', (e) => {
@@ -4971,7 +5017,7 @@ function setupEventListeners() {
   // nothing could ever select one - while `Location` (Type = Store) is what
   // every transaction uses. Its four unique fields (address, city,
   // contact_phone, manager) are Location fields now; see
-  // db/migrations_stage30_5_5_retire_stores.sql.
+  // db/migrations/migrations_stage30_5_5_retire_stores.sql.
 
   // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors above.
   document.getElementById('menu-pos-profiles').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-profiles'); closeSubmenus(); currentDoctype = 'POSProfile'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
@@ -5751,6 +5797,7 @@ const STATIC_VIEW_MENU_IDS = {
   'extension-hooks': 'menu-extension-hooks',
   'extension-hook-log': 'menu-extension-hooks',
   'audit-logs': 'menu-audit-logs',
+  'privacy-approvals': 'menu-privacy-approvals',
   'system-status': 'menu-system-status',
   'configuration': 'menu-configuration',
   'tenant-entitlements': 'menu-tenant-entitlements',
@@ -5830,16 +5877,18 @@ async function restoreLastView() {
   // original tab happened to leave in localStorage. A link that can't be
   // resolved (unknown record type, or one this role can't read) falls through
   // to the normal restore rather than showing an empty screen.
+  const saved = loadNavState();
+  const nav = state.modules.nav; // 47.14.5
+  const land = nav ? await loadViewModule('./shell-nav.js').then(m => m.applyShellNav(nav, MENU_MODULE_MAP, !saved || location.hash === '#/')).catch(() => '') : '';
   const link = parseDeepLink();
   if (link && await navigateToDeepLink(link)) return;
 
-  const saved = loadNavState();
-  let view = DEFAULT_VIEW;
+  let view = land || DEFAULT_VIEW;
   let doctype = '';
   let searchQuery = '';
   let page = 1;
 
-  if (saved && saved.view) {
+  if (!land && saved && saved.view) {
     if (saved.view === 'doctype-table') {
       if (state.activeDoctypes.some(d => d.name === saved.doctype)) {
         view = 'doctype-table';
@@ -5860,25 +5909,11 @@ async function restoreLastView() {
 }
 
 // Router
-// renderView (32.2) is a thin wrapper that owns the *feedback*: it clears the
-// old screen, shows a loading placeholder, and only then hands off to
-// renderViewContent's dispatch.
-//
-// The reason it exists: renderViewContent blanks #view-root and then awaits a
-// fetch, so on anything slower than localhost the user got an empty white
-// panel with no indication that a click had registered - and clicked again.
-// That is the most likely remaining cause of the "I have to click many times"
-// report behind Stage 32, and no amount of transition tuning would have fixed
-// it, because nothing was being rendered to transition.
-// Stage 45: navigation is not serialised anywhere upstream (menu clicks,
-// deep links, restoreLastView all call this directly), so two calls can be
-// in flight together - a double click, or any other duplicate trigger fired
-// before the first one's fetch has resolved. Previously both calls appended
-// straight into #view-root, so a losing call's content landed permanently
-// alongside the winner's instead of being discarded. viewRenderToken makes
-// each call check, after its own fetch settles, whether a newer call has
-// since started; a stale call still cleans up its own loading placeholder
-// but never touches #view-root otherwise.
+// renderView (32.2) wraps renderViewContent with the feedback: it clears the old
+// screen and shows a loading placeholder first, so a click is seen to register.
+// Stage 45: navigation is not serialised (menu clicks, deep links and
+// restoreLastView all call it), so viewRenderToken lets a stale call clean up
+// its own placeholder but never touch #view-root once a newer call has started.
 let viewRenderToken = 0;
 
 // Stage 120: tab title = the highlighted screen (not its module) | Wholeops.
@@ -5975,7 +6010,7 @@ async function renderViewContent(view, root) {
   if (!moduleKey || !isMenuModuleVisible(moduleKey)) {
     currentView = view;
     document.body.classList.remove('rf-shell');
-    root.innerHTML = '<div class="table-panel" role="status"><h2>Unavailable</h2><p>This page is not available for your current modules. Contact your administrator if you need access.</p></div>';
+    root.innerHTML = '<div class="table-panel state-denied" role="status"><h2>Unavailable</h2><p>This page is not available for your current modules. Contact your administrator if you need access.</p></div>';
     return;
   }
   currentView = view;
@@ -6123,13 +6158,13 @@ async function renderProfileView(container) {
     ? `${data.employee_name || data.employee_id} (${data.employee_id})`
     : 'Not linked';
   infoPanel.innerHTML = `
-    <h3 class="card-title" style="margin-bottom: 16px;">Account Info</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
-      <div><span class="stat-label">Username</span><div style="font-weight:600; margin-top:4px;">${escapeHTMLText(data.username)}</div></div>
-      <div><span class="stat-label">Role</span><div style="font-weight:600; margin-top:4px;">${escapeHTMLText(data.role)}</div></div>
-      <div><span class="stat-label">Status</span><div style="margin-top:4px;"><span class="badge ${data.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(data.status)}</span></div></div>
-      <div><span class="stat-label">Employee</span><div style="font-weight:600; margin-top:4px;">${escapeHTMLText(employeeText)}</div></div>
-      <div><span class="stat-label">Two-Factor Authentication</span><div style="margin-top:4px;"><span class="badge ${data.mfa_enabled ? 'badge-success' : 'badge-secondary'}">${data.mfa_enabled ? 'Enabled' : 'Not enabled'}</span></div></div>
+    <h3 class="card-title s-29b798">Account Info</h3>
+    <div class="s-1e0e35">
+      <div><span class="stat-label">Username</span><div class="s-f20693">${escapeHTMLText(data.username)}</div></div>
+      <div><span class="stat-label">Role</span><div class="s-f20693">${escapeHTMLText(data.role)}</div></div>
+      <div><span class="stat-label">Status</span><div class="s-96ad60"><span class="badge ${data.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(data.status)}</span></div></div>
+      <div><span class="stat-label">Employee</span><div class="s-f20693">${escapeHTMLText(employeeText)}</div></div>
+      <div><span class="stat-label">Two-Factor Authentication</span><div class="s-96ad60"><span class="badge ${data.mfa_enabled ? 'badge-success' : 'badge-secondary'}">${data.mfa_enabled ? 'Enabled' : 'Not enabled'}</span></div></div>
     </div>
   `;
   container.appendChild(infoPanel);
@@ -6138,25 +6173,25 @@ async function renderProfileView(container) {
   settingsPanel.className = 'table-panel';
   settingsPanel.style.padding = '24px';
   settingsPanel.innerHTML = `
-    <h3 class="card-title" style="margin-bottom: 16px;">Contact &amp; Session</h3>
+    <h3 class="card-title s-29b798">Contact &amp; Session</h3>
     <form id="profile-settings-form">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
-        <div class="form-group" style="margin-bottom: 0;">
+      <div class="s-e1e267">
+        <div class="form-group s-50435f">
           <label class="form-label" for="profile-email">Email</label>
           <input type="email" id="profile-email" class="form-input" value="${escapeHTMLText(data.email || '')}">
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group s-50435f">
           <label class="form-label" for="profile-idle-timeout">Auto Logout (inactivity)</label>
           <select id="profile-idle-timeout" class="form-select">
             ${IDLE_TIMEOUT_OPTIONS.map(o => `<option value="${o.value}" ${o.value === data.idle_timeout_minutes ? 'selected' : ''}>${o.label}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group s-50435f">
           <label class="form-label" for="profile-settings-current-password">Current Password (only needed if changing Email)</label>
           <input type="password" id="profile-settings-current-password" class="form-input" autocomplete="current-password">
         </div>
       </div>
-      <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Save Changes</button>
+      <button type="submit" class="btn btn-primary s-4c0544">Save Changes</button>
     </form>
   `;
   container.appendChild(settingsPanel);
@@ -6165,23 +6200,23 @@ async function renderProfileView(container) {
   passwordPanel.className = 'table-panel';
   passwordPanel.style.padding = '24px';
   passwordPanel.innerHTML = `
-    <h3 class="card-title" style="margin-bottom: 16px;">Change Password</h3>
+    <h3 class="card-title s-29b798">Change Password</h3>
     <form id="profile-password-form">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
-        <div class="form-group" style="margin-bottom: 0;">
+      <div class="s-e1e267">
+        <div class="form-group s-50435f">
           <label class="form-label" for="profile-current-password">Current Password</label>
           <input type="password" id="profile-current-password" class="form-input" autocomplete="current-password" required>
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group s-50435f">
           <label class="form-label" for="profile-new-password">New Password</label>
           <input type="password" id="profile-new-password" class="form-input" autocomplete="new-password" minlength="12" required>
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group s-50435f">
           <label class="form-label" for="profile-confirm-password">Confirm New Password</label>
           <input type="password" id="profile-confirm-password" class="form-input" autocomplete="new-password" minlength="12" required>
         </div>
       </div>
-      <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Update Password</button>
+      <button type="submit" class="btn btn-primary s-4c0544">Update Password</button>
     </form>
   `;
   container.appendChild(passwordPanel);
@@ -6335,8 +6370,8 @@ async function renderMFARecoveryPanel(panel) {
   const res = await apiFetch('/api/v1/me/mfa/recovery-codes');
   if (!res || !res.ok) {
     panel.innerHTML = `
-      <h3 class="card-title" style="margin-bottom: 8px;">Two-Factor Recovery</h3>
-      <p style="font-size: 13px; color: var(--text-muted); margin: 0;">Could not load your recovery-code status.</p>`;
+      <h3 class="card-title s-16949d">Two-Factor Recovery</h3>
+      <p class="s-17d019">Could not load your recovery-code status.</p>`;
     return;
   }
   const info = await res.json();
@@ -6357,16 +6392,16 @@ async function renderMFARecoveryPanel(panel) {
   }
 
   const pendingNote = info.reenroll_in_progress
-    ? `<p style="font-size: 13px; color: var(--warning-strong); margin: 0 0 12px;">
+    ? `<p class="s-02213e">
          Device change part-finished. Resume or cancel it.</p>`
     : '';
 
   panel.innerHTML = `
-    <h3 class="card-title" style="margin-bottom: 12px;">Two-Factor Recovery</h3>
-    <div style="margin-bottom: 8px;">${statusBadge}</div>
-    <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">${statusNote}</p>
+    <h3 class="card-title s-5beb8f">Two-Factor Recovery</h3>
+    <div class="s-16949d">${statusBadge}</div>
+    <p class="s-c80544">${statusNote}</p>
     ${pendingNote}
-    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    <div class="s-192902">
       <button type="button" class="btn btn-secondary" id="mfa-regen-btn">Generate new recovery codes</button>
       <button type="button" class="btn btn-secondary" id="mfa-newdevice-btn">Set up a new authenticator device</button>
       ${info.reenroll_in_progress ? '<button type="button" class="btn btn-secondary" id="mfa-cancel-reenroll-btn">Cancel device change</button>' : ''}
@@ -6488,7 +6523,7 @@ const HOME_QUICK_ACTIONS = [
   { id: 'grn', label: 'Goods Receipt (GRN)', desc: 'Receive against open purchase orders.', view: 'doctype-table', doctype: 'GRN', menuId: 'menu-grn' },
   { id: 'vendor-invoices', label: 'Vendor Invoices', desc: 'Match and process what the company owes.', view: 'doctype-table', doctype: 'VendorInvoice', menuId: 'menu-vendor-invoices' },
   { id: 'payment-proposals', label: 'Payment Proposals', desc: 'Review and release vendor payments.', view: 'doctype-table', doctype: 'PaymentProposal', menuId: 'menu-payment-proposals' },
-  { id: 'finance', label: 'Finance / GL', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
+  { id: 'finance', label: 'Work to review', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
   { id: 'approvals', label: 'Approvals', desc: 'Documents waiting on your sign-off.', view: 'approvals', menuId: 'menu-approvals' },
   { id: 'sales-invoices', label: 'Sales Invoices', desc: 'What customers owe the company.', view: 'sales-invoices', menuId: 'menu-sales-invoices' },
   { id: 'journal-vouchers', label: 'Journal Vouchers', desc: 'Manual entries: accruals, corrections, opening balances.', view: 'journal-vouchers', menuId: 'menu-journal-vouchers' },
@@ -6599,7 +6634,7 @@ async function renderHomeView(container) {
   actionsPanel.className = 'table-panel';
   actionsPanel.style.padding = '20px';
   actionsPanel.style.marginBottom = '24px';
-  actionsPanel.innerHTML = `<h2 class="card-title" style="margin-bottom: 12px;">Your quick actions</h2>`;
+  actionsPanel.innerHTML = `<h2 class="card-title s-5beb8f">Your quick actions</h2>`;
   const grid = document.createElement('div');
   grid.className = 'home-action-grid';
   visible.forEach(action => {
@@ -6652,7 +6687,7 @@ async function renderHomeView(container) {
         const recentPanel = document.createElement('div');
         recentPanel.className = 'table-panel';
         recentPanel.style.padding = '20px';
-        recentPanel.innerHTML = `<h2 class="card-title" style="margin-bottom: 12px;">Recent ${escapeHTMLText(getDoctypeLabel(recentSource.doctype))}</h2>`;
+        recentPanel.innerHTML = `<h2 class="card-title s-5beb8f">Recent ${escapeHTMLText(getDoctypeLabel(recentSource.doctype))}</h2>`;
         const list = document.createElement('div');
         list.className = 'home-recent-list';
         rows.forEach(row => {
@@ -6917,6 +6952,20 @@ function formatMoney(v) {
   const n = Number(v);
   if (!isFinite(n)) return '0.00';
   return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// 47.14.2: counts and plain numbers, grouped like formatMoney (not the browser's own locale).
+function formatNumber(v) {
+  const n = Number(v);
+  return isFinite(n) ? n.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '0';
+}
+// 47.14.2: a Date or timestamp as "03 Feb 2026 14:05" (dateOnly drops the time), in the client's date order.
+function formatDateTime(v, dateOnly) {
+  if (typeof v === 'string' && /^d{4}-d{2}-d{2}$/.test(v)) return formatDay(v);
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d)) return v == null ? '' : String(v);
+  const p = n => String(n).padStart(2, '0');
+  const day = formatDay(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+  return dateOnly ? day : `${day} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 
@@ -7250,12 +7299,12 @@ function renderMockModuleView(container, view) {
   panel.style.padding = '48px';
   panel.style.textAlign = 'center';
   panel.innerHTML = `
-    <div style="max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center;">
+    <div class="s-97ed11">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="1.5">
         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
       </svg>
-      <h2 style="font-size: 20px; font-weight: 600;">Module Setup Pending</h2>
-      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">
+      <h2 class="s-0e284a">Module Setup Pending</h2>
+      <p class="text-muted s-ecdd89">
         This screen is not set up yet. Use <b>Setup</b>, or <b>Database Schema Design</b> to add its fields.
       </p>
       <button class="btn btn-secondary" ${actionAttrs('goToDefaultView')}>Back to Reports</button>
@@ -7362,7 +7411,7 @@ window.handleBulkImportSubmit = async function(e) {
     summary.style.color = '#2ed573';
 
     let html = `
-      <div style="font-weight:600; margin-bottom:8px;">Import Processed Successfully:</div>
+      <div class="s-6928c9">Import Processed Successfully:</div>
       <div>Total Rows Parsed: ${result.total_rows}</div>
       <div>Created: ${(result.created_ids || []).length}</div>
       <div>Updated: ${(result.updated_ids || []).length}</div>
@@ -7371,13 +7420,13 @@ window.handleBulkImportSubmit = async function(e) {
     `;
 
     if (result.errors && result.errors.length > 0) {
-      html += `<div style="font-weight:600; margin-top:12px; color:#ff4757;">Validation Errors:</div><ul style="padding-left:16px; margin-top:4px;">`;
+      html += `<div class="s-d55493">Validation Errors:</div><ul class="s-7ac255">`;
       result.errors.forEach(err => {
         html += `<li>Row ${escapeHTMLText(err.row_number)}: ${escapeHTMLText(err.message)}</li>`;
       });
       html += `</ul>`;
       if (result.import_job_id) {
-        html += `<button type="button" class="btn btn-primary btn-sm" id="import-fix-resume" style="margin-top:8px;">Fix and resume the failed rows</button>`;
+        html += `<button type="button" class="btn btn-primary btn-sm s-8a77e5" id="import-fix-resume">Fix and resume the failed rows</button>`;
       }
     }
 
@@ -7407,7 +7456,7 @@ window.handleBulkImportSubmit = async function(e) {
 function importTotalsHTML(result) {
   const c = result && result.control_totals;
   if (!c) return '';
-  const cols = (c.columns || []).map(col => `${escapeHTMLText(col.label || col.field)} ${escapeHTMLText(Number(col.accepted).toLocaleString('en-IN'))} of ${escapeHTMLText(Number(col.read).toLocaleString('en-IN'))}`);
+  const cols = (c.columns || []).map(col => `${escapeHTMLText(col.label || col.field)} ${escapeHTMLText(formatNumber(col.accepted))} of ${escapeHTMLText(formatNumber(col.read))}`);
   return `${cols.length ? `<div>Totals: ${cols.join(' · ')}</div>` : ''}${c.rerun ? '<div>Rerun: nothing new</div>' : ''}`;
 }
 
@@ -7442,7 +7491,7 @@ window.handleBulkImportPreview = async function() {
   summary.style.border = '1px solid rgba(255, 165, 2, 0.3)';
   summary.style.color = '#ffa502';
   let html = `
-    <div style="font-weight:600; margin-bottom:8px;">Preview (nothing written yet):</div>
+    <div class="s-6928c9">Preview (nothing written yet):</div>
     <div>Total Rows: ${escapeHTMLText(result.total_rows)}</div>
     <div>Would Create: ${(result.created_ids || []).length}</div>
     <div>Would Update: ${(result.updated_ids || []).length}</div>
@@ -7450,7 +7499,7 @@ window.handleBulkImportPreview = async function() {
     ${importTotalsHTML(result)}
   `;
   if (result.errors && result.errors.length > 0) {
-    html += `<div style="font-weight:600; margin-top:12px;">Row Errors:</div><ul style="padding-left:16px; margin-top:4px;">`;
+    html += `<div class="s-ef59b6">Row Errors:</div><ul class="s-7ac255">`;
     result.errors.forEach(err => { html += `<li>Row ${escapeHTMLText(err.row_number)}: ${escapeHTMLText(err.message)}</li>`; });
     html += `</ul>`;
   }

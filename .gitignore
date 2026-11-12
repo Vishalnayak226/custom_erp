@@ -23,6 +23,7 @@ Thumbs.db
 # ../PrintBridge/installer/build.ps1 -Universal; release gate checks its version).
 !public/downloads/printbridge-setup.exe
 *.exe~
+*.stackdump
 *.dll
 *.so
 *.dylib
@@ -43,7 +44,9 @@ logs/
 # Database backup artifacts (manage.ps1 backup)
 backups/
 
-# Local credentials - never commit
+# Local credentials - never commit. They live in .local/ (CONTRIBUTING.md
+# Article 3); the patterns below also catch one left anywhere else.
+/.local/
 *.local.txt
 DEV_CREDENTIALS.local.txt
 *.local.json

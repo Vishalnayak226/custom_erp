@@ -20,11 +20,15 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 Describe the concrete problem and resulting behavior, then record relevant validation.
 
+- Constitution: the change follows [CONTRIBUTING.md](../CONTRIBUTING.md) - files in the
+  right folder with the right names, additive migrations, no secrets or builds committed,
+  trackers and guides updated. Say which rule, if any, it could not follow and why.
+
 - Requirements / support scope: affected documents, or reason unchanged.
 - Architecture / ADR / API / data migration: affected contracts and compatibility.
 - Security / privacy / permissions (Stage 49.9.1 - fill in or say why not
   applicable): crown jewels/trust boundaries touched (see
-  docs/security/threat_model.md §2/§3), abuse cases (§5, or a new one),
+  docs/security/threat-model.md §2/§3), abuse cases (§5, or a new one),
   capabilities/fields/scopes affected, data classification/retention,
   secrets or egress introduced, failure/recovery behavior, and which test
   proves it. A small no-impact change should say so explicitly rather than

@@ -130,6 +130,13 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 		sc.PF, sc.ESI = round2(sc.PF*f), round2(sc.ESI*f)
 	}
 
+	// 148.30: the salesman's unpaid incentive is an earning on this payslip.
+	baseGross := sc.Gross
+	incentivePaise := IncentivePayForEmployee(tenantID, employeeID, periodTo)
+	if incentivePaise > 0 {
+		sc.Gross = round2(sc.Gross + PaiseToRupees(incentivePaise))
+	}
+
 	tdsAmount := 0.0
 	if _, netAfterTDS, terr := CalculateTDS(tenantID, "SALARY", sc.Gross); terr == nil {
 		tdsAmount = sc.Gross - netAfterTDS
@@ -175,7 +182,10 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 		"net_pay": netPay,
 		// 132.20: the paid days behind gross_pay.
 		"period_days": periodDays, "lop_days": lopDays, "paid_days": periodDays - lopDays,
-		"full_month_gross": fullGross, "lop_amount": round2(fullGross - sc.Gross),
+		"full_month_gross": fullGross, "lop_amount": round2(fullGross - baseGross),
+	}
+	if incentivePaise > 0 {
+		payload["incentive_pay"], payload["incentive_paise"] = PaiseToRupees(incentivePaise), incentivePaise
 	}
 	marshaled, err := json.Marshal(payload)
 	if err != nil {
@@ -276,6 +286,21 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		delete(credits, "2400")
 	}
 	debits := map[string]int64{"5500": gross}
+	if inc := int64(numFromInterface(d["incentive_paise"])); inc > 0 {
+		// 148.30: the incentive was accrued earlier; the payslip clears the accrual, not the expense again.
+		if inc > gross {
+			return &ValidationError{Code: incentivePayoutCode, Message: "The incentive on this payslip is more than its gross pay."}
+		}
+		_, accruedAcct := incentiveAccounts(tenantID)
+		debits["5500"] = gross - inc
+		debits[accruedAcct] += inc
+		if debits["5500"] == 0 {
+			delete(debits, "5500")
+		}
+		if err := payoutIncentivesTx(tx, schema, employeeID, payslipID, periodTo, inc); err != nil {
+			return err
+		}
+	}
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "Payslip", payslipID, debits, credits, periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
 		return fmt.Errorf("GL posting failed, payslip not marked Posted: %v", err)
 	}

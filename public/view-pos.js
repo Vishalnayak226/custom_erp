@@ -95,8 +95,8 @@ function renderPOSView(container) {
     <div id="pos-sale-pane" class="txn-pane" data-pane="sale">
     <div id="pos-session-bar" class="txn-note pos-session">
       <span id="pos-session-status">Checking session&hellip;</span>
-      <span id="pos-offline-queue-badge" class="badge badge-secondary hidden" style="cursor: pointer;" title="Click to try syncing now" ${actionAttrs('trySyncOfflineQueue')}></span>
-      <button class="btn btn-outline btn-sm" id="pos-session-open-btn" type="button" style="margin-left: auto;">Open Session</button>
+      <span id="pos-offline-queue-badge" class="badge badge-secondary hidden s-74fa97" title="Click to try syncing now" ${actionAttrs('trySyncOfflineQueue')}></span>
+      <button class="btn btn-outline btn-sm s-7fd7ef" id="pos-session-open-btn" type="button">Open Session</button>
       <button class="btn btn-outline btn-sm hidden" id="pos-session-close-btn" type="button">Close Session</button>
       <!-- Stage 53.9: the way out of a locked terminal. Always present, never
            hidden - a cashier who has bound the till to the wrong store must be
@@ -130,9 +130,9 @@ function renderPOSView(container) {
         <div class="form-group">
           <!-- Stage 85.E7: a % or an amount, off the price on the server. -->
           <label class="form-label" for="pos-discount-pct">Discount</label>
-          <div style="display:flex; gap:4px;">
+          <div class="s-4c8197">
             <input type="number" min="0" step="0.01" value="0" id="pos-discount-pct" class="form-input">
-            <select id="pos-discount-mode" class="form-input" style="width:64px;" aria-label="Discount as"><option value="pct">%</option><option value="amt">Rs</option></select>
+            <select id="pos-discount-mode" class="form-input s-38ac3b" aria-label="Discount as"><option value="pct">%</option><option value="amt">Rs</option></select>
           </div>
         </div>
         <div class="form-group">
@@ -520,15 +520,15 @@ function renderPOSSearchResults(rows, term) {
   posSearchTerm = term;
   posSearchActiveIndex = rows.length ? 0 : -1;
   el.innerHTML = `
-    <div style="padding: 8px 12px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border-color);">
+    <div class="s-4777e4">
       ${rows.length} product(s) matching &ldquo;${cfgEsc(term)}&rdquo; &mdash; click one, or use the arrow keys and Enter.
     </div>
     ${rows.map((r, i) => `
-      <div class="pos-result-row" data-idx="${i}" style="padding: 10px 12px; cursor: pointer; display: flex; gap: 14px; align-items: baseline; border-bottom: 1px solid var(--border-color);">
-        <span style="font-weight: 600; flex: 1;">${cfgEsc(r.name || r.code || r.id || '')}</span>
-        <span style="font-size: 12px; color: var(--text-muted);">${cfgEsc(r.code || r.id || '')}</span>
-        ${r.parent_product_code ? `<span style="font-size: 12px; color: var(--text-muted);">Design ${cfgEsc(r.parent_product_code)}</span>` : ''}
-        ${r.barcode ? `<span style="font-size: 12px; color: var(--text-muted);">${cfgEsc(r.barcode)}</span>` : ''}
+      <div class="pos-result-row s-e14388" data-idx="${i}">
+        <span class="s-814ed6">${cfgEsc(r.name || r.code || r.id || '')}</span>
+        <span class="s-6e0fd9">${cfgEsc(r.code || r.id || '')}</span>
+        ${r.parent_product_code ? `<span class="s-6e0fd9">Design ${cfgEsc(r.parent_product_code)}</span>` : ''}
+        ${r.barcode ? `<span class="s-6e0fd9">${cfgEsc(r.barcode)}</span>` : ''}
       </div>
     `).join('')}
   `;
@@ -682,17 +682,17 @@ function renderPOSCartTable(skipQuote) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
-        <div style="font-weight:600;">${cfgEsc(line.name || line.sku)}</div>
-        ${line.name && line.name !== line.sku ? `<div style="font-size:11.5px; color:var(--text-muted);">${cfgEsc(line.sku)}</div>` : ''}
+        <div class="s-eed0f8">${cfgEsc(line.name || line.sku)}</div>
+        ${line.name && line.name !== line.sku ? `<div class="s-40ab95">${cfgEsc(line.sku)}</div>` : ''}
         ${line.namedCell?.() || ''}
         ${posMRPCell(line)}
       </td>
       <td>${posAvailabilityCell(line)}</td>
       <!-- Stage 53.8: steppers beside the box, not instead of it - a cashier
            ringing up 12 of something still types 12. -->
-      <td style="white-space: nowrap;">
+      <td class="s-1cd2ee">
         <button class="action-btn" type="button" title="One less" ${actionAttrs('stepPOSCartLine', [line.sku, -1])}>&minus;</button>
-        <input type="number" min="1" value="${line.qty}" class="form-input" style="width: 64px; display:inline-block; text-align:center;" ${actionAttrs('updatePOSCartLine', [line.sku, 'qty', ACTION_ARG_VALUE], { on: 'change' })}>
+        <input type="number" min="1" value="${line.qty}" class="form-input s-c7a4d8" ${actionAttrs('updatePOSCartLine', [line.sku, 'qty', ACTION_ARG_VALUE], { on: 'change' })}>
         <button class="action-btn" type="button" title="One more" ${actionAttrs('stepPOSCartLine', [line.sku, 1])}>+</button>
       </td>
       <td>${posPriceCell(line)}</td>
@@ -783,10 +783,10 @@ function posAvailabilityCell(line) {
   const over = line.qty > sellable;
   const main = `<div style="font-weight:600; ${over ? 'color: var(--danger-color, #b3261e);' : ''}">${sellable} sellable</div>`;
   const held = line.heldText || withheld > 0
-    ? `<div style="font-size:11.5px; color:var(--text-muted);">${line.heldText ? `Not sellable here: ${escapeHTMLText(line.heldText)}` : `${withheld} not sellable (QC hold / damaged / blocked)`}</div>`
+    ? `<div class="s-40ab95">${line.heldText ? `Not sellable here: ${escapeHTMLText(line.heldText)}` : `${withheld} not sellable (QC hold / damaged / blocked)`}</div>`
     : '';
   const warn = over
-    ? `<div style="font-size:11.5px; color: var(--danger-color, #b3261e);">Only ${sellable} can be sold here</div>`
+    ? `<div class="s-17811e">Only ${sellable} can be sold here</div>`
     : '';
   return main + held + warn;
 }
@@ -907,7 +907,7 @@ function posMRPCell(line) {
     </div>`;
   }
   if (!line.mrp) return '';
-  return `<div style="font-size:11.5px; color:var(--text-muted);">MRP ${posMRPText(line.mrp)}${line.mrpPicked ? ` <button class="link-btn" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, 0])}>change</button>` : ''}</div>`;
+  return `<div class="s-40ab95">MRP ${posMRPText(line.mrp)}${line.mrpPicked ? ` <button class="link-btn" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, 0])}>change</button>` : ''}</div>`;
 }
 
 function pickPOSLineMRP(sku, mrp) {
@@ -922,16 +922,16 @@ function posPriceCell(line) {
   const label = POS_PRICE_SOURCE_LABELS[line.priceSource] || '';
   if (line.unpriced) {
     return `
-      <input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input" style="width: 100px;"
+      <input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input s-da190a"
              ${actionAttrs('updatePOSCartLine', [line.sku, 'salePrice', ACTION_ARG_VALUE], { on: 'change' })}>
-      <div style="font-size:11.5px; color:var(--warning-color, #b26a00); margin-top:2px;">No price on record - needs approval</div>`;
+      <div class="s-72dd0b">No price on record - needs approval</div>`;
   }
   const struck = (line.referencePrice > line.salePrice)
-    ? `<span style="text-decoration:line-through; color:var(--text-muted); margin-right:6px;">${Number(line.referencePrice).toFixed(2)}</span>`
+    ? `<span class="s-d62799">${Number(line.referencePrice).toFixed(2)}</span>`
     : '';
   return `
-    <div style="font-weight:600;">${struck}${Number(line.salePrice).toFixed(2)}</div>
-    ${label ? `<div style="font-size:11.5px; color:var(--text-muted);">${cfgEsc(label)}</div>` : ''}`;
+    <div class="s-eed0f8">${struck}${Number(line.salePrice).toFixed(2)}</div>
+    ${label ? `<div class="s-40ab95">${cfgEsc(label)}</div>` : ''}`;
 }
 
 // openPOSPriceOverride raises the capability-gated override command. It is
@@ -1049,7 +1049,7 @@ async function refreshPOSQuote() {
     // mode (an item with no price cannot be sold), so say so rather than
     // leaving a silently unpriced cart on screen.
     row.classList.remove('hidden');
-    row.innerHTML = `<div style="font-size:13px; color:var(--danger-color, #b00020);">${cfgEsc(await getErrorMessage(res, 'These items could not be priced.'))}</div>`;
+    row.innerHTML = `<div class="s-88686e">${cfgEsc(await getErrorMessage(res, 'These items could not be priced.'))}</div>`;
     return;
   }
 
@@ -1098,11 +1098,11 @@ async function refreshPOSQuote() {
   row.classList.remove('hidden');
   row.innerHTML = `
     ${posAppliedOffers.length ? `
-      <div style="font-size:13px; font-weight:600; margin-bottom:6px;">Offers applied</div>
-      <ul style="margin:0 0 4px; padding-left:18px; font-size:13px;">
-        ${posAppliedOffers.map(o => `<li>${cfgEsc(o.name)} <span style="color:var(--text-muted);">- ${cfgEsc(o.description || '')}</span> <strong>-${Number(o.discount).toFixed(2)}</strong></li>`).join('')}
+      <div class="s-2c237e">Offers applied</div>
+      <ul class="s-9193c6">
+        ${posAppliedOffers.map(o => `<li>${cfgEsc(o.name)} <span class="s-5872de">- ${cfgEsc(o.description || '')}</span> <strong>-${Number(o.discount).toFixed(2)}</strong></li>`).join('')}
       </ul>
-      <div style="font-size:13px; font-weight:600;">Total offer discount: -${newDiscount.toFixed(2)}</div>` : ''}
+      <div class="s-203476">Total offer discount: -${newDiscount.toFixed(2)}</div>` : ''}
     ${unmatched.length ? `<div style="font-size:12.5px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
         Coupon code${unmatched.length > 1 ? 's' : ''} ${unmatched.map(c => cfgEsc(c) + ((data.coupon_messages || {})[c] ? ` (${cfgEsc(data.coupon_messages[c])})` : '')).join(', ')} did not apply to this cart.
       </div>` : ''}
@@ -1456,7 +1456,7 @@ function freezePOSTill(sale) {
   const colour = sale.status === 'paid' ? 'var(--success-color, #1a7f37)' : 'var(--warning-color, #b26a00)';
   panel.style.borderColor = colour;
   const lines = (sale.items || []).map(it => `
-    <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+    <div class="s-7f3b27">
       <span>${cfgEsc(it.name || it.sku)} &times; ${it.qty}</span>
       <span>${(it.qty * (Number(it.sale_price) || 0)).toFixed(2)}</span>
     </div>`).join('');
@@ -1466,14 +1466,14 @@ function freezePOSTill(sale) {
     </div>`;
 
   panel.innerHTML = `
-    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+    <div class="s-74f21a">
       <span style="font-size:19px; font-weight:700; color:${colour};">${cfgEsc(sale.heading)}</span>
-      <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(sale.billNumber ? `Bill ${sale.billNumber}` : (sale.cartNumber || ''))}</span>
-      <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(posStoreLabel())}</span>
-      <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(sale.paymentMode || '')}</span>
+      <span class="s-b14cdc">${cfgEsc(sale.billNumber ? `Bill ${sale.billNumber}` : (sale.cartNumber || ''))}</span>
+      <span class="s-b14cdc">${cfgEsc(posStoreLabel())}</span>
+      <span class="s-b14cdc">${cfgEsc(sale.paymentMode || '')}</span>
     </div>
-    ${sale.note ? `<div style="font-size:13px; margin-bottom:10px;">${cfgEsc(sale.note)}</div>` : ''}
-    <div style="max-width:420px;">
+    ${sale.note ? `<div class="s-afa980">${cfgEsc(sale.note)}</div>` : ''}
+    <div class="s-0fd874">
       ${lines}
       ${sale.offerDiscount > 0 ? money('Discount (offers and bill)', -sale.offerDiscount) : ''}
       ${sale.loyaltyDiscount > 0 ? money(`Loyalty points applied${sale.loyaltyPoints ? ` (${sale.loyaltyPoints} pt)` : ''}`, -sale.loyaltyDiscount) : ''}
@@ -1483,7 +1483,7 @@ function freezePOSTill(sale) {
       ${sale.tendered !== null && sale.tendered !== undefined ? money('Cash tendered', sale.tendered) : ''}
       ${sale.changeDue !== null && sale.changeDue !== undefined ? money('Change due', sale.changeDue, true) : ''}
     </div>
-    <div style="display:flex; gap:10px; margin-top:16px;">
+    <div class="s-a1aa18">
       <button class="btn btn-primary" id="pos-new-sale-btn" type="button">New Sale (Reset)</button>
       ${sale.canPrint ? '<button class="btn btn-outline" id="pos-print-receipt-btn" type="button">Print Receipt</button>' : ''}
       ${sale.gstBill && sale.status === 'paid' ? '<button class="btn btn-outline" id="pos-print-gst-btn" type="button">Print GST Invoice</button>' : ''}
@@ -1714,8 +1714,8 @@ function renderPOSPackagingRow() {
   posGifts.forEach(g => {
     const taken = posCart.filter(l => String(l.sku).toLowerCase() === String(g.gift_item).toLowerCase()).reduce((s, l) => s + l.qty, 0);
     const left = g.qty - taken;
-    parts.push(`<div style="font-size:13px; font-weight:600;">Gift eligible: ${g.qty} &times; ${cfgEsc(g.gift_name)}
-      <span style="font-weight:400; color:var(--text-muted);">(${cfgEsc(g.name)}) &mdash; ${left > 0 ? `scan ${left === g.qty ? 'it' : left + ' more'} to hand it over` : 'scanned'}</span></div>`);
+    parts.push(`<div class="s-203476">Gift eligible: ${g.qty} &times; ${cfgEsc(g.gift_name)}
+      <span class="s-3650c6">(${cfgEsc(g.name)}) &mdash; ${left > 0 ? `scan ${left === g.qty ? 'it' : left + ' more'} to hand it over` : 'scanned'}</span></div>`);
   });
   const totals = {};
   posPackaging.forEach(p => {
@@ -1726,7 +1726,7 @@ function renderPOSPackagingRow() {
   });
   const used = Object.keys(totals).map(k => `${totals[k]} &times; ${cfgEsc(k)}`);
   if (used.length) {
-    parts.push(`<div style="font-size:12.5px; color:var(--text-muted);">Uses (not on the bill): ${used.join(', ')}${Object.keys(totals).some(k => k.endsWith(' *')) ? ' &middot; * changed' : ''}</div>`);
+    parts.push(`<div class="s-2d9834">Uses (not on the bill): ${used.join(', ')}${Object.keys(totals).some(k => k.endsWith(' *')) ? ' &middot; * changed' : ''}</div>`);
   }
   posPackagingShortages.forEach(s => {
     const blocking = s.action === 'block';

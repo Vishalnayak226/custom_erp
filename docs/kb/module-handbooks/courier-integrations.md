@@ -47,7 +47,7 @@ using:
   outbound calls for AWB allocation, pickup scheduling, cancellation, rate
   shopping, and signed webhook-driven tracking ingestion, plus an NDR
   (non-delivery report) case workflow and a vector-barcode PDF label. This
-  layer is code-complete and tested (`engines/courier_stage35_test.go`) —
+  layer is code-complete and tested (`engines/courier_test.go`) —
   see the gap noted below for what's missing to actually use it day to day.
 
 ## The shared model (`engines/courier.go`)

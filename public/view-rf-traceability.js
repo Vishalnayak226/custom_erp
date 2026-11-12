@@ -89,12 +89,12 @@ async function renderRFTraceabilityView(container) {
   const wrap = document.createElement('div');
   wrap.className = 'rf-wrap';
   wrap.innerHTML = `
-    <div class="rf-header" style="padding-right:150px">
+    <div class="rf-header s-62ef81">
       <div class="rf-title" id="rf-title">Choose a task</div>
       <div class="rf-instruction" id="rf-instruction"></div>
-      <div style="position:absolute;top:0;right:0;display:flex;gap:8px">
-        <button class="rf-help-btn" style="position:static" type="button" aria-label="Help for RF Traceability" title="Help for this screen" ${actionAttrs('openHelpDrawer', ['rf-traceability'])}>Help</button>
-        <button class="rf-help-btn" style="position:static" type="button" title="Back to the rest of the app" ${actionAttrs('exitRFTraceability', [])}>Exit</button>
+      <div class="s-fd7036">
+        <button class="rf-help-btn s-8d66d1" type="button" aria-label="Help for RF Traceability" title="Help for this screen" ${actionAttrs('openHelpDrawer', ['rf-traceability'])}>Help</button>
+        <button class="rf-help-btn s-8d66d1" type="button" title="Back to the rest of the app" ${actionAttrs('exitRFTraceability', [])}>Exit</button>
       </div>
     </div>
     <div id="rf-body"></div>

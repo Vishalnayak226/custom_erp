@@ -130,6 +130,7 @@ func DispatchNotification(tenantID, event, orderID string, extra map[string]stri
 		// claiming "Sent" for a call that was suppressed.
 		if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
 			log.Printf("[NOTIFY] sandbox tenant schema %s - simulating dispatch of %q to %s (no real HTTP call made)", schema, event, t.channel)
+			noteSandboxSuppressed(schema, event+" -> "+t.channel)
 			writeNotificationLog(schema, event, t.channel, orderID, t.id, "Skipped-Sandbox", "sandbox tenant - no real webhook call made")
 			continue
 		}
@@ -382,6 +383,7 @@ func deliverNotification(ctx context.Context, schema string, job Job) (map[strin
 	attempt := job.Attempts + 1
 	attemptFields := map[string]interface{}{"attempts": attempt, "last_attempt_at": time.Now().UTC().Format(time.RFC3339)}
 	if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
+		noteSandboxSuppressed(schema, "notification webhook")
 		return map[string]interface{}{"simulated": true}, recordNotificationState(schema, logID, "Skipped-Sandbox", "system", "sandbox tenant - no real webhook call made", nil)
 	}
 	if ok, reason := OutsideCallsAllowed(schema); !ok {

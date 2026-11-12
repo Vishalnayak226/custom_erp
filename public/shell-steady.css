@@ -11,3 +11,51 @@
 @media (prefers-reduced-motion: reduce) {
   .ui-changed { animation: none; }
 }
+
+/* Stage 47.14.6: empty, failed and refused look different. Empty is quiet and
+   dashed; an error is red with a warning mark; a refusal is amber with a lock;
+   not found is plain. One vocabulary - renderErrorPanel and the Unavailable
+   panel set the class, shell-nav.js tags a list's "No ... yet" row. */
+.state-empty, .txn-empty, .dash-empty, .stk-empty, .oms-step-empty, .po-lines-empty {
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.state-error, .state-denied, .state-missing {
+  border-left: 4px solid var(--border-color);
+}
+
+.state-error {
+  border-left-color: var(--danger-color);
+  background: var(--danger-soft-bg);
+  color: var(--danger-strong);
+}
+
+.state-denied {
+  border-left-color: var(--warning-color);
+  background: var(--warning-soft-bg);
+  color: var(--warning-strong);
+}
+
+.state-error .text-muted, .state-denied .text-muted {
+  color: inherit;
+}
+
+.state-empty::before, .state-error:not(:has(svg)) h2::before, .state-denied:not(:has(svg)) h2::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 6px;
+  vertical-align: -0.12em;
+  background-color: currentColor;
+  -webkit-mask: var(--state-icon) center / contain no-repeat;
+  mask: var(--state-icon) center / contain no-repeat;
+}
+
+/* inbox / alert triangle / lock */
+.state-empty { --state-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><path d='M22 12h-6l-2 3h-4l-2-3H2'/><path d='M5.5 5h13L22 12v6H2v-6z'/></svg>"); }
+.state-error { --state-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><path d='M12 3 2 21h20z'/><path d='M12 10v5M12 18v.01'/></svg>"); }
+.state-denied { --state-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg>"); }

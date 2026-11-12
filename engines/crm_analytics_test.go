@@ -8,7 +8,7 @@ import (
 
 // Stage 26.7.9/26.7.10/26.7.11 (CRM/Loyalty Sprint P2 follow-up) engine
 // tests. Kept in its own file, same convention wms_enterprise_test.go/
-// reports_stage26_10_test.go already established for staying out of
+// reports_operations_test.go already established for staying out of
 // engines_test.go while other concurrent work is mid-editing it.
 func TestCRMAnalytics(t *testing.T) {
 	connStr := testConnStr()

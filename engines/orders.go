@@ -24,6 +24,8 @@ type SalesOrderLineInput struct {
 	BundleQuantity          int
 	BundleComponentQuantity int
 	BundlePricingMode       string
+	// FloorReason says why a rate below the floor is accepted (148.26).
+	FloorReason string
 }
 
 // Hold-routing exception codes (Stage 26.12.1). Deliberately distinct from
@@ -242,6 +244,17 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		}
 	}
 
+	// Stage 148.43: a brand-restricted dealer is refused (or warned) here, before
+	// the bundles expand into their parts. Setting off: nothing happens.
+	brandSKUs := make([]string, 0, len(lines))
+	for _, l := range lines {
+		brandSKUs = append(brandSKUs, l.SKU)
+	}
+	brandWarning, err := brandRestrictionCheck(tenantID, in.CustomerID, customerName, brandSKUs)
+	if err != nil {
+		return "", err
+	}
+
 	// Stage 35.7: a virtual commercial SKU never becomes a stock source of its
 	// own. Expand it once, before validation/sourcing/reservation, so every
 	// downstream warehouse action sees the real component Items. Stocked kits
@@ -251,16 +264,34 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		return "", err
 	}
 
+	// Stage 148.26: a blank rate comes from the customer's price list; a rate
+	// below the floor needs a reason or holds the order (both settings, off).
+	priceCustomerID := strings.TrimSpace(in.CustomerID)
+	if priceCustomerID == "" {
+		priceCustomerID = ResolveCustomerLink(tenantID, customerName)
+	}
+	priceNotes, marginHold, err := applyB2BOrderPricing(tenantID, channel, priceCustomerID, lines)
+	if err != nil {
+		return "", err
+	}
+
 	holdReason, err := validateOrderChain(tenantID, shippingAddress, paymentStatus, lines)
 	if err != nil {
 		return "", err
+	}
+	if holdReason == "" && marginHold {
+		holdReason = HoldMargin
 	}
 
 	// Allocation runs only once the validate chain is clean - a failing
 	// SKU-mapping/address/payment check takes priority over sourcing, same
 	// fixed check order the design note calls out (§12).
+	ds, err := planDropShip(tenantID, lines) // Stage 148.32: all drop-ship lines, or none
+	if err != nil {
+		return "", err
+	}
 	var plan *AllocationPlan
-	if holdReason == "" {
+	if holdReason == "" && ds == nil {
 		if in.PreferredLocation != "" {
 			items := make([]map[string]interface{}, 0, len(lines))
 			for _, line := range lines {
@@ -381,8 +412,17 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 			orderDoc["payment_term"] = term
 		}
 	}
+	if brandWarning != "" {
+		orderDoc["brand_warning"] = brandWarning
+	}
+	if ds != nil {
+		orderDoc["dropship"] = "Yes" // Stage 148.32
+	}
 	if holdReason != "" {
 		orderDoc["hold_since"] = time.Now().UTC().Format(time.RFC3339)
+		if holdReason == HoldMargin {
+			orderDoc["hold_owner"] = marginApproverRole
+		}
 	}
 	orderMarshaled, err := json.Marshal(orderDoc)
 	if err != nil {
@@ -417,6 +457,12 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 			"bundle_component_qty": l.BundleComponentQuantity,
 			"bundle_pricing_mode":  l.BundlePricingMode,
 		}
+		stampB2BLine(lineDoc, priceNotes, i, l)
+		// Stage 148.27: the promise, when the setting is on (reads only; nothing reserved).
+		if p, perr := PromiseForLine(tenantID, l.SKU, float64(l.Qty), lineLocation, channel); perr == nil && (p.Date != "" || p.Reason != "") {
+			lineDoc["promise_date"], lineDoc["promise_reason"] = p.Date, p.Reason
+		}
+		ds.markLine(lineDoc, l.SKU) // Stage 148.32
 		lineMarshaled, err := json.Marshal(lineDoc)
 		if err != nil {
 			return "", err
@@ -427,7 +473,7 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 			return "", err
 		}
 
-		if holdReason == "" {
+		if holdReason == "" && ds == nil { // Stage 148.32: the vendor ships a drop-ship line
 			// Stage 35.3.7: the reservation names the line it backs, so releasing
 			// this line later releases exactly this row rather than the oldest
 			// row that happens to match on (sku, location, quantity).
@@ -443,6 +489,11 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	DispatchNotification(tenantID, "Order Placed", orderID, map[string]string{"order_status": orderStatus})
 	if holdReason != "" {
 		DispatchNotification(tenantID, "Order On Hold", orderID, map[string]string{"hold_reason": holdReason})
+	}
+	if ds != nil && holdReason == "" { // Stage 148.32: the Draft PO to the vendor, to the customer's address
+		if _, perr := raiseDropShipPOs(tenantID, orderID, "system"); perr != nil {
+			LogSystemError(tenantID, "", "Medium", "Drop-ship", fmt.Sprintf("order %s: the PO could not be raised: %v", orderID, perr), "")
+		}
 	}
 
 	// Stage 88.3.1 (D12): staff-keyed orders skip Pending. A failure here
@@ -515,6 +566,9 @@ func PlaceOrderHold(tenantID, orderID, reasonCode, owner string) error {
 	if strField(orderData, "hold_reason") == HoldCredit && strField(orderData, "order_status") == "On Hold" {
 		return &ValidationError{Code: "ORDERM-0980", SubFor: "SalesOrder", Message: "this order is on Credit hold - it is released by approving its release request"}
 	}
+	if strField(orderData, "hold_reason") == HoldMargin && strField(orderData, "order_status") == "On Hold" {
+		return errMarginHold
+	}
 	orderData["order_status"] = "On Hold"
 	orderData["hold_reason"] = reasonCode
 	orderData["hold_owner"] = owner
@@ -541,6 +595,11 @@ func PlaceOrderHold(tenantID, orderID, reasonCode, owner string) error {
 // found either, hold_reason becomes HoldAllocationFailed instead. Either way
 // the order stays On Hold.
 func ReleaseOrderHold(tenantID, orderID string) error {
+	return releaseOrderHold(tenantID, orderID, false)
+}
+
+// releaseOrderHold is the release; viaMargin is true only for ReleaseMarginHold.
+func releaseOrderHold(tenantID, orderID string, viaMargin bool) error {
 	schema, orderData, err := fetchSalesOrder(tenantID, orderID)
 	if err != nil {
 		return err
@@ -550,6 +609,9 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 	}
 	if strField(orderData, "hold_reason") == HoldCredit {
 		return &ValidationError{Code: "ORDERM-0980", SubFor: "SalesOrder", Message: "this order is on Credit hold - it is released by approving its release request"}
+	}
+	if !viaMargin && strField(orderData, "hold_reason") == HoldMargin {
+		return errMarginHold // 148.26: a Store Manager releases it, with a reason
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(
@@ -717,6 +779,9 @@ func CancelOrder(tenantID, orderID, reasonCode string, actor ...string) error {
 		return fmt.Errorf("order %s cannot be cancelled from status %q", orderID, orderStatus)
 	}
 	if err := requireActiveReasonCode(tenantID, reasonCode, "Cancellation"); err != nil {
+		return err
+	}
+	if err := cancelDropShipOrder(tenantID, schema, orderID, orderData); err != nil { // Stage 148.32
 		return err
 	}
 	if orderStatus == OrderStatusReleased {

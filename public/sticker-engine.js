@@ -1594,7 +1594,7 @@ async function previewSegments(segments, printer, title) {
   overlay.className = 'modal-overlay';
   overlay.style.zIndex = '3100';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 920px;" role="dialog" aria-modal="true" aria-labelledby="stk-preview-title">
+    <div class="modal-container s-a22c78" role="dialog" aria-modal="true" aria-labelledby="stk-preview-title">
       <div class="modal-header">
         <h3 class="modal-title" id="stk-preview-title">${esc(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-stk-preview="close">
@@ -1602,8 +1602,8 @@ async function previewSegments(segments, printer, title) {
         </button>
       </div>
       <div class="modal-body">
-        <p style="margin: 0 0 12px; color: var(--text-muted);">${stickers} sticker${stickers === 1 ? '' : 's'}${printer && printer.name ? ` on ${esc(printer.name)}` : ''}.</p>
-        <div data-stk-preview="pages" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;"></div>
+        <p class="s-aa074c">${stickers} sticker${stickers === 1 ? '' : 's'}${printer && printer.name ? ` on ${esc(printer.name)}` : ''}.</p>
+        <div data-stk-preview="pages" class="s-863d40"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" data-stk-preview="close">Close</button>

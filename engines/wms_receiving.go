@@ -49,6 +49,19 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 // one child only (grn_steps.go keeps a SKU's lines together), so the stock
 // ledger and QC keys - per GRN and SKU - never collide between parts.
 func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, userID, grnID, part string) ([]NegativeStockEvent, error) {
+	return postGRNReceiptPart(tenantID, locationCode, items, userID, grnID, part, false)
+}
+
+// PostGRNReceiptAndPublish is PostGRNReceiptWithQC for a receipt saved through
+// the document API: the inventory.stock_changed outbox row is written in the
+// receipt's own transaction (Stage 162.11), so a crash or a failed write after
+// the stock moved can neither lose the event nor leave an event for stock that
+// never moved.
+func PostGRNReceiptAndPublish(tenantID, locationCode string, items []interface{}, userID, grnID string) ([]NegativeStockEvent, error) {
+	return postGRNReceiptPart(tenantID, locationCode, items, userID, grnID, "", true)
+}
+
+func postGRNReceiptPart(tenantID, locationCode string, items []interface{}, userID, grnID, part string, publish bool) ([]NegativeStockEvent, error) {
 	if locationCode == "" || len(items) == 0 {
 		return nil, nil
 	}
@@ -67,6 +80,28 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 	negativeEvents, after, err := postGRNReceiptPartTx(tx, tenantID, schema, locationCode, items, userID, grnID, part)
 	if err != nil {
 		return negativeEvents, err
+	}
+	if publish {
+		// A repeat of the same receipt (a retried save) moves no stock, so it
+		// queues no second event.
+		if _, err := tx.Exec(`SELECT pg_advisory_xact_lock(hashtext($1))`, schema+":stock_changed:"+grnID); err != nil {
+			return negativeEvents, err
+		}
+		var queued int
+		if err := tx.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.integration_event_outbox WHERE event_name = 'inventory.stock_changed' AND payload->>'grn_id' = $1`, schema), grnID).Scan(&queued); err != nil {
+			return negativeEvents, err
+		}
+		if queued > 0 {
+			publish = false
+		}
+	}
+	if publish {
+		if err := PublishEvent(tx, schema, "inventory.stock_changed", map[string]interface{}{
+			"grn_id":   grnID,
+			"location": locationCode,
+		}); err != nil {
+			return negativeEvents, fmt.Errorf("the stock-changed event could not be queued, so the receipt was not posted: %w", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return negativeEvents, err
@@ -255,7 +290,7 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 		}
 		// Stage 146.3.2: at a store and for an item type that give every piece a
 		// code, the pieces without a typed code are minted here and the whole
-		// list is kept on the GRN line (engines/piece_codes_stage146.go).
+		// list is kept on the GRN line (engines/piece_codes.go).
 		var planErr error
 		if serialNumbers, planErr = planPieceCodesTx(tx, tenantID, schema, locationCode, grnID, lineIdx, sku, accepted, serialNumbers); planErr != nil {
 			return nil, nil, planErr
@@ -281,6 +316,32 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 		}
 		if rejected > 0 || damaged > 0 {
 			addQCSplit(sku, rejected, damaged)
+		}
+	}
+
+	// Stage 49.5.2: a receipt that has already been posted is not posted again.
+	// The stock ledger and the GL skip a repeat by their idempotency keys, but
+	// the availability update did not, so a repeated call (a retry, a second
+	// caller) added the stock twice while the books showed it once. The GRN row
+	// is locked so two callers at once queue instead of both passing the check,
+	// and a SKU sits in one part only (see above), so "its ledger line exists"
+	// means this receipt already landed.
+	if grnID != "" && len(acceptedItems) > 0 {
+		if _, err := tx.Exec(fmt.Sprintf(`SELECT 1 FROM %s.documents WHERE doctype = 'GRN' AND id = $1 FOR UPDATE`, schema), grnID); err != nil {
+			return nil, nil, err
+		}
+		landed := 0
+		for _, line := range stockLedgerEntriesFor(locationCode, "GRN", grnID, userID, grnAcceptedLines(acceptedItems)) {
+			var exists bool
+			if err := tx.QueryRow(fmt.Sprintf(stockLedgerKeyProbe, schema), line.IdempotencyKey).Scan(&exists); err != nil {
+				return nil, nil, err
+			}
+			if exists {
+				landed++
+			}
+		}
+		if landed > 0 && landed == len(stockLedgerEntriesFor(locationCode, "GRN", grnID, userID, grnAcceptedLines(acceptedItems))) {
+			return nil, func() {}, nil
 		}
 	}
 
@@ -367,6 +428,10 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 				return negativeEvents, nil, fmt.Errorf("stock ledger for %s damaged split: %w", s.sku, err)
 			}
 		}
+	}
+	// 148.33: lots a rule asks to be inspected are held in this same transaction.
+	if err := inspectionHoldTx(tx, tenantID, schema, locationCode, userID, grnID, part, items); err != nil {
+		return negativeEvents, nil, err
 	}
 	after := func() {
 		emitGRNPutawayTasks(tenantID, locationCode, grnID, userID, acceptedItems) // 146.3.3, only with wms.work_queue on
@@ -645,4 +710,20 @@ func grnLineBatchMode(tenantID, sku string) (string, error) {
 		return GRNBatchOff, nil
 	}
 	return EffectiveGRNBatchMode(tenantID, item.Data), nil
+}
+
+// grnAcceptedLines reads accepted receipt lines as posted stock lines (the
+// shape the stock ledger keys are built from).
+func grnAcceptedLines(items []interface{}) []PostedStockLine {
+	out := make([]PostedStockLine, 0, len(items))
+	for _, raw := range items {
+		m, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sku, _ := m["sku"].(string)
+		batch, _ := m["batch_no"].(string)
+		out = append(out, PostedStockLine{SKU: sku, Qty: int(numFromInterface(m["qty"])), BatchNo: batch})
+	}
+	return out
 }

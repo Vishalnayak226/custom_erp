@@ -480,3 +480,12 @@ R2053	po-overdue-lines	Overdue PO lines	Procurement
 R9040	vendor-scorecard	Vendor scorecard	Procurement
 R9045	expected-arrivals	Expected arrivals	Procurement
 R9055	goods-before-po	Goods received before PO	Procurement
+R2054	memo-stock	Memo stock	Procurement
+R3083	held-pieces	Held pieces	Inventory
+R1034	late-promise-lines	Late promise lines	Sales & POS
+R2060	backorder-list	Back orders	Procurement
+R9060	inspection-lots	Inspection lots	Inventory
+R9061	stock-age-inspections-due	Inspections due by stock age	Inventory
+R3090	summary-invoice-groups	Summary invoice groups	Sales
+R3091	dropship-open-lines	Drop-ship lines open	Procurement
+R3095	sales-incentives	Sales incentives	Sales

@@ -95,7 +95,7 @@ Because the provider sits behind an interface (75.2.5), choosing IRIS now doesn'
   - **Notes:** a note references its original.
 
   Errors name the field and the fix. The number series used for INV/CRN/DBN on an enabled GSTIN can't be saved if it would produce more than 16 characters.
-- [ ] **75.2.4 Data model.** Additive migration `db/migrations_stage75_2_einvoice.sql`, per tenant schema, propagated as Stage 64 does:
+- [ ] **75.2.4 Data model.** Additive migration `db/migrations/migrations_stage75_2_einvoice.sql`, per tenant schema, propagated as Stage 64 does:
   - `irp_profiles`: entity, GSTIN, environment, provider, credential reference, flags, whitelisted IP, test status, activation date.
   - `irp_documents`: unique on (environment, GSTIN, fiscal year, type, normalized number) and on (environment, GSTIN, IRN).
   - `irp_attempts`: redacted.
@@ -138,7 +138,7 @@ Because the provider sits behind an interface (75.2.5), choosing IRIS now doesn'
 
 - [ ] **75.2.13 Pilot.**
   - **Onboarding:** IRIS production steps PR-01–PR-10, then a canary with one low-risk B2B invoice.
-  - **Outage path:** the manual-portal SOP in `incident_runbook.md`.
+  - **Outage path:** the manual-portal SOP in `incident-runbook.md`.
   - **Docs:** ADMIN_GUIDE (setup), USER_GUIDE (workbench), USER_SOP (outage).
 
 ## 6. Your actions (these take calendar time, so start early)

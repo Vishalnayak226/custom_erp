@@ -69,7 +69,7 @@ Within `v1`:
 
 ## Credential lifecycle now available to administrators
 
-After `db/migrations_stage38_2_api_credentials.sql` is applied, Super Admin human sessions can call:
+After `db/migrations/migrations_stage38_2_api_credentials.sql` is applied, Super Admin human sessions can call:
 
 | Method | Private administration endpoint | Purpose |
 |---|---|---|

@@ -50,20 +50,20 @@ async function renderExpensesView(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${autoNumberField('Claim Number', 'EXP', '160px')}
 ${employeePickerField('exp-employee', '180px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-location">Location</label>
-        <input type="text" id="exp-location" class="form-input" style="width: 100px;">
+        <input type="text" id="exp-location" class="form-input s-da190a">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-date">Expense Date</label>
         <input type="date" id="exp-date" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-category">Category</label>
-        <select id="exp-category" class="form-input" style="width: 130px;">
+        <select id="exp-category" class="form-input s-27652d">
           <option value="Conveyance">Conveyance</option>
           <option value="Travel">Travel</option>
           <option value="Food">Food</option>
@@ -76,40 +76,40 @@ ${employeePickerField('exp-employee', '180px')}
           <option value="Other">Other</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-amount">Amount (before GST)</label>
-        <input type="number" id="exp-amount" class="form-input" style="width: 110px;" min="0" step="0.01">
+        <input type="number" id="exp-amount" class="form-input s-148b84" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-gst">GST on the bill</label>
-        <input type="number" id="exp-gst" class="form-input" style="width: 100px;" min="0" step="0.01">
+        <input type="number" id="exp-gst" class="form-input s-da190a" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-advance">Advance already received</label>
-        <input type="number" id="exp-advance" class="form-input" style="width: 110px;" min="0" step="0.01">
+        <input type="number" id="exp-advance" class="form-input s-148b84" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-receipt">Bill / receipt no.</label>
-        <input type="text" id="exp-receipt" class="form-input" style="width: 130px;">
+        <input type="text" id="exp-receipt" class="form-input s-27652d">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="exp-files">Receipt photo / PDF</label>
-        <input type="file" id="exp-files" class="form-input" style="width: 230px;" accept="${RECEIPT_TYPES}" multiple>
+        <input type="file" id="exp-files" class="form-input s-63f14f" accept="${RECEIPT_TYPES}" multiple>
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 160px;">
+      <div class="form-group s-4860ed">
         <label class="form-label" for="exp-purpose">Purpose</label>
         <input type="text" id="exp-purpose" class="form-input">
       </div>
       <button class="btn btn-primary" id="exp-create-btn">Create Draft</button>
     </div>
-    <div id="exp-total" class="page-subtitle" style="margin-top: 12px;"></div>
-    <div id="exp-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="exp-total" class="page-subtitle s-4bb900"></div>
+    <div id="exp-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   // What is still owed, by where it waits.
   const by = s => claims.filter(c => c.status === s);
   const sum = list => list.reduce((t, c) => t + expenseReimbursable(c), 0);
-  const money = v => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = v => formatMoney(v || 0);
   const stats = document.createElement('div');
   stats.className = 'dashboard-stats-row';
   stats.innerHTML = [
@@ -127,10 +127,10 @@ ${employeePickerField('exp-employee', '180px')}
       <tbody>
   `;
   html += claims.length === 0
-    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No expense claims yet. Click <b>+ New Expense Claim</b> to raise one.</td></tr>`
+    ? `<tr><td colspan="9" class="s-306094">No expense claims yet. Click <b>+ New Expense Claim</b> to raise one.</td></tr>`
     : claims.map(c => `
         <tr>
-          <td style="font-family: monospace;">${escapeHTMLText(c.code || c.id)}<br><small data-exp-clip="${escapeHTMLText(c.id)}"></small></td>
+          <td class="s-355794">${escapeHTMLText(c.code || c.id)}<br><small data-exp-clip="${escapeHTMLText(c.id)}"></small></td>
           <td>${escapeHTMLText(c.employee_id || '')}</td>
           <td>${escapeHTMLText(c.expense_date || '')}</td>
           <td>${escapeHTMLText(c.category || '')}${c.receipt_number ? `<br><small>Bill ${escapeHTMLText(c.receipt_number)}</small>` : ''}</td>
@@ -201,8 +201,8 @@ async function showExpenseHistory(claimId, claims) {
   const reached = claim.status === 'Rejected' ? ['Draft', 'Pending Approval'] : EXPENSE_STEPS.slice(0, EXPENSE_STEPS.indexOf(claim.status) + 1);
   const path = EXPENSE_STEPS.map(s => `<span class="badge ${reached.includes(s) ? (s === claim.status ? 'badge-success' : 'badge-secondary') : ''}" style="${reached.includes(s) ? '' : 'opacity:.45'}">${s}</span>`).join(' &rarr; ')
     + (claim.status === 'Rejected' ? ' &rarr; <span class="badge badge-danger">Rejected</span>' : '');
-  row.querySelector('td').innerHTML = `<div style="padding:8px 0">${path}</div>
-    ${entries.length === 0 ? '<div style="color:var(--text-muted)">No approval decisions yet.</div>' : `<table><thead><tr><th>When</th><th>Action</th><th>By</th><th>Comment</th></tr></thead><tbody>
+  row.querySelector('td').innerHTML = `<div class="s-d8c022">${path}</div>
+    ${entries.length === 0 ? '<div class="s-5872de">No approval decisions yet.</div>' : `<table><thead><tr><th>When</th><th>Action</th><th>By</th><th>Comment</th></tr></thead><tbody>
       ${entries.map(e => `<tr><td>${escapeHTMLText((e.created_at || '').replace('T', ' ').slice(0, 16))}</td><td>${escapeHTMLText(e.action || '')}</td><td>${escapeHTMLText(e.actor_user_id || '')} (${escapeHTMLText(e.actor_role || '')})</td><td>${escapeHTMLText(e.comment || '')}</td></tr>`).join('')}
     </tbody></table>`}
     <div data-exp-receipts></div>`;
@@ -216,7 +216,7 @@ async function showExpenseHistory(claimId, claims) {
 const RECEIPT_TYPES = 'image/jpeg,image/png,image/webp,application/pdf';
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MAX_FILES = 5;
-const RECEIPT_CLIP_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+const RECEIPT_CLIP_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="s-9db62a"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
 
 function receiptSelectionProblem(files, alreadyAttached = 0) {
   if (files.length + alreadyAttached > RECEIPT_MAX_FILES) return `A claim can hold at most ${RECEIPT_MAX_FILES} receipt files.`;
@@ -276,22 +276,22 @@ async function renderExpenseReceipts(holder, claimId) {
   const res = await apiFetch(`/api/v1/attachments/ExpenseClaim/${encodeURIComponent(claimId)}`);
   if (!res) return;
   if (!res.ok) {
-    holder.innerHTML = `<div style="margin-top:12px; color:var(--text-muted)">${escapeHTMLText(await getErrorMessage(res, 'Receipts could not be loaded.'))}</div>`;
+    holder.innerHTML = `<div class="s-aeb1ed">${escapeHTMLText(await getErrorMessage(res, 'Receipts could not be loaded.'))}</div>`;
     return;
   }
   const body = await res.json();
   const files = body.attachments || [];
   setExpenseClip(claimId, files.length);
-  holder.innerHTML = `<div style="margin-top:12px"><strong>Receipts</strong></div>
-    ${files.length === 0 ? '<div style="color:var(--text-muted)">No receipt attached.</div>' : `<table><thead><tr><th>File</th><th>Size</th><th>Added by</th><th>Added</th><th></th></tr></thead><tbody>
+  holder.innerHTML = `<div class="s-56f435"><strong>Receipts</strong></div>
+    ${files.length === 0 ? '<div class="s-5872de">No receipt attached.</div>' : `<table><thead><tr><th>File</th><th>Size</th><th>Added by</th><th>Added</th><th></th></tr></thead><tbody>
       ${files.map(f => `<tr><td>${escapeHTMLText(f.file_name)}</td><td>${receiptSize(f.size_bytes)}</td><td>${escapeHTMLText(f.uploaded_by || '')}</td><td>${escapeHTMLText((f.created_at || '').replace('T', ' ').slice(0, 16))}</td>
         <td><button class="action-btn" data-exp-receipt-view="${escapeHTMLText(f.id)}">View</button>${f.can_remove ? ` <button class="action-btn" data-exp-receipt-remove="${escapeHTMLText(f.id)}">Remove</button>` : ''}</td></tr>`).join('')}
     </tbody></table>`}
-    ${body.can_add ? `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px">
-      <input type="file" class="form-input" style="width:260px" accept="${RECEIPT_TYPES}" multiple data-exp-receipt-input aria-label="Receipt files">
+    ${body.can_add ? `<div class="s-83a9c1">
+      <input type="file" class="form-input s-a20ea0" accept="${RECEIPT_TYPES}" multiple data-exp-receipt-input aria-label="Receipt files">
       <button class="btn btn-secondary" data-exp-receipt-add>Attach</button></div>` : ''}
-    <div class="login-error hidden" style="margin-top:8px" data-exp-receipt-error></div>
-    <div style="margin-top:8px" data-exp-receipt-preview></div>`;
+    <div class="login-error hidden s-8a77e5" data-exp-receipt-error></div>
+    <div class="s-8a77e5" data-exp-receipt-preview></div>`;
 
   const errorEl = holder.querySelector('[data-exp-receipt-error]');
   const showError = msg => { errorEl.textContent = msg; errorEl.classList.toggle('hidden', !msg); };
@@ -334,7 +334,7 @@ async function viewExpenseReceipt(previewEl, file) {
   receiptPreviewURL = URL.createObjectURL(blob);
   if (blob.type.startsWith('image/')) {
     previewEl.innerHTML = `<div><button class="action-btn" data-exp-receipt-close>Close preview</button></div>
-      <img alt="${escapeHTMLText(file.file_name)}" style="max-width:100%; max-height:520px; margin-top:6px; border:1px solid var(--border-color)">`;
+      <img alt="${escapeHTMLText(file.file_name)}" class="s-1b4b99">`;
     previewEl.querySelector('img').src = receiptPreviewURL;
     previewEl.querySelector('[data-exp-receipt-close]').addEventListener('click', () => { previewEl.innerHTML = ''; });
     return;

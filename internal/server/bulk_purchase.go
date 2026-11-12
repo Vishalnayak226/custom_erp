@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	_ "embed"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -2046,30 +2045,7 @@ func handleBulkPurchaseApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		t := res.Totals
-		var buf bytes.Buffer
-		cw := csv.NewWriter(&buf)
-		_ = cw.Write([]string{"sheet", "row_number", "key", "message"})
-		for _, v := range res.Vendors {
-			if v.Action == "error" || v.Result == "failed" {
-				_ = cw.Write([]string{"Vendors", strconv.Itoa(v.Row), v.Key, v.Message})
-			}
-		}
-		for _, po := range res.POs {
-			if po.Action == "error" || po.Result == "failed" {
-				_ = cw.Write([]string{"Purchase", "", po.Ref, po.Message})
-				for _, l := range po.Lines {
-					if l.Message != "" {
-						_ = cw.Write([]string{"Purchase", strconv.Itoa(l.Row), l.Design, l.Message})
-					}
-				}
-			}
-		}
-		for _, bo := range res.Bills {
-			if bo.Action == "error" || bo.Result == "failed" || bo.Result == "waiting" {
-				_ = cw.Write([]string{"Bills", strconv.Itoa(bo.Row), bo.Invoice, bo.Message})
-			}
-		}
-		cw.Flush()
+		errorCSV := bpErrorCSV(res)
 		status := "Completed"
 		if t.Failed > 0 || t.Errors > 0 || t.Waiting > 0 {
 			status = "Completed with errors"
@@ -2077,7 +2053,7 @@ func handleBulkPurchaseApply(w http.ResponseWriter, r *http.Request) {
 		_ = engines.UpdateWorkbookRun(c.tenantID, engines.BulkPurchaseDoctype, runID, map[string]interface{}{
 			"status": status, "result": res, "totals": t,
 			"total_rows": t.Lines + t.Bills, "success_rows": t.Done, "failed_rows": t.Failed + t.Errors,
-			"error_csv": buf.String(), "finished_at": time.Now().UTC().Format(time.RFC3339),
+			"error_csv": errorCSV, "finished_at": time.Now().UTC().Format(time.RFC3339),
 		})
 		engines.LogAuditEvent(c.tenantID, c.username, "BULK_PURCHASE", "APPLIED",
 			fmt.Sprintf("%s: %d new POs, %d bills, %d done, %d failed, %d waiting, %d with errors (run %s)", name, t.NewPOs, t.Bills, t.Done, t.Failed, t.Waiting, t.Errors, runID))
@@ -2137,4 +2113,34 @@ func handleBulkPurchaseTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	swWriteXLSX(w, "bulk-purchase-template.xlsx", bulkPurchaseTemplate)
+}
+
+// bpErrorCSV is the failed-rows file of a run. The keys come from the
+// uploaded workbook, so every cell is made safe to open in a spreadsheet.
+func bpErrorCSV(res *bpResult) string {
+	var buf bytes.Buffer
+	cw := engines.NewSafeCSVWriter(&buf)
+	_ = cw.Write([]string{"sheet", "row_number", "key", "message"})
+	for _, v := range res.Vendors {
+		if v.Action == "error" || v.Result == "failed" {
+			_ = cw.Write([]string{"Vendors", strconv.Itoa(v.Row), v.Key, v.Message})
+		}
+	}
+	for _, po := range res.POs {
+		if po.Action == "error" || po.Result == "failed" {
+			_ = cw.Write([]string{"Purchase", "", po.Ref, po.Message})
+			for _, l := range po.Lines {
+				if l.Message != "" {
+					_ = cw.Write([]string{"Purchase", strconv.Itoa(l.Row), l.Design, l.Message})
+				}
+			}
+		}
+	}
+	for _, bo := range res.Bills {
+		if bo.Action == "error" || bo.Result == "failed" || bo.Result == "waiting" {
+			_ = cw.Write([]string{"Bills", strconv.Itoa(bo.Row), bo.Invoice, bo.Message})
+		}
+	}
+	cw.Flush()
+	return buf.String()
 }

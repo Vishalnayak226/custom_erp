@@ -11,7 +11,7 @@ import (
 func TestManualsReuseTopicsAndKeepLinksAndAnchors(t *testing.T) {
 	root := t.TempDir()
 	for name, body := range map[string]string{
-		"a.md": "---\ntitle: First\nsection: Reference\nlast_verified: 2026-09-01\n---\n# First\n## Shared\n[Here](#shared) [Next](b.md#shared) [Other](c.md) [Source](../guides/USER_GUIDE.md)\n<script>alert(1)</script>",
+		"a.md": "---\ntitle: First\nsection: Reference\nlast_verified: 2026-09-01\n---\n# First\n## Shared\n[Here](#shared) [Next](b.md#shared) [Other](c.md) [Source](../guides/user-guide.md)\n<script>alert(1)</script>",
 		"b.md": "---\ntitle: Second\nsection: Reference\n---\n# Second\n## Shared\nDifferent topic.",
 		"c.md": "---\ntitle: Other\nsection: Reference\n---\n# Other\nReference.",
 	} {
@@ -32,7 +32,7 @@ func TestManualsReuseTopicsAndKeepLinksAndAnchors(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := string(files["user.html"])
-	for _, want := range []string{`href="#a--shared"`, `href="#b--shared"`, `id="b--shared"`, `href="../kb/c.md"`, `href="../guides/USER_GUIDE.md"`, `2026-09-01`, `Draft reading and print edition`, `User &lt;manual&gt;`, `<h3 id="a--shared"`} {
+	for _, want := range []string{`href="#a--shared"`, `href="#b--shared"`, `id="b--shared"`, `href="../kb/c.md"`, `href="../guides/user-guide.md"`, `2026-09-01`, `Draft reading and print edition`, `User &lt;manual&gt;`, `<h3 id="a--shared"`} {
 		if !strings.Contains(output, want) {
 			t.Errorf("missing %s", want)
 		}

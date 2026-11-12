@@ -79,7 +79,7 @@ const (
 	ConsumeNone          = "NONE"
 )
 
-// Default GL accounts for expensed consumption (db/migrations_stage72_1_item_policy.sql).
+// Default GL accounts for expensed consumption (db/migrations/migrations_stage72_1_item_policy.sql).
 const (
 	AccountPackagingExpense   = "5160"
 	AccountPromotionalExpense = "5170"

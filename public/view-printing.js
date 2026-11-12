@@ -7,25 +7,25 @@ function renderQZSetupPanel(container) {
   panel.style.padding = '20px';
   panel.style.marginBottom = '24px';
   panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+    <div class="s-d1fbbb">
       <div>
-        <h2 style="margin: 0 0 4px; font-size: 16px;">Print Setup (PrintBridge)</h2>
-        <p id="qz-status" class="page-subtitle" style="margin: 0;">Checking for PrintBridge on this computer&hellip;</p>
+        <h2 class="s-d5d9be">Print Setup (PrintBridge)</h2>
+        <p id="qz-status" class="page-subtitle s-2a0ca8">Checking for PrintBridge on this computer&hellip;</p>
       </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <div class="s-aea80b">
         <a class="btn btn-outline" href="/downloads/printbridge-setup.exe" download title="Windows: run it once on each computer that prints">Download PrintBridge</a>
         <button class="btn btn-outline" ${actionAttrs('qzDetectPrinters')}>Detect Printers</button>
         <button class="btn btn-outline" ${actionAttrs('qzTestPrint')}>Test Print</button>
       </div>
     </div>
-    <div id="qz-detected" style="margin-top: 12px;"></div>
-    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color, #e5e7eb);">
+    <div id="qz-detected" class="s-4bb900"></div>
+    <div class="s-e81bf2">
       <label class="form-label" for="qz-doc-file">Print a marketplace label or invoice (PDF from Myntra, or any channel)</label>
-      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input type="file" id="qz-doc-file" class="form-input" accept=".pdf,.zpl,.txt,.prn" style="max-width: 340px;">
+      <div class="s-ccacbc">
+        <input type="file" id="qz-doc-file" class="form-input s-c3f3cb" accept=".pdf,.zpl,.txt,.prn">
         <button class="btn btn-primary" id="qz-doc-preview-btn" type="button">Print</button>
       </div>
-      <p class="page-subtitle" style="margin: 6px 0 0;">
+      <p class="page-subtitle s-0f6f74">
         Prints to the <strong>Shipping Label</strong> default printer.
       </p>
     </div>
@@ -50,12 +50,12 @@ async function qzPreviewPickedDocument() {
   const pdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
   const url = pdf ? URL.createObjectURL(file) : '';
   const body = pdf
-    ? `<p style="margin: 0;"><a href="${url}" target="_blank" rel="noopener">Open the PDF</a></p>`
-    : `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 60vh; overflow: auto; margin: 0;">${escapeHTMLText(await file.text())}</pre>`;
+    ? `<p class="s-2a0ca8"><a href="${url}" target="_blank" rel="noopener">Open the PDF</a></p>`
+    : `<pre class="s-e3d67b">${escapeHTMLText(await file.text())}</pre>`;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 760px;" role="dialog" aria-modal="true" aria-labelledby="qz-doc-preview-title">
+    <div class="modal-container s-c06a24" role="dialog" aria-modal="true" aria-labelledby="qz-doc-preview-title">
       <div class="modal-header"><h3 class="modal-title" id="qz-doc-preview-title">${escapeHTMLText(file.name)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-qz-preview="close">×</button></div>
       <div class="modal-body">
@@ -119,8 +119,8 @@ async function qzDetectPrinters() {
     let def = '';
     try { def = await window.QZPrint.getDefaultPrinter(); } catch (e) { /* optional */ }
     out.innerHTML = `
-      <p class="page-subtitle" style="margin: 0 0 6px;">Detected printers:</p>
-      <ul style="margin: 0; padding-left: 18px; line-height: 1.7;">
+      <p class="page-subtitle s-2c0002">Detected printers:</p>
+      <ul class="s-0e0f8e">
         ${list.map(n => `<li><code>${escapeHTMLText(n)}</code>${n === def ? ' <em>(system default)</em>' : ''}</li>`).join('')}
       </ul>`;
   } catch (err) {
@@ -146,7 +146,7 @@ async function qzTestPrint() {
     return;
   }
   const raw = ['ZPL', 'TSPL', 'ESC-POS'].includes((target.printer_language || '').toUpperCase());
-  const stamp = new Date().toLocaleString();
+  const stamp = formatDateTime(new Date());
   // Stage 143.4: the test page shows first; Print there sends it.
   if (!await qzPreviewTestPage(target, raw ? 'ERP test label' : 'ERP test print', stamp)) return;
   const items = raw
@@ -169,13 +169,13 @@ function qzPreviewTestPage(target, heading, stamp) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay open';
     overlay.innerHTML = `
-      <div class="modal-container" style="max-width: 440px;" role="dialog" aria-modal="true" aria-labelledby="qz-test-preview-title">
+      <div class="modal-container s-c31abe" role="dialog" aria-modal="true" aria-labelledby="qz-test-preview-title">
         <div class="modal-header"><h3 class="modal-title" id="qz-test-preview-title">Test print</h3>
           <button type="button" class="modal-close" aria-label="Close dialog" data-qz-test="close">×</button></div>
         <div class="modal-body">
-          <p style="margin: 0 0 8px; color: var(--text-muted);">On ${escapeHTMLText(target.name || target.qz_printer_name)}</p>
-          <div style="max-width: 100%; box-sizing: border-box; padding: 4mm 5mm; background: #fff; color: #000; font: 13px/1.4 system-ui, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,.25);">
-            <div style="font-size: 18px; font-weight: 700;">${escapeHTMLText(heading)}</div><div>${escapeHTMLText(stamp)}</div></div>
+          <p class="s-f041c9">On ${escapeHTMLText(target.name || target.qz_printer_name)}</p>
+          <div class="s-91d664">
+            <div class="s-59f9d7">${escapeHTMLText(heading)}</div><div>${escapeHTMLText(stamp)}</div></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" data-qz-test="close">Close</button>
@@ -309,41 +309,41 @@ async function renderStickerPrintTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="sticker-printer">Printer</label>
-        <select id="sticker-printer" class="form-input" style="width: 200px;">
+        <select id="sticker-printer" class="form-input s-0fff9b">
           <option value="">Select a printer</option>
           ${printers.map(p => `<option value="${escapeHTMLText(p.code || p.id)}">${escapeHTMLText(p.name || p.code || p.id)}</option>`).join('')}
         </select>
       </div>
       <button type="button" class="btn btn-outline" id="sticker-preset-btn" hidden>Printer preset</button>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="sticker-copies">Copies per SKU</label>
-        <input type="number" id="sticker-copies" class="form-input" style="width: 100px;" value="1" min="1">
+        <input type="number" id="sticker-copies" class="form-input s-da190a" value="1" min="1">
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;">
+      <div class="form-group s-2ded36">
         <label class="form-label" for="sticker-reprint-reason">Reprint reason (kept in the print history)</label>
-        <div style="display: flex; gap: 8px;">
-          <select id="sticker-reprint-code" class="form-select hidden" style="max-width: 240px;" aria-label="Reprint reason code"></select>
+        <div class="s-b9b7b5">
+          <select id="sticker-reprint-code" class="form-select hidden s-5e5c19" aria-label="Reprint reason code"></select>
           <input type="text" id="sticker-reprint-reason" class="form-input">
         </div>
       </div>
     </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
-      <div class="form-group" style="flex: 1; margin-bottom: 0;">
+    <div class="s-66c58d">
+      <div class="form-group s-73a007">
         <label class="form-label" for="sticker-sku-input">Scan or Enter SKU</label>
         <input type="text" id="sticker-sku-input" class="form-input" placeholder="Barcode / SKU, then Enter" autocomplete="off">
       </div>
-      <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; white-space: nowrap;" title="Each scan prints its sticker straight away - with the loaded document's lot when the item is on it">
+      <label class="s-4b57ec" title="Each scan prints its sticker straight away - with the loaded document's lot when the item is on it">
         <input type="checkbox" id="sticker-print-on-scan"> Print on scan
       </label>
       <button class="btn btn-outline" id="sticker-add-btn">Add</button>
     </div>
-    <div id="sticker-sku-list" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="sticker-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-    <div style="display: flex; gap: 12px;">
-      <button class="btn btn-primary" id="sticker-print-btn" style="flex: 1;">Print Stickers</button>
+    <div id="sticker-sku-list" class="s-8eeb14"></div>
+    <div id="sticker-form-error" class="login-error hidden s-29b798"></div>
+    <div class="s-8f624a">
+      <button class="btn btn-primary s-634a28" id="sticker-print-btn">Print Stickers</button>
     </div>
   `;
   printPage.appendChild(formPanel);
@@ -354,7 +354,7 @@ async function renderStickerPrintTab(container) {
   // one-time path per computer, so it sits collapsed below the daily flow.
   const setup = document.createElement('details');
   setup.className = 'sticker-printer-setup';
-  setup.innerHTML = '<summary style="cursor:pointer;font-weight:600;margin:0 0 12px;">Printer setup on this computer (PrintBridge) and channel label PDFs</summary>';
+  setup.innerHTML = '<summary class="s-a2b6bc">Printer setup on this computer (PrintBridge) and channel label PDFs</summary>';
   printPage.appendChild(setup);
   renderQZSetupPanel(setup);
 
@@ -364,18 +364,18 @@ async function renderStickerPrintTab(container) {
       <tbody>
   `;
   historyHtml += history.length === 0
-    ? `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">No print history yet.</td></tr>`
+    ? `<tr><td colspan="10" class="s-306094">No print history yet.</td></tr>`
     : history.map((h, i) => `
         <tr>
-          <td style="font-family: monospace;">${escapeHTMLText(h.sku)}</td>
-          <td style="font-family: monospace;">${escapeHTMLText(h.barcode)}</td>
+          <td class="s-355794">${escapeHTMLText(h.sku)}</td>
+          <td class="s-355794">${escapeHTMLText(h.barcode)}</td>
           <td>${escapeHTMLText(h.printer_code)}</td>
           <td>${escapeHTMLText(h.printed_by)}</td>
           <td>${escapeHTMLText(h.copies)}</td>
           <td>${escapeHTMLText(h.source_doc_id ? `${h.source_doctype} ${h.source_doc_id}` : '')}</td>
-          <td style="font-family: monospace;">${escapeHTMLText(h.batch_no || '')}</td>
+          <td class="s-355794">${escapeHTMLText(h.batch_no || '')}</td>
           <td>${escapeHTMLText(h.reprint_reason || '')}</td>
-          <td>${escapeHTMLText(new Date(h.printed_at).toLocaleString())}</td>
+          <td>${escapeHTMLText(formatDateTime(h.printed_at))}</td>
           <td><button type="button" class="action-btn" data-sticker-reprint="${i}">Reprint</button></td>
         </tr>
       `).join('');
@@ -501,21 +501,21 @@ function renderStickerSourcePanel(container, printers) {
   panel.style.padding = '24px';
   panel.style.marginBottom = '24px';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Print from Transaction</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <h2 class="s-bfc163">Print from Transaction</h2>
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="sticker-source-doctype">Module</label>
-        <select id="sticker-source-doctype" class="form-input" style="width: 200px;">
+        <select id="sticker-source-doctype" class="form-input s-0fff9b">
           ${stickerSourceDoctypes().map(d => `<option value="${d.doctype}">${escapeHTMLText(d.label)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+      <div class="form-group s-20be51">
         <label class="form-label" for="sticker-source-doc">Document</label>
         <input type="text" id="sticker-source-doc" class="form-input" placeholder="Search by number..." autocomplete="off">
       </div>
       <button class="btn btn-outline" id="sticker-source-load-btn" type="button">Load</button>
     </div>
-    <div id="sticker-source-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="sticker-source-error" class="login-error hidden s-29b798"></div>
     <div id="sticker-source-lines"></div>
   `;
   container.appendChild(panel);
@@ -710,7 +710,7 @@ async function openPrinterPreset() {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 560px;" role="dialog" aria-modal="true" aria-labelledby="stk-preset-title">
+    <div class="modal-container s-6a9c85" role="dialog" aria-modal="true" aria-labelledby="stk-preset-title">
       <div class="modal-header"><h3 class="modal-title" id="stk-preset-title">Printer preset · ${escapeHTMLText(printer.name || printer.code || printer.id)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-p="close">×</button></div>
       <div class="modal-body">
@@ -721,12 +721,12 @@ async function openPrinterPreset() {
             ${stickerTemplateChoices.map(t => `<option value="${escapeHTMLText(t.id)}"${t.id === printer.sticker_template ? ' selected' : ''}>${escapeHTMLText(t.name)}</option>`).join('')}
           </select>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-          ${fields.map(([k, label, hint]) => `<div class="form-group" style="margin: 0;">
+        <div class="s-ba0ec7">
+          ${fields.map(([k, label, hint]) => `<div class="form-group s-2a0ca8">
             <label class="form-label" for="stk-preset-${k}">${label}</label>
             <input type="number" step="any" id="stk-preset-${k}" class="form-input" placeholder="${hint}" value="${escapeHTMLText(printer[k] ?? '')}"></div>`).join('')}
         </div>
-        <div id="stk-preset-error" class="login-error hidden" style="margin-top: 12px;"></div>
+        <div id="stk-preset-error" class="login-error hidden s-4bb900"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" data-p="test">Test alignment</button>
@@ -884,36 +884,36 @@ function renderStickerSourceLines() {
   const allTypes = [...new Set(stickerSourceLines.map(l => l.product_type).filter(Boolean))];
   const keepTitle = types => `Print every ${types} item with this template from now on (the Product type rule in Template rules)`;
   el.innerHTML = `
-    <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin: 4px 0 8px;">
+    <label class="form-label s-406c5f">
       Template for every line
-      <select id="sticker-source-template-all" class="form-input" style="width: auto;">
+      <select id="sticker-source-template-all" class="form-input s-7e375a">
         ${runValue === '__mixed' ? '<option value="__mixed" selected>Chosen per line</option>' : ''}
         <option value="" ${runValue === '' ? 'selected' : ''}>As per template rules</option>
         ${choiceOptions(runValue)}
       </select>
       ${keepable(runValue) && allTypes.length ? `<button type="button" class="action-btn" id="sticker-source-keep-all" title="${escapeHTMLText(keepTitle(allTypes.join(', ')))}">Keep for ${escapeHTMLText(allTypes.join(', '))}</button>` : ''}
     </label>
-    <table style="margin-top: 4px;">
+    <table class="s-6b1f0d">
       <thead><tr><th><input type="checkbox" id="sticker-source-select-all" aria-label="Select all lines"></th><th>SKU</th><th>Name</th>${anyBatch ? '<th>Batch/Lot</th>' : ''}<th>Category</th><th>Template</th><th>Copies</th><th></th></tr></thead>
       <tbody>
         ${stickerSourceLines.map((l, i) => `
           <tr>
             <td><input type="checkbox" data-source-select="${i}" ${stickerSourceSelected[i] ? 'checked' : ''} aria-label="Print ${escapeHTMLText(l.sku)}"></td>
-            <td style="font-family: monospace;">${escapeHTMLText(l.sku)}</td>
+            <td class="s-355794">${escapeHTMLText(l.sku)}</td>
             <td>${escapeHTMLText(l.name || '')}</td>
-            ${anyBatch ? `<td style="font-family: monospace;">${escapeHTMLText(l.batch_no || '')}</td>` : ''}
+            ${anyBatch ? `<td class="s-355794">${escapeHTMLText(l.batch_no || '')}</td>` : ''}
             <td>${escapeHTMLText(l.category || '')}</td>
-            <td><select data-source-template="${i}" class="form-input" style="min-width: 160px;" aria-label="Template for ${escapeHTMLText(l.sku)}" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
+            <td><select data-source-template="${i}" class="form-input s-91cb78" aria-label="Template for ${escapeHTMLText(l.sku)}" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
               <option value="">${escapeHTMLText(ruleText(l))}</option>
               ${choiceOptions(values[i])}
             </select>${keepable(values[i]) && l.product_type ? ` <button type="button" class="action-btn" data-source-keep="${i}" title="${escapeHTMLText(keepTitle(l.product_type))}">Keep for ${escapeHTMLText(l.product_type)}</button>` : ''}</td>
-            <td><input type="number" min="1" data-source-copies="${i}" class="form-input" style="width: 70px;" aria-label="Copies of ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>
+            <td><input type="number" min="1" data-source-copies="${i}" class="form-input s-825185" aria-label="Copies of ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>
             <td><button class="action-btn" data-source-print-one="${i}">Print</button></td>
           </tr>
         `).join('')}
       </tbody>
     </table>
-    <div style="display: flex; gap: 12px; margin-top: 12px;">
+    <div class="s-ca5a7e">
       <button class="btn btn-primary" id="sticker-source-print-btn">Print Selected</button>
     </div>
   `;
@@ -1144,7 +1144,7 @@ function renderStickerSKUList() {
   if (!listEl) return;
   listEl.innerHTML = stickerSKUs.length === 0
     ? 'No SKUs added yet.'
-    : stickerSKUs.map(sku => `${escapeHTMLText(sku)} <button class="action-btn action-btn-danger" style="padding: 2px 8px;" data-remove-sticker-sku="${escapeHTMLText(sku)}">x</button>`).join(' &nbsp; ');
+    : stickerSKUs.map(sku => `${escapeHTMLText(sku)} <button class="action-btn action-btn-danger s-a49d10" data-remove-sticker-sku="${escapeHTMLText(sku)}">x</button>`).join(' &nbsp; ');
   listEl.querySelectorAll('[data-remove-sticker-sku]').forEach(button => {
     button.addEventListener('click', () => removeStickerSKU(button.dataset.removeStickerSku));
   });

@@ -49,7 +49,7 @@ E-invoice comes before reports because IRIS registration and approval take calen
 
 ## 3. Phase 75.1 — Off-box backups (P0)
 
-**Why:** nightly encrypted dumps stay on the droplet only (`docs/operations/backup_restore.md:68`), and `/opt/erp/media_store` is in no backup at all. Losing the droplet today loses the data, its backups and every product photo.
+**Why:** nightly encrypted dumps stay on the droplet only (`docs/operations/backup-restore.md:68`), and `/opt/erp/media_store` is in no backup at all. Losing the droplet today loses the data, its backups and every product photo.
 
 Your actions:
 - [ ] **75.1.1 Create the R2 bucket.** Make it private, with an API token scoped to that one bucket (Object Read & Write) and a lifecycle rule that deletes objects after 30 days. If the dashboard offers a bucket lock rule, turn it on for 14 days, so a compromised server can't delete the copies. Put the endpoint, bucket name, access key and secret in `/etc/erp/erp.env` as `OFFSITE_S3_ENDPOINT`, `OFFSITE_S3_BUCKET`, `OFFSITE_S3_ACCESS_KEY` and `OFFSITE_S3_SECRET_KEY`. Never paste them in chat.
@@ -58,12 +58,12 @@ Your actions:
 
 Build:
 - [ ] **75.1.4 Upload each dump.** `deploy/backup.sh` uploads each `custom_erp_*.dump.enc` to the bucket using `curl --aws-sigv4`, which is built into curl 7.75+, so there is no new tool or Go module. Check the droplet's curl version first; `rclone` is the fallback only if it is too old.
-  - **Recording:** the result goes in the existing `backup_runs` row, as additive columns `offsite_key` and `offsite_outcome` (`db/migrations_stage75_1_offsite_backup.sql`).
+  - **Recording:** the result goes in the existing `backup_runs` row, as additive columns `offsite_key` and `offsite_outcome` (`db/migrations/migrations_stage75_1_offsite_backup.sql`).
   - **Failure:** a failed upload keeps the local dump and posts `BACKUP_OFFSITE_FAILED`.
 - [ ] **75.1.5 Copy new images nightly** to the bucket under `media/`. Files are named by checksum and never rewritten, so this is upload-only: a local manifest of names already sent, and an upload of whatever is missing. It is recorded as a `backup_runs` row with scope `media`.
 - [ ] **75.1.6 Freshness alert.** `CheckBackupFreshness` (`engines/alerting.go`) also alerts when the newest *off-box* success is older than 26 h. Add a test beside `TestBackupFreshness`.
-- [ ] **75.1.7 Restore drill from the bucket only.** Download the dump and images from R2, decrypt with the key copy from 75.1.3, restore on a scratch database, and open a product with its image. Log it in `docs/operations/restore_drill_log.md`.
-- [ ] **75.1.8 Docs:** `backup_restore.md` (replace the line-68 "no off-box copy"), ADMIN_GUIDE §D, `incident_runbook.md`, and `go_live_decisions.md` (D1, D2).
+- [ ] **75.1.7 Restore drill from the bucket only.** Download the dump and images from R2, decrypt with the key copy from 75.1.3, restore on a scratch database, and open a product with its image. Log it in `docs/operations/restore-drill-log.md`.
+- [ ] **75.1.8 Docs:** `backup-restore.md` (replace the line-68 "no off-box copy"), ADMIN_GUIDE §D, `incident-runbook.md`, and `go-live-decisions.md` (D1, D2).
 
 **Done when:** 75.1.7 passes, and a forced upload failure raises an alert.
 
@@ -161,7 +161,7 @@ About a third of the catalog is document registers and their item-wise detail ("
 ## 9. Guardrails (every phase)
 
 - Client data is never affected, and no password that is already set is changed.
-- Migrations are additive only (`db/migrations_stage75_<n>_<name>.sql`). Binary and migrations deploy together.
+- Migrations are additive only (`db/migrations/migrations_stage75_<n>_<name>.sql`). Binary and migrations deploy together.
 - No new Go modules or JS libraries. Crypto and SigV4 use the standard library, and the backup script uses curl's built-in signing.
 - Secrets live in env or encrypted credentials only: never in `public/`, logs, exports, chat or git.
 - Nothing is pushed or deployed until you say so.

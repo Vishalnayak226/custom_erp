@@ -22,8 +22,8 @@ Stage 49's security program lives here.
 
 | File | What it is | Maintained by |
 |---|---|---|
-| [threat_model.md](threat_model.md) | The security charter: supported configurations, objectives, crown jewels, trust boundaries, adversary personas, misuse cases, review triggers. Stage 49.0.1–49.0.5 and 49.0.7. | Hand-written. Re-reviewed on the triggers in its own §6. |
-| [risk_register.md](risk_register.md) | Every open and closed security risk, with exposure, detectability, treatment, owner and review expiry. Stage 49.0.6. The 2026-09-01 deep persona audit's findings are indexed into it rather than tracked separately. Its finding register (Stage 49.10.8) is one row per security finding, closed only with a fix, a live regression test and a dated retest (`TestStage49108FindingRegisterNeverClosesOnCodeAlone`). | Hand-written. |
+| [threat-model.md](threat-model.md) | The security charter: supported configurations, objectives, crown jewels, trust boundaries, adversary personas, misuse cases, review triggers. Stage 49.0.1–49.0.5 and 49.0.7. | Hand-written. Re-reviewed on the triggers in its own §6. |
+| [risk-register.md](risk-register.md) | Every open and closed security risk, with exposure, detectability, treatment, owner and review expiry. Stage 49.0.6. The 2026-09-01 deep persona audit's findings are indexed into it rather than tracked separately. Its finding register (Stage 49.10.8) is one row per security finding, closed only with a fix, a live regression test and a dated retest (`TestStage49108FindingRegisterNeverClosesOnCodeAlone`). | Hand-written. |
 | [command-catalog.md](command-catalog.md) | Every command of the sale, quote / override, tender, loyalty, return, allocation / ship, adjustment / count, vendor / payment, journal / period, payroll, merge, credential / config and export families: actor capability, authoritative inputs, preconditions, invariants, idempotency and the audit row it writes. Stage 49.5.1. | **Generated — never edit by hand.** Routes, actor, idempotency and audit rows are read from code; the invariant notes live in `cmd/gendocs/command_catalog.go`. `TestStage4951` fails when a family route has no note. |
 | [attack_surface.json](attack_surface.json) | The machine-readable inventory: every route and its authentication class, static roots, background jobs, CLI commands, migrations, environment flags, outbound call sites, dependencies. Stage 49.1.1, and the approved profile the 49.1.6 drift check compares against. | **Generated — never edit by hand.** Regenerate with `go run ./cmd/surfacescan`. |
 | [secure-development-lifecycle.md](secure-development-lifecycle.md) | Stage 49.9's SDLC/dependency/release-artifact supply-chain policy: what's built and tested vs. what's a documented GitHub-settings recommendation `[needs decision: org owner]`. | Hand-written. |
@@ -101,7 +101,7 @@ no code in the production binary. The scanner package
 | `TestPublicRouteAllowlistHasNoNewDeadEntries` | An entry on `middleware.go`'s unauthenticated allowlist names a path no route serves. |
 | `TestNoUnreviewedBypassPattern` | A committed credential, security-disabling flag, privileged shortcut or back-door phrase appears that is not in the reviewed inventory with a written reason. |
 | `TestEverySecurityCriticalEnvVarIsChecked` | A security-critical environment variable exists with no check in the startup baseline validator. |
-| `TestSeededCredentialHashesCoverMigrationSQL` | `db/migration.sql` seeds a password hash the startup validator does not know to refuse. |
+| `TestSeededCredentialHashesCoverMigrationSQL` | `db/migrations/migration.sql` seeds a password hash the startup validator does not know to refuse. |
 | `TestStaticFileServerNeverListsADirectory` | The static file server would generate a directory index again. |
 
 ## The startup validator
@@ -120,12 +120,12 @@ that, because these lines land in the journal and in whatever collects it.
 
 Provisioning, suspension, offboarding and purge are operator commands, not routes:
 `cmd/tenantctl` (engine: `engines/tenant_lifecycle.go`, storage:
-`db/migrations_stage49_1_5_tenant_lifecycle.sql`). Platform-level authority over
+`db/migrations/migrations_stage49_1_5_tenant_lifecycle.sql`). Platform-level authority over
 tenants deliberately has no HTTP surface — see the file header for why — so the
 inventory above gains one CLI command rather than a route.
 
 The operator procedure, with every command and what it refuses, is
-[`../guides/ADMIN_GUIDE.md` §C.6](../guides/ADMIN_GUIDE.md). What matters here:
+[`../guides/admin-guide.md` §C.6](../guides/admin-guide.md). What matters here:
 
 - The one-time admin password issued at provisioning **expires** (72h by default,
   `TENANT_BOOTSTRAP_TTL_HOURS`) and login refuses it afterwards until an operator
@@ -145,7 +145,7 @@ The operator procedure, with every command and what it refuses, is
   Fixing that is deployment state and belongs to 49.7.4; reporting it is what keeps
   the gap visible. `deploy/postgres_harden.sql` (49.7.1/49.7.4) is that fix for the
   migration and backup identities; the runtime identity's fix is documented as open
-  in `deploy/README.md` Part A2.5 and risk_register.md R-07 - two existing HTTP
+  in `deploy/README.md` Part A2.5 and risk-register.md R-07 - two existing HTTP
   tenant/sandbox-provisioning routes need schema-creation rights through the same
   connection ordinary requests use.
 
@@ -171,7 +171,7 @@ what it protects, and how it rotates:
 | Session signing key | `JWT_SECRET` / `JWT_SECRET_<n>` | Bearer session tokens | Zero-downtime keyring (Stage 29.8) — add `_<n>`, wait one token TTL, delete the old one | Forge a session for any user/role/tenant |
 | Connector credential key | `CHANNEL_CREDENTIAL_KEY` / `CHANNEL_CREDENTIAL_KEY_<n>` | Shopify/BigCommerce/Magento tokens (`channel_credentials.encrypted_payload`) | Zero-downtime keyring (Stage 49.6.5, `engines/secret_keyring.go`) — add `_<n>`, run `tenantctl reencrypt-channel-credentials`, delete the old one | Decrypt every stored connector credential (risk register R-03) |
 | Gift card number key | `STORED_VALUE_KEY` / `STORED_VALUE_KEY_<n>` | Gift card numbers (`stored_value_instruments.card_number` keyed hash, `card_enc`) - Stage 130.8 | Zero-downtime keyring - add `_<n>`; every key in the ring still finds the cards it hashed, the newest seals new ones; keep old keys while their cards live | Lost: no card can be found or shown (balances stuck until restored). Leaked: card numbers decryptable by whoever also holds the database |
-| Backup encryption key | `BACKUP_ENCRYPTION_KEY` | Nightly `pg_dump` (`deploy/backup.sh`) | Manual — re-encrypt existing backups or accept old backups stay under the old key until they roll off retention. Not read by the Go binary, so it has no `SB-*` baseline check; `deploy/backup.sh` and `docs/operations/backup_restore.md` are the only enforcement today. | Decrypt every historical backup — every tier of data in the system at once |
+| Backup encryption key | `BACKUP_ENCRYPTION_KEY` | Nightly `pg_dump` (`deploy/backup.sh`) | Manual — re-encrypt existing backups or accept old backups stay under the old key until they roll off retention. Not read by the Go binary, so it has no `SB-*` baseline check; `deploy/backup.sh` and `docs/operations/backup-restore.md` are the only enforcement today. | Decrypt every historical backup — every tier of data in the system at once |
 
 Both application-managed keys (JWT, channel credential) now share one
 rotation-capable AES-256-GCM keyring implementation
@@ -217,7 +217,7 @@ branch logged the full password reset link — a working, unexpired credential
 only in dev. `maskedResetLink` now redacts it whenever `ENV=production`.
 
 **Privacy rights (49.6.8).** `engines/privacy_rights.go` +
-`db/migrations_stage49_6_privacy_rights.sql` (`data_subject_requests` table)
+`db/migrations/migrations_stage49_6_privacy_rights.sql` (`data_subject_requests` table)
 implement the request lifecycle — open, maker-checker decide (decider must
 differ from requester), execute, evidence — for one concrete data flow:
 Customer access/export/erasure/anonymization. Erasure anonymizes rather than

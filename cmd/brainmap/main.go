@@ -1,4 +1,4 @@
-// Command brainmap renders the project "brain" - docs/brain/BRAIN.md and
+// Command brainmap renders the project "brain" - docs/brain/brain-map.md and
 // docs/brain/brain.html - from three inputs and nothing else:
 //
 //	docs/brain/brain.map.json   hand-maintained: which brain region owns which files
@@ -318,7 +318,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	files := map[string][]byte{"BRAIN.md": []byte(renderMarkdown(bm, data)), "brain.html": html}
+	files := map[string][]byte{"brain-map.md": []byte(renderMarkdown(bm, data)), "brain.html": html}
 	if *check {
 		if diffs := docgen.Diff(*outDir, files); len(diffs) > 0 {
 			fatal(fmt.Errorf("generated drift: %s", strings.Join(diffs, ", ")))
@@ -423,7 +423,7 @@ func walkRepo(root string, ignore []string) ([]string, error) {
 }
 
 // dropGitIgnored removes the files git ignores - local-only material such as
-// the SOP video recordings or an exported PDF. BRAIN.md is committed, so
+// the SOP video recordings or an exported PDF. brain-map.md is committed, so
 // listing them made it differ between machines and gave every clean checkout
 // (CI) dead links to files that exist on one disk only. Outside a git
 // checkout the list is returned unchanged.
@@ -894,9 +894,9 @@ func renderLobeSection(b *strings.Builder, c mdCtx) {
 	}
 	// Weight, then the pair itself. Sorting on weight ALONE left ties in Go's
 	// randomised map-iteration order - and sort.Slice is not stable - so two
-	// lobe pairs of equal weight swapped places between runs and BRAIN.md was
+	// lobe pairs of equal weight swapped places between runs and brain-map.md was
 	// non-deterministic. That made `update-brain.ps1` fail at random on its own
-	// -check step ("generated drift: BRAIN.md (stale)"), which is the redraw
+	// -check step ("generated drift: brain-map.md (stale)"), which is the redraw
 	// this repo's conventions require after any change that adds or moves a
 	// file. Same (weight, from, to) tiebreak the region-edge sort above already
 	// uses; brain.html was unaffected because it renders from the sorted

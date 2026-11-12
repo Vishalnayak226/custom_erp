@@ -111,19 +111,19 @@ func init() {
 		},
 		Description: "For stock you age or rotate by arrival date. Every dated barcode still scans as its SKU, and is listed under Setup > Item Barcode.",
 	})
-	// Stage 146.3.2: a code for every piece received - see engines/piece_codes_stage146.go.
+	// Stage 146.3.2: a code for every piece received - see engines/piece_codes.go.
 	RegisterSetting(SettingDefinition{
 		Key: "inventory.piece_codes_stores", Module: "Inventory",
 		Label: "Stores that give every piece its own code", Type: SettingTypeString, Default: "",
 		Description: "Blank is off. Type all, or store codes separated by commas. A goods receipt at those stores then gives each accepted piece of an item type marked Code for every piece received its own serial code, and its stickers print that code.",
 	})
-	// Stage 146.3.3: the handheld work queue - see engines/warehouse_work_queue_stage146.go.
+	// Stage 146.3.3: the handheld work queue - see engines/warehouse_work_queue.go.
 	RegisterSetting(SettingDefinition{
 		Key: "wms.work_queue", Module: "Warehouse",
 		Label: "Handheld work queue", Type: SettingTypeBool, Default: "false",
 		Description: "When on, a posted goods receipt creates put-away tasks and a wave pick list creates pick tasks. A pick-face bin below its min makes a replenish task, a move request makes a move task, and a count session makes count tasks. Handheld users take them from My next task on the RF screen. Off keeps the handheld as it is.",
 	})
-	// Stage 146.3.15: put-away across several bins, and a fill warning - see engines/putaway_split_stage146.go.
+	// Stage 146.3.15: put-away across several bins, and a fill warning - see engines/putaway_split.go.
 	RegisterSetting(SettingDefinition{
 		Key: "wms.putaway_split", Module: "Warehouse",
 		Label: "Split put-away across bins", Type: SettingTypeBool, Default: "false",
@@ -252,6 +252,32 @@ func registerStage282Settings() {
 		Min:         settingBound(0),
 		Description: "How many days after the original sale a customer return is still accepted (SALESR-0129). 0 disables returns entirely.",
 	})
+	// Stage 148.26: the customer's price list reaches orders, invoices and quotes.
+	RegisterSetting(SettingDefinition{
+		Key: "sales.b2b_pricing", Module: "Sales & Returns",
+		Label: "Fill B2B rates from the customer's price list", Type: SettingTypeBool, Default: "false",
+		Description: "On: a blank rate on a sales order, direct invoice or CRM quote is filled from the customer's price list (qty breaks, karat and weight bands, quotas) and the line shows why. A typed rate always wins.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "sales.below_floor", Module: "Sales & Returns",
+		Label: "A rate below the floor", Type: SettingTypeSelect, Default: "off",
+		Options: []SettingOption{
+			{Value: "off", Label: "Allowed"},
+			{Value: "reason", Label: "Ask for a reason"},
+			{Value: "hold", Label: "Ask for a reason, else hold the order (Margin hold)"},
+		},
+		Description: "The floor is a price-list row's floor, else the item's floor price. No floor means nothing changes.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "sales.return_reason_required", Module: "Sales & Returns",
+		Label: "A return needs a reason", Type: SettingTypeBool, Default: "false",
+		Description: "A new return is refused without a reason code or text (SALESR-1315).",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "sales.credit_note_needs_receipt", Module: "Sales & Returns",
+		Label: "Credit note on stock needs a received return", Type: SettingTypeBool, Default: "false",
+		Description: "A credit note on stock items posts only once the return it names is received and checked in (SALESR-1316).",
+	})
 
 	// --- Procurement ---
 	RegisterSetting(SettingDefinition{
@@ -285,6 +311,11 @@ func registerStage282Settings() {
 		Label: "Purchase return window", Type: SettingTypeInt, Default: "0", Unit: "days",
 		Min:         settingBound(0),
 		Description: "How many days after a goods receipt its accepted stock may still be returned to the vendor (PURCHA-0620). Rejected and damaged goods can always be returned. 0 = no limit.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingVendorLink, Module: "Procurement",
+		Label: "Vendor link on purchase orders", Type: SettingTypeBool, Default: "false",
+		Description: "Lets you send a vendor a link to one purchase order (14 days, no login): they propose a quantity or date per line and send an invoice file for you to review. Overdue lines are mailed to the vendor with the link, once a week.",
 	})
 	// Stage 40.1; default Inclusive since Stage 110.2 (user, 2026-10-19): the
 	// price typed on a PO line already has GST in it. Individual POs override
@@ -374,6 +405,17 @@ func registerStage282Settings() {
 		Key: "pos.default_price_list", Module: "Point of Sale",
 		Label: "Default price list", Type: SettingTypeString, Default: "",
 		Description: "The PriceListVersion price_list_code the POS prices from when the customer has no contract price list of their own. Leave empty to price from the item master (Sale Price, then MRP).",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingPOSOfflineMaxBackdateDays, Module: "Point of Sale",
+		Label: "Offline sale back-dating limit", Type: SettingTypeSelect, Default: "0", Unit: "days",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "3", Label: "3 days"},
+			{Value: "7", Label: "7 days"},
+			{Value: "30", Label: "30 days"},
+		},
+		Description: "Stage 49.5.7: an offline sale rung up longer ago than this posts on the day it is validated, not on the till's day; the audit line says so. Off lets the till's own day stand, as long as its period is open.",
 	})
 
 	// --- Loyalty (Stage 30.7 additions) ---
@@ -525,6 +567,13 @@ func registerStage282Settings() {
 		Min: settingBound(1), Max: settingBound(720),
 		Description: "How long an issued login token stays valid. Long enough to cover a shift, short enough that a leaked token expires. Overridden by the JWT_EXPIRY_HOURS environment variable only while this setting is left at its default.",
 	})
+	// 162.15: the server-side idle limit (the browser's own idle timer is per user).
+	RegisterSetting(SettingDefinition{
+		Key: SettingSessionIdleMinutes, Module: "Security",
+		Label: "Server idle limit", Type: SettingTypeInt, Default: "0", Unit: "minutes",
+		Min: settingBound(0), Max: settingBound(1440),
+		Description: "A session nobody used for this long is ended on the server, whoever holds its token; the user signs in again. 0 = off. Store phones count too.",
+	})
 	RegisterSetting(SettingDefinition{
 		Key: "security.password_reset_ttl_minutes", Module: "Security",
 		Label: "Password-reset link validity", Type: SettingTypeInt, Default: "30", Unit: "minutes",
@@ -550,6 +599,16 @@ func registerStage282Settings() {
 		Description: "How far a TOTP code may be out of step with server time and still be accepted. 1 tolerates ±30 seconds of drift. Raising this widens the window an intercepted code stays usable.",
 	})
 	RegisterSetting(SettingDefinition{
+		Key: SettingMFATierPolicy, Module: "Security",
+		Label: "Two-factor for sensitive actions", Type: SettingTypeSelect, Default: "off",
+		Options: []SettingOption{
+			{Value: "off", Label: "Off"},
+			{Value: "report", Label: "Report only"},
+			{Value: "enforce", Label: "Required"},
+		},
+		Description: "Stage 49.2.3: finance approval and payment, payroll, connector secrets, bulk export and emergency controls. Report only lets everything run and logs each action that a person without an authenticator would have been refused (Security pane shows the count); Required refuses it until they set one up in Profile, and asks enrolled people for the code at sign-in. Administrators always use two-factor. Start with Report only for two weeks.",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: SettingMFARememberDays, Module: "Security",
 		Label: "Remember a device for", Type: SettingTypeInt, Default: "30", Unit: "days",
 		Min: settingBound(0), Max: settingBound(90),
@@ -564,12 +623,12 @@ func registerStage282Settings() {
 	RegisterSetting(SettingDefinition{
 		Key: SettingFreezeExports, Module: "Security",
 		Label: "Freeze exports (emergency)", Type: SettingTypeBool, Default: "false",
-		Description: "Stage 49.12.3: while on, every bulk export and report download is refused for this business and logged. For a suspected data leak; turn it off to undo. Audit evidence exports stay open. Set it from Activity Log → Security so a reason is recorded.",
+		Description: "Stage 49.12.3: while on, every bulk export and report download is refused for this business and logged. For a suspected data leak; turn it off to undo. Audit evidence exports stay open. Set it from Settings → Monitoring → Security Events so a reason is recorded.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: SettingFreezeIntegrations, Module: "Security",
 		Label: "Freeze integrations (emergency)", Type: SettingTypeBool, Default: "false",
-		Description: "Stage 49.12.3: while on, every outside call for this business is refused (connectors, couriers, webhooks, hooks, email) and its inbound webhooks are turned away. For a leaked key or a runaway integration; turn it off to undo. Set it from Activity Log → Security so a reason is recorded.",
+		Description: "Stage 49.12.3: while on, every outside call for this business is refused (connectors, couriers, webhooks, hooks, email) and its inbound webhooks are turned away. For a leaked key or a runaway integration; turn it off to undo. Set it from Settings → Monitoring → Security Events so a reason is recorded.",
 	})
 	// Stage 49.2.1 / 49.2.6: identity lifecycle sweeps (identity_lifecycle.go).
 	// Off by default - nothing is disabled or revoked until an admin picks a
@@ -587,6 +646,23 @@ func registerStage282Settings() {
 		},
 		Description: "Stage 49.2.1: an Active account with no sign-in for this long is deactivated (its session ends) and the audit log says why. Counted from the latest of its last sign-in or creation, its reactivation, and this setting's last change. Never the Super Admin or the last active admin. Reactivate from Users.",
 	})
+	// Stage 49.2.1: joiner / mover / leaver approval and access recertification.
+	RegisterSetting(SettingDefinition{
+		Key: SettingIdentityChangeApproval, Module: "Security",
+		Label: "Approve new users and store moves", Type: SettingTypeBool, Default: "false",
+		Description: "Stage 49.2.1: with this on, a new user stays Inactive and a store change waits until a second Super Admin approves it in Approvals. A leaver is always disabled at once; the request only records it for review. Needs two Super Admins.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingAccessReviewDays, Module: "Security",
+		Label: "Review each user's access every", Type: SettingTypeSelect, Default: "0", Unit: "days",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "90", Label: "90 days"},
+			{Value: "180", Label: "180 days"},
+			{Value: "365", Label: "365 days"},
+		},
+		Description: "Stage 49.2.1: an admin confirms or revokes each user's role and stores in Security → Access review. A user not reviewed within this period shows as overdue. Nothing is disabled automatically.",
+	})
 	RegisterSetting(SettingDefinition{
 		Key: SettingAPICredentialUnusedDays, Module: "Security",
 		Label: "Revoke API access unused for", Type: SettingTypeSelect, Default: "0", Unit: "days",
@@ -599,6 +675,51 @@ func registerStage282Settings() {
 			{Value: "365", Label: "365 days"},
 		},
 		Description: "Stage 49.2.6: an API key or OAuth client not used for this long is revoked and the audit log says why. Counted from the latest of its last use or issue and this setting's last change. Issue a new one from Settings → Extension Hooks → API access.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingAPICredentialOnePerPurpose, Module: "Security",
+		Label: "One API access per purpose", Type: SettingTypeBool, Default: "false",
+		Description: "Stage 49.2.6: with this on, a second Active API key or OAuth client cannot be issued for a purpose another already holds. The purpose is typed when the access is issued; a blank purpose is never refused. Rotating keeps the purpose.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingAPICredentialMaxAgeDays, Module: "Security",
+		Label: "Rotate API access every", Type: SettingTypeSelect, Default: "0", Unit: "days",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "90", Label: "90 days"},
+			{Value: "180", Label: "180 days"},
+			{Value: "365", Label: "365 days"},
+		},
+		Description: "Stage 49.2.6: an API key or OAuth client older than this is revoked and the audit log says why; 14 days before, the audit log carries one warning (API_CREDENTIAL_ROTATION_DUE). Rotating issues a new one and starts the count again. Counted from the latest of issue and this setting's last change.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingDetectionVolumeDocsPerDay, Module: "Security",
+		Label: "Busy-client level for abuse checks", Type: SettingTypeSelect, Default: "0", Unit: "documents a day",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "250", Label: "250"},
+			{Value: "500", Label: "500"},
+			{Value: "1000", Label: "1,000"},
+			{Value: "2500", Label: "2,500"},
+			{Value: "5000", Label: "5,000"},
+		},
+		Description: "Stage 49.5.4: while your own 14-day average of new documents a day is above this, the burst checks (returns, discounts, offline sales, stock adjustments, voids, refusals, exports) need proportionally more events before they fire, up to 5 times. Off keeps the fixed limits.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingDetectionRoleScale, Module: "Security",
+		Label: "Abuse check limits by role", Type: SettingTypeString, Default: "",
+		Description: "Stage 49.5.4: Role=percent pairs, for example Store Manager=200, Cashier=75. A person holding the role needs that percent of a check's limit (200 = twice as many events, 75 = three quarters) before it fires. Percent 10 to 1000; blank keeps the fixed limits.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingSecurityTestAlertHours, Module: "Security",
+		Label: "Send a test alert every", Type: SettingTypeSelect, Default: "0", Unit: "hours",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "24", Label: "24 hours"},
+			{Value: "72", Label: "3 days"},
+			{Value: "168", Label: "7 days"},
+		},
+		Description: "Stage 49.11.5: sends a message marked TEST through the alert webhook to prove it still delivers. The Security page shows when one last got through; a failed one is retried hourly and queues a review item. Needs the alert webhook to be set up.",
 	})
 
 	// --- Platform ---
@@ -767,6 +888,12 @@ func registerStage282Settings() {
 		Label: "Outside calls", Type: SettingTypeBool, Default: "true",
 		Description: "Off stops this client's calls to other systems. Channel publishes and courier bookings are refused (publishes wait, Queued, until this is back on); plain reads of orders and tracking still run. Extension hooks are not called - a before-save hook then stops the save. Order status sent to a channel, webhooks, notification webhooks, phone alerts, CRM and campaign messages, emailed documents and dashboard digests are recorded as simulated. Password-reset and sign-in mail still go.",
 	})
+	// Stage 47.12.6: rehearse in a sandbox before a connector goes live.
+	RegisterSetting(SettingDefinition{
+		Key: SettingRequireRehearsal, Module: "Platform",
+		Label: "Require a sandbox rehearsal", Type: SettingTypeBool, Default: "false",
+		Description: "Off: switching on a connector, courier or CleverTap credential that no sandbox has rehearsed in the last 90 days is allowed and recorded as a warning in the Activity Log. On: it is refused until a sandbox has stopped a connector call. New clients start On; existing clients keep Off.",
+	})
 
 	// --- OMS Settlement Reconciliation (Stage 35.8) ---
 	RegisterSetting(SettingDefinition{
@@ -825,6 +952,18 @@ func registerStage282Settings() {
 		Label: "Dunning escalation threshold", Type: SettingTypeInt, Default: "30", Unit: "days",
 		Min:         settingBound(1),
 		Description: "An Approved SalesInvoice this many days past due_date gets an Escalation notification instead of a Reminder.",
+	})
+
+	// Stage 148.25 (D8) and 148.23.
+	RegisterSetting(SettingDefinition{
+		Key: SettingLockAfterGSTR1, Module: "Finance",
+		Label: "Lock a month after GSTR-1", Type: SettingTypeBool, Default: "false",
+		Description: "On: a month marked GSTR-1 filed refuses new sales postings and cancellations dated in it; credit and debit notes still work.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingSetOffClearingAccount, Module: "Finance",
+		Label: "Set-off clearing account", Type: SettingTypeString, Default: "",
+		Description: "Account code a customer-vendor set-off posts through. Blank: set-off is off.",
 	})
 
 	// BLD-052: queue saturation thresholds are tenant-tunable operational

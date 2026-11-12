@@ -21,53 +21,20 @@ const FINANCE_TABS = [
   { id: 'periods', label: 'Accounting Periods' }
 ];
 
+// Stage 155.1: each tab is its own sidebar entry ("finance:<tab>"); a bare link opens the first.
+const financeReload = () => { currentClosePeriodId = null; return renderView(`finance:${currentFinanceTab}`); };
+
 async function renderFinanceView(container) {
+  currentFinanceTab = FINANCE_TABS.some(t => t.id === currentViewTab) ? currentViewTab : 'work';
+  setActiveMenu(currentFinanceTab === 'work' ? 'menu-finance' : `menu-finance-${currentFinanceTab}`);
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Finance / GL</h1>
+      <h1 class="page-title">${FINANCE_TABS.find(t => t.id === currentFinanceTab).label}</h1>
     </div>
   `;
   container.appendChild(header);
-
-  const tabBar = document.createElement('div');
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '16px';
-  // Stage 45: at a narrow enough width/zoom this row is wider than the page
-  // - .page-container clips overflow-x rather than scrolling it, so without
-  // this the trailing tabs were just gone with no way back to them. Scoping
-  // the scroll to the bar itself (not the whole page) keeps the rest of the
-  // screen from picking up a horizontal scrollbar too.
-  //
-  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
-  // only overflow-x on a flex item inside .page-container's column flexbox
-  // let the whole bar collapse to 0px height whenever the page's other
-  // content was tall enough to overflow vertically - overflow-x non-visible
-  // suppresses this item's automatic min-height (content-based sizing only
-  // applies when overflow is 'visible'), and per the CSS Overflow spec the
-  // *used* value of overflow-y becomes 'auto' here regardless of what's
-  // declared (confirmed: getComputedStyle still reports 'auto' even with
-  // overflow-y explicitly set to 'visible' below - that line documents
-  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
-  // actually fixes it: it exempts the item from shrinking at all, which
-  // sidesteps the automatic-minimum-size calculation entirely rather than
-  // trying to win it.
-  tabBar.style.overflowX = 'auto';
-  tabBar.style.overflowY = 'visible';
-  tabBar.style.flexShrink = '0';
-  tabBar.innerHTML = FINANCE_TABS.map(t =>
-    `<button class="btn ${t.id === currentFinanceTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-finance-tab="${t.id}">${t.label}</button>`
-  ).join('');
-  container.appendChild(tabBar);
-  tabBar.querySelectorAll('[data-finance-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentFinanceTab = btn.getAttribute('data-finance-tab');
-      currentClosePeriodId = null;
-      renderView('finance');
-    });
-  });
 
   if (currentFinanceTab === 'work') {
     await renderFinanceWorkPanel(container);
@@ -92,9 +59,9 @@ async function renderFinanceView(container) {
   controls.innerHTML = `
     <div>
       <label class="form-label" for="tb-as-of">As Of Date<span class="required">*</span></label>
-      <input type="date" id="tb-as-of" class="form-input" style="width:180px;" value="${financeTrialBalanceAsOf}">
+      <input type="date" id="tb-as-of" class="form-input s-54f91a" value="${financeTrialBalanceAsOf}">
     </div>
-    <span style="color:var(--text-muted); font-size:12px; padding-bottom:10px;">
+    <span class="s-c45720">
       Includes every GL posting up to and including this date.
     </span>
   `;
@@ -102,7 +69,7 @@ async function renderFinanceView(container) {
   document.getElementById('tb-as-of').addEventListener('change', (e) => {
     if (!e.target.value) return; // an emptied picker would 400; keep the last good date
     financeTrialBalanceAsOf = e.target.value;
-    renderView('finance');
+    financeReload();
   });
 
   const res = await apiFetch(`/api/v1/finance/trial-balance?as_of=${encodeURIComponent(financeTrialBalanceAsOf)}`);
@@ -112,7 +79,7 @@ async function renderFinanceView(container) {
     // BLD-036: was a dead-end modal-then-nothing - Try Again re-renders the
     // whole view (tab bar, as-of picker and data all come back), same as the
     // already-fixed Approvals/Fulfillment/GRN pattern.
-    renderErrorPanel(container, 'Failed to load trial balance.', () => renderView('finance'));
+    renderErrorPanel(container, 'Failed to load trial balance.', () => financeReload());
     return;
   }
 
@@ -124,15 +91,15 @@ async function renderFinanceView(container) {
   summaryRow.innerHTML = `
     <div class="stat-card">
       <span class="stat-label">Total Debits</span>
-      <span class="stat-val">${(data.total_debits ?? 0).toLocaleString()}</span>
+      <span class="stat-val">${formatNumber(data.total_debits)}</span>
     </div>
     <div class="stat-card">
       <span class="stat-label">Total Credits</span>
-      <span class="stat-val">${(data.total_credits ?? 0).toLocaleString()}</span>
+      <span class="stat-val">${formatNumber(data.total_credits)}</span>
     </div>
     <div class="stat-card">
       <span class="stat-label">Ledger Status</span>
-      <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+      <div class="s-0afcb6">
         <span class="pulse-dot" style="background: ${data.balanced ? '#10b981' : '#ef4444'};"></span>
         <span style="font-size: 16px; font-weight: 700; color: ${data.balanced ? '#10b981' : '#ef4444'};">${escapeHTMLText(data.status || '')}</span>
       </div>
@@ -160,16 +127,16 @@ async function renderFinanceView(container) {
       <tbody>
   `;
   if (balances.length === 0) {
-    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No GL postings on or before this date. Postings are created automatically when a sale, receipt or invoice is posted &mdash; try a later As Of date.</td></tr>`;
+    html += `<tr><td colspan="5" class="s-306094">No GL postings on or before this date. Postings are created automatically when a sale, receipt or invoice is posted &mdash; try a later As Of date.</td></tr>`;
   }
   balances.forEach(b => {
     html += `
       <tr>
-        <td style="font-family: monospace;">${escapeHTMLText(b.account_code)}</td>
-        <td style="font-weight:600;">${escapeHTMLText(b.account_name)}</td>
+        <td class="s-355794">${escapeHTMLText(b.account_code)}</td>
+        <td class="s-eed0f8">${escapeHTMLText(b.account_name)}</td>
         <td>${escapeHTMLText(b.account_type)}</td>
-        <td>${b.debit.toLocaleString()}</td>
-        <td>${b.credit.toLocaleString()}</td>
+        <td>${formatNumber(b.debit)}</td>
+        <td>${formatNumber(b.credit)}</td>
       </tr>
     `;
   });
@@ -180,13 +147,13 @@ async function renderFinanceView(container) {
 
 async function renderFinanceWorkPanel(container) {
   const cards = [
-    { title: 'Payables', detail: 'Match supplier bills and review holds before payment.', href: '#/view/vendor-invoices' },
-    { title: 'Receivables', detail: 'Post customer bills and settle approved balances.', href: '#/view/sales-invoices' },
-    { title: 'Payment proposals', detail: 'Prepare and approve a payment run from matched bills.', href: '#/view/payment-proposals' },
-    { title: 'Bank reconciliation', detail: 'Match statement lines within the selected bank account.', href: '#/view/bank-reconciliation' },
-    { title: 'Who posted what', detail: 'GL lines by the user, job or integration that posted them.', report: 'gl-posting-review' },
-    { title: 'General journal', detail: 'Every posted line with its source document and poster.', report: 'gl-journal' },
-    { title: 'Period close', detail: 'Owned close tasks, sign-off, close and reopen requests.', tab: 'periods' }
+    { title: 'Payables', href: '#/view/vendor-invoices' },
+    { title: 'Receivables', href: '#/view/sales-invoices' },
+    { title: 'Payment proposals', href: '#/view/payment-proposals' },
+    { title: 'Bank reconciliation', href: '#/view/bank-reconciliation' },
+    { title: 'Who posted what', report: 'gl-posting-review' },
+    { title: 'General journal', report: 'gl-journal' },
+    { title: 'Period close', tab: 'periods' }
   ];
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -201,11 +168,10 @@ async function renderFinanceWorkPanel(container) {
     link.className = 'btn btn-outline';
     link.style.cssText = 'display:block;text-align:left;white-space:normal;min-height:92px';
     link.href = card.href || '#/view/finance';
-    link.textContent = `${card.title} — ${card.detail}`;
+    link.textContent = card.title;
     if (card.tab) link.addEventListener('click', event => {
       event.preventDefault();
-      currentFinanceTab = card.tab;
-      renderView('finance');
+      renderView(`finance:${card.tab}`);
     });
     if (card.report) link.addEventListener('click', async event => {
       event.preventDefault();
@@ -219,6 +185,18 @@ async function renderFinanceWorkPanel(container) {
     });
     list.appendChild(link);
   });
+  // Stage 148.23: set-off has no menu line; its two lists show here once it is set up.
+  apiFetch('/api/v1/finance/set-off/suggestions?enabled_only=1').then(res => (res && res.ok ? res.json() : null)).then(out => {
+    if (!out || !out.enabled) return;
+    [['Party pairs', '#/setup/PartyPair'], ['Set-off vouchers', '#/setup/SetOffVoucher']].forEach(([title, href]) => {
+      const link = document.createElement('a');
+      link.className = 'btn btn-outline';
+      link.style.cssText = 'display:block;text-align:left;white-space:normal;min-height:92px';
+      link.href = href;
+      link.textContent = title;
+      list.appendChild(link);
+    });
+  }).catch(() => {});
   panel.appendChild(list);
   container.appendChild(panel);
 }
@@ -288,22 +266,22 @@ async function renderAccountingPeriodsPanel(container) {
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
         <label class="form-label" for="period-name">Period Name</label>
-        <input type="text" id="period-name" class="form-input" placeholder="e.g. FY2026-Q3" style="width: 160px;">
+        <input type="text" id="period-name" class="form-input s-56cae7" placeholder="e.g. FY2026-Q3">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="period-start">Start Date</label>
         <input type="date" id="period-start" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="period-end">End Date</label>
         <input type="date" id="period-end" class="form-input">
       </div>
       <button class="btn btn-primary" id="period-create-btn">Create Period</button>
     </div>
-    <div id="period-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="period-form-error" class="login-error hidden s-29b798"></div>
   `;
 
   const panel = document.createElement('div');
@@ -313,16 +291,16 @@ async function renderAccountingPeriodsPanel(container) {
       <thead><tr><th>Period Name</th><th>Start</th><th>End</th><th>Status</th><th>Close tasks</th><th>Closed By</th><th>Actions</th></tr></thead>
       <tbody>
         ${periods.length === 0
-          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No accounting periods yet. Use <b>Create Period</b> above to open your first one; its close tasks are created with it.</td></tr>`
+          ? `<tr><td colspan="7" class="s-306094">No accounting periods yet. Use <b>Create Period</b> above to open your first one; its close tasks are created with it.</td></tr>`
           : periods.map(p => `
             <tr>
-              <td style="font-weight:600;">${escapeHTMLText(p.period_name)}</td>
+              <td class="s-eed0f8">${escapeHTMLText(p.period_name)}</td>
               <td>${p.start_date}</td>
               <td>${p.end_date}</td>
-              <td><span class="badge ${p.status === 'Open' ? 'badge-success' : 'badge-secondary'}">${p.status}</span>${p.close_round > 1 ? ` <span class="badge badge-warning">round ${p.close_round}</span>` : ''}</td>
-              <td>${p.status === 'Open' ? `${PERIOD_TASK_COUNT - p.tasks_unsigned} of ${PERIOD_TASK_COUNT} signed` : 'Signed and closed'}</td>
+              <td><span class="badge ${p.status === 'Open' ? 'badge-success' : p.status === 'On Hold' ? 'badge-warning' : 'badge-secondary'}">${p.status}</span>${p.close_round > 1 ? ` <span class="badge badge-warning">round ${p.close_round}</span>` : ''}</td>
+              <td>${p.status !== 'Closed' ? `${PERIOD_TASK_COUNT - p.tasks_unsigned} of ${PERIOD_TASK_COUNT} signed` : 'Signed and closed'}</td>
               <td>${escapeHTMLText(p.closed_by || '')}</td>
-              <td><button class="action-btn" data-close-board="${escapeHTMLText(p.id)}">${p.status === 'Open' ? 'Close tasks' : 'Close record / reopen'}</button></td>
+              <td><button class="action-btn" data-close-board="${escapeHTMLText(p.id)}">${p.status !== 'Closed' ? 'Close tasks' : 'Close record / reopen'}</button>${p.status === 'Open' || p.status === 'On Hold' ? ` <button class="action-btn" data-period-hold="${escapeHTMLText(p.id)}" data-hold="${p.status === 'Open' ? 'hold' : 'release'}">${p.status === 'Open' ? 'Hold' : 'Release'}</button>` : ''}</td>
             </tr>
           `).join('')}
       </tbody>
@@ -332,9 +310,21 @@ async function renderAccountingPeriodsPanel(container) {
   container.appendChild(txnPagedSection({ id: 'fin-periods', title: 'Accounting Periods', page: 'New accounting period',
     count: periods.length, newLabel: 'New Period', form: formPanel, list: panel, heading: 'h2' }));
   txnRestorePane('fin-periods');
+  // Stage 148.25: hold a period for sales / release it; the GSTR-1 months list.
+  panel.querySelectorAll('[data-period-hold]').forEach(btn => btn.addEventListener('click', async () => {
+    const r = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(btn.dataset.periodHold)}/${btn.dataset.hold}`, { method: 'POST', body: '{}' });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'The period was not changed.'); return; }
+    financeReload();
+  }));
+  const g1 = document.createElement('button');
+  g1.className = 'btn btn-outline';
+  g1.textContent = 'GSTR-1 months';
+  g1.addEventListener('click', async () => { await loadViewModule('/view-gstr1-lock.js?v=1'); window.openGstr1Months?.(); });
+  container.appendChild(g1);
   panel.querySelectorAll('[data-close-board]').forEach(btn => btn.addEventListener('click', () => {
     currentClosePeriodId = btn.getAttribute('data-close-board');
-    renderView('finance');
+    financeReload();
   }));
 
   document.getElementById('period-create-btn').addEventListener('click', async () => {
@@ -359,7 +349,7 @@ async function renderAccountingPeriodsPanel(container) {
       return;
     }
     txnDone('fin-periods');
-    renderView('finance');
+    financeReload();
   });
 }
 
@@ -384,13 +374,27 @@ async function showPeriodCloseChecklist(periodId) {
     'Period Close Checklist'
   );
   if (!proceed) return;
-  const closeRes = await apiFetch(`/api/v1/finance/periods/${periodId}/close`, { method: 'POST' });
-  if (!closeRes) return;
-  if (!closeRes.ok) {
-    await showApiError(closeRes, 'Failed to close period.');
-    return;
+  if (await closePeriodAsking(periodId)) financeReload();
+}
+
+// 162.12: a period that is not ready closes only with a typed reason. The
+// server says when one is needed (FIN-0507 with the failing checks); the
+// reason is logged with the close and in the audit log.
+async function closePeriodAsking(periodId) {
+  const url = `/api/v1/finance/periods/${encodeURIComponent(periodId)}/close`;
+  let res = await apiFetch(url, { method: 'POST' });
+  if (!res) return false;
+  if (!res.ok && res.status === 422) {
+    const body = await res.clone().json().catch(() => ({}));
+    if (body.code === 'FIN-0507') {
+      const reason = await showCustomPrompt(`${body.detail || 'This period is not ready to close.'}\n\nReason`, '', 'Close anyway?');
+      if (!reason) return false;
+      res = await apiFetch(url, { method: 'POST', body: JSON.stringify({ reason }) });
+      if (!res) return false;
+    }
   }
-  renderView('finance');
+  if (!res.ok) { await showApiError(res, 'The period could not be closed.'); return false; }
+  return true;
 }
 
 // Stage 73.1.10 (D09): one period's close board - owned tasks with live
@@ -407,7 +411,7 @@ async function renderPeriodCloseBoard(container, periodId) {
   const res = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/close-board`);
   if (!res) return;
   if (!res.ok) {
-    renderErrorPanel(container, await getErrorMessage(res, 'Failed to load the close tasks.'), () => renderView('finance'));
+    renderErrorPanel(container, await getErrorMessage(res, 'Failed to load the close tasks.'), () => financeReload());
     return;
   }
   const b = await res.json();
@@ -419,52 +423,52 @@ async function renderPeriodCloseBoard(container, periodId) {
   const signedCount = b.tasks.filter(t => t.status !== 'Open' && t.status !== '').length;
   panel.innerHTML = `
     <p><a href="#/view/finance" id="close-board-back">&larr; All accounting periods</a></p>
-    <h2 style="font-size:18px;font-weight:700;margin:8px 0;">${escapeHTMLText(b.period_name)} <span class="badge ${isOpen ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(b.status)}</span> ${b.close_round > 1 ? `<span class="badge badge-warning">close round ${b.close_round}</span>` : ''}</h2>
-    <p style="color:var(--text-muted);margin:0 0 12px;">${escapeHTMLText(b.start_date)} to ${escapeHTMLText(b.end_date)}.
+    <h2 class="s-d92a09">${escapeHTMLText(b.period_name)} <span class="badge ${isOpen ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(b.status)}</span> ${b.close_round > 1 ? `<span class="badge badge-warning">close round ${b.close_round}</span>` : ''}</h2>
+    <p class="s-fcf62d">${escapeHTMLText(b.start_date)} to ${escapeHTMLText(b.end_date)}.
       ${b.closed_by ? `Closed by ${escapeHTMLText(b.closed_by)} at ${escapeHTMLText(b.closed_at)}.` : ''}
       ${b.reopened_by ? `Last reopened by ${escapeHTMLText(b.reopened_by)} at ${escapeHTMLText(b.reopened_at)}.` : ''}
       ${isOpen ? `${signedCount} of ${b.tasks.length} close tasks signed.` : ''}</p>
-    <h3 style="font-size:15px;margin:16px 0 8px;">Close tasks</h3>
+    <h3 class="s-700061">Close tasks</h3>
     <table>
       <thead><tr><th>Task</th><th>Owner</th><th>System check (live)</th><th>Sign-off</th><th>Actions</th></tr></thead>
       <tbody>${b.tasks.map(t => `
         <tr data-task="${escapeHTMLText(t.key)}">
           <td><b title="${escapeHTMLText(t.hint)}">${escapeHTMLText(t.title)}</b><br><small>${financeLink(t.link)}</small></td>
           <td>${isOpen && b.can_manage && t.status === 'Open'
-            ? `<input class="form-input" style="width:130px" data-owner-input value="${escapeHTMLText(t.owner)}" placeholder="username" aria-label="Owner of ${escapeHTMLText(t.title)}"> <button class="btn btn-outline btn-sm" data-assign>Assign</button>`
+            ? `<input class="form-input s-c6fffd" data-owner-input value="${escapeHTMLText(t.owner)}" placeholder="username" aria-label="Owner of ${escapeHTMLText(t.title)}"> <button class="btn btn-outline btn-sm" data-assign>Assign</button>`
             : escapeHTMLText(t.owner || 'Unassigned')}</td>
           <td><span class="badge ${t.check_passed ? 'badge-success' : 'badge-warning'}">${t.check_passed ? 'Passes' : 'Needs a look'}</span><br><small>${escapeHTMLText(t.check_detail)}</small></td>
           <td>${t.status === 'Open' || !t.status ? '<span class="badge badge-secondary">Not signed</span>'
             : `<span class="badge badge-success">${escapeHTMLText(t.status)}</span> by ${escapeHTMLText(t.signed_by)} at ${escapeHTMLText(t.signed_at)}<br>
                <small><b>Evidence:</b> ${escapeHTMLText(t.evidence)}${t.evidence_ref ? ` (ref ${escapeHTMLText(t.evidence_ref)})` : ''}</small><br>
-               <small style="color:var(--text-muted)">${escapeHTMLText(t.check_snapshot)}</small>`}</td>
+               <small class="s-5872de">${escapeHTMLText(t.check_snapshot)}</small>`}</td>
           <td>${isOpen && (t.status === 'Open' || !t.status) && t.owner && t.owner === me ? '<button class="btn btn-primary btn-sm" data-sign>Sign off</button>' : ''}
               ${isOpen && t.status && t.status !== 'Open' && (t.owner === me || b.can_manage) ? '<button class="btn btn-outline btn-sm" data-undo>Undo sign-off</button>' : ''}
-              ${isOpen && (t.status === 'Open' || !t.status) && t.owner && t.owner !== me ? `<small style="color:var(--text-muted)">Waiting for ${escapeHTMLText(t.owner)}</small>` : ''}
-              ${isOpen && !t.owner && !b.can_manage ? '<small style="color:var(--text-muted)">An Accountant assigns an owner</small>' : ''}</td>
+              ${isOpen && (t.status === 'Open' || !t.status) && t.owner && t.owner !== me ? `<small class="s-5872de">Waiting for ${escapeHTMLText(t.owner)}</small>` : ''}
+              ${isOpen && !t.owner && !b.can_manage ? '<small class="s-5872de">An Accountant assigns an owner</small>' : ''}</td>
         </tr>
         <tr class="hidden" data-sign-form="${escapeHTMLText(t.key)}"><td colspan="5">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-            <div class="form-group" style="margin:0"><label class="form-label" for="sign-status-${escapeHTMLText(t.key)}">Result</label>
+          <div class="s-aad644">
+            <div class="form-group s-116966"><label class="form-label" for="sign-status-${escapeHTMLText(t.key)}">Result</label>
               <select class="form-select" id="sign-status-${escapeHTMLText(t.key)}" data-sign-status><option>Done</option><option>Not applicable</option></select></div>
-            <div class="form-group" style="margin:0;flex:1 1 320px"><label class="form-label" for="sign-evidence-${escapeHTMLText(t.key)}">Evidence - what you checked and what it showed</label>
+            <div class="form-group s-817b9b"><label class="form-label" for="sign-evidence-${escapeHTMLText(t.key)}">Evidence - what you checked and what it showed</label>
               <textarea class="form-input" id="sign-evidence-${escapeHTMLText(t.key)}" rows="2" data-sign-evidence></textarea></div>
-            <div class="form-group" style="margin:0"><label class="form-label" for="sign-ref-${escapeHTMLText(t.key)}">Reference (optional)</label>
+            <div class="form-group s-116966"><label class="form-label" for="sign-ref-${escapeHTMLText(t.key)}">Reference (optional)</label>
               <input class="form-input" id="sign-ref-${escapeHTMLText(t.key)}" data-sign-ref placeholder="statement no., report run, file"></div>
             <button class="btn btn-primary btn-sm" data-sign-submit>Sign off</button>
           </div></td></tr>`).join('')}
       </tbody>
     </table>
-    <div id="close-board-actions" style="margin:16px 0;"></div>
-    <h3 style="font-size:15px;margin:16px 0 8px;">Advisory checks</h3>
-    <ul style="margin:0 0 12px 18px;">${(b.checks || []).map(c => `<li>${c.passed ? '&#10003;' : '&#10007;'} ${escapeHTMLText(c.name)} - ${escapeHTMLText(c.detail)}</li>`).join('')}</ul>
-    <h3 style="font-size:15px;margin:16px 0 8px;">History</h3>
-    ${b.log.length === 0 ? '<p style="color:var(--text-muted)">Nothing recorded yet.</p>' : `<table><thead><tr><th>When</th><th>Round</th><th>Event</th><th>Task</th><th>By</th><th>Detail</th></tr></thead><tbody>
+    <div id="close-board-actions" class="s-f63b87"></div>
+    <h3 class="s-700061">Advisory checks</h3>
+    <ul class="s-2c0577">${(b.checks || []).map(c => `<li>${c.passed ? '&#10003;' : '&#10007;'} ${escapeHTMLText(c.name)} - ${escapeHTMLText(c.detail)}</li>`).join('')}</ul>
+    <h3 class="s-700061">History</h3>
+    ${b.log.length === 0 ? '<p class="s-5872de">Nothing recorded yet.</p>' : `<table><thead><tr><th>When</th><th>Round</th><th>Event</th><th>Task</th><th>By</th><th>Detail</th></tr></thead><tbody>
       ${b.log.map(e => `<tr><td>${escapeHTMLText(e.created_at)}</td><td>${e.close_round}</td><td>${escapeHTMLText(e.event)}</td><td>${escapeHTMLText(e.task_key)}</td><td>${escapeHTMLText(e.actor)}</td><td>${escapeHTMLText(e.detail)}</td></tr>`).join('')}
     </tbody></table>`}
   `;
   container.appendChild(panel);
-  panel.querySelector('#close-board-back').addEventListener('click', e => { e.preventDefault(); currentClosePeriodId = null; renderView('finance'); });
+  panel.querySelector('#close-board-back').addEventListener('click', e => { e.preventDefault(); currentClosePeriodId = null; financeReload(); });
   panel.querySelectorAll('[data-open-report]').forEach(a => a.addEventListener('click', async e => {
     e.preventDefault();
     const reports = await loadViewModule('/view-reports.js?v=1');
@@ -475,7 +479,7 @@ async function renderPeriodCloseBoard(container, periodId) {
     const r = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/close-tasks/${encodeURIComponent(key)}/${action}`, { method: 'POST', body: JSON.stringify(body) });
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'The close task could not be updated.'); return; }
-    renderView('finance');
+    financeReload();
   };
   panel.querySelectorAll('tr[data-task]').forEach(row => {
     const key = row.getAttribute('data-task');
@@ -513,11 +517,9 @@ async function renderPeriodCloseBoard(container, periodId) {
     actions.appendChild(why);
     close.addEventListener('click', async () => {
       if (!await showCustomConfirm(`Close "${b.period_name}"? Postings dated inside it will be refused. Reopening needs a reason and a second person's approval.`, 'Close period')) return;
-      const r = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/close`, { method: 'POST' });
-      if (!r) return;
-      if (!r.ok) { await showApiError(r, 'The period could not be closed.'); return; }
+      if (!await closePeriodAsking(periodId)) return;
       showToast('Period closed.', { variant: 'success' });
-      renderView('finance');
+      financeReload();
     });
   } else {
     const pending = b.reopen_requests.find(q => q.id === b.reopen_pending_id);
@@ -529,11 +531,11 @@ async function renderPeriodCloseBoard(container, periodId) {
         const r = await apiFetch(`/api/v1/finance/period-reopen/${encodeURIComponent(pending.id)}/apply`, { method: 'POST', body: '{}' });
         if (!r) return;
         if (!r.ok) { await showApiError(r, 'The approved reopen could not be applied.'); return; }
-        renderView('finance');
+        financeReload();
       });
     } else if (b.can_manage) {
       actions.innerHTML = `
-        <div class="form-group" style="max-width:640px"><label class="form-label" for="reopen-reason">Request a reopen - why, and what will be corrected</label>
+        <div class="form-group s-e2b01b"><label class="form-label" for="reopen-reason">Request a reopen - why, and what will be corrected</label>
           <textarea class="form-input" id="reopen-reason" rows="2"></textarea></div>
         <button class="btn btn-outline" id="reopen-request">Request reopen</button>`;
       actions.querySelector('#reopen-request').addEventListener('click', async () => {
@@ -541,10 +543,10 @@ async function renderPeriodCloseBoard(container, periodId) {
         if (!r) return;
         if (!r.ok) { await showApiError(r, 'The reopen could not be requested.'); return; }
         showToast('Reopen requested - it now waits in Approvals.', { variant: 'success' });
-        renderView('finance');
+        financeReload();
       });
     } else {
-      actions.innerHTML = '<p style="color:var(--text-muted)">This period is closed. An Accountant or a Super Admin can request a reopen.</p>';
+      actions.innerHTML = '<p class="s-5872de">This period is closed. An Accountant or a Super Admin can request a reopen.</p>';
     }
   }
 }
@@ -588,18 +590,18 @@ async function renderVendorInvoicesView(container) {
       <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th class="num">Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No vendor invoices yet. Use <b>+ New Vendor Invoice</b> above &mdash; have the Purchase Order and Goods Receipt it should 3-way match against to hand.</td></tr>`
+          ? `<tr><td colspan="8" class="s-306094">No vendor invoices yet. Use <b>+ New Vendor Invoice</b> above &mdash; have the Purchase Order and Goods Receipt it should 3-way match against to hand.</td></tr>`
           : invoices.map(v => {
             // Stage 73 / 55.10: what is still owed, and the payments behind it.
             const history = settlementHistory(v, 'payments');
             const partPaid = v.status === 'Matched' && history.length > 0;
             return `
             <tr>
-              <td style="font-family: monospace;">${escapeHTMLText(v.invoice_number || v.id)}</td>
+              <td class="s-355794">${escapeHTMLText(v.invoice_number || v.id)}</td>
               <td>${escapeHTMLText(v.vendor_id || '')}</td>
               <td>${documentSearchLink('PurchaseOrder', v.po_id)}</td>
               <td>${documentSearchLink('GRN', v.grn_id)}</td>
-              <td>${(v.invoice_amount ?? 0).toLocaleString()}</td>
+              <td>${formatNumber(v.invoice_amount)}</td>
               <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'invoice_amount', ['Matched', 'MismatchHold', 'Pending Approval', 'Approved']))}</td>
               <td><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>${renderVendorInvoiceActions(v)}${history.length > 0 ? ` <button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}</td>
@@ -612,6 +614,7 @@ async function renderVendorInvoicesView(container) {
   container.querySelectorAll('[data-vi-pay]').forEach(btn => btn.addEventListener('click', () => payVendorInvoicePlain(btn.getAttribute('data-vi-pay'))));
   wirePaymentHistory(container);
   addStatementButton('vi-new-btn', 'VendorStatement', 'Vendor', 'vendor');
+  addExpenseBillButton('vi-new-btn');
   document.getElementById('vi-new-btn').addEventListener('click', async () => {
     const defaults = {};
     if (fromGRN) {
@@ -639,7 +642,7 @@ function renderVendorInvoiceActions(v) {
     // routed to approval) already existed server-side but had no UI action
     // calling it - only Match did. Draft has nothing to override yet
     // (3-way match hasn't run), so this only shows for MismatchHold.
-    return `<button class="action-btn" ${actionAttrs('matchVendorInvoice', [id])}>Match</button>${v.status === 'MismatchHold' ? `<button class="action-btn" style="margin-left:4px;" ${actionAttrs('overrideAndPayVendorInvoice', [id])}>Override &amp; Pay</button>` : ''}`;
+    return `<button class="action-btn" ${actionAttrs('matchVendorInvoice', [id])}>Match</button>${v.status === 'MismatchHold' ? `<button class="action-btn s-46cec8" ${actionAttrs('overrideAndPayVendorInvoice', [id])}>Override &amp; Pay</button>` : ''}`;
   }
   if (v.status === 'Matched') {
     const sections = window.__tdsSections || [];
@@ -648,9 +651,9 @@ function renderVendorInvoiceActions(v) {
     // part-paid only plain Pay (of what is left) is offered.
     return `
       <button class="action-btn" data-vi-pay="${escapeHTMLText(id)}">Pay</button>
-      <button class="action-btn" style="margin-left:4px;" data-vi-advance="${escapeHTMLText(id)}" data-vendor="${escapeHTMLText(v.vendor_id || '')}" data-po="${escapeHTMLText(v.po_id || '')}" data-due="${escapeHTMLText(String(openBalance(v, 'invoice_amount', ['Matched'])))}">Advance</button>
+      <button class="action-btn s-46cec8" data-vi-advance="${escapeHTMLText(id)}" data-vendor="${escapeHTMLText(v.vendor_id || '')}" data-po="${escapeHTMLText(v.po_id || '')}" data-due="${escapeHTMLText(String(openBalance(v, 'invoice_amount', ['Matched'])))}">Advance</button>
       ${sections.length > 0 && settlementHistory(v, 'payments').length === 0 ? `
-        <select id="tds-select-${id}" class="form-select" style="width: 110px; display:inline-block; margin: 0 4px;">${tdsOptions}</select>
+        <select id="tds-select-${id}" class="form-select s-9c5c7b">${tdsOptions}</select>
         <button class="action-btn" ${actionAttrs('payVendorInvoiceTDS', [id])}>Pay w/ TDS</button>
       ` : ''}
     `;
@@ -672,7 +675,7 @@ async function matchVendorInvoice(invoiceId) {
   }
   const data = await res.json();
   const d = data.match_details || {};
-  const fmt = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (n) => formatMoney(n || 0);
   const lines = [
     `Invoice amount: ${fmt(d.invoice_amount)}`,
     `Accepted goods value (incl. tax): ${fmt(d.grn_value)}`,
@@ -775,14 +778,14 @@ async function renderPaymentProposalsView(container) {
   builderPanel.style.padding = '24px';
   builderPanel.style.marginBottom = '24px';
   builderPanel.innerHTML = `
-    ${invoices.length === 0 ? `<p style="color:var(--text-muted);">No Matched vendor invoices available to batch.</p>` : `
-      <table style="margin-bottom: 16px;">
+    ${invoices.length === 0 ? `<p class="s-5872de">No Matched vendor invoices available to batch.</p>` : `
+      <table class="s-29b798">
         <thead><tr><th></th><th>Invoice #</th><th>Vendor</th><th>Outstanding</th></tr></thead>
         <tbody>
           ${invoices.map(v => `
             <tr>
               <td><input type="checkbox" class="pp-invoice-check" value="${v.id}"></td>
-              <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
+              <td class="s-355794">${v.invoice_number || v.id}</td>
               <td>${v.vendor_id || ''}</td>
               <td>${formatMoney(openBalance(v, 'invoice_amount', ['Matched']))}</td>
             </tr>
@@ -791,7 +794,7 @@ async function renderPaymentProposalsView(container) {
       </table>
       <button class="btn btn-primary" id="pp-create-btn">Create Proposal from Selected</button>
     `}
-    <div id="pp-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="pp-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
   const listPanel = document.createElement('div');
@@ -801,15 +804,15 @@ async function renderPaymentProposalsView(container) {
       <thead><tr><th>Proposal #</th><th>Invoices</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${proposals.length === 0
-          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No payment proposals yet. Click <b>+ New Proposal</b>, tick one or more Matched vendor invoices, then <b>Create Proposal from Selected</b>.</td></tr>`
+          ? `<tr><td colspan="5" class="s-306094">No payment proposals yet. Click <b>+ New Proposal</b>, tick one or more Matched vendor invoices, then <b>Create Proposal from Selected</b>.</td></tr>`
           : proposals.map(p => {
             let ids = [];
             try { ids = JSON.parse(p.invoice_ids || '[]'); } catch (e) { /* leave empty */ }
             return `
               <tr>
-                <td style="font-family: monospace;">${p.proposal_number || p.id}</td>
+                <td class="s-355794">${p.proposal_number || p.id}</td>
                 <td>${ids.length} invoice(s)</td>
-                <td>${(p.total_amount ?? 0).toLocaleString()}</td>
+                <td>${formatNumber(p.total_amount)}</td>
                 <td><span class="badge ${p.status === 'Executed' ? 'badge-success' : 'badge-secondary'}">${p.status}</span></td>
                 <td>${p.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('executePaymentProposal', [p.id])}>Execute</button>` : ''}</td>
               </tr>
@@ -906,17 +909,17 @@ async function renderBankReconciliationView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
-      <div class="form-group" style="margin:0;min-width:220px;">
+    <div class="s-2ff289">
+      <div class="form-group s-208691">
         <label class="form-label" for="bank-recon-account">Bank Account</label>
         <select id="bank-recon-account" class="form-select">
           <option value="">Select a bank account...</option>
           ${accounts.map(a => `<option value="${escapeHTMLText(a.id)}" ${a.id === bankRecon.account ? 'selected' : ''}>${escapeHTMLText(a.bank_name || '')} - ${escapeHTMLText(a.account_number || a.id)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-from">From</label><input type="date" id="bank-recon-from" class="form-input" value="${escapeHTMLText(bankRecon.from)}"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-to">To</label><input type="date" id="bank-recon-to" class="form-input" value="${escapeHTMLText(bankRecon.to)}"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-filter">Show</label>
+      <div class="form-group s-116966"><label class="form-label" for="bank-recon-from">From</label><input type="date" id="bank-recon-from" class="form-input" value="${escapeHTMLText(bankRecon.from)}"></div>
+      <div class="form-group s-116966"><label class="form-label" for="bank-recon-to">To</label><input type="date" id="bank-recon-to" class="form-input" value="${escapeHTMLText(bankRecon.to)}"></div>
+      <div class="form-group s-116966"><label class="form-label" for="bank-recon-filter">Show</label>
         <select id="bank-recon-filter" class="form-select">
           ${[['open', 'Open (unmatched + exceptions)'], ['Exception', 'Exception queue'], ['Matched', 'Matched'], ['Explained', 'Explained'], ['all', 'All lines']]
             .map(([v, l]) => `<option value="${v}" ${v === bankRecon.filter ? 'selected' : ''}>${l}</option>`).join('')}
@@ -926,13 +929,13 @@ async function renderBankReconciliationView(container) {
       <button class="btn btn-outline" id="bank-recon-manage-accounts-btn">Manage Bank Accounts</button>
       <button class="btn btn-outline" id="bank-recon-manage-lines-btn">Statement Lines / Import CSV</button>
     </div>
-    <div id="bank-rule-form" class="hidden" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-rule-tolerance">Amount tolerance (Rs)</label><input type="number" id="bank-rule-tolerance" class="form-input" value="0" min="0" max="10000" step="0.01" style="width:120px"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-rule-window">Date window (days)</label><input type="number" id="bank-rule-window" class="form-input" value="3" min="0" max="31" style="width:100px"></div>
-      <label style="display:flex;gap:6px;align-items:center;padding-bottom:10px;"><input type="checkbox" id="bank-rule-reference" checked> Use the statement reference</label>
+    <div id="bank-rule-form" class="hidden s-2ff289">
+      <div class="form-group s-116966"><label class="form-label" for="bank-rule-tolerance">Amount tolerance (Rs)</label><input type="number" id="bank-rule-tolerance" class="form-input s-465bfe" value="0" min="0" max="10000" step="0.01"></div>
+      <div class="form-group s-116966"><label class="form-label" for="bank-rule-window">Date window (days)</label><input type="number" id="bank-rule-window" class="form-input s-db4cf1" value="3" min="0" max="31"></div>
+      <label class="s-dd294b"><input type="checkbox" id="bank-rule-reference" checked> Use the statement reference</label>
       <button class="btn btn-primary" id="bank-rule-run">Run rule match</button>
     </div>
-    ${accounts.length === 0 ? `<p style="color:var(--text-muted);">No bank accounts yet - use "Manage Bank Accounts" to add one.</p>` : ''}
+    ${accounts.length === 0 ? `<p class="s-5872de">No bank accounts yet - use "Manage Bank Accounts" to add one.</p>` : ''}
     <div id="bank-recon-result"></div>
     <div id="bank-recon-workbench"></div>
   `;
@@ -1007,9 +1010,9 @@ async function renderBankWorkbench(host) {
   const c = wb.counts || {};
   const lines = wb.lines.filter(l => bankRecon.filter === 'all' ? true
     : bankRecon.filter === 'open' ? (l.match_status === 'Unmatched' || l.match_status === 'Exception') : l.match_status === bankRecon.filter);
-  const money = v => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = v => formatMoney(v || 0);
   host.innerHTML = `
-    <div class="dashboard-stats-row" style="margin:8px 0 16px;">
+    <div class="dashboard-stats-row s-2da9f5">
       <div class="stat-card"><span class="stat-label">Unmatched</span><span class="stat-val">${c.Unmatched || 0}</span></div>
       <div class="stat-card"><span class="stat-label">Exceptions</span><span class="stat-val">${c.Exception || 0}</span></div>
       <div class="stat-card"><span class="stat-label">Matched / Explained</span><span class="stat-val">${(c.Matched || 0)} / ${(c.Explained || 0)}</span></div>
@@ -1018,11 +1021,11 @@ async function renderBankWorkbench(host) {
     </div>
     <table>
       <thead><tr><th>Date</th><th>Description / reference</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${lines.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No statement lines in this view. Import a statement with "Statement Lines / Import CSV", or widen the dates or the Show filter.</td></tr>` : lines.map(l => `
+      <tbody>${lines.length === 0 ? `<tr><td colspan="5" class="s-306094">No statement lines in this view. Import a statement with "Statement Lines / Import CSV", or widen the dates or the Show filter.</td></tr>` : lines.map(l => `
         <tr data-line="${escapeHTMLText(l.id)}" data-drcr="${escapeHTMLText(l.dr_cr)}" data-amount="${l.amount}">
           <td>${escapeHTMLText(l.txn_date)}</td>
           <td>${escapeHTMLText(l.description || '')}${l.reference_number ? `<br><small>Ref ${escapeHTMLText(l.reference_number)}</small>` : ''}</td>
-          <td style="white-space:nowrap">${l.dr_cr === 'Credit' ? 'In' : 'Out'} ${money(l.amount)}</td>
+          <td class="s-86abda">${l.dr_cr === 'Credit' ? 'In' : 'Out'} ${money(l.amount)}</td>
           <td><span class="badge ${l.match_status === 'Matched' ? 'badge-success' : l.match_status === 'Exception' ? 'badge-danger' : l.match_status === 'Explained' ? 'badge-secondary' : 'badge-warning'}">${escapeHTMLText(l.match_status)}</span>
             ${l.match_method ? `<br><small>${escapeHTMLText(l.match_method)} by ${escapeHTMLText(l.matched_by)}${l.match_difference ? `, difference ${money(l.match_difference)}` : ''}</small>` : ''}
             ${l.match_status === 'Exception' ? `<br><small>Owner ${escapeHTMLText(l.exception_owner)}, ${l.exception_age_days} day(s): ${escapeHTMLText(l.exception_reason)}</small>` : ''}
@@ -1037,11 +1040,11 @@ async function renderBankWorkbench(host) {
         <tr class="hidden" data-line-detail="${escapeHTMLText(l.id)}"><td colspan="5"></td></tr>`).join('')}
       </tbody>
     </table>
-    <h3 style="font-size:15px;margin:20px 0 8px;">Unmatched book entries on ${escapeHTMLText(wb.gl_account_code)} (${wb.unmatched_book.length})</h3>
-    ${wb.unmatched_book.length === 0 ? '<p style="color:var(--text-muted)">None.</p>' : `<table><thead><tr><th>Posted</th><th>Document</th><th>Debit (in)</th><th>Credit (out)</th><th>Posted by</th></tr></thead><tbody>
+    <h3 class="s-9e9099">Unmatched book entries on ${escapeHTMLText(wb.gl_account_code)} (${wb.unmatched_book.length})</h3>
+    ${wb.unmatched_book.length === 0 ? '<p class="s-5872de">None.</p>' : `<table><thead><tr><th>Posted</th><th>Document</th><th>Debit (in)</th><th>Credit (out)</th><th>Posted by</th></tr></thead><tbody>
       ${wb.unmatched_book.slice(0, 50).map(p => `<tr><td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${getDoctypeLabel(p.document_type)} ${p.document_id}`)}</td><td>${p.debit ? money(p.debit) : ''}</td><td>${p.credit ? money(p.credit) : ''}</td><td>${escapeHTMLText(p.posted_by || 'before attribution')}</td></tr>`).join('')}
     </tbody></table>`}
-    <h3 style="font-size:15px;margin:20px 0 8px;">Payouts waiting for a bank line</h3>
+    <h3 class="s-9e9099">Payouts waiting for a bank line</h3>
     <p>Card clearing (1101): <b>${money(wb.card_clearing_balance)}</b> &middot; UPI clearing (1102): <b>${money(wb.upi_clearing_balance)}</b> &middot; Marketplace batches: <b>${wb.marketplace_payouts.length}</b></p>
     ${wb.marketplace_payouts.length === 0 ? '' : `<table><thead><tr><th>Settlement batch</th><th>Channel</th><th>Lines</th><th>Net payout</th><th>Settled</th></tr></thead><tbody>
       ${wb.marketplace_payouts.map(s => `<tr><td>${escapeHTMLText(s.settlement_batch_id)}</td><td>${escapeHTMLText(s.channel)}</td><td>${s.lines}</td><td>${money(s.net_payout)}</td><td>${escapeHTMLText(s.settlement_date)}</td></tr>`).join('')}
@@ -1068,14 +1071,14 @@ async function renderBankWorkbench(host) {
       if (!r) return;
       if (!r.ok) { await showApiError(r, 'Could not load candidates.'); return; }
       const { candidates } = await r.json();
-      open(candidates.length === 0 ? `<p style="color:var(--text-muted)">No unmatched book entry on this side of the account. Post the missing entry (or the bank charge), or raise an exception.</p>` : `
+      open(candidates.length === 0 ? `<p class="s-5872de">No unmatched book entry on this side of the account. Post the missing entry (or the bank charge), or raise an exception.</p>` : `
         <table><thead><tr><th></th><th>Posted</th><th>Document</th><th>Amount</th><th>Difference</th><th>Days apart</th></tr></thead><tbody>
         ${candidates.map(p => `<tr><td><input type="checkbox" data-cand="${escapeHTMLText(p.posting_id)}" data-cand-amount="${credit ? p.debit : p.credit}" aria-label="Select ${escapeHTMLText(p.document_id)}"></td>
           <td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${getDoctypeLabel(p.document_type)} ${p.document_id}`)}</td>
           <td>${money(credit ? p.debit : p.credit)}</td><td>${money(p.amount_difference)}</td><td>${p.days_apart || 0}</td></tr>`).join('')}
         </tbody></table>
-        <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><span data-cand-sum>Selected 0.00 of ${money(amount)}</span>
-          <input class="form-input" data-cand-note placeholder="Note (optional)" style="max-width:280px" aria-label="Match note">
+        <div class="s-c052f6"><span data-cand-sum>Selected 0.00 of ${money(amount)}</span>
+          <input class="form-input s-2f3f7d" data-cand-note placeholder="Note (optional)" aria-label="Match note">
           <button class="btn btn-primary btn-sm" data-cand-match disabled>Match selected</button></div>`);
       const boxes = cell.querySelectorAll('[data-cand]');
       const sumEl = cell.querySelector('[data-cand-sum]');
@@ -1091,9 +1094,9 @@ async function renderBankWorkbench(host) {
     });
 
     row.querySelector('[data-bank-exception]')?.addEventListener('click', () => {
-      open(`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div class="form-group" style="margin:0"><label class="form-label" for="exc-owner-${escapeHTMLText(lineId)}">Owner (username)</label><input class="form-input" id="exc-owner-${escapeHTMLText(lineId)}" data-exc-owner value="${escapeHTMLText(localStorage.getItem('erp_username') || '')}"></div>
-        <div class="form-group" style="margin:0;flex:1 1 320px"><label class="form-label" for="exc-reason-${escapeHTMLText(lineId)}">Reason</label><input class="form-input" id="exc-reason-${escapeHTMLText(lineId)}" data-exc-reason></div>
+      open(`<div class="s-aad644">
+        <div class="form-group s-116966"><label class="form-label" for="exc-owner-${escapeHTMLText(lineId)}">Owner (username)</label><input class="form-input" id="exc-owner-${escapeHTMLText(lineId)}" data-exc-owner value="${escapeHTMLText(localStorage.getItem('erp_username') || '')}"></div>
+        <div class="form-group s-817b9b"><label class="form-label" for="exc-reason-${escapeHTMLText(lineId)}">Reason</label><input class="form-input" id="exc-reason-${escapeHTMLText(lineId)}" data-exc-reason></div>
         <button class="btn btn-primary btn-sm" data-exc-save>Raise exception</button></div>`);
       cell.querySelector('[data-exc-save]').addEventListener('click', () => lineAction(lineId, 'exception', {
         owner: cell.querySelector('[data-exc-owner]').value, reason: cell.querySelector('[data-exc-reason]').value }, 'Exception raised.'));
@@ -1110,14 +1113,14 @@ async function renderBankWorkbench(host) {
     });
 
     row.querySelector('[data-bank-payout]')?.addEventListener('click', () => {
-      open(`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div class="form-group" style="margin:0"><label class="form-label" for="payout-kind-${escapeHTMLText(lineId)}">Payout from</label>
+      open(`<div class="s-aad644">
+        <div class="form-group s-116966"><label class="form-label" for="payout-kind-${escapeHTMLText(lineId)}">Payout from</label>
           <select class="form-select" id="payout-kind-${escapeHTMLText(lineId)}" data-payout-kind>
             ${wb.marketplace_payouts.map(s => `<option value="batch:${escapeHTMLText(s.settlement_batch_id)}">Marketplace batch ${escapeHTMLText(s.settlement_batch_id)} (${money(s.net_payout)})</option>`).join('')}
             <option value="1101">Card acquirer - clears 1101 (${money(wb.card_clearing_balance)} waiting)</option>
             <option value="1102">UPI - clears 1102 (${money(wb.upi_clearing_balance)} waiting)</option>
           </select></div>
-        <div class="form-group" style="margin:0" data-payout-fee-wrap><label class="form-label" for="payout-fee-${escapeHTMLText(lineId)}">Acquirer fee deducted (Rs)</label><input type="number" class="form-input" id="payout-fee-${escapeHTMLText(lineId)}" data-payout-fee value="0" min="0" step="0.01" style="width:120px"></div>
+        <div class="form-group s-116966" data-payout-fee-wrap><label class="form-label" for="payout-fee-${escapeHTMLText(lineId)}">Acquirer fee deducted (Rs)</label><input type="number" class="form-input s-465bfe" id="payout-fee-${escapeHTMLText(lineId)}" data-payout-fee value="0" min="0" step="0.01"></div>
         <button class="btn btn-primary btn-sm" data-payout-save>Match payout</button></div>`);
       const kind = cell.querySelector('[data-payout-kind]');
       const feeWrap = cell.querySelector('[data-payout-fee-wrap]');
@@ -1138,7 +1141,12 @@ async function renderBankWorkbench(host) {
 // Debit / Credit Notes (Stage 20.32). Creation reuses the generic
 // doctype-table New-record form for each doctype; this view adds the Post
 // action (GL reversal) the generic CRUD screen can't express.
+// Stage 155.2: each note book is its own sidebar entry ("finance-notes:<book>").
+const FN_BOOKS = { debit: ['menu-finance-notes', 'Debit Notes'], 'vendor-credit': ['menu-finance-vcn', 'Vendor Credit Notes'], 'customer-credit': ['menu-finance-cn', 'Customer Credit Notes'] };
 async function renderFinanceNotesView(container) {
+  const book = FN_BOOKS[currentViewTab] ? currentViewTab : 'debit';
+  currentViewTab = book;
+  setActiveMenu(FN_BOOKS[book][0]);
   const [debitRes, creditRes, vendorCreditRes] = await Promise.all([
     apiFetch('/api/v1/doc/DebitNote'),
     apiFetch('/api/v1/doc/CreditNote'),
@@ -1156,7 +1164,7 @@ async function renderFinanceNotesView(container) {
   // Stage 68: the frozen transaction layout (txn-screen.css) - the three note
   // books are tabs of one screen, each list its own scroller.
   const pane = (key, label, newId, newLabel, table) => `
-    <div class="txn-pane${key === 'debit' ? '' : ' hidden'}" data-pane="${key}">
+    <div class="txn-pane${key === book ? '' : ' hidden'}" data-pane="${key}">
       <div class="txn-note fn-pane-head"><span>${label}</span><button class="btn btn-outline btn-sm" id="${newId}">${newLabel}</button></div>
       <div class="txn-grid">${table}</div>
     </div>`;
@@ -1165,11 +1173,7 @@ async function renderFinanceNotesView(container) {
   screen.id = 'fn-screen';
   screen.innerHTML = `
     <div class="txn-bar">
-      <h1 class="page-title txn-title">Debit / Credit Notes</h1>
-      ${txnTabs('txnShowPane', 'fn-screen:debit', [
-        ['fn-screen:debit', `Debit notes (${debitNotes.length})`],
-        ['fn-screen:vendor-credit', `Vendor credit notes (${vendorCreditNotes.length})`],
-        ['fn-screen:customer-credit', `Customer credit notes (${creditNotes.length})`]])}
+      <h1 class="page-title txn-title">${FN_BOOKS[book][1]}</h1>
       ${txnContext()}
     </div>
     ${pane('debit', 'Debit Notes (to Vendors)', 'dn-new-btn', '+ New Debit Note',
@@ -1181,13 +1185,13 @@ async function renderFinanceNotesView(container) {
       <thead><tr><th>Note #</th><th>Customer</th><th>Invoice</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${creditNotes.length === 0
-          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No credit notes yet. Use <b>+ New Credit Note</b>, then <b>Post</b> it to raise one against a customer.</td></tr>`
+          ? `<tr><td colspan="7" class="s-306094">No credit notes yet. Use <b>+ New Credit Note</b>, then <b>Post</b> it to raise one against a customer.</td></tr>`
           : creditNotes.map(n => `
             <tr>
-              <td style="font-family: monospace;">${n.note_number || n.id}</td>
+              <td class="s-355794">${n.note_number || n.id}</td>
               <td>${n.customer_id || ''}</td>
-              <td>${documentSearchLink('SalesInvoice', n.sales_invoice_id)}${n.status === 'Posted' && n.applied_to_invoice != null ? `<div style="font-size:12px; color:var(--text-muted);">Applied ${formatMoney(n.applied_to_invoice)}${Number(n.refunded_amount) > 0 ? `, refunded ${formatMoney(n.refunded_amount)}` : ''}</div>` : ''}</td>
-              <td>${(n.amount ?? 0).toLocaleString()}</td>
+              <td>${documentSearchLink('SalesInvoice', n.sales_invoice_id)}${n.status === 'Posted' && n.applied_to_invoice != null ? `<div class="s-8cadba">Applied ${formatMoney(n.applied_to_invoice)}${Number(n.refunded_amount) > 0 ? `, refunded ${formatMoney(n.refunded_amount)}` : ''}</div>` : ''}</td>
+              <td>${formatNumber(n.amount)}</td>
               <td>${n.reason || ''}</td>
               <td data-einv-id="${escapeHTMLText(n.id)}"><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
               <td>${n.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postFinanceNote', ['CreditNote', n.id])}>Post</button> ` : ''}<button class="action-btn" ${actionAttrs('printTransactionDocument', ['CreditNote', n.id])}>Print</button></td>
@@ -1197,7 +1201,6 @@ async function renderFinanceNotesView(container) {
     </table>`)}
   `;
   container.appendChild(screen);
-  txnRestorePane('fn-screen');
 
   document.getElementById('dn-new-btn').addEventListener('click', () => {
     currentDoctype = 'DebitNote'; currentSearchQuery = ''; currentTablePage = 1;
@@ -1224,10 +1227,10 @@ function vendorNotesTable(notes, doctype, emptyText) {
       <thead><tr><th>Note #</th><th>Vendor</th><th>GRN</th><th class="num">Amount</th><th class="num">GST</th><th class="num">Total</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${notes.length === 0
-          ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">${emptyText}</td></tr>`
+          ? `<tr><td colspan="9" class="s-306094">${emptyText}</td></tr>`
           : notes.map(n => `
             <tr>
-              <td style="font-family: monospace;">${escapeHTMLText(n.note_number || n.id)}</td>
+              <td class="s-355794">${escapeHTMLText(n.note_number || n.id)}</td>
               <td>${escapeHTMLText(n.vendor_id || '')}</td>
               <td>${n.grn_id ? documentSearchLink('GRN', n.grn_id) : '<span class="text-muted">&mdash;</span>'}</td>
               <td class="num">${formatMoney(n.amount ?? 0)}</td>
@@ -1254,7 +1257,7 @@ async function postFinanceNote(doctype, id) {
     await showApiError(res, 'Failed to post note.');
     return;
   }
-  renderView('finance-notes');
+  renderView(`finance-notes:${doctype === 'DebitNote' ? 'debit' : doctype === 'VendorCreditNote' ? 'vendor-credit' : 'customer-credit'}`);
 }
 
 // Sales Invoices (Stage 20.33 prerequisite): SalesInvoice has existed since
@@ -1296,16 +1299,16 @@ async function renderSalesInvoicesView(container) {
       <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th class="num">Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No sales invoices yet. Use <b>+ New Sales Invoice</b> above to bill a customer on credit; POS sales are settled immediately and do not appear here.</td></tr>`
+          ? `<tr><td colspan="6" class="s-306094">No sales invoices yet. Use <b>+ New Sales Invoice</b> above to bill a customer on credit; POS sales are settled immediately and do not appear here.</td></tr>`
           : invoices.map(v => {
             // Stage 73 / 55.10: what is still owed, and the receipts behind it.
             const history = settlementHistory(v, 'settlements');
             const partPaid = v.status === 'Approved' && history.length > 0;
             return `
             <tr>
-              <td style="font-family: monospace;">${escapeHTMLText(v.invoice_number || v.id)}</td>
+              <td class="s-355794">${escapeHTMLText(v.invoice_number || v.id)}</td>
               <td>${escapeHTMLText(v.customer || '')}</td>
-              <td>${(v.total_amount ?? 0).toLocaleString()}</td>
+              <td>${formatNumber(v.total_amount)}</td>
               <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'total_amount', ['Approved']))}</td>
               <td data-einv-id="${escapeHTMLText(v.id)}"><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>
@@ -1332,6 +1335,7 @@ async function renderSalesInvoicesView(container) {
     renderView('sales-invoices');
   }));
   addStatementButton('si-new-btn', 'CustomerStatement', 'Customer', 'customer');
+  if (state.modules.enabled?.has('wholesale')) import('./view-wholesale.js' + new URL(import.meta.url).search).then(m => m.addWholesaleButton(document.getElementById('si-new-btn')?.parentElement, 'Summary invoices', m.openSummaryInvoices)).catch(() => {}); // 148.31
   // 140.12.5: a receipt across invoices, with bank, TDS and on account.
   const newInv = document.getElementById('si-new-btn');
   if (newInv && financeCanPost()) {
@@ -1503,7 +1507,7 @@ function paymentHistoryRow(id, entries, colspan, voucher = '') {
     <tr>
       <td>${escapeHTMLText(e.date || '')}</td>
       <td>${escapeHTMLText(e.kind || '')}</td>
-      <td style="font-family: monospace;">${escapeHTMLText(e.reference || '-')}</td>
+      <td class="s-355794">${escapeHTMLText(e.reference || '-')}</td>
       <td class="num">${formatMoney(e.amount ?? 0)}</td>
       <td>${escapeHTMLText(e.by || '')}</td>
       <td>${voucher && e.reference ? `<button type="button" class="action-btn" data-pay-print="${escapeHTMLText(voucher)}" data-pay-id="${escapeHTMLText(`${id}~${e.reference}`)}">Voucher</button>` : ''}</td>
@@ -1518,6 +1522,25 @@ function paymentHistoryRow(id, entries, colspan, voucher = '') {
 async function printFinanceDocument(txn, doctype, id) {
   const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
   docs.printTransactionDocument(doctype, id, { txn, only: true });
+}
+
+// Stage 148.19: Bills without a PO (view-expense-bill.js), shown only when an admin has switched it on.
+async function addExpenseBillButton(newBtnId) {
+  const res = await apiFetch('/api/v1/procurement/expense-bills');
+  const newBtn = document.getElementById(newBtnId);
+  if (!res || !res.ok || !newBtn) return;
+  const data = await res.json();
+  if (!data.enabled) return;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-outline';
+  b.textContent = 'Bills without a PO';
+  b.style.marginRight = '8px';
+  b.addEventListener('click', async () => {
+    const mod = await loadViewModule('/view-expense-bill.js?v=1');
+    await mod.renderExpenseBillsView();
+  });
+  newBtn.parentElement.insertBefore(b, newBtn);
 }
 
 // addStatementButton puts "Statement" beside a list's New button.

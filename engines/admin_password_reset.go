@@ -20,7 +20,7 @@ import (
 // Admin to approve first, via the same maker-checker machinery
 // (approval_rules + SubmitForApproval/DecideApproval) every other high-risk
 // doctype in this codebase already rides - see
-// db/migrations_stage49_2_4_admin_password_reset.sql for the seeded rule.
+// db/migrations/migrations_stage49_2_4_admin_password_reset.sql for the seeded rule.
 //
 // The generated one-time password is handed back to exactly one operator:
 // the sole actor in the ungated case, or the APPROVER (never the requester)

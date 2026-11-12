@@ -44,8 +44,8 @@
         "engines/pos_checkout.go"
       ],
       "tests": [
-        "internal/server/pos_atomic_checkout_stage47_3_test.go",
-        "internal/server/pos_pricing_stage47_2_test.go"
+        "internal/server/pos_atomic_checkout_test.go",
+        "internal/server/pos_pricing_test.go"
       ],
       "help": [
         "docs/kb/module-handbooks/pos-operations.md"
@@ -82,7 +82,8 @@
         "docs/requirements/control-requirements.md#ops-002"
       ],
       "module_keys": [
-        "sales"
+        "sales",
+        "sales_incentives"
       ]
     },
     {
@@ -103,7 +104,7 @@
         "engines/returns_atomic.go"
       ],
       "tests": [
-        "internal/server/returns_stage47_4_test.go"
+        "internal/server/returns_test.go"
       ],
       "help": [
         "docs/kb/module-handbooks/returns-and-refunds.md"
@@ -163,7 +164,7 @@
         "engines/wms_owner_isolation.go"
       ],
       "tests": [
-        "engines/stage47_a05_owner_allocation_redteam_test.go",
+        "engines/redteam_owner_allocation_test.go",
         "engines/wms_single_owner_test.go",
         "engines/wms_owner_isolation_test.go"
       ],
@@ -227,7 +228,7 @@
         "engines/fulfillment.go"
       ],
       "tests": [
-        "engines/oms_console_stage35_test.go"
+        "engines/oms_console_test.go"
       ],
       "help": [
         "docs/kb/module-handbooks/oms-order-management.md"
@@ -264,7 +265,9 @@
         "docs/requirements/control-requirements.md#ops-002"
       ],
       "module_keys": [
-        "oms"
+        "oms",
+        "custom_orders",
+        "wholesale"
       ]
     },
     {
@@ -441,7 +444,8 @@
         "docs/requirements/control-requirements.md#ops-002"
       ],
       "module_keys": [
-        "inventory"
+        "inventory",
+        "memo_stock"
       ]
     },
     {
@@ -800,7 +804,8 @@
       "module_keys": [
         "core",
         "integrations",
-        "reports"
+        "reports",
+        "ai_access"
       ]
     },
     {

@@ -42,7 +42,7 @@ deployment mode — see §2), then every subsequent query is scoped to that
 tenant's schema by the application layer, not by a shared table with a
 `tenant_id` column a query could forget to filter on. Full trust-boundary
 detail (numbered, for anyone doing a deeper review) is in
-[threat_model.md](threat_model.md) §3.
+[threat-model.md](threat-model.md) §3.
 
 **Notable, and unusual for a vendor of this kind: the entire source tree is
 publicly auditable.** This is an open-source project
@@ -59,7 +59,7 @@ not be.
 The only configuration with production evidence today is a **single
 self-hosted box**: one droplet, systemd-managed application, PostgreSQL on
 the same host over loopback, Caddy terminating TLS in front of it
-([threat_model.md](threat_model.md) §1.1, configuration D1). An optional mode
+([threat-model.md](threat-model.md) §1.1, configuration D1). An optional mode
 (D2) adds per-tenant hostnames with automatic per-tenant TLS certificate
 issuance.
 
@@ -82,7 +82,7 @@ because a customer's security reviewer asking "what happens if a key leaks"
 deserves a real answer, not "trust us."
 
 **Backup and DR**, honestly, gaps included: nightly encrypted `pg_dump`,
-14-day on-box retention (`docs/operations/backup_restore.md`), a documented
+14-day on-box retention (`docs/operations/backup-restore.md`), a documented
 and scriptable monthly restore-drill procedure. **Two known gaps, not
 hidden:** there is no off-box backup copy today (losing the host loses the
 backups with it — tracked, not silently accepted), and automated
@@ -168,6 +168,6 @@ a named, tracked item in this project's own public backlog.
 ---
 
 **Requesting more detail?** A customer under NDA can be given deeper evidence
-(specific test names, `risk_register.md` rows, `attack_surface.json`) than
+(specific test names, `risk-register.md` rows, `attack_surface.json`) than
 what's appropriate for general distribution in this pack — ask through the
 channel in [SECURITY.md](../../SECURITY.md).

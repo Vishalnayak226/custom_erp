@@ -18,7 +18,7 @@ import (
 // whole point of the decision: no PIM content, and in particular no
 // supplier-submitted text (26.4.10), ever leaves this server.
 //
-// The five governance questions go_live_decisions.md section 11 asks are
+// The five governance questions go-live-decisions.md section 11 asks are
 // therefore answered as:
 //  1. Which provider / what data leaves the server - none, and nothing.
 //  2. Human-in-the-loop - guaranteed structurally. GenerateContentSuggestion

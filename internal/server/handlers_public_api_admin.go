@@ -17,6 +17,9 @@ type issueAPICredentialRequest struct {
 	// AuthMode "oauth_client" issues an OAuth2 client (Stage 38.2d); blank or
 	// "api_key" issues the opaque key, as before.
 	AuthMode string `json:"auth_mode"`
+	// Purpose (Stage 49.2.6) names what the integration does; with the one-per-purpose
+	// setting on, a second Active credential for it is refused.
+	Purpose string `json:"purpose"`
 }
 
 func parseAPICredentialExpiry(raw string) (*time.Time, error) {
@@ -52,12 +55,26 @@ func handleIssueAPICredential(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	actor := r.Header.Get("Resolved-Username")
+	purpose, err := engines.NormalizeAPICredentialPurpose(req.Purpose)
+	if err == nil {
+		err = engines.CheckAPICredentialPurposeFree(tenantID, purpose)
+	}
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
 	if mode := strings.TrimSpace(req.AuthMode); mode == "oauth_client" {
 		client, err := engines.IssueOAuthClient(tenantID, req.Name, req.Scopes, expiresAt, actor)
 		if err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
+		if err := engines.SetAPICredentialPurpose(tenantID, client.Credential.ID, purpose); err != nil {
+			_ = engines.RevokeAPICredential(tenantID, client.Credential.ID)
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		client.Credential.Purpose = purpose
 		engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
 			fmt.Sprintf("credential=%s oauth_client_id=%s scopes=%s", client.Credential.ID, client.ClientID, strings.Join(client.Credential.Scopes, ",")))
 		w.Header().Set("Cache-Control", "no-store")
@@ -73,6 +90,12 @@ func handleIssueAPICredential(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
+	if err := engines.SetAPICredentialPurpose(tenantID, issued.Credential.ID, purpose); err != nil {
+		_ = engines.RevokeAPICredential(tenantID, issued.Credential.ID)
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	issued.Credential.Purpose = purpose
 	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
 		fmt.Sprintf("credential=%s prefix=%s scopes=%s", issued.Credential.ID, issued.Credential.KeyPrefix, strings.Join(issued.Credential.Scopes, ",")))
 	w.Header().Set("Cache-Control", "no-store")

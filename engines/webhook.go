@@ -187,6 +187,7 @@ func deliverWebhook(ctx context.Context, schema string, job Job) (map[string]int
 
 	if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
 		log.Printf("[WEBHOOK] sandbox tenant %s - simulating delivery of %q to %s (no real HTTP call made)", schema, eventName, rawURL)
+		noteSandboxSuppressed(schema, eventName+" -> "+sandboxHostOf(rawURL))
 		return map[string]interface{}{"simulated": true, "reason": "sandbox tenant"}, nil
 	}
 

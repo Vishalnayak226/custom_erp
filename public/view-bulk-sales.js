@@ -8,7 +8,7 @@
 
 const BS_API = '/api/v1/sales/bulk-upload';
 const bsEsc = s => escapeHTMLText(String(s == null ? '' : s));
-const bsMoney = n => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const bsMoney = n => `₹${formatNumber(n || 0)}`;
 
 const BS_BADGES = {
   new: ['badge-success', 'New'],
@@ -52,26 +52,26 @@ export async function renderBulkSales(host, { onBack } = {}) {
   const screen = document.createElement('div');
   screen.className = 'table-panel';
   screen.style.padding = '20px';
-  screen.innerHTML = `<div class="page-header" style="margin:0 0 12px;"><div class="page-title-section"><h1 class="page-title">Sales · Upload from Excel</h1></div>
+  screen.innerHTML = `<div class="page-header s-249d01"><div class="page-title-section"><h1 class="page-title">Sales · Upload from Excel</h1></div>
       <div><button type="button" class="btn btn-ghost" data-bs="back">Back to invoices</button></div></div>
-    <div style="display:grid; gap:18px; max-width:1100px; padding:4px 0 24px;">
+    <div class="s-c20e4d">
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">1. Template</h4>
+        <h4 class="s-00f1b9">1. Template</h4>
         <button type="button" class="btn btn-outline" data-bs="template">Download template</button>
       </section>
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">2. Upload and check</h4>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <label class="btn btn-outline" style="cursor:pointer; margin:0;">Choose file
-            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-bs="file" style="display:none;">
+        <h4 class="s-00f1b9">2. Upload and check</h4>
+        <div class="s-8ed0b3">
+          <label class="btn btn-outline s-a633c1">Choose file
+            <input type="file" hidden accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-bs="file">
           </label>
-          <span data-bs="file-name" class="text-muted" style="font-size:13px;">No file chosen</span>
+          <span data-bs="file-name" class="text-muted s-5e0faa">No file chosen</span>
           <button type="button" class="btn btn-primary" data-bs="preview" disabled>Preview</button>
         </div>
       </section>
       <div data-bs="result"></div>
       <section>
-        <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">Past uploads</h4>
+        <h4 class="s-00f1b9">Past uploads</h4>
         <div data-bs="runs"><p class="text-muted">Loading…</p></div>
       </section>
     </div>`;
@@ -100,7 +100,7 @@ async function bsPreview(screen, btn) {
   const res = await apiUpload(`${BS_API}/preview`, fd);
   btn.disabled = false;
   if (!res) { out.innerHTML = ''; return; }
-  if (!res.ok) { out.innerHTML = `<p style="color:var(--danger-color); font-size:14px;">${bsEsc(await getErrorMessage(res, 'The file could not be read.'))}</p>`; return; }
+  if (!res.ok) { out.innerHTML = `<p class="s-196e02">${bsEsc(await getErrorMessage(res, 'The file could not be read.'))}</p>`; return; }
   const { result } = await res.json();
   const t = result.totals || {};
   const invoices = result.invoices || [];
@@ -109,13 +109,13 @@ async function bsPreview(screen, btn) {
   const work = newInv + toPost + (t.new_customers || 0);
   out.innerHTML = `
     <section>
-      <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">3. Preview - nothing has changed yet</h4>
+      <h4 class="s-00f1b9">3. Preview - nothing has changed yet</h4>
       ${bsTotalsHtml(t, false)}
-      ${result.can_post ? '' : '<p style="font-size:13px; margin:0 0 10px;">Your role cannot post: saved as Drafts.</p>'}
+      ${result.can_post ? '' : '<p class="s-0006b9">Your role cannot post: saved as Drafts.</p>'}
       ${bsResultHtml(result, false)}
-      <div style="display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+      <div class="s-a1de6b">
         <button type="button" class="btn btn-primary" data-bs="apply"${work ? '' : ' disabled'}>${work ? bsApplyLabel(newInv, toPost, result.can_post) : 'Nothing to do'}</button>
-        ${t.errors ? `<span style="font-size:13px; color:var(--danger-color);">${t.errors} problem${t.errors === 1 ? '' : 's'}: what has a problem is left out - fix the file and upload it again.</span>` : ''}
+        ${t.errors ? `<span class="s-129b93">${t.errors} problem${t.errors === 1 ? '' : 's'}: what has a problem is left out - fix the file and upload it again.</span>` : ''}
       </div>
     </section>`;
   const apply = out.querySelector('[data-bs="apply"]');
@@ -141,7 +141,7 @@ async function bsApply(screen, invoices, toPost, problems, canPost) {
   fd.append('file', bsFile, bsFile.name);
   const res = await apiUpload(`${BS_API}/apply`, fd);
   if (!res) { out.innerHTML = ''; return; }
-  if (!res.ok) { out.innerHTML = `<p style="color:var(--danger-color); font-size:14px;">${bsEsc(await getErrorMessage(res, 'The file could not be applied.'))}</p>`; return; }
+  if (!res.ok) { out.innerHTML = `<p class="s-196e02">${bsEsc(await getErrorMessage(res, 'The file could not be applied.'))}</p>`; return; }
   const { run_id: runID } = await res.json();
   bsFollow(screen, runID);
 }
@@ -154,7 +154,7 @@ async function bsFollow(screen, runID) {
   if (!res || !res.ok) { out.innerHTML = '<p class="text-muted">The upload could not be read - see Past uploads.</p>'; return; }
   const run = await res.json();
   if (run.status === 'Running') {
-    out.innerHTML = `<p style="font-size:14px;">Working${run.progress_sheet ? `: <b>${bsEsc(run.progress_sheet)}</b>` : ''}…</p>`;
+    out.innerHTML = `<p class="s-433de3">Working${run.progress_sheet ? `: <b>${bsEsc(run.progress_sheet)}</b>` : ''}…</p>`;
     bsPoll = setTimeout(() => bsFollow(screen, runID), 1200);
     return;
   }
@@ -162,10 +162,10 @@ async function bsFollow(screen, runID) {
   const t = run.totals || {};
   out.innerHTML = `
     <section>
-      <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">${run.status === 'Completed' ? 'Done' : bsEsc(run.status || 'Finished')}${run.file_name ? ` - ${bsEsc(run.file_name)}` : ''}</h4>
-      ${run.message ? `<p style="font-size:13px;">${bsEsc(run.message)}</p>` : ''}
+      <h4 class="s-00f1b9">${run.status === 'Completed' ? 'Done' : bsEsc(run.status || 'Finished')}${run.file_name ? ` - ${bsEsc(run.file_name)}` : ''}</h4>
+      ${run.message ? `<p class="s-5e0faa">${bsEsc(run.message)}</p>` : ''}
       ${bsTotalsHtml(t, true)}
-      ${(t.failed || t.errors) ? '<p style="font-size:13px; margin:0 0 10px;">Fix Failed or Problem rows, then upload the same file again - nothing is made twice.</p>' : ''}
+      ${(t.failed || t.errors) ? '<p class="s-0006b9">Fix Failed or Problem rows, then upload the same file again - nothing is made twice.</p>' : ''}
       ${run.result ? bsResultHtml(run.result, true) : ''}
     </section>`;
   bsRenderRuns(screen);
@@ -183,7 +183,7 @@ function bsTotalsHtml(t, applied) {
   const badges = (applied
     ? [['done', t.done], ['failed', t.failed], ['error', t.errors]]
     : [['error', t.errors]]).filter(([, n]) => n).map(([k, n]) => `<span>${bsBadge(k)} ${bsEsc(n)}</span>`);
-  return `<div style="display:flex; gap:14px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">${parts.concat(badges).join('')}</div>`;
+  return `<div class="s-0e8c55">${parts.concat(badges).join('')}</div>`;
 }
 
 function bsKind(r, applied) {
@@ -198,18 +198,18 @@ function bsMsg(r) {
 
 function bsSection(title, counts, body, open) {
   return `
-    <details class="table-panel" style="margin:0 0 10px; padding:0; min-height:0; display:block;"${open ? ' open' : ''}>
-      <summary style="padding:10px 14px; cursor:pointer; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <b style="min-width:140px;">${bsEsc(title)}</b>${counts}
+    <details class="table-panel s-da9f54"${open ? ' open' : ''}>
+      <summary class="s-c8814b">
+        <b class="s-4592c7">${bsEsc(title)}</b>${counts}
       </summary>
-      <div style="overflow-x:auto;">${body}</div>
+      <div class="s-0ddf06">${body}</div>
     </details>`;
 }
 
 function bsCount(list, applied) {
   const by = {};
   list.forEach(r => { const k = bsKind(r, applied); by[k] = (by[k] || 0) + 1; });
-  return Object.keys(by).map(k => `<span style="font-size:13px;">${bsBadge(k)} ${by[k]}</span>`).join('');
+  return Object.keys(by).map(k => `<span class="s-5e0faa">${bsBadge(k)} ${by[k]}</span>`).join('');
 }
 
 function bsResultHtml(r, applied) {
@@ -225,14 +225,14 @@ function bsResultHtml(r, applied) {
   invoices.forEach(inv => {
     const kind = bsKind(inv, applied);
     const title = `${inv.ref} · ${inv.customer || ''}`;
-    const head = `<span style="font-size:13px;">${bsBadge(kind)}</span>
-      <span style="font-size:13px;">${inv.store ? `${bsEsc(inv.store)} · ` : ''}${inv.date ? `${bsEsc(inv.date)} · ` : ''}${inv.qty || 0} pcs · ${bsMoney(inv.amount)}${inv.discount ? ` (−${bsMoney(inv.discount)})` : ''}</span>
-      ${inv.invoice_number ? `<span class="oms-mono" style="font-size:13px;">${bsEsc(inv.invoice_number)}${inv.status ? ` · ${bsEsc(inv.status)}` : ''}</span>` : ''}
+    const head = `<span class="s-5e0faa">${bsBadge(kind)}</span>
+      <span class="s-5e0faa">${inv.store ? `${bsEsc(inv.store)} · ` : ''}${inv.date ? `${bsEsc(inv.date)} · ` : ''}${inv.qty || 0} pcs · ${bsMoney(inv.amount)}${inv.discount ? ` (−${bsMoney(inv.discount)})` : ''}</span>
+      ${inv.invoice_number ? `<span class="oms-mono s-5e0faa">${bsEsc(inv.invoice_number)}${inv.status ? ` · ${bsEsc(inv.status)}` : ''}</span>` : ''}
       ${bsMsg(inv)}`;
     const body = `<table>
       <thead><tr><th>Row</th><th>Barcode</th><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Discount</th><th class="num">Amount</th><th></th><th></th></tr></thead>
       <tbody>${(inv.lines || []).map(l => `<tr>
-        <td>${bsEsc(l.row)}</td><td class="oms-mono">${bsEsc(l.barcode)}</td><td>${bsEsc(l.name || '')}${l.sku ? `<div class="text-muted" style="font-size:12px;">${bsEsc(l.sku)}</div>` : ''}</td>
+        <td>${bsEsc(l.row)}</td><td class="oms-mono">${bsEsc(l.barcode)}</td><td>${bsEsc(l.name || '')}${l.sku ? `<div class="text-muted s-6cb285">${bsEsc(l.sku)}</div>` : ''}</td>
         <td class="num">${bsEsc(l.qty)}</td><td class="num">${l.rate ? bsMoney(l.rate) : '<span class="text-muted">item\'s own</span>'}</td><td class="num">${l.discount ? bsMoney(l.discount) : '—'}</td><td class="num">${l.amount ? bsMoney(l.amount) : '—'}</td>
         <td>${bsBadge(l.action)}</td><td>${bsMsg(l)}</td></tr>`).join('')}</tbody></table>`;
     html += bsSection(title, head, body, kind === 'error' || kind === 'failed');
@@ -248,19 +248,19 @@ async function bsRenderRuns(screen) {
   const runs = await res.json();
   if (!runs.length) { box.innerHTML = '<p class="text-muted">No file has been uploaded here yet.</p>'; return; }
   box.innerHTML = `
-    <div class="table-panel" style="overflow-x:auto; min-height:0;">
+    <div class="table-panel s-7152b7">
       <table>
         <thead><tr><th>When</th><th>File</th><th>By</th><th>Status</th><th>Invoices</th><th>Posted</th><th></th></tr></thead>
         <tbody>${runs.map(r => {
           const at = r.started_at || r.created_at;
-          const when = at ? new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          const when = at ? formatDateTime(at) : '';
           const t = r.totals || {};
           const bad = r.status === 'Failed' || r.status === 'Interrupted' || r.status === 'Completed with errors';
           return `<tr>
             <td>${bsEsc(when)}</td><td>${bsEsc(r.file_name || '')}</td><td>${bsEsc(r.created_by || '')}</td>
             <td><span class="badge ${bad ? 'badge-warning' : r.status === 'Running' ? 'badge-secondary' : 'badge-success'}">${bsEsc(r.status || '')}</span></td>
             <td>${bsEsc(t.new_invoices || 0)}</td><td>${bsEsc(t.posted || 0)}</td>
-            <td style="white-space:nowrap;">
+            <td class="s-86abda">
               <button type="button" class="btn btn-outline btn-sm" data-bs-run="${bsEsc(r.id)}">Details</button>
               <button type="button" class="btn btn-outline btn-sm" data-bs-file="${bsEsc(r.id)}">Download file</button>
             </td></tr>`;

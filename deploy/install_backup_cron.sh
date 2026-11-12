@@ -33,7 +33,7 @@ BACKUP_SCRIPT="${BACKUP_SCRIPT:-/opt/erp/deploy/backup.sh}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/erp/backups}"
 # 14 days on-box, decided 2026-08-05. Two full weeks covers "we noticed on
 # Monday that Friday's data is wrong" without needing off-box storage or new
-# credentials; see docs/operations/backup_restore.md.
+# credentials; see docs/operations/backup-restore.md.
 RETAIN_DAYS="${RETAIN_DAYS:-14}"
 CRON_SCHEDULE="${CRON_SCHEDULE:-0 2 * * *}"
 

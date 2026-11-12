@@ -22,7 +22,7 @@ How many bytes each kind of transaction adds, how fast a client's database grows
 
 ## How it was measured
 
-`cmd/synthtenant` builds a deterministic synthetic tenant through the real engines - masters through the CSV import core, stock through the stock ledger, sales through the POS quote and checkout, returns through the two-person return chain, postings through the general ledger (Stage 47.9.1). With `-measure` it notes the transaction-id window of every business transaction, then sums every row the tenant's schema holds by the transaction that wrote it (`xmin`).
+`cmd/synthtenant` builds a deterministic synthetic tenant through the real engines - masters through the CSV import core, stock through the stock ledger, sales through the POS quote and checkout, returns through the two-person return chain, postings through the general ledger (Stage 47.9.1). With `-measure` it notes the transaction-id window of every business transaction, then sums every row the tenant's schema holds by the transaction that wrote it (`xmin`). The 10k, 100k and 1m shapes also receive purchase orders through the GRN steps, place online orders and complete production orders, and spread the history over the past 1-3 years (`HistoryDays`); the audit trail keeps its own times.
 
 - **Heap bytes** are the row versions a transaction wrote (`pg_column_size`). Measured.
 - **Factor** is the schema's whole on-disk size (tables, indexes, TOAST, free space) over its live row bytes. Measured, once per run.
@@ -33,9 +33,23 @@ Reproduce on a scratch database (the tool refuses production and any database no
 
 ```
 DATABASE_URL=postgres://.../erp_synth go run ./cmd/synthtenant -shape 10k -bills 1500 -seed 1 -measure
+# a full shape, loaded on 8 parallel connections (not with -measure):
+DATABASE_URL=postgres://.../erp_synth go run ./cmd/synthtenant -shape 100k -seed 1 -workers 8
 ```
 
 The shapes: `small` (60 bills), `10k`, `100k` and `1m` (bills; masters and stock scale with them). The run below is the `10k` shape's masters and stock - 2,000 items, 10 stores, 3 warehouses with 6,000 bins (85% empty), 200 suppliers, 5,000 customers - with 1,500 bills instead of 10,000. Run of 2026-10-28, seed 1, PostgreSQL 16.3 on the development machine; 33 minutes in all.
+
+## Load time (measured)
+
+How long the loader takes, since the masters and the opening stock were loaded one row at a time (Stage 47.9.1). Masters are imported in parallel chunks, opening stock is written as multi-row statements (one ledger document and one availability row per line, the same rows the one-line path writes; a test builds one tenant both ways and compares the checksum, counts, stock, ledger, item cost and GL), and the bin putaways run on the worker pool. `-workers 8`, scratch PostgreSQL on the development machine, 2026-11-12, seed 1.
+
+| Step | 10k, one row at a time | 10k, batched | 100k, batched |
+|---|---|---|---|
+| Masters | 1m49s | 19.7s | 2m26s |
+| Opening stock | 9.3s | 7.4s | 2m12s |
+| Warehouse bins and owners | 1m40s | 17.9s | 6m00s |
+
+The 100k run was stopped in its purchase-order step, which goes through the real GRN approval path (about 1.5 s per order at 10k, and much slower at 100k because the stock ledger key probe was planned as a sequential scan over about 500,000 ledger documents until the index was forced). The three load steps above are the ones this change speeds up; the 1m shape was not run. Projected from the 100k step times (masters, opening stock and putaways scale with rows), the 1m load steps take about 1.5 to 2 hours.
 
 ## Bytes per transaction (measured)
 

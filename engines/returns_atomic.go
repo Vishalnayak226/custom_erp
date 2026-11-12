@@ -232,6 +232,7 @@ func createReturnRequestLocked(tenantID, requestType, returnLocation, originalOr
 		"idempotency_key": claimKey,
 	}
 	issueNumberInto(doc, tenantID, "ReturnRequest", returnID, "", prepared.returnLocation) // Stage 76.11
+	doc["rma_no"] = doc["code"]                                                            // Stage 148.28: the RMA no. is the return's number
 	// Stage 85.E4 (77.8): a bill returned at another store says where it was
 	// sold - the return is booked here (stock comes back where the goods
 	// are), and store-wise reports can still put it against the selling store.

@@ -22,6 +22,9 @@ func SaveCleverTapCredential(tenantID, accountID, passcode, region string) error
 // SaveCleverTapCredentialBy (49.8.5) also records who saved it and an
 // optional expiry (a date or RFC3339; blank = none).
 func SaveCleverTapCredentialBy(tenantID, accountID, passcode, region, savedBy, expiresAt string) error {
+	if err := checkConnectorRehearsal(tenantID, "clevertap", accountID, savedBy); err != nil {
+		return err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err

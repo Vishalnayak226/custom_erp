@@ -12,12 +12,12 @@
 const when = (v) => {
   if (!v) return '<span class="text-muted">&mdash;</span>';
   const d = new Date(v);
-  return isNaN(d) ? escapeHTMLText(String(v)) : escapeHTMLText(d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
+  return isNaN(d) ? escapeHTMLText(String(v)) : escapeHTMLText(formatDateTime(d));
 };
 const day = (v) => {
   if (!v) return '<span class="text-muted">&mdash;</span>';
   const d = new Date(v);
-  return isNaN(d) ? escapeHTMLText(String(v)) : escapeHTMLText(d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }));
+  return isNaN(d) ? escapeHTMLText(String(v)) : escapeHTMLText(formatDateTime(d, true));
 };
 const size = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b > 1024 ? `${Math.round(b / 1024)} KB` : `${b || 0} B`);
 // Stage 49.11.7: how old a client's newest backup is - red when stale or none.
@@ -26,9 +26,9 @@ const ago = (v) => {
   return h < 1 ? 'under 1h ago' : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`;
 };
 const backupCell = (c) => {
-  if (!c.last_backup_at) return '<span style="color:var(--danger-color); font-weight:600;">none</span>';
+  if (!c.last_backup_at) return '<span class="s-bcacc0">none</span>';
   const text = escapeHTMLText(ago(c.last_backup_at));
-  return c.backup_stale ? `<span style="color:var(--danger-color); font-weight:600;" title="${escapeHTMLText(new Date(c.last_backup_at).toLocaleString('en-IN'))}">${text}</span>` : `<span title="${escapeHTMLText(new Date(c.last_backup_at).toLocaleString('en-IN'))}">${text}</span>`;
+  return c.backup_stale ? `<span class="s-bcacc0" title="${escapeHTMLText(formatDateTime(c.last_backup_at))}">${text}</span>` : `<span title="${escapeHTMLText(formatDateTime(c.last_backup_at))}">${text}</span>`;
 };
 
 function statusBadge(c) {
@@ -46,20 +46,20 @@ function statusBadge(c) {
 // Stage 65.6: when the trial ends, or how long it has left.
 function trialNote(c) {
   if (!c.trial_ends_at) return '';
-  if (c.trial_ended) return `<div class="text-muted" style="font-size:12px;">paused by trial end, ${when(c.trial_ends_at)}</div>`;
+  if (c.trial_ended) return `<div class="text-muted s-6cb285">paused by trial end, ${when(c.trial_ends_at)}</div>`;
   const left = Math.max(1, Math.ceil((new Date(c.trial_ends_at) - Date.now()) / 86400000));
-  return `<div class="text-muted" style="font-size:12px;">trial ends ${day(c.trial_ends_at)} &middot; ${left} day${left === 1 ? '' : 's'} left</div>`;
+  return `<div class="text-muted s-6cb285">trial ends ${day(c.trial_ends_at)} &middot; ${left} day${left === 1 ? '' : 's'} left</div>`;
 }
 
 // Pause/Resume and the trial buttons. None on the operator's own client: the
 // server refuses those (it would lock the operator out of this page).
 function lifecycleActions(c, i, own) {
-  if (own) return '<div class="text-muted" style="font-size:12px; margin-top:4px;">your client</div>';
+  if (own) return '<div class="text-muted s-dde55e">your client</div>';
   const s = (c.status || 'active').toLowerCase();
   const open = s === 'active' || s === 'suspended';
   // A second line under Modules / Data, so five buttons do not push the
   // column off the page.
-  return '<div style="margin-top:4px;">'
+  return '<div class="s-96ad60">'
     + (s === 'active' && c.url ? `<button class="action-btn" type="button" data-cp-signin="${i}" title="Open this client as its Super Admin in a new tab">Open</button>` : '')
     + (s === 'active' ? `<button class="action-btn" type="button" data-cp-status="pause" data-cp-i="${i}">Pause</button>` : '')
     + (s === 'suspended' ? `<button class="action-btn" type="button" data-cp-status="resume" data-cp-i="${i}">Resume</button>` : '')
@@ -68,7 +68,7 @@ function lifecycleActions(c, i, own) {
     + '</div>';
 }
 
-const plainDay = (v) => new Date(v).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+const plainDay = (v) => formatDateTime(v, true);
 
 async function renderControlPanelView(container) {
   const header = document.createElement('div');
@@ -87,7 +87,7 @@ async function renderControlPanelView(container) {
   if (res.status === 403) {
     const p = document.createElement('div');
     p.className = 'table-panel';
-    p.innerHTML = `<p style="padding:16px;">Only a <b>platform operator</b> can open the Control Panel. The server setting <code>ERP_PLATFORM_OPERATORS</code> lists who that is (Admin Guide &sect;C.7).</p>`;
+    p.innerHTML = `<p class="s-287f77">Only a <b>platform operator</b> can open the Control Panel. The server setting <code>ERP_PLATFORM_OPERATORS</code> lists who that is (Admin Guide &sect;C.7).</p>`;
     container.appendChild(p);
     return;
   }
@@ -110,22 +110,22 @@ async function renderControlPanelView(container) {
     <div class="stat-card">
       <span class="stat-label">Running release</span>
       <span class="stat-val">${escapeHTMLText(b.version || '—')}</span>
-      <div class="text-muted" style="font-size:12px; margin-top:4px;">${escapeHTMLText(b.git_commit || '')} &middot; ${b.release_date ? day(b.release_date) : 'dev build'} &middot; ${escapeHTMLText(cp.environment || '')}</div>
+      <div class="text-muted s-dde55e">${escapeHTMLText(b.git_commit || '')} &middot; ${b.release_date ? day(b.release_date) : 'dev build'} &middot; ${escapeHTMLText(cp.environment || '')}</div>
     </div>
     <div class="stat-card">
       <span class="stat-label">Clients</span>
       <span class="stat-val">${live.length}</span>
-      <div class="text-muted" style="font-size:12px; margin-top:4px;">${onTrial} on trial &middot; ${paused} paused &middot; ${clients.length - live.length} sandbox &middot; ${clients.filter(c => c.problem).length} with a problem</div>
+      <div class="text-muted s-dde55e">${onTrial} on trial &middot; ${paused} paused &middot; ${clients.length - live.length} sandbox &middot; ${clients.filter(c => c.problem).length} with a problem</div>
     </div>
     <div class="stat-card">
       <span class="stat-label">Hosted at</span>
-      <span class="stat-val" style="font-size:18px;">${escapeHTMLText(cp.base_domain || 'one address')}</span>
-      <div class="text-muted" style="font-size:12px; margin-top:4px;">${cp.base_domain ? 'one address per client' : 'TENANT_BASE_DOMAIN unset'}</div>
+      <span class="stat-val s-4ff818">${escapeHTMLText(cp.base_domain || 'one address')}</span>
+      <div class="text-muted s-dde55e">${cp.base_domain ? 'one address per client' : 'TENANT_BASE_DOMAIN unset'}</div>
     </div>
     <div class="stat-card">
       <span class="stat-label">Last backup</span>
       <span class="stat-val" style="font-size:18px; color:${bk ? (backupOK ? 'var(--success-color)' : 'var(--danger-color)') : 'var(--text-muted)'};">${bk ? escapeHTMLText(bk.outcome || '—') : 'none recorded'}</span>
-      <div class="text-muted" style="font-size:12px; margin-top:4px;">${bk ? `${when(bk.finished_at)} &middot; ${size(bk.size_bytes)}` : ''}${!backupOK && cp.last_good_backup_at ? ` &middot; last good ${when(cp.last_good_backup_at)}` : ''}</div>
+      <div class="text-muted s-dde55e">${bk ? `${when(bk.finished_at)} &middot; ${size(bk.size_bytes)}` : ''}${!backupOK && cp.last_good_backup_at ? ` &middot; last good ${when(cp.last_good_backup_at)}` : ''}</div>
     </div>
   `;
   container.appendChild(stats);
@@ -133,7 +133,7 @@ async function renderControlPanelView(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; padding:16px 16px 0;">Clients</h3>
+    <h3 class="s-f9a835">Clients</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr>
@@ -141,20 +141,20 @@ async function renderControlPanelView(container) {
           <th>Modules</th><th class="num">Users</th><th class="num">Records</th><th>Last activity</th><th>Backup</th><th class="num">Errors (24h)</th><th>Actions</th>
         </tr></thead>
         <tbody>
-          ${clients.length === 0 ? '<tr><td colspan="12" style="text-align:center; color:var(--text-muted);">No clients yet. Create one under Tenant Entitlements &rarr; Provision New Tenant.</td></tr>' : ''}
+          ${clients.length === 0 ? '<tr><td colspan="12" class="s-306094">No clients yet. Create one under Tenant Entitlements &rarr; Provision New Tenant.</td></tr>' : ''}
           ${clients.map((c, i) => `
             <tr>
-              <td><strong>${escapeHTMLText(c.name || c.tenant_id)}</strong><div class="text-muted" style="font-size:12px;">${escapeHTMLText(c.tenant_id)} &middot; ${escapeHTMLText(c.schema)}</div>${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
-              <td>${statusBadge(c)}${trialNote(c)}${c.status_reason ?`<div class="text-muted" style="font-size:12px;">${escapeHTMLText(c.status_reason)}</div>` : ''}${c.admin_signed_in ? '' : '<div class="text-muted" style="font-size:12px;">admin not signed in yet</div>'}</td>
-              <td>${c.url ? `<a href="${escapeHTMLText(c.url)}" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline;">${escapeHTMLText(c.url.replace(/^https:\/\//, '').replace(/\/$/, ''))}</a>` : '<span class="text-muted">main address</span>'}</td>
+              <td><strong>${escapeHTMLText(c.name || c.tenant_id)}</strong><div class="text-muted s-6cb285">${escapeHTMLText(c.tenant_id)} &middot; ${escapeHTMLText(c.schema)}</div>${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
+              <td>${statusBadge(c)}${trialNote(c)}${c.status_reason ?`<div class="text-muted s-6cb285">${escapeHTMLText(c.status_reason)}</div>` : ''}${c.admin_signed_in ? '' : '<div class="text-muted s-6cb285">admin not signed in yet</div>'}</td>
+              <td>${c.url ? `<a href="${escapeHTMLText(c.url)}" target="_blank" rel="noopener" class="s-6f50fd">${escapeHTMLText(c.url.replace(/^https:\/\//, '').replace(/\/$/, ''))}</a>` : '<span class="text-muted">main address</span>'}</td>
               <td>${day(c.provisioned_at || c.created_at)}</td>
               <td>${c.pinned_version ? `pinned ${escapeHTMLText(c.pinned_version)}` : c.app_version ? escapeHTMLText(c.app_version) : '<span class="text-muted">follows release</span>'}</td>
               <td><button type="button" class="btn btn-ghost btn-sm" data-cp-modules="${i}" title="${escapeHTMLText((c.modules_enabled || []).join(', '))}">${(c.modules_enabled || []).length} on</button>${(c.modules_disabled || []).length ? ` <span class="text-muted">/ ${(c.modules_disabled || []).length} off</span>` : ''}</td>
               <td class="num">${c.active_users}</td>
-              <td class="num">${Number(c.records || 0).toLocaleString('en-IN')}</td>
+              <td class="num">${formatNumber(c.records || 0)}</td>
               <td>${when(c.last_activity_at)}</td>
               <td>${backupCell(c)}</td>
-              <td class="num">${c.errors_24h ? `<span style="color:var(--danger-color); font-weight:600;">${c.errors_24h}</span>` : '0'}${c.last_error_at ? `<div class="text-muted" style="font-size:11px;">last ${when(c.last_error_at)}</div>` : ''}</td>
+              <td class="num">${c.errors_24h ? `<span class="s-bcacc0">${c.errors_24h}</span>` : '0'}${c.last_error_at ? `<div class="text-muted s-11a508">last ${when(c.last_error_at)}</div>` : ''}</td>
               <td class="po-row-actions">
                 <button class="action-btn" type="button" data-cp-open="tenant-entitlements" data-cp-tenant="${escapeHTMLText(c.tenant_id)}">Modules</button>
                 <button class="action-btn" type="button" data-cp-open="platform-console" data-cp-tenant="${escapeHTMLText(c.tenant_id)}">Data</button>
@@ -162,7 +162,7 @@ async function renderControlPanelView(container) {
                 ${lifecycleActions(c, i, c.tenant_id === cp.operator_tenant)}
               </td>
             </tr>
-            <tr class="cp-modules-row hidden" data-cp-modules-row="${i}"><td colspan="12" style="font-size:12px;">
+            <tr class="cp-modules-row hidden" data-cp-modules-row="${i}"><td colspan="12" class="s-6cb285">
               <b>On:</b> ${escapeHTMLText((c.modules_enabled || []).join(', ') || 'none')}<br>
               <b>Off:</b> ${escapeHTMLText((c.modules_disabled || []).join(', ') || 'none')}
             </td></tr>`).join('')}
@@ -176,13 +176,13 @@ async function renderControlPanelView(container) {
   rel.className = 'table-panel';
   const deps = cp.deployments || [];
   rel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; padding:16px 16px 0;">Releases</h3>
+    <h3 class="s-f9a835">Releases</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>When</th><th>Environment</th><th>Version</th><th>Commit</th><th>By</th><th>Status</th><th>What changed</th></tr></thead>
         <tbody>
-          ${deps.length === 0 ? `<tr><td colspan="7" style="color:var(--text-muted);">No release recorded in the ledger yet. Running now: <b>${escapeHTMLText(b.version || '')}</b> (${escapeHTMLText(b.git_commit || '')}).</td></tr>` : ''}
-          ${deps.map(d => `<tr><td>${when(d.promoted_at)}</td><td>${escapeHTMLText(d.environment)}</td><td>${escapeHTMLText(d.app_version)}</td><td style="font-family:monospace;">${escapeHTMLText(d.git_commit)}</td><td>${escapeHTMLText(d.promoted_by)}</td><td>${escapeHTMLText(d.status)}</td><td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(d.notes || '')}</td></tr>`).join('')}
+          ${deps.length === 0 ? `<tr><td colspan="7" class="s-5872de">No release recorded in the ledger yet. Running now: <b>${escapeHTMLText(b.version || '')}</b> (${escapeHTMLText(b.git_commit || '')}).</td></tr>` : ''}
+          ${deps.map(d => `<tr><td>${when(d.promoted_at)}</td><td>${escapeHTMLText(d.environment)}</td><td>${escapeHTMLText(d.app_version)}</td><td class="s-72126d">${escapeHTMLText(d.git_commit)}</td><td>${escapeHTMLText(d.promoted_by)}</td><td>${escapeHTMLText(d.status)}</td><td class="s-8cadba">${escapeHTMLText(d.notes || '')}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>
@@ -194,12 +194,12 @@ async function renderControlPanelView(container) {
   const cert = document.createElement('div');
   cert.className = 'table-panel';
   cert.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; padding:16px 16px 0;">Certificates</h3>
+    <h3 class="s-f9a835">Certificates</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Address</th><th>Expires</th><th class="num">Days left</th><th>Issuer</th><th>Checked</th></tr></thead>
         <tbody>
-          ${certs.length === 0 ? `<tr><td colspan="5" style="color:var(--text-muted);">${escapeHTMLText(cp.certificates_note || 'No address checked.')}</td></tr>` : ''}
+          ${certs.length === 0 ? `<tr><td colspan="5" class="s-5872de">${escapeHTMLText(cp.certificates_note || 'No address checked.')}</td></tr>` : ''}
           ${certs.map(c => {
             const bad = c.expiring || !c.not_after;
             return `<tr><td>${escapeHTMLText(c.host)}${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
@@ -221,17 +221,17 @@ async function renderControlPanelView(container) {
   const sqEl = document.createElement('div');
   sqEl.className = 'table-panel';
   sqEl.innerHTML = `
-    <div style="display:flex; align-items:center; gap:12px; padding:16px 16px 0;">
-      <h3 style="font-size:16px; font-weight:600; flex:1;">Slow queries</h3>
-      <span style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(sq.source || '')}${sqBuf ? ` · buffer hit ${sqBuf.hit_ratio.toFixed(1)}%` : ''}${sqBase ? ` · baseline ${escapeHTMLText(new Date(sqBase.saved_at).toLocaleString('en-IN'))}` : ''}</span>
+    <div class="s-d9eeed">
+      <h3 class="s-b3b643">Slow queries</h3>
+      <span class="s-8cadba">${escapeHTMLText(sq.source || '')}${sqBuf ? ` · buffer hit ${sqBuf.hit_ratio.toFixed(1)}%` : ''}${sqBase ? ` · baseline ${escapeHTMLText(formatDateTime(sqBase.saved_at))}` : ''}</span>
       <button class="btn btn-outline" id="cp-save-baseline" type="button">Save as baseline</button>
     </div>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Statement</th><th class="num">Calls</th><th class="num">Mean ms</th><th class="num">Max ms</th><th class="num">Total ms</th><th class="num">Buffers</th><th class="num">Change</th></tr></thead>
         <tbody>
-          ${sqRows.length === 0 ? '<tr><td colspan="7" style="color:var(--text-muted);">None.</td></tr>' : ''}
-          ${sqRows.map(q => `<tr><td style="font-family:monospace; font-size:12px; max-width:520px; overflow-wrap:anywhere;">${escapeHTMLText(q.query)}</td>
+          ${sqRows.length === 0 ? '<tr><td colspan="7" class="s-5872de">None.</td></tr>' : ''}
+          ${sqRows.map(q => `<tr><td class="s-cf38ca">${escapeHTMLText(q.query)}</td>
             <td class="num">${q.calls}</td><td class="num">${Math.round(q.mean_ms)}</td><td class="num">${Math.round(q.max_ms)}</td><td class="num">${Math.round(q.total_ms)}</td>
             <td class="num">${q.shared_blocks ? q.shared_blocks : '<span class="text-muted">&mdash;</span>'}</td>
             <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span style="${q.change_pct > 20 ? 'color:var(--danger-color); font-weight:600;' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
@@ -252,13 +252,13 @@ async function renderControlPanelView(container) {
   mat.className = 'table-panel';
   const caps = cp.capability_maturity || [];
   mat.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; padding:16px 16px 0;">Capability maturity</h3>
+    <h3 class="s-f9a835">Capability maturity</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Capability</th><th>Module</th><th>Level</th><th>Limits</th><th>Verified</th></tr></thead>
         <tbody>
-          ${caps.length === 0 ? '<tr><td colspan="5" style="color:var(--text-muted);">No entries.</td></tr>' : ''}
-          ${caps.map(c => `<tr><td>${escapeHTMLText(c.title)}</td><td style="font-family:monospace;">${escapeHTMLText(c.module)}</td><td>${escapeHTMLText(c.level)}${c.certified_until ? ' · until ' + escapeHTMLText(c.certified_until) : ''}</td><td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(c.limits || '-')}</td><td>${escapeHTMLText(c.verified_on || '-')}</td></tr>`).join('')}
+          ${caps.length === 0 ? '<tr><td colspan="5" class="s-5872de">No entries.</td></tr>' : ''}
+          ${caps.map(c => `<tr><td>${escapeHTMLText(c.title)}</td><td class="s-72126d">${escapeHTMLText(c.module)}</td><td>${escapeHTMLText(c.level)}${c.certified_until ? ' · until ' + escapeHTMLText(c.certified_until) : ''}</td><td class="s-8cadba">${escapeHTMLText(c.limits || '-')}</td><td>${escapeHTMLText(c.verified_on || '-')}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>

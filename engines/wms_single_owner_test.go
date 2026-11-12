@@ -3,12 +3,13 @@ package engines
 import (
 	"custom_erp/db"
 	"fmt"
+	"sync"
 	"testing"
 )
 
 // Stage 47.5.1 - the single-owner guard (audit finding A-05).
 //
-// A-05's own test (stage47_a05_owner_allocation_redteam_test.go) proves the
+// A-05's own test (redteam_owner_allocation_test.go) proves the
 // refusal from the finding's side. This proves the guard's own behaviour:
 // that it adopts an unowned warehouse rather than blocking a tenant who has
 // never thought about ownership, that it can be turned off deliberately, and
@@ -100,5 +101,93 @@ func TestSingleOwnerWarehouseGuard(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("%s holds two owners' stock but is not reported by ListMixedOwnerLocations; a violation nobody can see is a violation nobody will fix", loc)
+	}
+}
+
+// Found by item 47.9.1's parallel synthetic load: writes racing into an
+// unassigned warehouse each saw no owner and each claimed it, so the claim
+// was logged once per writer and a second owner could get in alongside the
+// first. Two owners racing over eight bins of each of ten empty warehouses
+// now leave each warehouse one owner, only that owner's stock and one claim.
+func TestSingleOwnerClaimRaceAdmitsOneOwner(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID := "default"
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		t.Fatalf("failed to resolve tenant schema: %v", err)
+	}
+	if !SingleOwnerEnforced(tenantID) {
+		t.Skip("the tenant runs the mixed ownership mode")
+	}
+	const warehouses, writers = 10, 8
+	sku := NewDocID("SORSKU")
+	owners := []string{NewDocID("SORA"), NewDocID("SORB")}
+	locs := make([]string, warehouses)
+	bins := make([][]string, warehouses)
+	for w := range locs {
+		locs[w] = NewDocID("SORACE")
+		bins[w] = make([]string, writers)
+		for i := range bins[w] {
+			bins[w][i] = NewDocID("SORBIN")
+			if _, err := db.DB.Exec(fmt.Sprintf(
+				`INSERT INTO %s.bin_stock (bin_code, sku, condition, location_code, qty) VALUES ($1, $2, 'Good', $3, 10)`, schema),
+				bins[w][i], sku, locs[w]); err != nil {
+				t.Fatalf("failed to seed bin_stock: %v", err)
+			}
+		}
+	}
+	t.Cleanup(func() {
+		for _, loc := range locs {
+			db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.bin_stock WHERE location_code = $1`, schema), loc)
+			db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.bin_stock_owner WHERE location_code = $1`, schema), loc)
+			db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.warehouse_owner WHERE location_code = $1`, schema), loc)
+		}
+	})
+
+	// One warehouse at a time: each writer holds a transaction and the guard
+	// takes a second connection, so all 80 at once would drain the pool.
+	errs := make([][]error, warehouses)
+	for w := range locs {
+		errs[w] = make([]error, writers)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for i := 0; i < writers; i++ {
+			wg.Add(1)
+			go func(w, i int) {
+				defer wg.Done()
+				<-start
+				errs[w][i] = RecordOwnerStock(tenantID, bins[w][i], sku, owners[i%2], "Good", 1, "system")
+			}(w, i)
+		}
+		close(start)
+		wg.Wait()
+	}
+
+	for w, loc := range locs {
+		winner, err := WarehouseOwnerOf(tenantID, loc)
+		if err != nil || winner == "" {
+			t.Errorf("no owner claimed %s: %q, %v", loc, winner, err)
+			continue
+		}
+		for i, err := range errs[w] {
+			if mine := owners[i%2] == winner; mine != (err == nil) {
+				t.Errorf("%s writer %d (%s, winner %s): err %v", loc, i, owners[i%2], winner, err)
+			}
+		}
+		var stockOwners, claims int
+		if err := db.DB.QueryRow(fmt.Sprintf(
+			`SELECT COUNT(DISTINCT owner_id) FROM %s.bin_stock_owner WHERE location_code = $1`, schema), loc).Scan(&stockOwners); err != nil {
+			t.Fatal(err)
+		}
+		if stockOwners != 1 {
+			t.Errorf("%s holds stock for %d owners after the race, want 1", loc, stockOwners)
+		}
+		if err := db.DB.QueryRow(fmt.Sprintf(
+			`SELECT COUNT(*) FROM %s.audit_logs WHERE action = 'WAREHOUSE_OWNER_ASSIGNED' AND details LIKE $1`, schema), loc+" %").Scan(&claims); err != nil {
+			t.Fatal(err)
+		}
+		if claims != 1 {
+			t.Errorf("the claim on %s was logged %d times, want once", loc, claims)
+		}
 	}
 }

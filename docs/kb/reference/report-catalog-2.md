@@ -21,13 +21,13 @@ screens: [reports]
 # Report catalog (part 2)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **146** reports, from
+every category and explains how to run a report. It holds **147** reports, from
 HRMS to PIM / PIMS.
 
 ## Contents
 
 - [HRMS](#hrms) - 15 reports
-- [Inventory](#inventory) - 42 reports
+- [Inventory](#inventory) - 43 reports
 - [MIS & Management](#mis-management) - 10 reports
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data-audit) - 11 reports
@@ -437,6 +437,16 @@ HRMS to PIM / PIMS.
 
 **Drill-down:** no.
 
+### R3083 Held pieces
+
+**Report id:** `held-pieces`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Item · Piece · Customer · Held until · Advance · Store · Held by · Note
+
+**Drill-down:** no.
+
 ### R3012 Inventory Matrix Summary
 
 **Report id:** `cat-inventory-matrix-summary`
@@ -640,20 +650,6 @@ HRMS to PIM / PIMS.
 
 **Drill-down:** no.
 
-### R3005 Stock Ledger
-
-**Report id:** `cat-stock-ledger`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By
-
-**Drill-down:** no.
-
 ### R3078 Stock Ledger
 
 **Report id:** `stock-ledger`
@@ -667,6 +663,20 @@ HRMS to PIM / PIMS.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User
+
+**Drill-down:** no.
+
+### R3005 Stock Ledger
+
+**Report id:** `cat-stock-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By
 
 **Drill-down:** no.
 

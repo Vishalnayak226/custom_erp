@@ -133,7 +133,7 @@ page.
 > terminals and Unicommerce. So BigCommerce, Magento, Amazon, Flipkart,
 > WooCommerce and every private-contract channel still need an admin or
 > integrator to set the `access_token`/`store_hash`/etc. with a direct
-> authenticated API call — see `docs/operations/connector_live_verification.md`
+> authenticated API call — see `docs/operations/connector-live-verification.md`
 > for the procedure. The same applies to `POST /api/v1/pim/channels/{code}/pull-state`
 > (reads a product's live state back from the platform to detect drift):
 > real and tested, but nothing in the app triggers it.
@@ -338,7 +338,7 @@ credentials saved, or a required field is blank. For Shopify, fill in
 **1. Connect** on the channel's Shopify page (Setup ▸ PIM ▸ **Channel** →
 **Shopify** button) and click **Test connection**. For any other channel this
 still has to be set with a direct API call — see
-`docs/operations/connector_live_verification.md` for field names per
+`docs/operations/connector-live-verification.md` for field names per
 platform.
 
 **`CONN-0228` — a SKU "already exists" on the channel.** The platform

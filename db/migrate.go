@@ -6,22 +6,40 @@ import (
 	"embed"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// migrationFiles embeds every .sql file in this directory into the binary, so
-// `erp-server -migrate` works from a stripped release binary on a machine that
-// has no checkout of the repo - the same reason the VERSION file is embedded
-// (Stage 14.6-14.8).
+// embeddedMigrations embeds every .sql file in db/migrations/ into the binary,
+// so `erp-server -migrate` works from a stripped release binary on a machine
+// that has no checkout of the repo - the same reason the VERSION file is
+// embedded (Stage 14.6-14.8).
 //
-//go:embed *.sql
-var migrationFiles embed.FS
+//go:embed migrations/*.sql
+var embeddedMigrations embed.FS
+
+// migrationFS is what the runner needs from the migrations folder.
+type migrationFS interface {
+	fs.ReadFileFS
+	fs.ReadDirFS
+}
+
+// migrationFiles is the migrations folder itself, so a file is read by its bare
+// name - the name public.schema_migrations records. Moving the files from db/
+// into db/migrations/ (item 103.3) therefore re-applies nothing.
+var migrationFiles = func() migrationFS {
+	sub, err := fs.Sub(embeddedMigrations, "migrations")
+	if err != nil {
+		panic(err)
+	}
+	return sub.(migrationFS)
+}()
 
 // Stage 30.2.2. Before this, the only thing that ever applied a migration file
 // was promote.ps1's Invoke-PendingMigrations, which runs on a dev -> test ->
-// live promotion and nowhere else. db/migration.sql is only used to create a
+// live promotion and nowhere else. db/migrations/migration.sql is only used to create a
 // database from scratch, so any table added to it after a database was first
 // provisioned never reached that database - found live as five missing
 // integration tables (500s on six endpoints, plus a background worker
@@ -146,7 +164,7 @@ func ApplyPendingMigrations() ([]MigrationResult, error) {
 // files even though all 68 have really been applied. Running them all again
 // to "catch up" is the wrong answer there: this repo's migrations are
 // idempotent in shape (CREATE TABLE IF NOT EXISTS, ON CONFLICT DO NOTHING),
-// but db/migration.sql also seeds baseline rows - including the default admin
+// but db/migrations/migration.sql also seeds baseline rows - including the default admin
 // credential - and re-seeding those on a database someone has since hardened
 // is a genuinely bad outcome.
 //
@@ -373,7 +391,7 @@ func migrationFileNames() ([]string, error) {
 // migrations_stage26_4_pim_maturity.sql, and migrations_stage9_*.sql after
 // migrations_stage30_*.sql - both wrong.
 //
-// db/migration.sql sorts first regardless (it is the base schema every other
+// db/migrations/migration.sql sorts first regardless (it is the base schema every other
 // file builds on), which happens to fall out of the rules above anyway since
 // "migration." < "migrations" - it is asserted by the runner's test rather
 // than relied on by accident.
@@ -386,7 +404,7 @@ func migrationFileNames() ([]string, error) {
 // ASCII, so the deeper-numbered sub-item file always won regardless of which
 // one actually has to run first. The general shape (an unnumbered
 // "foundation"/base file for stage N.M vs a numbered N.M.K sub-item of it)
-// recurs throughout db/*.sql; this fixes the rule everywhere it appears
+// recurs throughout db/migrations/*.sql; this fixes the rule everywhere it appears
 // rather than reordering just the one pair the audit happened to name, and a
 // full fresh-install `-migrate` against an empty database (this repo's own
 // verification convention) confirmed it end-to-end rather than by reasoning

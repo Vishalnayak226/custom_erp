@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	// Stage 30.2.2: db/migration.sql only ever builds a database from
+	// Stage 30.2.2: db/migrations/migration.sql only ever builds a database from
 	// scratch, so anything added to it afterwards never reached an existing
 	// one - five integration tables were missing in exactly that way, causing
 	// 500s on six endpoints. These two flags are the supported way to close

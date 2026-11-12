@@ -24,7 +24,7 @@ This is the order in which to set up an organisation so that its first purchase 
 
 **How to use it:** work top to bottom. Each step uses what the steps before it created, so doing them out of order is what causes most blocked POs. Tick each box as you finish it. **Settings → Configuration** shows the same order at the top of the page (**Setup path**), marking each master **Done**, **Next**, **To do** or **Waiting**. Use it to see where you are.
 
-**All at once, from one Excel file:** steps 1–14 can also be filled into the **Setup Workbook** and uploaded in one go, with a preview first and as many corrections as needed afterwards (**Settings → Configuration → Setup Workbook**, [Admin Guide §B.3.19](ADMIN_GUIDE.md)). This page still says what each sheet sets up and why.
+**All at once, from one Excel file:** steps 1–14 can also be filled into the **Setup Workbook** and uploaded in one go, with a preview first and as many corrections as needed afterwards (**Settings → Configuration → Setup Workbook**, [Admin Guide §B.3.19](admin-guide.md)). This page still says what each sheet sets up and why.
 
 **Time:** about two hours for one company with a few stores, a handful of vendors and items. Most of that time is gathering the data in step 0.
 
@@ -276,7 +276,7 @@ As shipped, record type **PurchaseOrder**:
 - [ ] **Print templates** (*Setup → Printing → Print Template*, optional): the **Standard layout** works without setup. Design your own only if you want a different look. The **Vendor PO** copy never shows MRP.
 - [ ] **Email**: **Send email** needs the server's mail account (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USER`, `SMTP_PASSWORD`), which the server operator sets, not a screen. Without it, **Send email** downloads the PDF instead and says so.
 - [ ] **Product photos** (optional): **Settings → Configuration → Integrations → Image drive** to keep design and combination photos in your own S3-compatible bucket. Without it they are kept on the ERP server.
-- [ ] **Label printing** (optional): sticker templates and printers if you print barcode stickers at the GRN (*Setup → Printing*; see [Printing setup](QZ_PRINTING_SETUP.md)).
+- [ ] **Label printing** (optional): sticker templates and printers if you print barcode stickers at the GRN (*Setup → Printing*; see [Printing setup](qz-printing-setup.md)).
 
 ---
 
@@ -300,7 +300,7 @@ Raise one PO for a small amount and take it all the way through. If every check 
 | 12 | **Pay** or **Leave it in Payables** | GRN step 5 | The vendor bill was made from the invoice you typed. |
 | 13 | Check the vendor | Reports → Procurement → Vendor Ledger | The bill (and payment) is against the vendor. |
 
-The full walk of each screen is in the [User Guide](USER_GUIDE.md), §6 (PO) and §6.10 (receiving in steps).
+The full walk of each screen is in the [User Guide](user-guide.md), §6 (PO) and §6.10 (receiving in steps).
 
 ---
 
@@ -331,8 +331,8 @@ The full walk of each screen is in the [User Guide](USER_GUIDE.md), §6 (PO) and
 
 ## Where to read more
 
-- [User Guide](USER_GUIDE.md) §6: the PO and GRN screens step by step (§6.2 GST, §6.9 designs from the PO, §6.10 receiving in steps).
-- [User Guide](USER_GUIDE.md) §13: the full first-sale walkthrough, from an empty system to the till.
-- [Admin Guide](ADMIN_GUIDE.md) §B.3: every setting above in detail (§B.3.2 number series, §B.3.5b–c item master, §B.3.6–B.3.6.1 goods receipt).
-- [Admin SOP](ADMIN_SOP.md) §B.9–B.10: approval rules and approving your own documents.
-- [Printing setup](QZ_PRINTING_SETUP.md): sticker and document printers.
+- [User Guide](user-guide.md) §6: the PO and GRN screens step by step (§6.2 GST, §6.9 designs from the PO, §6.10 receiving in steps).
+- [User Guide](user-guide.md) §13: the full first-sale walkthrough, from an empty system to the till.
+- [Admin Guide](admin-guide.md) §B.3: every setting above in detail (§B.3.2 number series, §B.3.5b–c item master, §B.3.6–B.3.6.1 goods receipt).
+- [Admin SOP](admin-sop.md) §B.9–B.10: approval rules and approving your own documents.
+- [Printing setup](qz-printing-setup.md): sticker and document printers.

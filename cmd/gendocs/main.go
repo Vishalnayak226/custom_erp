@@ -3,8 +3,8 @@
 // code owns drifts the moment anyone touches the code - which is exactly the
 // failure Stage 30.3 spent a whole pass correcting.
 //
-//	ERROR_CODES.md       - from internal/server's error catalog
-//	REPORT_CATALOG.md    - from engines' report registry
+//	error-codes.md       - from internal/server's error catalog
+//	report-catalog.md    - from engines' report registry
 //	public-v1.json       - the public API's OpenAPI document
 //	permission snapshot  - from the live role_permissions table, on demand only,
 //	                       as a dated record under docs/archive/audits/permissions/
@@ -163,8 +163,8 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 		files[name] = body
 	}
 	for name, body := range map[string][]byte{
-		"docs/guides/ERROR_CODES.md":               []byte(errorCodesDoc(stamp)),
-		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),
+		"docs/guides/error-codes.md":               []byte(errorCodesDoc(stamp)),
+		"docs/guides/report-catalog.md":            []byte(reportCatalogDoc(stamp)),
 		"docs/kb/reference/country-phone-rules.md": []byte(kbCountryPhoneRules(stamp)),
 		"docs/api/generated/public-v1.json":        append(spec, '\n'),
 	} {
@@ -210,7 +210,7 @@ func errorCodesDoc(stamp string) string {
 		"catalog's User Message, below), the *detail* (the specific field or value that\n"+
 		"failed, written by the engine that rejected it), and the *action* (the User\n"+
 		"Action column, below). The detail line is usually the one that tells you what to\n"+
-		"fix. See [USER_GUIDE](USER_GUIDE.md) §12.\n\n", len(entries)))
+		"fix. See [USER_GUIDE](user-guide.md) §12.\n\n", len(entries)))
 
 	byModule := map[string][]server.CatalogEntry{}
 	for _, e := range entries {

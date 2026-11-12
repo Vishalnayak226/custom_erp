@@ -276,7 +276,7 @@ func handleDownloadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	disposition := "inline"
-	if !strings.HasPrefix(att.ContentType, "image/") {
+	if !strings.HasPrefix(att.ContentType, "image/") || strings.Contains(strings.ToLower(att.ContentType), "svg") { // 49.4.3: an SVG can carry script
 		disposition = "attachment"
 	}
 	header := mime.FormatMediaType(disposition, map[string]string{"filename": att.FileName})
@@ -286,6 +286,7 @@ func handleDownloadAttachment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", att.ContentType)
 	w.Header().Set("Content-Disposition", header)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'") // 49.4.3: a served file never runs script
 	w.Header().Set("Cache-Control", "private, no-store")
 	http.ServeContent(w, r, "", att.CreatedAt, f)
 }

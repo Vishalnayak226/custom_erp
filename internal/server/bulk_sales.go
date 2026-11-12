@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -927,25 +926,7 @@ func handleBulkSalesApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		t := res.Totals
-		var buf bytes.Buffer
-		cw := csv.NewWriter(&buf)
-		_ = cw.Write([]string{"sheet", "row_number", "key", "message"})
-		for _, c := range res.Customers {
-			if c.Action == "error" || c.Result == "failed" {
-				_ = cw.Write([]string{"Customers", strconv.Itoa(c.Row), c.Key, c.Message})
-			}
-		}
-		for _, inv := range res.Invoices {
-			if inv.Action == "error" || inv.Result == "failed" {
-				_ = cw.Write([]string{"Sales", "", inv.Ref, inv.Message})
-				for _, l := range inv.Lines {
-					if l.Message != "" {
-						_ = cw.Write([]string{"Sales", strconv.Itoa(l.Row), l.Barcode, l.Message})
-					}
-				}
-			}
-		}
-		cw.Flush()
+		errorCSV := bsErrorCSV(res)
 		status := "Completed"
 		if t.Failed > 0 || t.Errors > 0 {
 			status = "Completed with errors"
@@ -953,7 +934,7 @@ func handleBulkSalesApply(w http.ResponseWriter, r *http.Request) {
 		_ = engines.UpdateWorkbookRun(c.tenantID, engines.BulkSalesDoctype, runID, map[string]interface{}{
 			"status": status, "result": res, "totals": t,
 			"total_rows": t.Lines, "success_rows": t.Done, "failed_rows": t.Failed + t.Errors,
-			"error_csv": buf.String(), "finished_at": time.Now().UTC().Format(time.RFC3339),
+			"error_csv": errorCSV, "finished_at": time.Now().UTC().Format(time.RFC3339),
 		})
 		engines.LogAuditEvent(c.tenantID, c.username, "BULK_SALES", "APPLIED",
 			fmt.Sprintf("%s: %d new invoices, %d posted, %d drafts, %d failed, %d with errors (run %s)", name, t.NewInvoices, t.Posted, t.Drafts, t.Failed, t.Errors, runID))
@@ -1088,4 +1069,29 @@ func bsTemplate(run *swRun) ([]byte, error) {
 		{swT("Anita Rao"), swT("9812345678"), swT(""), swT("Karnataka"), swT("Mysuru")},
 	}}
 	return engines.WriteXLSXBook([]engines.XLSXSheet{start, customers, sales, example})
+}
+
+// bsErrorCSV is the failed-rows file of a run. The keys come from the
+// uploaded workbook, so every cell is made safe to open in a spreadsheet.
+func bsErrorCSV(res *bsResult) string {
+	var buf bytes.Buffer
+	cw := engines.NewSafeCSVWriter(&buf)
+	_ = cw.Write([]string{"sheet", "row_number", "key", "message"})
+	for _, c := range res.Customers {
+		if c.Action == "error" || c.Result == "failed" {
+			_ = cw.Write([]string{"Customers", strconv.Itoa(c.Row), c.Key, c.Message})
+		}
+	}
+	for _, inv := range res.Invoices {
+		if inv.Action == "error" || inv.Result == "failed" {
+			_ = cw.Write([]string{"Sales", "", inv.Ref, inv.Message})
+			for _, l := range inv.Lines {
+				if l.Message != "" {
+					_ = cw.Write([]string{"Sales", strconv.Itoa(l.Row), l.Barcode, l.Message})
+				}
+			}
+		}
+	}
+	cw.Flush()
+	return buf.String()
 }

@@ -31,6 +31,9 @@ func TestStage373CostingValuation(t *testing.T) {
 		for _, id := range ids {
 			db.DB.Exec("DELETE FROM "+schema+".gl_postings WHERE document_type IN ('GRN','LandedCostVoucher') AND document_id = $1", id)
 			db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", id)
+			// 49.5.2's already-posted guard reads the GRN's ledger lines, so a
+			// rerun must remove them too or it skips the receipt.
+			db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'StockLedgerEntry' AND data->>'idempotency_key' LIKE 'GRN:' || $1::text || ':%'", id)
 			db.DB.Exec("DELETE FROM "+schema+".item_cost WHERE item_code = $1", id)
 			db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", id)
 		}

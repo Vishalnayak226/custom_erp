@@ -24,13 +24,13 @@ The [folder map](#folder-map) at the end explains what every folder holds.
 
 | I want to… | Read |
 |---|---|
-| Learn the ERP, screen by screen | [User guide](guides/USER_GUIDE.md) |
+| Learn the ERP, screen by screen | [User guide](guides/user-guide.md) |
 | Learn my own daily job (cashier, store manager, warehouse, finance, category manager, admin) | [Role journeys](kb/role-journeys/role-journeys-overview.md) |
 | Open a shop and make the first sale | [Getting started](kb/getting-started/open-a-shop-and-make-your-first-sale.md) |
-| Follow a step-by-step procedure | [User SOP](guides/USER_SOP.md), [video SOPs](sop-video/readme.md) |
-| Understand an error message | [Reading an error code](kb/troubleshooting/error-codes.md), [all error codes](guides/ERROR_CODES.md), [troubleshooting](kb/troubleshooting/troubleshooting-index.md) |
-| Find the right report | [Report catalog](guides/REPORT_CATALOG.md) |
-| Print stickers, labels and documents | [Printing setup](guides/QZ_PRINTING_SETUP.md) |
+| Follow a step-by-step procedure | [User SOP](guides/user-sop.md), [video SOPs](sop-video/readme.md) |
+| Understand an error message | [Reading an error code](kb/troubleshooting/error-codes.md), [all error codes](guides/error-codes.md), [troubleshooting](kb/troubleshooting/troubleshooting-index.md) |
+| Find the right report | [Report catalog](guides/report-catalog.md) |
+| Print stickers, labels and documents | [Printing setup](guides/qz-printing-setup.md) |
 | Look up a term or abbreviation | [Glossary](kb/reference/glossary.md), [abbreviations](kb/reference/abbreviations.md), [FAQ](kb/reference/faq.md) |
 | Print or read the whole manual offline | [User manual](user/user-manual.html) |
 
@@ -40,19 +40,20 @@ The same help topics open inside the app from **Help** on every screen.
 
 | I want to… | Read |
 |---|---|
-| Configure the company, stores, users, roles and approvals | [Admin guide](guides/ADMIN_GUIDE.md), [Admin SOP](guides/ADMIN_SOP.md) |
+| Configure the company, stores, users, roles and approvals | [Admin guide](guides/admin-guide.md), [Admin SOP](guides/admin-sop.md) |
 | Set an organisation up for purchase orders, step by step | [PO setup guide](guides/po-setup-guide.md) |
 | Understand who can approve what | [Security and approvals](kb/module-handbooks/security-approvals.md) |
 | Print or read the admin manual offline | [Tenant admin manual](user/tenant-admin-manual.html) |
 | Bring in a new customer and their data | [Onboarding workbook](implementation/onboarding-workbook.md), [data handbook](data/data-handbook.md) |
 | Plan cutover, training and support | [Delivery workbook](implementation/delivery-workbook.md) |
-| Run acceptance tests before go-live | [UAT checklist](guides/UAT_CHECKLIST.md), [UAT run sheet](operations/uat_run_sheet.md) |
+| Run acceptance tests before go-live | [UAT checklist](guides/uat-checklist.md), [UAT run sheet](operations/uat-run-sheet.md) |
 
 ## I build or change the ERP
 
 | I want to… | Read |
 |---|---|
-| Get the code running on my machine | [Developer setup](engineering/developer-setup.md), [contributing](engineering/contributing.md) |
+| Know the rules every change must follow | [CONTRIBUTING.md](../CONTRIBUTING.md), the project constitution |
+| Get the code running on my machine | [Developer setup](engineering/developer-setup.md) |
 | Pick up where the last session stopped | [Handover, section 6](ai_handover.md#6-version-control) |
 | See what is left to build | [Micro checklist](micro_checklist.md) (the live backlog) |
 | See what was built, and when | [Project ledger](project_ledger.md) |
@@ -69,11 +70,11 @@ The same help topics open inside the app from **Help** on every screen.
 | I want to… | Read |
 |---|---|
 | Deploy a release | [Deployment](../deploy/README.md), [running the service](operations/service-operations.md) |
-| Back up or restore | [Backup and restore runbook](operations/backup_restore.md), [restore drill log](operations/restore_drill_log.md) |
-| Handle an outage or incident | [Incident runbook](operations/incident_runbook.md) |
-| Check what was decided for go-live | [Go-live decisions](operations/go_live_decisions.md), [hypercare plan](operations/hypercare_plan.md) |
-| Prove a marketplace or courier connector works | [Live connector verification](operations/connector_live_verification.md) |
-| Scope a penetration test | [Pentest scope](operations/pentest_scope.md) |
+| Back up or restore | [Backup and restore runbook](operations/backup-restore.md), [restore drill log](operations/restore-drill-log.md) |
+| Handle an outage or incident | [Incident runbook](operations/incident-runbook.md) |
+| Check what was decided for go-live | [Go-live decisions](operations/go-live-decisions.md), [hypercare plan](operations/hypercare-plan.md) |
+| Prove a marketplace or courier connector works | [Live connector verification](operations/connector-live-verification.md) |
+| Scope a penetration test | [Pentest scope](operations/pentest-scope.md) |
 
 ## I decide what gets built
 
@@ -88,7 +89,7 @@ The same help topics open inside the app from **Help** on every screen.
 
 | I want to… | Read |
 |---|---|
-| See the security programme, threats and risks | [Security overview](security/README.md), [threat model](security/threat_model.md), [risk register](security/risk_register.md) |
+| See the security programme, threats and risks | [Security overview](security/README.md), [threat model](security/threat-model.md), [risk register](security/risk-register.md) |
 | Answer a customer's security questionnaire | [Customer security pack](security/customer-security-pack.md) |
 | Find a contract, policy or privacy decision | [Legal register](legal/document-register.md), [privacy applicability](legal/privacy-applicability.md) |
 
@@ -112,7 +113,7 @@ Nothing there describes the system as it is today.
 | `architecture/` | How the system is built, design specifications and `decisions/` |
 | `api/` | Public API guide, contract, message catalog and the OpenAPI file |
 | `data/` | Data handbook, business definitions and the generated data dictionary |
-| `engineering/` | Developer setup, contributing and engineering checklists |
+| `engineering/` | Developer setup and engineering checklists (the rules themselves are in [CONTRIBUTING.md](../CONTRIBUTING.md)) |
 | `qa/` | Test strategy and the audit and browser-test scripts |
 | `operations/` | Runbooks for deploy, backup, incidents, go-live and hypercare |
 | `security/` | Security programme, threat model, risk registers and policies |

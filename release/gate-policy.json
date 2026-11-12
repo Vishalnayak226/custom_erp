@@ -1,0 +1,16 @@
+{
+  "_about": "Release-candidate gate policy (Stage 47.17.3 / 49.17.2; schedule approved 2026-11-11, item 162.20). warn: the gate records a miss and the release goes on. block: a miss stops the release. block_after_pass (run evidence only): warn until the kind has passed once, then block. govulncheck blocks since the Go 1.27.4 toolchain landed (162.1, 2026-11-11; 1.27.3 still had one finding). See docs/operations/release-candidate-gate.md.",
+  "schema_version": 1,
+  "evidence": {
+    "backup_restore": { "mode": "block_after_pass", "max_age_days": 35 },
+    "outbox_drill":   { "mode": "block_after_pass", "max_age_days": 35 },
+    "rollback":       { "mode": "block_after_pass", "max_age_days": 35 },
+    "browser_budget": { "mode": "block_after_pass", "max_age_days": 14 },
+    "journey":        { "mode": "block_after_pass", "max_age_days": 14 },
+    "race":           { "mode": "warn", "max_age_days": 14 },
+    "dynamic":        { "mode": "warn", "max_age_days": 35 }
+  },
+  "govulncheck": "block",
+  "surface_high_risk": "warn",
+  "supported_limits": "warn"
+}

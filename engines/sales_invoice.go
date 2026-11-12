@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// SalesInvoice has existed since Stage 1 (db/migration.sql) as a registered
+// SalesInvoice has existed since Stage 1 (db/migrations/migration.sql) as a registered
 // Transaction doctype with a Draft/Approved/Paid/Cancelled status flow, but
 // was never wired to a GL posting or an amount field - a dormant shell, not
 // a working credit-sales flow (unlike POS, which settles in cash/card/UPI
@@ -96,6 +96,11 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 	// anything else posts exactly as before.
 	var postErr error
 	split := false
+	// Stage 148.22: lines with no item that name an income account.
+	freeMoves, ftErr := freeTextRevenueMoves(tx, tenantID, schema, dataStr, !deferred && !position.Foreign)
+	if ftErr != nil {
+		return 0, ftErr
+	}
 	if taxCredits := outputGSTCreditsPaise(data); len(taxCredits) > 0 && !position.Foreign && !deferred {
 		totalPaise := RupeesToPaise(float64(amount))
 		var taxPaise int64
@@ -104,6 +109,7 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		}
 		if taxPaise < totalPaise {
 			paiseCredits, _ := salesInvoiceRevenueCredits(tenantID, data, dataStr, revenueAccount, totalPaise-taxPaise, !deferred)
+			paiseCredits = freeMoves.apply(paiseCredits, revenueAccount, true)
 			for account, v := range taxCredits {
 				paiseCredits[account] = v
 			}
@@ -111,7 +117,11 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 			split = true
 		}
 	}
-	if rc, moved := salesInvoiceRevenueCredits(tenantID, data, dataStr, revenueAccount, RupeesToPaise(float64(amount)), !deferred && !position.Foreign); !split && moved {
+	rc, moved := salesInvoiceRevenueCredits(tenantID, data, dataStr, revenueAccount, RupeesToPaise(float64(amount)), !deferred && !position.Foreign)
+	if !split && len(freeMoves) > 0 {
+		rc, moved = freeMoves.apply(rc, revenueAccount, false), true
+	}
+	if !split && moved {
 		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), rc, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
 	} else if !split {
 		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
@@ -143,6 +153,7 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		return 0, err
 	}
 	LogAuditEvent(tenantID, userID, "POST_SALES_INVOICE", "SUCCESS", fmt.Sprintf("Posted sales invoice %s amount=%d, AR recognized", invoiceID, amount))
+	AccrueSaleIncentivesLogged(tenantID, "SalesInvoice", invoiceID) // 148.30: after the commit, never blocks the sale
 
 	// Stage 37.6.1: the schedule is created here, after the posting above has
 	// already committed, exactly the recognition decision this invoice was
@@ -175,7 +186,7 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 // not hold enough refuses the posting, unless the item's product type allows
 // negative stock.
 func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, dataStr string, data map[string]interface{}) error {
-	for _, source := range []string{"sales_order_id", "shipping_package_id", "oms_bill_id", "recurring_contract_id"} {
+	for _, source := range []string{"sales_order_id", "shipping_package_id", "oms_bill_id", "recurring_contract_id", "summary_order_ids"} {
 		if strings.TrimSpace(strField(data, source)) != "" {
 			return nil
 		}
@@ -230,11 +241,16 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 		return err
 	}
 	// Stage 148.1: named pieces and lots cost what they cost.
-	pieceDelta, err := settleNamedPiecesTx(tx, schema, saleCosts, false)
+	pieceDelta, err := settleNamedPiecesTx(tx, schema, saleCosts, false, invoiceHoldCustomer(tenantID, data))
 	if err != nil {
 		return err
 	}
 	cogsPaise += pieceDelta
+	memoDelta, err := settleMemoStockTx(tx, tenantID, schema, "SalesInvoice", invoiceID, userID, saleCosts) // 148.16
+	if err != nil {
+		return err
+	}
+	cogsPaise += memoDelta
 	if cogsPaise > 0 {
 		// Stage 148.4 splits by line value; each line's value is what 148.1 booked.
 		cogsLines := make([]groupLine, 0, len(saleCosts))
@@ -317,6 +333,9 @@ func CancelSalesInvoice(tenantID, invoiceID, userID, reason string) error {
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
+	}
+	if err := refuseCancelAfterMemoSale(tx, schema, "SalesInvoice", invoiceID); err != nil { // 148.16
 		return err
 	}
 	refuse := func(why string) error {
@@ -402,6 +421,7 @@ func CancelSalesInvoice(tenantID, invoiceID, userID, reason string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "CANCEL_SALES_INVOICE", "SUCCESS", fmt.Sprintf("Cancelled sales invoice %s (was %s): %s", invoiceID, status, reason))
+	ClawbackSaleIncentivesLogged(tenantID, invoiceID, "CANCEL", nil) // 148.30
 	return nil
 }
 

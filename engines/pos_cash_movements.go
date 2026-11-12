@@ -246,16 +246,28 @@ func finishPOSSessionApproval(tenantID, sessionID, decision string) {
 	if decision != "Approved" {
 		next = "Open"
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(
+	// Stage 162.9: the status change and the variance posting are one
+	// transaction, so an approved close never stays Closed without its variance.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s %s but could not start: %v", sessionID, decision, err), "")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET status = $2, data = jsonb_set(data, '{status}', to_jsonb($3::text)), updated_at = CURRENT_TIMESTAMP
 		 WHERE doctype = 'POSSession' AND id = $1`, schema), sessionID, next, next); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s %s but status update failed: %v", sessionID, decision, err), "")
 		return
 	}
 	if next == "Closed" {
-		if err := postTillVariance(tenantID, sessionID); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s approved but its cash variance was not posted: %v", sessionID, err), "")
+		if err := postTillVarianceTx(tx, tenantID, schema, sessionID); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s approved but its cash variance was not posted, so it was not closed: %v", sessionID, err), "")
+			return
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s %s but the commit failed: %v", sessionID, decision, err), "")
 	}
 }
 
@@ -265,13 +277,9 @@ const AccountCashShortOver = "5295"
 
 // postTillVariance posts a Closed session's stored variance: a shortage
 // Dr 5295 / Cr 1100, an excess Dr 1100 / Cr 5295. Idempotent on the session.
-func postTillVariance(tenantID, sessionID string) error {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
+func postTillVarianceTx(tx *sql.Tx, tenantID, schema, sessionID string) error {
 	var variance float64
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE((data->>'variance')::numeric, 0) FROM %s.documents
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE((data->>'variance')::numeric, 0) FROM %s.documents
 		WHERE doctype = 'POSSession' AND id = $1 AND status = 'Closed'`, schema), sessionID).Scan(&variance); err != nil {
 		return err
 	}
@@ -283,7 +291,7 @@ func postTillVariance(tenantID, sessionID string) error {
 	if variance > 0 {
 		debit, credit = "1100", AccountCashShortOver
 	}
-	return PostDoubleEntry(tenantID, "POSSession", sessionID, map[string]int64{debit: p}, map[string]int64{credit: p}, "",
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSSession", sessionID, map[string]int64{debit: p}, map[string]int64{credit: p}, "",
 		fmt.Sprintf("POSSession:%s:VARIANCE", sessionID))
 }
 
@@ -293,4 +301,22 @@ func varianceNeedsApproval(tenantID string, variance float64) (string, error) {
 		return "", nil
 	}
 	return RequiredApproverRoleForAmount(tenantID, "POSSession", math.Abs(variance))
+}
+
+// postTillVariance is postTillVarianceTx in a transaction of its own: for a
+// session that is already Closed and only needs its variance posted.
+func postTillVariance(tenantID, sessionID string) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := postTillVarianceTx(tx, tenantID, schema, sessionID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

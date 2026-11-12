@@ -235,7 +235,7 @@ func newJTI() string {
 func SignToken(userID, username, role, tenantID, locationCode string, credentialVersion int) string {
 	now := time.Now()
 	exp := now.Add(tokenTTL(tenantID)).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&cv=%d&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), credentialVersion, now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&cv=%d&iss=erp&aud=session&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), credentialVersion, now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -246,7 +246,7 @@ func SignToken(userID, username, role, tenantID, locationCode string, credential
 func SignStoreDeviceToken(userID, username, role, tenantID, locationCode string, credentialVersion int, deviceID string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&cv=%d&dev=%s&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), credentialVersion, claimVal(deviceID), now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&cv=%d&dev=%s&iss=erp&aud=session&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), credentialVersion, claimVal(deviceID), now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -261,7 +261,7 @@ func SignStoreDeviceToken(userID, username, role, tenantID, locationCode string,
 func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(tenantID), claimVal(purpose), now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iss=erp&aud=purpose&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(tenantID), claimVal(purpose), now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -276,7 +276,7 @@ func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Durat
 func SignExtensionToken(tenantID, scopeDoctype string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iat=%d&jti=%s%s&exp=%d", claimVal(tenantID), claimVal(scopeDoctype), now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iss=erp&aud=extension&iat=%d&jti=%s%s&exp=%d", claimVal(tenantID), claimVal(scopeDoctype), now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -353,10 +353,37 @@ func ParseToken(tokenStr string) (map[string]string, error) {
 		return nil, errInvalidToken
 	}
 
+	if !tokenIssuerAudienceOK(claims) {
+		return nil, errInvalidToken
+	}
 	return claims, nil
 }
 
-// seedAdminPasswordHash is the literal bcrypt hash db/migration.sql seeds
+// tokenIssuerAudienceOK (Stage 49.2.6) checks the "iss" and "aud" claims the
+// Sign* functions above stamp: issuer erp, and an audience that matches the
+// token's own kind - a token carrying a purpose is a purpose or extension
+// token, never a session, and the reverse. Tokens minted before these claims
+// existed carry neither and still pass, so nobody is signed out by the release.
+func tokenIssuerAudienceOK(claims map[string]string) bool {
+	if iss, ok := claims["iss"]; ok && iss != "erp" {
+		return false
+	}
+	aud, ok := claims["aud"]
+	if !ok {
+		return true
+	}
+	switch aud {
+	case "session":
+		return claims["purpose"] == ""
+	case "purpose":
+		return claims["purpose"] != "" && claims["purpose"] != "extension"
+	case "extension":
+		return claims["purpose"] == "extension"
+	}
+	return false
+}
+
+// seedAdminPasswordHash is the literal bcrypt hash db/migrations/migration.sql seeds
 // tenant_default.users.admin with (loophole #27, checklist 24.27) - a known
 // default credential, harmless for this project's current single-machine
 // dev setup (real dev logins already use DEV_CREDENTIALS.local.txt's
@@ -366,7 +393,7 @@ const seedAdminPasswordHash = "$2a$10$8IqlLMaxVylUfYsKtF2bxOsN8udFN3XKEeSVbHWuRm
 
 // EnforceNoDefaultAdminCredentialInProduction (24.27) checks whether
 // tenant_default's seed admin account still carries the exact hash
-// db/migration.sql ships, and refuses to start when ENV=production - a
+// db/migrations/migration.sql ships, and refuses to start when ENV=production - a
 // migration script can't safely generate its own random credential in
 // plain SQL without a new Postgres extension (pgcrypto's crypt()/gen_salt()
 // aren't already in use anywhere in this codebase), so the fix is a
@@ -387,8 +414,8 @@ func EnforceNoDefaultAdminCredentialInProduction() error {
 		return nil
 	}
 	if os.Getenv("ENV") == "production" {
-		return fmt.Errorf("tenant_default's 'admin' account still has the default seed password from db/migration.sql - rotate it (e.g. via POST /api/v1/me/change-password after a one-time login, or UPDATE tenant_default.users directly) before running with ENV=production")
+		return fmt.Errorf("tenant_default's 'admin' account still has the default seed password from db/migrations/migration.sql - rotate it (e.g. via POST /api/v1/me/change-password after a one-time login, or UPDATE tenant_default.users directly) before running with ENV=production")
 	}
-	log.Println("[SECURITY] tenant_default's 'admin' account still has the default seed password from db/migration.sql - fine for local dev, but rotate it before any real deployment (ENV=production refuses to start with this credential still active).")
+	log.Println("[SECURITY] tenant_default's 'admin' account still has the default seed password from db/migrations/migration.sql - fine for local dev, but rotate it before any real deployment (ENV=production refuses to start with this credential still active).")
 	return nil
 }

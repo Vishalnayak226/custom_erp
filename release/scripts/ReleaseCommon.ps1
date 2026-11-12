@@ -138,3 +138,44 @@ function Get-OverdueComplianceReviews {
     if ($code -ne 0 -and $overdue.Count) { return $overdue }
     throw "the compliance review check failed or did not run (exit $code):`n$(($out | Select-Object -Last 15) -join "`n")"
 }
+
+# Test-CandidateRecord (items 47.17.3 / 49.17.2): is there a passing release-candidate
+# record for exactly this commit? Release's G10b writes release\reports\release-candidate-<tree>.json
+# for the tree G11 commits, with the previous release commit as its base - so for the
+# commit Deploy ships, the tree is its own tree and the base is its parent. `releasegate
+# verify` refuses a record for another commit or tree, or one whose verdict is not pass
+# (its verdict is fail only for a blocking check; warnings pass). Returns Ok and the lines
+# to show; never throws for a missing or failing record.
+function Test-CandidateRecord {
+    param([string]$Repo, [string]$Target, [string]$ReportDir, [string]$Go, [string]$GoRoot = $Repo)
+    $base = (& git -C $Repo rev-parse "$Target^" 2>$null | Select-Object -First 1)
+    $tree = (& git -C $Repo rev-parse "$Target^{tree}" 2>$null | Select-Object -First 1)
+    if (-not $base -or -not $tree) {
+        return [pscustomobject]@{ Ok = $false; Lines = @("cannot read the parent and tree of $Target") }
+    }
+    $rec = Join-Path $ReportDir "release-candidate-$($tree.Substring(0, 7)).json"
+    if (-not (Test-Path -LiteralPath $rec)) {
+        return [pscustomobject]@{ Ok = $false; Lines = @("no release-candidate record for tree $($tree.Substring(0, 7)) in $ReportDir - run Release.cmd so this commit goes through gate G10b") }
+    }
+    $out = Invoke-Native -Exe $Go -Arguments @('run', './cmd/releasegate', 'verify', '-record', $rec, '-commit', $base, '-tree', $tree) -WorkDir $GoRoot -AllowFail
+    $ok = ($LASTEXITCODE -eq 0)
+    return [pscustomobject]@{ Ok = $ok; Lines = @($out) }
+}
+
+# Import-RestoreDrillEvidence (49.17.2): the server's restore drill leaves
+# restore-drill-evidence.json beside the backups (deploy/restore_drill.sh); this copies
+# it into release\evidence\backup_restore.json through `releasegate record -from`,
+# naming the commit just deployed. The next Release ships the file. Returns a one-line
+# note; a missing file or a failed ingest is a note, never a stop - the deploy is done.
+function Import-RestoreDrillEvidence {
+    param([string]$Repo, [string]$Go, [string[]]$RemoteLines, [string]$Commit, [string]$GoRoot = $Repo)
+    $text = ($RemoteLines -join "`n").Trim()
+    if (-not $text.StartsWith('{')) { return 'no restore-drill record on the server yet - run deploy/restore_drill.sh there (admin guide, Backups)' }
+    $tmp = Join-Path $env:TEMP "restore_drill_evidence_$([guid]::NewGuid().ToString('N')).json"
+    try {
+        Set-Content -LiteralPath $tmp -Value $text -Encoding utf8NoBOM
+        $out = Invoke-Native -Exe $Go -Arguments @('run', './cmd/releasegate', 'record', '-root', $Repo, '-from', $tmp, '-commit', $Commit) -WorkDir $GoRoot -AllowFail
+        if ($LASTEXITCODE -eq 0) { return "restore drill recorded for the release gate: $($out -join ' ')" }
+        return "restore-drill record NOT ingested: $($out -join ' ')"
+    } finally { Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue }
+}

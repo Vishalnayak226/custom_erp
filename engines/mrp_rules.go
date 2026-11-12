@@ -26,7 +26,7 @@ import (
 //
 // The item's Product Type names the rule (mrp_rule); else the Active rule
 // ticked Default; else the markup the MRP step always used. See
-// db/migrations_stage114_6_mrp_rules.sql.
+// db/migrations/migrations_stage114_6_mrp_rules.sql.
 
 const (
 	MRPMethodMultiplier = "Multiplier"

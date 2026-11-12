@@ -135,7 +135,7 @@ screen.
 | Warehouse | `PACK` | Pack |
 | Warehouse | `SHIP` | Ship |
 | Warehouse | `WAVE` | Wave / Batch Picking |
-| Money | `GL` | Finance / GL |
+| Money | `GL` | Work to review |
 | Money | `JV` | Journal Voucher |
 | Money | `PAY` | Payment Proposal |
 | Money | `BR` | Bank Reconciliation |

@@ -36,7 +36,7 @@ async function renderRelations(container, itemCode) {
     : '<p class="text-muted">None yet.</p>';
   const form = document.createElement('div');
   form.className = 'table-panel';
-  form.innerHTML = `<div class="form-row" style="padding:16px">
+  form.innerHTML = `<div class="form-row s-287f77">
     <label>Relation<select class="form-select" id="pr-type">${RELATION_TYPES.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
     <label>Item<input class="form-input" id="pr-item"></label>
     <div><button type="button" class="btn btn-primary" id="pr-save">Save</button></div><div id="pr-err" class="form-error hidden"></div></div>`;

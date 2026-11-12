@@ -11,7 +11,7 @@ import "strings"
 // profile chip read like a job title rather than a privilege level. It is
 // now "Super Admin".
 //
-// The rename is a real one - db/migrations_stage40_3_super_admin_role.sql
+// The rename is a real one - db/migrations/migrations_stage40_3_super_admin_role.sql
 // rewrites the stored value in users, role_permissions, approval_rules,
 // approval_log and field_permissions - but the old name is deliberately kept
 // working:
@@ -46,6 +46,15 @@ const (
 	// changes is on record under its own name. Its template (role_templates.go)
 	// holds two admin capabilities by name; it is never HasFullAccess.
 	RoleSetupOperator = "Setup Operator"
+
+	// RolePrivacyApprover (49.12.5) is the person a client names to approve a
+	// notification decision without being an Admin. Its template
+	// (role_templates.go) holds one capability and no record access at all.
+	RolePrivacyApprover = "Privacy Approver"
+
+	// CapPrivacyApproval is that one capability: read the notification
+	// decisions named to you and approve or send them back.
+	CapPrivacyApproval = "admin.privacy-approval"
 )
 
 // HasFullAccess reports whether a role administers its client - every record
@@ -58,6 +67,13 @@ func HasFullAccess(role string) bool {
 		return true
 	}
 	return false
+}
+
+// CanApproveNotifyDecisions reports whether a role may be named as, and act as,
+// the approver of a notification decision (49.12.5): a client's Admin or Super
+// Admin, or a role whose template holds CapPrivacyApproval (Privacy Approver).
+func CanApproveNotifyDecisions(role string) bool {
+	return HasFullAccess(role) || RoleHasCapability(role, CapPrivacyApproval)
 }
 
 // IsSuperAdmin reports whether a role has unrestricted access, under either

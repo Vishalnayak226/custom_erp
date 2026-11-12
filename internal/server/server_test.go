@@ -91,12 +91,12 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 	// price to Manager approval regardless of the checkout's own
 	// discount_pct, and Stage 20a's shipped default POSCart approval_rules
 	// row (real tenant configuration, not test residue - see
-	// stage47_a02_price_tamper_redteam_test.go) means that path is always
+	// redteam_price_tamper_test.go) means that path is always
 	// live on this schema. This test exercises checkout-to-forecast, not the
 	// approval flow, so it needs a real reference price at the same value
 	// the checkout below submits (100) so the sale has zero measured
 	// discount and completes directly, the same way posPricingFixture
-	// (pos_pricing_stage47_2_test.go) seeds its own items.
+	// (pos_pricing_test.go) seeds its own items.
 	if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')`,
 		sku, `{"name":"Integration Test Item","hsn_code":"6109","gst_rate":18,"sale_price":100,"mrp":100}`); err != nil {
 		t.Fatalf("failed to seed test item: %v", err)

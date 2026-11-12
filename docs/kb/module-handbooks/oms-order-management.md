@@ -143,7 +143,7 @@ reporting a per-order outcome rather than an all-or-nothing batch result.
 
 A manual order goes through the identical Order Engine every channel import
 uses — the same allocation, reservations and holds all apply, there is no
-shortcut path. See `USER_GUIDE.md` §9A for the click-through walkthrough;
+shortcut path. See `user-guide.md` §9A for the click-through walkthrough;
 this article covers the mechanics behind it.
 
 ## Returns and refunds

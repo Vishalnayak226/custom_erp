@@ -24,7 +24,7 @@ var reviewedBypassFindings = map[string]map[string]struct {
 	Reason string
 }{
 	"seeded-credential": {
-		"db/migration.sql": {4, `The four bootstrap accounts (admin, cashier1, manager1, system) a fresh
+		"db/migrations/migration.sql": {4, `The four bootstrap accounts (admin, cashier1, manager1, system) a fresh
 			database is created with. They are a known credential in every deployment that ran this
 			file, which is why engines/security_baseline.go's SB-021 refuses an ENV=production boot
 			while any of them is still active. Removing them entirely needs pgcrypto (not otherwise
@@ -32,11 +32,11 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			with a one-time bootstrap credential; until then the startup gate is the control.`},
 		"engines/auth.go": {1, `seedAdminPasswordHash - the same admin hash again, as the constant
 			24.27's startup check compares against. A copy of a hash that is already public in
-			db/migration.sql, held so the check can be made at all.`},
+			db/migrations/migration.sql, held so the check can be made at all.`},
 		"engines/security_baseline.go": {3, `The other three seeded hashes, for the same reason:
 			SB-021 cannot detect a credential it does not hold. Guarded by
 			TestSeededCredentialHashesCoverMigrationSQL, which fails if this set and
-			db/migration.sql's ever disagree.`},
+			db/migrations/migration.sql's ever disagree.`},
 	},
 	"security-disabling-flag": {
 		"engines/environment.go": {1, `ERP_DISABLE_EXTERNAL_SIDE_EFFECTS - the 47.0.5 emergency kill
@@ -61,6 +61,10 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			"system" actor (Stage 100.3.4): a digest created by system runs as the dashboard's own owner
 			instead, through that owner's role and stores - the comparison takes a privilege away.
 			Approved by the user 2026-10-22 (release 0.12.0).`},
+		"engines/identity_access_change.go": {1, `recordLeaverForReview skips the user lookup when the
+			disable was made by the "system" actor (Stage 49.2.1): a system disable has no maker to put
+			in the review queue, so no review is filed. The comparison grants nothing - the disable has
+			already happened through its own checked path, and the review is only an after-the-fact record.`},
 	},
 	// Stage 72.8's gift cards. A gift card number is a closed-loop stored-value
 	// instrument the ERP itself registers and funds - not a payment card: no
@@ -68,7 +72,7 @@ var reviewedBypassFindings = map[string]map[string]struct {
 	// UPI payments as a mode only). The pattern matches the field name
 	// card_number, which these files use for that gift card number.
 	"payment-card-data": {
-		"db/migrations_stage72_8_stored_value.sql": {1, `stored_value_instruments.card_number, the gift
+		"db/migrations/migrations_stage72_8_stored_value.sql": {1, `stored_value_instruments.card_number, the gift
 			card number the store registers (printed on the card) - the key the till looks a card up by.
 			Never shown in full after registration: engines/stored_value.go masks it on every response,
 			and the data console masks the column (engines/platform_console.go's secretColumnRe).`},
@@ -84,7 +88,7 @@ var reviewedBypassFindings = map[string]map[string]struct {
 		"engines/stored_value.go": {12, `Register, issue, balance, redeem, block and cancel look a gift
 			card up by its number and answer with MaskCardNumber (last four) only; the full number is
 			returned once, to the manager who generated it, for printing on the cards.`},
-		"db/migrations_stage130_8_gift_card_numbers_sealed.sql": {1, `Stage 130.8: a comment naming
+		"db/migrations/migrations_stage130_8_gift_card_numbers_sealed.sql": {1, `Stage 130.8: a comment naming
 			stored_value_instruments.card_number. The migration only adds card_last4 and card_enc; it
 			writes no number - the server seals existing cards itself at boot, since only it holds the key.`},
 		"engines/store_credit.go": {1, `Stage 130.8: a new store credit instrument is inserted with
@@ -191,7 +195,7 @@ func TestBypassFindingsAreRedacted(t *testing.T) {
 		}
 	}
 	if !seen {
-		t.Fatal("no seeded-credential findings at all - the scanner is not reading db/migration.sql, so this test proves nothing")
+		t.Fatal("no seeded-credential findings at all - the scanner is not reading db/migrations/migration.sql, so this test proves nothing")
 	}
 }
 

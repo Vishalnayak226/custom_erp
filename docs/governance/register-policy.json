@@ -50,7 +50,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/security/outside_in_verification_2026-09-08.md",
+      "prefix": "docs/security/outside-in-verification-2026-09-08.md",
       "type": "record",
       "status": "archived",
       "owner": "security-owner",
@@ -194,7 +194,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/brain/BRAIN.md",
+      "prefix": "docs/brain/brain-map.md",
       "type": "generated",
       "status": "active",
       "owner": "engineering-owner",
@@ -218,7 +218,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/guides/ERROR_CODES.md",
+      "prefix": "docs/guides/error-codes.md",
       "type": "generated",
       "status": "active",
       "owner": "documentation-maintainer",
@@ -226,7 +226,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/guides/REPORT_CATALOG.md",
+      "prefix": "docs/guides/report-catalog.md",
       "type": "generated",
       "status": "active",
       "owner": "documentation-maintainer",
@@ -274,7 +274,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/operations/restore_drill_log.md",
+      "prefix": "docs/operations/restore-drill-log.md",
       "type": "record",
       "status": "archived",
       "owner": "operations-owner",
@@ -282,7 +282,7 @@
       "disposition": "archive"
     },
     {
-      "prefix": "docs/operations/uat_run_sheet.md",
+      "prefix": "docs/operations/uat-run-sheet.md",
       "type": "template",
       "status": "draft",
       "owner": "qa-owner",

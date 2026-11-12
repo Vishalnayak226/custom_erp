@@ -93,7 +93,7 @@ func TestBulkUpdateDocumentsIsAtomicAndResetsApproval(t *testing.T) {
 // documents through a different door and, before this stage, had never been
 // taught the same restriction - a Cashier blocked from editing Item GST
 // rate one screen at a time could still change it for a hundred items at
-// once via Group Actions bulk edit. Exercises db/migrations_stage16_field_
+// once via Group Actions bulk edit. Exercises db/migrations/migrations_stage16_field_
 // permissions.sql's own real demo policy (Cashier cannot write Item.gst_
 // rate) rather than a synthetic fixture, and proves the guard is
 // role-scoped, not a blanket block, by having HR/Admin succeed on the exact

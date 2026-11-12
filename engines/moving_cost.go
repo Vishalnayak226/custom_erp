@@ -131,7 +131,7 @@ func lockItemCostTx(tx *sql.Tx, schema, sku string) (cumQty float64, rate int64,
 // on_hand but were never valued, so they stay out of the pool until they leave.
 // They are the GRN set-asides still standing, capped at what the two buckets
 // hold: a customer return landing in a bucket WAS valued and stays in.
-func stockInHandForCost(q queryRower, schema, sku string) (float64, error) {
+func stockInHandBeforeMemo(q queryRower, schema, sku string) (float64, error) {
 	var held, setAside float64
 	if err := q.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(on_hand + COALESCE(in_transit, 0)), 0)::float8,
@@ -181,8 +181,16 @@ func blendIntoCostTx(tx *sql.Tx, schema, sku string, qty float64, value int64, s
 	if err != nil {
 		return err
 	}
+	if err := memoTrimLotsTx(tx, schema, sku, stockIn); err != nil { // 148.16
+		return err
+	}
 	if !addToLifetime && cum <= 0 {
-		return nil
+		// 148.16: goods that came back from a memo sale carry the memo rate, and the
+		// SKU has no cost record yet because the memo receipt booked none.
+		if value <= 0 || !memoSoldSKU(tx, schema, sku) {
+			return nil
+		}
+		addToLifetime = true
 	}
 	held, err := stockInHandForCost(tx, schema, sku)
 	if err != nil {
@@ -230,6 +238,14 @@ func correctReceiptCost(tenantID, sku, grnID string, qty float64, value, priceCh
 		return err
 	}
 	defer tx.Rollback()
+	if err := correctReceiptCostTx(tx, schema, sku, grnID, qty, value, priceChange); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// correctReceiptCostTx is correctReceiptCost in the caller's transaction (162.9).
+func correctReceiptCostTx(tx *sql.Tx, schema, sku, grnID string, qty float64, value, priceChange int64) error {
 	cum, rate, err := lockItemCostTx(tx, schema, sku)
 	if err != nil {
 		return err
@@ -249,10 +265,7 @@ func correctReceiptCost(tenantID, sku, grnID string, qty float64, value, priceCh
 	if err := writeItemCostTx(tx, schema, sku, rate, qty, value); err != nil {
 		return err
 	}
-	if err := raisePieceCostsTx(tx, schema, sku, grnID, priceChange); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return raisePieceCostsTx(tx, schema, sku, grnID, priceChange)
 }
 
 // --- A bill or late charge that differs from what the GRN booked. ---
@@ -661,7 +674,7 @@ func stepBillBases(lines []map[string]interface{}) []grnCostBase {
 		}
 		value, _ := grnInvoiceLineAmount(l)
 		b.qty += qty
-		b.value += RupeesToPaise(value)
+		b.value += RupeesToPaise(value) + grnStockRoundGapPaise(l) // 148.35
 	}
 	out := make([]grnCostBase, 0, len(bySKU))
 	for _, sku := range costKeys(bySKU) {
@@ -735,11 +748,17 @@ func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map
 		return target, units, received, "Foreign currency bill", nil
 	}
 	noteBill, noteRatio := "", 1.0
+	roundOff := int64(100) // paise under which a difference is left as round-off
 	if IsGRNStepFlow(grnData) {
 		if strField(grnData, "grn_step") != GRNStepPosted {
 			return target, units, received, billSkipStepNotPosted, nil
 		}
 		bases = stepBillBases(lines)
+		for _, l := range lines {
+			if grnLineSettlesRound(l) { // 148.51: this rounding is ours, so it clears to the paisa
+				roundOff = 1
+			}
+		}
 		if noteBill, noteRatio, err = stepNoteBillTx(tx, tenantID, schema, grnID, grnData, lines); err != nil {
 			return nil, nil, nil, "", err
 		}
@@ -776,14 +795,14 @@ func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map
 				continue
 			}
 			units[b.sku] = math.Min(billedQty[b.sku], others.openUnits(b.sku, left[b.sku]))
-			if d := billed[b.sku] - sharePaise(b.value, units[b.sku], left[b.sku]); d >= 100 || d <= -100 {
+			if d := billed[b.sku] - sharePaise(b.value, units[b.sku], left[b.sku]); d >= roundOff || d <= -roundOff {
 				target[b.sku] = d
 			}
 		}
 	} else {
 		// Stage 148.8: a charge on the bill was booked when the receipt posted.
 		diff := billValuePaise(tenantID, invData) + others.accounted - booked
-		if diff > -100 && diff < 100 || booked <= 0 {
+		if diff > -roundOff && diff < roundOff || booked <= 0 {
 			return target, units, received, "", nil
 		}
 		// Across what is still to bill, so a second bill's difference lands on the
@@ -926,6 +945,10 @@ func settleOverriddenBillTx(tx *sql.Tx, tenantID, schema, invoiceID string, data
 // a decision on it is refused; one that booked nothing posts nothing, and a retry
 // finds nothing left to take back.
 func ReverseVendorBillDifference(tenantID, invoiceID, userID string) error {
+	// Stage 148.19: a bill without a PO takes back its own journals.
+	if handled, err := reverseExpenseBill(tenantID, invoiceID); handled || err != nil {
+		return err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -1100,7 +1123,7 @@ func refusePiece(format string, args ...interface{}) error {
 // namedCostTx prices the units this line names. A piece stamped at its receipt
 // costs that; an older one costs the line's average. An offline sale has already
 // left the store, so what cannot be named falls back to the average.
-func (l *saleCostLine) namedCostTx(tx *sql.Tx, schema string, offline bool) (own int64, units int, stamped bool, err error) {
+func (l *saleCostLine) namedCostTx(tx *sql.Tx, schema string, offline bool, customerID string) (own int64, units int, stamped bool, err error) {
 	if len(l.serialNos) > l.Qty {
 		if !offline {
 			return 0, 0, false, refusePiece("%d pieces named for %d of %s", len(l.serialNos), l.Qty, l.SKU)
@@ -1124,6 +1147,13 @@ func (l *saleCostLine) namedCostTx(tx *sql.Tx, schema string, offline bool) (own
 			}
 			return 0, 0, false, refusePiece("piece %s of %s is %s, it cannot be sold", no, l.SKU, piece.Status)
 		}
+		var heldFields map[string]interface{} // Stage 148.41: another customer's hold stops the sale; the holder's sale ends it
+		if piece.HoldCustomer != "" {
+			if herr := pieceHoldRefusal(piece, customerID); herr != nil && !offline {
+				return 0, 0, false, herr
+			}
+			heldFields = pieceHoldClear()
+		}
 		cost := l.unitPaise
 		if piece.ReceiptCostPaise > 0 {
 			cost, stamped = piece.ReceiptCostPaise, true
@@ -1131,7 +1161,7 @@ func (l *saleCostLine) namedCostTx(tx *sql.Tx, schema string, offline bool) (own
 		own += cost
 		units++
 		l.Pieces = append(l.Pieces, soldPiece{SerialNo: no, CostPaise: cost})
-		if err := patchSerialTx(tx, schema, docID, SerialShipped, nil); err != nil {
+		if err := patchSerialTx(tx, schema, docID, SerialShipped, heldFields); err != nil {
 			return 0, 0, false, err
 		}
 	}
@@ -1161,7 +1191,7 @@ func (l *saleCostLine) namedCostTx(tx *sql.Tx, schema string, offline bool) (own
 // or batch cost what it cost, and the difference from the average comes back to
 // the caller's COGS; the rate of what stays moves so stock in hand keeps its
 // value. Unnamed units touch nothing here, as they never did.
-func settleNamedPiecesTx(tx *sql.Tx, schema string, lines []saleCostLine, offline bool) (int64, error) {
+func settleNamedPiecesTx(tx *sql.Tx, schema string, lines []saleCostLine, offline bool, customerID string) (int64, error) {
 	order := make([]int, len(lines))
 	for i := range order {
 		order[i] = i
@@ -1173,7 +1203,7 @@ func settleNamedPiecesTx(tx *sql.Tx, schema string, lines []saleCostLine, offlin
 		if len(l.serialNos) == 0 && l.BatchNo == "" {
 			continue
 		}
-		own, units, stamped, err := l.namedCostTx(tx, schema, offline)
+		own, units, stamped, err := l.namedCostTx(tx, schema, offline, customerID)
 		if err != nil {
 			return 0, err
 		}

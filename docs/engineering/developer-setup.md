@@ -52,4 +52,4 @@ refresh it explicitly with `graphify update .`; its `-Check` never refreshes it.
 
 Record exact commands, results and unresolved failures. Do not interpret a documentation
 check or a test-file link as proof that application UAT, release deployment or a provider
-integration passed. [Contributing standards](contributing.md) explain review and evidence.
+integration passed. The [project constitution](../../CONTRIBUTING.md) explains review and evidence.

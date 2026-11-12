@@ -82,7 +82,7 @@ func validateDepartmentReference(tenantID, department string) error {
 // GetCostCenterPL groups Revenue/Expense gl_postings by cost_center (rows
 // with no cost_center tagged land under "Unassigned") between [startDate,
 // endDate] - the cost-center-wise counterpart to GetProfitAndLoss
-// (engines/finance_reports_stage26.go), reading the column Stage 26.6.8
+// (engines/finance_reports.go), reading the column Stage 26.6.8
 // adds where present.
 func GetCostCenterPL(tenantID, startDate, endDate string) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)

@@ -123,8 +123,19 @@ func GenerateSupplyProposals(tenantID, userID, location, source string, leadTime
 				}
 			}
 		}
+	case "backorder": // Stage 146.4.3
+		bos, err := ListBackorders(tenantID, location)
+		if err != nil {
+			return res, err
+		}
+		for _, b := range bos {
+			if b.ToBuy > 0 && b.LocationCode == location {
+				cands = append(cands, cand{source: "Back order", sku: b.Sku, action: ProposalPurchase, available: b.Available, qty: b.ToBuy,
+					parts: map[string]interface{}{"inward": int(b.Inward), "on_order": int(b.OnOrder), "in_transit": int(b.InTransit), "back_orders": int(b.Waiting)}})
+			}
+		}
 	default:
-		return res, proposalErr("source must be reorder or mrp")
+		return res, proposalErr("source must be reorder, mrp or backorder")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {

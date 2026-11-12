@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
@@ -246,6 +247,31 @@ func setDocumentStatus(tenantID, doctype, docID, newStatus string, data map[stri
 	return err
 }
 
+// setDocumentStatusFrom is setDocumentStatus that only writes while the document
+// is still in `from` (Stage 49.10.4): a stale reader cannot reopen a decided
+// document.
+func setDocumentStatusFrom(tenantID, doctype, docID, from, newStatus string, data map[string]interface{}) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	data["status"] = newStatus
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	res, err := db.DB.Exec(fmt.Sprintf(`
+		UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE doctype = $3 AND id = $4 AND status = $5`, schema), marshaled, newStatus, doctype, docID, from)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("document is no longer %s - it changed while it was being submitted", from)
+	}
+	return nil
+}
+
 // SubmitForApproval moves a Draft document into Pending Approval and logs
 // the submission. Requires a configured approval_rules entry for the
 // doctype - there's no silent no-op path for a doctype nobody set up.
@@ -257,6 +283,27 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 	if status != "Draft" {
 		return fmt.Errorf("only a Draft document can be submitted for approval (current status: %s)", status)
 	}
+	// Stage 47.13.4: where a submit check reads other documents, hold the
+	// check's lock until this one has moved to Pending Approval, and read the
+	// document again under it - two submitted at the same moment then see
+	// each other instead of both passing.
+	if key := approvalSubmitLockFor(tenantID, doctype, docID, data); key != "" {
+		conn, err := db.DB.Conn(context.Background())
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		if _, err := conn.ExecContext(context.Background(), `SELECT pg_advisory_lock(hashtext($1))`, tenantID+":"+key); err != nil {
+			return err
+		}
+		defer conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock(hashtext($1))`, tenantID+":"+key)
+		if data, status, _, err = fetchDocument(tenantID, doctype, docID); err != nil {
+			return fmt.Errorf("document not found: %v", err)
+		}
+		if status != "Draft" {
+			return fmt.Errorf("only a Draft document can be submitted for approval (current status: %s)", status)
+		}
+	}
 	if err := runApprovalSubmitChecks(tenantID, doctype, docID, data); err != nil {
 		return err
 	}
@@ -265,7 +312,7 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 	// own currency is never compared against a foreign-currency figure. Falls
 	// back to the raw amount for documents saved before the currency stamp.
 	amount := DocumentBaseAmount(data)
-	role, err := requiredApproverRoleFor(tenantID, doctype, data, amount) // Stage 148.39
+	role, err := requiredApproverRoleForDoc(tenantID, doctype, docID, data, amount) // Stage 148.39
 	if err != nil {
 		return err
 	}
@@ -277,7 +324,7 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 		return &ValidationError{Code: "ADMINC-0032", Message: fmt.Sprintf("%s has no approval rule configured - nothing to route this to", doctype)}
 	}
 
-	if err := setDocumentStatus(tenantID, doctype, docID, "Pending Approval", data); err != nil {
+	if err := setDocumentStatusFrom(tenantID, doctype, docID, "Draft", "Pending Approval", data); err != nil {
 		return err
 	}
 	return logApprovalAction(tenantID, doctype, docID, "Submitted", requesterUserID, requesterRole, amount, "")
@@ -449,7 +496,7 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// own currency is never compared against a foreign-currency figure. Falls
 	// back to the raw amount for documents saved before the currency stamp.
 	amount := DocumentBaseAmount(data)
-	requiredRole, err := requiredApproverRoleFor(tenantID, doctype, data, amount) // Stage 148.39
+	requiredRole, err := requiredApproverRoleForDoc(tenantID, doctype, docID, data, amount) // Stage 148.39
 	if err != nil {
 		return err
 	}

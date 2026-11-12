@@ -1046,6 +1046,7 @@ type ShopifyVariantLink struct {
 	InventoryItemID string `json:"inventory_item_id"`
 	Price           float64
 	CompareAt       float64
+	Title           string // the variant's display name, read by ListVariants
 }
 
 const shopifyProductSetVariantsMutation = `mutation productSet($input: ProductSetInput!) {
@@ -1207,7 +1208,7 @@ func (shopifySDKConnector) PushVariantPrices(ctx context.Context, cred map[strin
 }
 
 const shopifyVariantsPageQuery = `query variants($after: String) { productVariants(first: 250, after: $after) {
-  pageInfo { hasNextPage endCursor } edges { node { id sku barcode price compareAtPrice product { id } inventoryItem { id } } } } }`
+  pageInfo { hasNextPage endCursor } edges { node { id sku barcode displayName price compareAtPrice product { id } inventoryItem { id } } } } }`
 
 // ListVariants reads every variant in the shop (99.3.2's "Link existing
 // Shopify products" matches them by SKU or barcode). At most 40 pages.
@@ -1230,6 +1231,7 @@ func (shopifySDKConnector) ListVariants(ctx context.Context, cred map[string]str
 						ID        string `json:"id"`
 						SKU       string `json:"sku"`
 						Barcode   string `json:"barcode"`
+						Display   string `json:"displayName"`
 						Price     string `json:"price"`
 						CompareAt string `json:"compareAtPrice"`
 						Product   struct {
@@ -1249,7 +1251,7 @@ func (shopifySDKConnector) ListVariants(ctx context.Context, cred map[string]str
 			n := e.Node
 			price, _ := strconv.ParseFloat(n.Price, 64)
 			cmp, _ := strconv.ParseFloat(n.CompareAt, 64)
-			out = append(out, ShopifyVariantLink{SKU: n.SKU, Barcode: n.Barcode, ProductGID: n.Product.ID, VariantGID: n.ID, InventoryItemID: n.Item.ID, Price: price, CompareAt: cmp})
+			out = append(out, ShopifyVariantLink{SKU: n.SKU, Barcode: n.Barcode, ProductGID: n.Product.ID, VariantGID: n.ID, InventoryItemID: n.Item.ID, Price: price, CompareAt: cmp, Title: n.Display})
 		}
 		if !res.V.PageInfo.HasNext {
 			break

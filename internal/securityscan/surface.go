@@ -407,7 +407,7 @@ func scanCLICommands(root string, s *Surface) error {
 }
 
 func scanMigrations(root string, s *Surface) error {
-	entries, err := os.ReadDir(filepath.Join(root, "db"))
+	entries, err := os.ReadDir(filepath.Join(root, "db", "migrations"))
 	if err != nil {
 		return nil
 	}
@@ -417,7 +417,7 @@ func scanMigrations(root string, s *Surface) error {
 		name := e.Name()
 		switch {
 		case name == "migration.sql":
-			base = "db/migration.sql"
+			base = "db/migrations/migration.sql"
 		case strings.HasPrefix(name, "migrations_") && strings.HasSuffix(name, ".sql"):
 			incremental = append(incremental, name)
 		}

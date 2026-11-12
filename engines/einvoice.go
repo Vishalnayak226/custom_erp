@@ -527,34 +527,51 @@ func salesInvoiceLines(tenantID, schema string, data map[string]interface{}) []e
 			}
 		}
 		if len(out) > 0 {
+			// Stage 148.46: a package bill (OMS or ERP) stores its lines and the
+			// order's shipping charge side by side; the charge prints and files.
+			if ship := numFromInterface(data["shipping_charge"]); ship > 0 {
+				out = append(out, einvoiceLineSource{Charge: "Shipping charge", Qty: 1, Gross: RupeesToPaise(ship), Rate: numFromInterface(data["shipping_gst_rate"])})
+			}
 			return out
 		}
 	}
-	orderID := strField(data, "sales_order_id")
-	if orderID == "" {
+	// One order, or (a summary invoice, Stage 148.31) the orders it bills.
+	var orderIDs []string
+	if orderID := strField(data, "sales_order_id"); orderID != "" {
+		orderIDs = []string{orderID}
+	} else {
+		for _, id := range strings.Split(strField(data, "summary_order_ids"), ",") {
+			if id = strings.TrimSpace(id); id != "" {
+				orderIDs = append(orderIDs, id)
+			}
+		}
+	}
+	if len(orderIDs) == 0 {
 		return nil
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 AND deleted_at IS NULL ORDER BY id`, schema), orderID)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var raw []byte
-		var line map[string]interface{}
-		if rows.Scan(&raw) != nil || json.Unmarshal(raw, &line) != nil {
-			continue
+	for _, orderID := range orderIDs {
+		rows, err := db.DB.Query(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 AND deleted_at IS NULL ORDER BY id`, schema), orderID)
+		if err != nil {
+			return nil
 		}
-		if strField(line, "line_status") == "Cancelled" {
-			continue
+		for rows.Next() {
+			var raw []byte
+			var line map[string]interface{}
+			if rows.Scan(&raw) != nil || json.Unmarshal(raw, &line) != nil {
+				continue
+			}
+			if strField(line, "line_status") == "Cancelled" {
+				continue
+			}
+			billed := numFromInterface(line["qty"])
+			if _, has := line["shipped_qty"]; has {
+				billed = numFromInterface(line["shipped_qty"])
+			}
+			if sku := strField(line, "sku"); sku != "" && billed > 0 {
+				out = append(out, einvoiceLineSource{SKU: sku, Qty: billed, Gross: RupeesToPaise(numFromInterface(line["unit_price"]) * billed)})
+			}
 		}
-		billed := numFromInterface(line["qty"])
-		if _, has := line["shipped_qty"]; has {
-			billed = numFromInterface(line["shipped_qty"])
-		}
-		if sku := strField(line, "sku"); sku != "" && billed > 0 {
-			out = append(out, einvoiceLineSource{SKU: sku, Qty: billed, Gross: RupeesToPaise(numFromInterface(line["unit_price"]) * billed)})
-		}
+		rows.Close()
 	}
 	if ship := numFromInterface(data["shipping_charge"]); ship > 0 && len(out) > 0 {
 		out = append(out, einvoiceLineSource{Charge: "Shipping charge", Qty: 1, Gross: RupeesToPaise(ship), Rate: numFromInterface(data["shipping_gst_rate"])})

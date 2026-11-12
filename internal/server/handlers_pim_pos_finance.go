@@ -180,7 +180,7 @@ func handlePIMImportJobErrors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=import_errors_%s.csv", jobID))
+	w.Header().Set("Content-Disposition", attachmentDisposition("import_errors_"+jobID+".csv"))
 	_, _ = w.Write(csvBytes)
 }
 
@@ -317,7 +317,7 @@ func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.Header().Set("Content-Disposition", attachmentDisposition(filename))
 	_, _ = w.Write(templateBytes)
 }
 
@@ -453,7 +453,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// SalesmanID (85.E3) the salesman on the bill.
 		PaymentTender    string `json:"payment_tender"`
 		PaymentReference string `json:"payment_reference"`
-		SalesmanID       string `json:"salesman_id"`
+		// SecondPayment (49.5.4): the cashier's answer that this slip repeats an
+		// earlier one on purpose. omitempty keeps an ordinary bill's digest as it was.
+		SecondPayment bool   `json:"second_payment,omitempty"`
+		SalesmanID    string `json:"salesman_id"`
 		// CouponCodes (Stage 30.7): coupon-gated offers the cashier keyed in.
 		// A code that matches no live offer is reported back rather than
 		// silently ignored, so the cashier learns it didn't apply.
@@ -1270,6 +1273,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorDetail(w, r, "INVENT-0101", "", shortage.Error())
 			return
 		}
+		// 49.5.4: nothing was posted, and the cashier's "second payment" answer is a
+		// changed request under the same cart number. Released, as for a shortage.
+		var dupTender *engines.ValidationError
+		if errors.As(finalizeErr, &dupTender) && dupTender.Code == engines.DuplicateTenderCode {
+			engines.ReleaseCommand(tenantID, claim.Key)
+			claimSettled = true
+			writeEngineError(w, r, finalizeErr, http.StatusInternalServerError)
+			return
+		}
 		engines.FailCommand(tenantID, claim.Key, finalizeErr.Error())
 		claimSettled = true
 		if engines.IsRetryableDBConflict(finalizeErr) {
@@ -1719,7 +1731,17 @@ func handleCloseAccountingPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	periodID := r.PathValue("id")
-	if err := engines.CloseAccountingPeriod(tenantID, periodID, userID); err != nil {
+	// 162.12: closing a period that is not ready needs a reason; the body is optional.
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+			return
+		}
+	}
+	if err := engines.CloseAccountingPeriodChecked(tenantID, periodID, userID, req.Reason); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
@@ -1950,7 +1972,15 @@ func handleApprovalLog(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if doc, found := docs[documentID]; !found || !rule.visible(doc.Data) {
+	// Stage 148.44: a document that is not there yet (a language with no
+	// content, say) has no history - an empty list - for a session whose scope
+	// leaves nothing to hide; a scoped session still gets the hidden answer.
+	doc, found := docs[documentID]
+	if !found && rule.seesEveryRow() {
+		_ = json.NewEncoder(w).Encode([]engines.ApprovalLogEntry{})
+		return
+	}
+	if !found || !rule.visible(doc.Data) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}

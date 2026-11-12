@@ -38,14 +38,17 @@ const (
 	outsideCallsClientOff
 	outsideCallsDevelopment
 	outsideCallsFrozen
+	outsideCallsSandbox
 )
 
 func (s outsideCallsState) reason() string {
 	switch s {
 	case outsideCallsKilled:
 		return "outside calls are switched off on this server (emergency switch)"
+	case outsideCallsSandbox:
+		return "this client is a sandbox - nothing it does leaves the server (tenantctl sandbox-effects lists what would have gone)"
 	case outsideCallsFrozen:
-		return "integrations are frozen for this client by an administrator (Activity Log > Security)"
+		return "integrations are frozen for this client by an administrator (Settings > Monitoring > Security Events)"
 	case outsideCallsClientOff:
 		return "outside calls are off for this client (Settings > Configuration > Platform > Outside calls)"
 	case outsideCallsDevelopment:
@@ -65,6 +68,8 @@ func outsideCallsFor(schema string) outsideCallsState {
 	switch {
 	case ExternalSideEffectsKilled():
 		return outsideCallsKilled
+	case schemaIsSandbox(schema): // 47.12.6
+		return outsideCallsSandbox
 	case integrationsFrozen(schema):
 		return outsideCallsFrozen
 	case outsideCallsClientIsOff(schema):
@@ -81,14 +86,24 @@ func outsideCallsFor(schema string) outsideCallsState {
 // person. A caller that is refused simulates or refuses the call the way it
 // already does for a sandbox client.
 func OutsideCallsAllowed(schema string) (bool, string) {
+	return outsideCallsDecide(schema, 1)
+}
+
+// outsideCallsDecide is the answer; a sandbox client's refusal is recorded
+// against the code place skip frames above the public entry point.
+func outsideCallsDecide(schema string, skip int) (bool, string) {
 	s := outsideCallsFor(schema)
+	if s == outsideCallsSandbox {
+		kind, effect := sandboxEffectOrigin(skip + 1)
+		insertSandboxEffect("schema_name", schema, kind, effect, "")
+	}
 	return s == outsideCallsOn, s.reason()
 }
 
 // OutsideCallsAllowedForTenant is OutsideCallsAllowed for a caller holding a
 // tenant id.
 func OutsideCallsAllowedForTenant(tenantID string) (bool, string) {
-	return OutsideCallsAllowed(outsideCallsSchemaOf(tenantID))
+	return outsideCallsDecide(outsideCallsSchemaOf(tenantID), 1)
 }
 
 func outsideCallsSchemaOf(tenantID string) string {
@@ -116,6 +131,10 @@ func outsideCallsSchemaOf(tenantID string) string {
 func outsideCallRefusal(schema, method, rawURL string) string {
 	write := method != http.MethodGet && method != http.MethodHead
 	switch {
+	case !ExternalSideEffectsKilled() && schemaIsSandbox(schema): // 47.12.6: every call, reads and loopback too
+		kind, effect := sandboxEffectOrigin(1)
+		insertSandboxEffect("schema_name", schema, kind, effect, method+" "+sandboxHostOf(rawURL))
+		return outsideCallsSandbox.reason()
 	case integrationsFrozen(schema):
 		return outsideCallsFrozen.reason() // 49.12.3a: reads too
 	case write && ExternalSideEffectsKilled():

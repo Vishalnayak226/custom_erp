@@ -58,9 +58,9 @@ type CapabilityMaturity struct {
 const (
 	orgCycle     = "docs/qa/guide-org-cycle-2026-10-27.md"
 	orgCycleDate = "2026-10-28"
-	userGuide    = "docs/guides/USER_GUIDE.md"
-	adminGuide   = "docs/guides/ADMIN_GUIDE.md"
-	restoreDrill = "docs/operations/restore_drill_log.md"
+	userGuide    = "docs/guides/user-guide.md"
+	adminGuide   = "docs/guides/admin-guide.md"
+	restoreDrill = "docs/operations/restore-drill-log.md"
 )
 
 var capabilityMaturity = []CapabilityMaturity{
@@ -123,10 +123,33 @@ var capabilityMaturity = []CapabilityMaturity{
 		Evidence:   []string{"internal/server/handlers_pos_held.go", "till_reversal_burst detection", orgCycle + " §3"},
 		Limits:     "a return of a credit-invoice line was valued at 0 on 0.18.0 (140.12.3)",
 		VerifiedOn: orgCycleDate},
+	{Key: "memo_stock.consignment", Module: "memo_stock", Title: "Memo stock · vendor-owned stock, the sale raises the bill", Level: MaturityPreview,
+		Evidence: []string{"engines/memo_stock.go", userGuide + " Memo stock"},
+		Limits:   "serial and batch items cannot be memo stock; units lost or written off are settled with the vendor by hand"},
+	{Key: "ai_access.assistant", Module: "ai_access", Title: "AI access · an assistant reads stock, orders, reports and makes drafts", Level: MaturityPreview,
+		Evidence: []string{"engines/ai_access_stage148_37.go", adminGuide + " AI assistant access"},
+		Limits:   "drafts only, a person submits each one; a full-access user cannot be its user"},
+	{Key: "custom_orders.configurator", Module: "custom_orders", Title: "Custom orders · priced from the metal rate, saved as an order", Level: MaturityPreview,
+		Evidence: []string{"engines/custom_orders_stage148_36.go", userGuide + " Custom jewellery order"},
+		Limits:   "needs a metal rate for the day"},
+	{Key: "sales_incentives.earnings", Module: "sales_incentives", Title: "Sales incentives · slabs, accrual, clawback, store app earnings", Level: MaturityPreview,
+		Evidence: []string{"engines/sales_incentives.go", userGuide + " Sales incentives"},
+		Limits:   "a split between salesmen at POS is API only; a failed POS accrual is only logged"},
+	{Key: "wholesale.summary_dropship", Module: "wholesale", Title: "Wholesale · summary invoice and drop ship", Level: MaturityPreview,
+		Evidence: []string{"engines/wholesale_stage148_31_32.go", "engines/summary_invoice_stage148_31.go", "engines/dropship_stage148_32.go", userGuide + " Wholesale"},
+		Limits:   "an order mixing drop-ship and stock lines is refused"},
 	{Key: "master_data.setup_workbook", Module: "master_data", Title: "Master data · setup workbook (preview, apply, re-apply)", Level: MaturityPreview,
 		Evidence:   []string{"engines/setup_path.go", "Stage 128 (one Excel per client)", adminGuide + " Setup"},
 		Limits:     "applied by Guide on minn and app for setup; no business-cycle run rests on it",
 		VerifiedOn: "2026-10-19"},
+	{Key: "core.legal_entities", Module: "core", Title: "Core · several legal entities and GSTINs", Level: MaturityPreview,
+		Evidence:   []string{"TestStage372MultiEntityIntercompany (engines/intercompany_test.go)", adminGuide + " B.3.0.3b"},
+		Limits:     "local runs only",
+		VerifiedOn: "2026-11-06"},
+	{Key: "inventory.batch_serial", Module: "inventory", Title: "Inventory · batch and serial tracking", Level: MaturityPreview,
+		Evidence:   []string{"engines/serial_tracking.go", "TestStage1481SerialPieceSellsAndReturnsAtItsOwnCost (engines/moving_cost_pieces_test.go)"},
+		Limits:     "local runs only",
+		VerifiedOn: "2026-11-06"},
 	{Key: "inventory.transfers_adjustments", Module: "inventory", Title: "Inventory · transfers, adjustments, counts", Level: MaturityPreview,
 		Evidence:   []string{"engines/inventory.go", "inventory.adjustment.post on the idempotency spine (engines/command_spine.go)", "stock_adjustment_burst detection"},
 		Limits:     "local runs only; the stock-vs-GL control total ties except the 132.22 gap fixed in 0.19.0",
@@ -158,7 +181,7 @@ var capabilityMaturity = []CapabilityMaturity{
 		Evidence: []string{"POST /api/v1/rfq/{id}/quote, /rfq/select-quote (route_capabilities.go)", userGuide + " RFQ"},
 		Limits:   "no live run on a client recorded"},
 	{Key: "stickers.labels", Module: "stickers", Title: "Stickers · barcode and label printing", Level: MaturityPreview,
-		Evidence: []string{"engines/print_documents.go", "PrintBridge (docs/guides/ADMIN_GUIDE.md Printing)"},
+		Evidence: []string{"engines/print_documents.go", "PrintBridge (docs/guides/admin-guide.md Printing)"},
 		Limits:   "PrintBridge trusts one address; an agent built for another URL reports QZ not reachable"},
 	{Key: "crm_loyalty.campaign_send", Module: "crm_loyalty", Title: "CRM · WhatsApp / SMS campaign send", Level: MaturityPreview,
 		Evidence:   []string{orgCycle + " §6 (sent locally with a test sender: matched 1, sent 1, delivered 1)"},
@@ -253,4 +276,58 @@ func CapabilityMaturityProblems(entries []CapabilityMaturity, modules []string, 
 		}
 	}
 	return problems
+}
+
+// capabilityMenus are the sidebar entries (menu-<id> in index.html) that stand
+// behind one capability. Below Production they carry that level as a label
+// (Stage 47.14.5), so a screen whose combination is not finished is never
+// shown as finished.
+var capabilityMenus = map[string][]string{
+	"sales.offline_till":          {"menu-pos-offline-sync", "menu-pos-offline-gaps", "menu-pos-offline-sales"},
+	"finance.bank_reconciliation": {"menu-bank-reconciliation"},
+	"integrations.einvoice_irp":   {"menu-einvoice", "menu-einvoice-settings"},
+	"crm_loyalty.campaign_send":   {"menu-campaigns"},
+	"wms.wave_picking":            {"menu-waves", "menu-wave-picking"},
+}
+
+func maturityRank(level string) int {
+	for i, l := range MaturityLevels {
+		if l == level {
+			return i
+		}
+	}
+	return 0
+}
+
+// NavMaturity is what the sidebar labels, only for levels below Production:
+// modules maps a module key to its best capability level (a module with a
+// live-run capability is not labelled as a whole), menus maps a menu id to
+// the lowest level of the capabilities behind it.
+func NavMaturity() (modules, menus map[string]string) {
+	prod := maturityRank(MaturityProduction)
+	best := map[string]int{}
+	low := map[string]int{}
+	for _, c := range capabilityMaturity {
+		r := maturityRank(c.Level)
+		if b, ok := best[c.Module]; !ok || r > b {
+			best[c.Module] = r
+		}
+		for _, id := range capabilityMenus[c.Key] {
+			if l, ok := low[id]; !ok || r < l {
+				low[id] = r
+			}
+		}
+	}
+	modules, menus = map[string]string{}, map[string]string{}
+	for m, r := range best {
+		if r < prod {
+			modules[m] = MaturityLevels[r]
+		}
+	}
+	for id, r := range low {
+		if r < prod {
+			menus[id] = MaturityLevels[r]
+		}
+	}
+	return modules, menus
 }

@@ -59,7 +59,7 @@ async function renderApprovalsView(container) {
   // and so is a client's reset or purge (49.10.6b).
   const bulkable = item => item.doctype !== 'PasswordResetRequest' && item.doctype !== 'ClientDataRemoval';
   let html = `
-    <div class="bulk-edit-bar hidden" id="appr-bulk" style="padding:10px 16px;margin:0;">
+    <div class="bulk-edit-bar hidden s-be1840" id="appr-bulk">
       <span id="appr-bulk-count"></span>
       <button class="btn btn-sm btn-primary" data-appr-bulk="Approved">Approve ticked</button>
       <button class="btn btn-sm btn-outline" data-appr-bulk="Rejected">Reject ticked</button>
@@ -67,7 +67,7 @@ async function renderApprovalsView(container) {
     <table>
       <thead>
         <tr>
-          <th style="width:36px;">${(items || []).some(bulkable) ? '<input type="checkbox" aria-label="Tick every row" data-appr-all>' : ''}</th>
+          <th class="s-387298">${(items || []).some(bulkable) ? '<input type="checkbox" aria-label="Tick every row" data-appr-all>' : ''}</th>
           <th>Record Type</th>
           <th>Document</th>
           <th>Amount</th>
@@ -78,7 +78,7 @@ async function renderApprovalsView(container) {
       <tbody>
   `;
   if (!items || items.length === 0) {
-    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Nothing awaiting approval.</td></tr>`;
+    html += `<tr><td colspan="6" class="s-306094">Nothing awaiting approval.</td></tr>`;
   }
   (items || []).forEach(item => {
     const amount = item.total_amount ?? item.amount ?? '';
@@ -89,8 +89,8 @@ async function renderApprovalsView(container) {
       <tr>
         <td>${bulkable(item) ? `<input type="checkbox" aria-label="Tick ${escapeHTMLText(reference)}" data-appr-pick data-doctype="${escapeHTMLText(item.doctype)}" data-id="${escapeHTMLText(item.id)}" data-ref="${escapeHTMLText(reference)}">` : ''}</td>
         <td>${escapeHTMLText(getDoctypeLabel(item.doctype))}</td>
-        <td>${escapeHTMLText(reference)}${reference !== item.id ? `<div class="text-muted" style="font-size:11px;">Record ${escapeHTMLText(item.id)}</div>` : ''}${note ? `<div class="text-muted" style="font-size:12px;">${escapeHTMLText(note)}</div>` : ''}</td>
-        <td>${amount !== '' ? Number(amount).toLocaleString() : ''}</td>
+        <td>${escapeHTMLText(reference)}${reference !== item.id ? `<div class="text-muted s-11a508">Record ${escapeHTMLText(item.id)}</div>` : ''}${note ? `<div class="text-muted s-6cb285">${escapeHTMLText(note)}</div>` : ''}</td>
+        <td>${amount !== '' ? formatNumber(amount) : ''}</td>
         <td>${escapeHTMLText(loc)}</td>
         <td>
           <button class="action-btn" ${actionAttrs('decideApproval', [ACTION_ARG_ELEMENT, item.doctype, item.id, 'Approved'])}>Approve</button>
@@ -240,9 +240,9 @@ function poTermsHTML(d) {
   const e = (v) => escapeHTMLText(v || '');
   const opts = (list, v) => `<option value="">Choose</option>${list.map(x => `<option${x === v ? ' selected' : ''}>${e(x)}</option>`).join('')}`;
   const filled = PO_TERM_KEYS.some(k => d[k]);
-  return `<details class="po-terms"${filled ? ' open' : ''} style="margin:4px 0 10px;">
-      <summary style="cursor:pointer;font-weight:600;">Commercial terms${d.payment_terms || d.delivery_terms ? ` <span class="text-muted" style="font-weight:400;">${e([d.payment_terms, d.delivery_terms].filter(Boolean).join(' · '))}</span>` : ''}</summary>
-      <div class="txn-head" style="margin-top:8px;">
+  return `<details class="po-terms s-af1d23"${filled ? ' open' : ''}>
+      <summary class="s-160dd9">Commercial terms${d.payment_terms || d.delivery_terms ? ` <span class="text-muted s-7e3a94">${e([d.payment_terms, d.delivery_terms].filter(Boolean).join(' · '))}</span>` : ''}</summary>
+      <div class="txn-head s-8a77e5">
         <div class="form-group"><label class="form-label" for="po-payment-term">Payment term</label><input id="po-payment-term" class="form-input" autocomplete="off" value="${e(d.payment_term)}" placeholder="e.g. NET30"></div>
         <div class="form-group"><label class="form-label" for="po-delivery-terms">Delivery terms</label><select id="po-delivery-terms" class="form-input">${opts(PO_DELIVERY_TERMS, d.delivery_terms)}</select></div>
         <div class="form-group"><label class="form-label" for="po-freight-by">Freight paid by</label><select id="po-freight-by" class="form-input">${opts(['Vendor', 'Buyer'], d.freight_by)}</select></div>
@@ -261,7 +261,7 @@ const TRADE_CHARGE_COLUMNS = JSON.stringify([
 ]);
 
 function chargeRowsHTML(id, value) {
-  return `<details id="${id}" class="po-terms"${value && value !== '[]' ? ' open' : ' hidden'} style="margin:4px 0 10px;flex-basis:100%;"><summary style="cursor:pointer;font-weight:600;">Charges</summary></details>`;
+  return `<details id="${id}" class="po-terms s-56cd61"${value && value !== '[]' ? ' open' : ' hidden'}><summary class="s-160dd9">Charges</summary></details>`;
 }
 
 // Nothing shows until this company has a charge code. A company without one is
@@ -295,12 +295,12 @@ function billChargeEntryRow(id, vendor) {
   overlay.className = 'modal-overlay open';
   overlay.id = 'charge-bill-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 480px;" role="dialog" aria-modal="true" aria-labelledby="charge-bill-title">
+    <div class="modal-container s-eb7d2f" role="dialog" aria-modal="true" aria-labelledby="charge-bill-title">
       <div class="modal-header"><h3 class="modal-title" id="charge-bill-title">Book bill</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-cb-close>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button></div>
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="modal-body s-63bcac">
         <div class="form-group"><label class="form-label" for="charge-bill-vendor">Vendor</label><input id="charge-bill-vendor" class="form-input" autocomplete="off" value="${escapeHTMLText(vendor || '')}"></div>
         <div class="form-group"><label class="form-label" for="charge-bill-no">Bill no</label><input id="charge-bill-no" class="form-input" autocomplete="off"></div>
         <div class="form-group"><label class="form-label" for="charge-bill-date">Bill date</label><input id="charge-bill-date" type="date" class="form-input"></div>
@@ -457,13 +457,14 @@ async function renderPurchaseOrdersView(container) {
       ${canCreateDoctype('PurchaseOrder') ? `<button type="button" class="btn btn-outline" ${actionAttrs('txnShowPane', ['po-composer:upload'])}>Upload from Excel</button>` : ''}
       <button type="button" class="btn btn-outline" ${actionAttrs('showPOOverdue', [])}>Overdue lines</button>
       <button type="button" class="btn btn-primary" ${actionAttrs('newPurchaseOrder', [])}>+ New Purchase Order</button></div></div>`;
+  if (state.modules.enabled?.has('wholesale')) import('./view-wholesale.js' + new URL(import.meta.url).search).then(m => m.addWholesaleButton(screen.querySelector('.txn-actions'), 'Drop-ship shipments', m.openDropShipConfirm)).catch(() => {}); // 148.32
   const panel = document.createElement('div');
   panel.className = 'txn-grid';
   // BLD-036: the New tab still works even if this list failed to load, so
   // this stays a partial-section message rather than a full renderErrorPanel
   // takeover - but it used to have no way back short of navigating away.
   let html = ordersLoadFailed
-    ? `<p style="padding: 16px; color: var(--danger-color); font-size: 13px;">Failed to load existing purchase orders. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['purchase-orders'])}>Try Again</button></p>`
+    ? `<p class="s-89ffe3">Failed to load existing purchase orders. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['purchase-orders'])}>Try Again</button></p>`
     : '';
   html += `
     <div class="table-wrapper">
@@ -484,7 +485,7 @@ async function renderPurchaseOrdersView(container) {
       <tbody>
   `;
   if (orders.length === 0) {
-    html += `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`;
+    html += `<tr><td colspan="9" class="s-306094">No purchase orders yet.</td></tr>`;
   }
   orders.forEach(po => {
     const statusBadge = po.status === 'Approved' ? 'badge-success'
@@ -503,7 +504,7 @@ async function renderPurchaseOrdersView(container) {
     const live = po.status !== 'Closed' && po.status !== 'Cancelled';
     html += `
       <tr>
-        <td style="font-family: monospace;">${copyableCell(poNumber, poNumber)}</td>
+        <td class="s-355794">${copyableCell(poNumber, poNumber)}</td>
         <td>${[po.source_requisition_id, ...String(po.source_requisition_ids || '').split(',')].map(s => String(s || '').trim()).filter((s, i, a) => s && a.indexOf(s) === i).map(s => documentSearchLink('PurchaseRequisition', s)).join(' ') || documentSearchLink('PurchaseRequisition', '')}</td>
         <td>${escapeHTMLText(po.vendor || '')}</td>
         <td data-link-doctype="Location" data-link-ref="${escapeHTMLText(po.location || '')}">${escapeHTMLText(po.location || '')}</td>
@@ -521,6 +522,7 @@ async function renderPurchaseOrdersView(container) {
           ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('stickersForPO', [po.id])}>Stickers</button>` : ''}
           ${po.status !== 'Cancelled' && lineCount > 0 ? `<button class="action-btn" ${actionAttrs('openPOImages', [po.id])}>Images</button>` : ''}
           ${po.status !== 'Draft' && po.status !== 'Cancelled' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
+          ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('openPOVendorLink', [po.id, poNumber])}>Vendor link</button>` : ''}
           ${canDeleteDoctype('PurchaseOrder') ? `<button class="action-btn action-btn-danger" ${actionAttrs('deletePurchaseOrder', [po.id, poNumber])}>Delete</button>` : ''}
         </td>
       </tr>
@@ -535,6 +537,11 @@ async function renderPurchaseOrdersView(container) {
 // images (view-images.js), a page of this screen like New. Which PO it shows
 // survives a refresh.
 const PO_IMAGES_KEY = 'stage95-po-images';
+window.openPOVendorLink = async function(poId, poNumber) {
+  const m = await loadViewModule('/view-vendor-link.js');
+  m.openVendorLink(poId, poNumber);
+};
+
 window.openPOImages = function(poId) {
   try { sessionStorage.setItem(PO_IMAGES_KEY, String(poId)); } catch (_) { /* storage can be disabled */ }
   window.txnShowPane('po-composer:images');
@@ -545,7 +552,7 @@ async function renderPOImagesPage(screen) {
   try { poId = sessionStorage.getItem(PO_IMAGES_KEY) || ''; } catch (_) { /* storage can be disabled */ }
   const head = poNumber => txnPageTitle({ screen: 'po-composer', title: 'Purchase Orders', page: poNumber ? `Images · ${escapeHTMLText(poNumber)}` : 'Images' });
   if (!poId) {
-    screen.innerHTML = `<div class="txn-bar">${head('')}</div><p class="text-muted" style="padding:16px;">Open a purchase order's <b>Images</b> from the list.</p>`;
+    screen.innerHTML = `<div class="txn-bar">${head('')}</div><p class="text-muted s-287f77">Open a purchase order's <b>Images</b> from the list.</p>`;
     return;
   }
   const m = await loadViewModule('/view-images.js');
@@ -599,35 +606,35 @@ window.showPOBalance = async function(poId) {
   overlay.className = 'modal-overlay';
   overlay.id = 'po-balance-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 980px;" role="dialog" aria-modal="true" aria-labelledby="po-balance-title">
+    <div class="modal-container s-fddc9b" role="dialog" aria-modal="true" aria-labelledby="po-balance-title">
       <div class="modal-header">
         <h3 class="modal-title" id="po-balance-title">PO ${escapeHTMLText(rec.po_number)} - receipts and balance</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-po-close>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
-        <p style="margin: 0;">${escapeHTMLText(rec.vendor_name || rec.vendor || '')} · <span class="badge ${rec.status === 'Closed' ? 'badge-secondary' : 'badge-success'}">${escapeHTMLText(rec.status)}</span>
+      <div class="modal-body s-a4aea4">
+        <p class="s-2a0ca8">${escapeHTMLText(rec.vendor_name || rec.vendor || '')} · <span class="badge ${rec.status === 'Closed' ? 'badge-secondary' : 'badge-success'}">${escapeHTMLText(rec.status)}</span>
           ${rec.short_close_info ? ` · ${escapeHTMLText(rec.short_close_info)}` : ''}</p>
-        <div class="table-panel" style="overflow-x: auto;"><table>
+        <div class="table-panel s-987eb2"><table>
           <thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th><th class="num">Returned</th><th class="num">Short-closed</th><th class="num">Open</th><th class="num">Invoiced</th><th class="num">Paid</th></tr></thead>
-          <tbody>${(rec.lines || []).map(l => `<tr><td>${escapeHTMLText(l.name || l.sku)}${l.name ? `<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}</div>` : ''}</td>
-            ${cell(l.ordered)}${cell(l.received)}${cell(l.accepted)}${cell(l.rejected)}${cell(l.damaged)}${cell(l.returned)}${cell(l.short_closed)}<td class="num"><b>${n(l.open)}</b></td>${cell(l.invoiced)}${cell(l.paid)}</tr>${rec.status === 'Approved' ? `<tr><td colspan="11" style="border-top: 0; padding-top: 0; text-align: right;">${l.stopped ? 'Stopped' : `<button type="button" class="action-btn" data-po-line="control" data-line="${l.line_no}">Control</button>${Number(l.open) > 0 ? ` <button type="button" class="action-btn" data-po-line="stop" data-line="${l.line_no}">Stop</button> <button type="button" class="action-btn" data-po-line="close-rest" data-line="${l.line_no}">Close rest</button>` : ''}`}</td></tr>` : ''}`).join('')}</tbody>
+          <tbody>${(rec.lines || []).map(l => `<tr><td>${escapeHTMLText(l.name || l.sku)}${l.name ? `<div class="s-428d6b">${escapeHTMLText(l.sku)}</div>` : ''}</td>
+            ${cell(l.ordered)}${cell(l.received)}${cell(l.accepted)}${cell(l.rejected)}${cell(l.damaged)}${cell(l.returned)}${cell(l.short_closed)}<td class="num"><b>${n(l.open)}</b></td>${cell(l.invoiced)}${cell(l.paid)}</tr>${rec.status === 'Approved' ? `<tr><td colspan="11" class="s-8e9c4b">${l.stopped ? 'Stopped' : `<button type="button" class="action-btn" data-po-line="control" data-line="${l.line_no}">Control</button>${Number(l.open) > 0 ? ` <button type="button" class="action-btn" data-po-line="stop" data-line="${l.line_no}">Stop</button> <button type="button" class="action-btn" data-po-line="close-rest" data-line="${l.line_no}">Close rest</button>` : ''}`}</td></tr>` : ''}`).join('')}</tbody>
         </table></div>
-        <p style="margin: 0;">Ordered ₹${formatMoney(rec.ordered_value)} · Accepted ₹${formatMoney(rec.accepted_value)} · Open ₹${formatMoney(rec.open_value)} · Invoiced ₹${formatMoney(rec.invoiced_amount)} · Paid ₹${formatMoney(rec.paid_amount)}</p>
-        <p style="margin: 0; color: var(--text-muted);">Receipts: ${(rec.grns || []).length ? rec.grns.map(g => `${escapeHTMLText(g.number)}${g.invoices && g.invoices.length ? ` (invoice ${escapeHTMLText(g.invoices.join(', '))})` : ' (not invoiced)'}`).join(' · ') : 'none yet'}
+        <p class="s-2a0ca8">Ordered ₹${formatMoney(rec.ordered_value)} · Accepted ₹${formatMoney(rec.accepted_value)} · Open ₹${formatMoney(rec.open_value)} · Invoiced ₹${formatMoney(rec.invoiced_amount)} · Paid ₹${formatMoney(rec.paid_amount)}</p>
+        <p class="s-aeec17">Receipts: ${(rec.grns || []).length ? rec.grns.map(g => `${escapeHTMLText(g.number)}${g.invoices && g.invoices.length ? ` (invoice ${escapeHTMLText(g.invoices.join(', '))})` : ' (not invoiced)'}`).join(' · ') : 'none yet'}
           ${(rec.claims || []).length ? `<br>Claims raised on short-close (Procurement → Purchase Return): ${escapeHTMLText(rec.claims.join(', '))}` : ''}</p>
         ${rec.status === 'Approved' && totalOpen > 0 ? `
-        <div class="table-panel" style="padding: 12px;">
+        <div class="table-panel s-98141f">
           <b>Short-close the open balance</b>
-          <p style="margin: 4px 0 8px; color: var(--text-muted);">Closes ${n(totalOpen)} open unit(s); the PO takes no more receipts.</p>
-          ${reasons.length ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-            <div class="form-group" style="margin: 0;"><label class="form-label" for="po-sc-reason">Reason</label>
+          <p class="s-84ad38">Closes ${n(totalOpen)} open unit(s); the PO takes no more receipts.</p>
+          ${reasons.length ? `<div class="s-d3ed5a">
+            <div class="form-group s-2a0ca8"><label class="form-label" for="po-sc-reason">Reason</label>
               <select id="po-sc-reason" class="form-select"><option value="">Choose a reason...</option>${reasons.map(r => `<option value="${escapeHTMLText(r.id)}">${escapeHTMLText(r.code || r.id)}${r.description ? ` - ${escapeHTMLText(r.description)}` : ''}</option>`).join('')}</select></div>
-            <div class="form-group" style="margin: 0;"><label class="form-label" for="po-sc-note">Note</label><input id="po-sc-note" class="form-input" maxlength="200"></div>
+            <div class="form-group s-2a0ca8"><label class="form-label" for="po-sc-note">Note</label><input id="po-sc-note" class="form-input" maxlength="200"></div>
             <button type="button" class="btn btn-primary" id="po-sc-btn">Short-close</button></div>
             <div id="po-sc-error" class="login-error hidden"></div>`
-          : `<p style="margin: 0;">No active reason codes of type <b>Cancellation</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add a reason code</button></p>`}
+          : `<p class="s-2a0ca8">No active reason codes of type <b>Cancellation</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add a reason code</button></p>`}
         </div>` : ''}
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-po-close>Close</button></div>
@@ -683,18 +690,18 @@ window.showPOLineControl = async function(poId, lineNo) {
   overlay.className = 'modal-overlay';
   overlay.id = 'po-line-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 520px;" role="dialog" aria-modal="true" aria-labelledby="po-line-title">
+    <div class="modal-container s-acb48b" role="dialog" aria-modal="true" aria-labelledby="po-line-title">
       <div class="modal-header"><h3 class="modal-title" id="po-line-title">Line ${lineNo} - ${v(l.sku)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-pl-close>&times;</button></div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; gap: 10px;">
-          <div class="form-group" style="margin: 0; flex: 1;"><label class="form-label" for="pl-cno">Vendor confirmation no.</label><input id="pl-cno" class="form-input" value="${v(l.confirmation_no)}"></div>
-          <div class="form-group" style="margin: 0;"><label class="form-label" for="pl-cdate">Confirmed on</label><input id="pl-cdate" type="date" class="form-input" value="${v(l.confirmation_date)}"></div></div>
-        <div style="display: flex; gap: 10px;">
-          <div class="form-group" style="margin: 0; flex: 1;"><label class="form-label" for="pl-under">Under %</label><input id="pl-under" type="number" min="0" max="100" step="any" class="form-input" value="${v(l.under_pct)}" placeholder="Item's"></div>
-          <div class="form-group" style="margin: 0; flex: 1;"><label class="form-label" for="pl-over">Over %</label><input id="pl-over" type="number" min="0" max="100" step="any" class="form-input" value="${v(l.over_pct)}" placeholder="Item's"></div></div>
+      <div class="modal-body s-90543b">
+        <div class="s-d1956d">
+          <div class="form-group s-e3f794"><label class="form-label" for="pl-cno">Vendor confirmation no.</label><input id="pl-cno" class="form-input" value="${v(l.confirmation_no)}"></div>
+          <div class="form-group s-2a0ca8"><label class="form-label" for="pl-cdate">Confirmed on</label><input id="pl-cdate" type="date" class="form-input" value="${v(l.confirmation_date)}"></div></div>
+        <div class="s-d1956d">
+          <div class="form-group s-e3f794"><label class="form-label" for="pl-under">Under %</label><input id="pl-under" type="number" min="0" max="100" step="any" class="form-input" value="${v(l.under_pct)}" placeholder="Item's"></div>
+          <div class="form-group s-e3f794"><label class="form-label" for="pl-over">Over %</label><input id="pl-over" type="number" min="0" max="100" step="any" class="form-input" value="${v(l.over_pct)}" placeholder="Item's"></div></div>
         <label><input type="checkbox" id="pl-full" ${l.full_delivery_only ? 'checked' : ''}> Full delivery only</label>
-        <div class="form-group" style="margin: 0;"><label class="form-label" for="pl-inst">Instalments (qty date)</label><textarea id="pl-inst" class="form-input" rows="4" placeholder="5 2026-11-10">${v(inst)}</textarea></div>
+        <div class="form-group s-2a0ca8"><label class="form-label" for="pl-inst">Instalments (qty date)</label><textarea id="pl-inst" class="form-input" rows="4" placeholder="5 2026-11-10">${v(inst)}</textarea></div>
         <div id="pl-error" class="login-error hidden"></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-pl-close>Cancel</button><button type="button" class="btn btn-primary" id="pl-save">Save</button></div>
     </div>`;
@@ -734,16 +741,16 @@ window.showPOOverdue = async function() {
   overlay.className = 'modal-overlay';
   overlay.id = 'po-overdue-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 980px;" role="dialog" aria-modal="true" aria-labelledby="po-od-title">
+    <div class="modal-container s-fddc9b" role="dialog" aria-modal="true" aria-labelledby="po-od-title">
       <div class="modal-header"><h3 class="modal-title" id="po-od-title">Overdue lines</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-od-close>&times;</button></div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
-        ${rows.length ? `<div class="form-group" style="margin: 0; max-width: 320px;"><label class="form-label" for="od-reason">Reason for Close rest</label>
+      <div class="modal-body s-90543b">
+        ${rows.length ? `<div class="form-group s-969b20"><label class="form-label" for="od-reason">Reason for Close rest</label>
           <select id="od-reason" class="form-select"><option value="">Choose a reason...</option>${reasons.map(r => `<option value="${v(r.id)}">${v(r.code || r.id)}</option>`).join('')}</select></div>
-        <div class="table-panel" style="overflow-x: auto;"><table><thead><tr><th>PO</th><th>Vendor</th><th>Item</th><th>Due</th><th class="num">Days late</th><th class="num">Still to come</th><th>Confirmation</th><th></th></tr></thead>
+        <div class="table-panel s-987eb2"><table><thead><tr><th>PO</th><th>Vendor</th><th>Item</th><th>Due</th><th class="num">Days late</th><th class="num">Still to come</th><th>Confirmation</th><th></th></tr></thead>
         <tbody>${rows.map(r => `<tr><td>${v(r.po)}</td><td>${v(r.vendor)}</td><td>${v(r.name || r.sku)}</td><td>${v(r.due)}</td><td class="num">${v(r.days_late)}</td><td class="num">${v(r.pending)}</td><td>${v(r.confirmation_no)}</td>
           <td><button type="button" class="action-btn" data-od-po="${v(r.po_id)}" data-od-line="${v(r.line_no)}">Close rest</button></td></tr>`).join('')}</tbody></table></div>`
-        : '<p style="margin: 0;">No overdue lines.</p>'}
+        : '<p class="s-2a0ca8">No overdue lines.</p>'}
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline" data-od-close>Close</button></div>
     </div>`;
@@ -952,6 +959,7 @@ function renderPOComposer(panel) {
   vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); renderPOVendorTaxIdAsk(); } freezeVendor(); });
 
   attachPORetroBox(d);
+  attachPOLineItc();
 
   const locEl = document.getElementById('po-location');
   const whEl = document.getElementById('po-warehouse');
@@ -1237,6 +1245,17 @@ function poLineNotes(p) {
   return t('po-line-note', p.rule_note) + t('po-line-note', p.discount_note) + meter;
 }
 
+// poPackBox (Stage 148.35): packs and the price per pack, only for an item that
+// has a purchase unit while inventory.pack_units is on. The server converts to
+// pieces; the qty and rate boxes then show the converted figures.
+function poPackBox(line, p) {
+  const unit = p.pack_unit || p.pack_offer_unit || '';
+  const factor = p.pack_factor || line.pack_factor || p.pack_offer_factor || 0;
+  if (!unit || !factor) return '';
+  const box = (f, ph, v) => `<input type="number" class="form-input num s-8573ba" data-po-field="${f}" min="0" step="any" placeholder="${ph}" value="${escapeHTMLText(v ?? '')}">`;
+  return `<div class="po-line-note">${escapeHTMLText(unit)} ${box('pack_qty', '', line.pack_qty)} &times; ${escapeHTMLText(String(factor))}</div><div class="po-line-note">Per ${escapeHTMLText(unit)} ${box('pack_rate', '', line.pack_rate)}</div>`;
+}
+
 // renderPOLines redraws the line rows and reattaches their handlers.
 //
 // Full redraw rather than surgical row patching because a line's derived
@@ -1244,6 +1263,14 @@ function poLineNotes(p) {
 // and the row count is small enough - a PO with hundreds of lines is a CSV
 // import, not something typed here.
 let poLinesRebuilding = false;
+// Stage 148.42: a GST credit column on each line, only when the server shows the field.
+let poLineItcOn = false;
+async function attachPOLineItc() {
+  const on = await docHasField('Vendor', 'itc');
+  if (on === poLineItcOn) return;
+  poLineItcOn = on;
+  renderPOLines();
+}
 function renderPOLines() {
   const body = document.getElementById('po-lines-body');
   if (!body) return;
@@ -1270,23 +1297,24 @@ function renderPOLines() {
   const attrCols = (poPreview && poPreview.attribute_columns) || [];
   const head = document.getElementById('po-lines-head');
   if (head) {
-    head.innerHTML = `<th class="num" style="width:36px;">#</th>
-      <th style="min-width:170px;">Item</th>
-      <th style="width:120px;">Design</th>
-      <th style="width:150px;">Combination ID</th>
-      ${attrCols.map(a => `<th style="width:90px;">${escapeHTMLText(a.label)}</th>`).join('')}
-      <th class="num" style="width:80px;">Qty</th>
-      <th class="num" style="width:120px;">Purchase Price</th>
-      <th class="num" style="width:80px;">Disc %</th>
-      <th class="num" style="width:90px;">Disc</th>
-      <th class="num" style="width:70px;">Free</th>
-      <th class="num" style="width:110px;">MRP <span class="po-optional">optional</span></th>
-      <th style="width:90px;">HSN</th>
-      <th class="num" style="width:70px;">GST %</th>
-      <th class="num" style="width:110px;">Taxable</th>
-      <th class="num" style="width:100px;">Tax</th>
-      <th class="num" style="width:120px;">Line Total</th>
-      <th style="width:36px;"></th>`;
+    head.innerHTML = `<th class="num s-387298">#</th>
+      <th class="s-7d03ac">Item</th>
+      <th class="s-465bfe">Design</th>
+      <th class="s-7c07cd">Combination ID</th>
+      ${attrCols.map(a => `<th class="s-581be4">${escapeHTMLText(a.label)}</th>`).join('')}
+      <th class="num s-8573ba">Qty</th>
+      <th class="num s-465bfe">Purchase Price</th>
+      <th class="num s-8573ba">Disc %</th>
+      <th class="num s-581be4">Disc</th>
+      <th class="num s-ec6626">Free</th>
+      <th class="num s-607468">MRP <span class="po-optional">optional</span></th>
+      <th class="s-581be4">HSN</th>
+      <th class="num s-ec6626">GST %</th>
+      ${poLineItcOn ? '<th class="s-607468">GST credit</th>' : ''}
+      <th class="num s-607468">Taxable</th>
+      <th class="num s-db4cf1">Tax</th>
+      <th class="num s-465bfe">Line Total</th>
+      <th class="s-387298"></th>`;
   }
 
   poLinesRebuilding = true;
@@ -1294,7 +1322,7 @@ function renderPOLines() {
   // by design - a heading per design, its combinations under it; an item of
   // no design stands alone. Display order only: each row keeps its own index
   // (data-po-line), so editing and removing are unchanged.
-  const cols = 16 + attrCols.length;
+  const cols = 16 + attrCols.length + (poLineItcOn ? 1 : 0);
   const groups = [];
   const byDesign = new Map();
   d.lines.forEach((l, i) => {
@@ -1314,19 +1342,20 @@ function renderPOLines() {
         <td class="po-derived num">${sr}</td>
         <td>
           <input type="text" class="form-input" data-po-field="sku" value="${escapeHTMLText(line.sku)}" placeholder="Search item..." title="${escapeHTMLText(p.item_name || '')}">
-          ${err}${poLineNotes(p)}
+          ${err}${poLineNotes(p)}${poPackBox(line, p)}
         </td>
         <td class="po-derived">${derived(p.design)}</td>
         <td class="po-derived">${derived(line.sku)}</td>
         ${attrCols.map(a => `<td class="po-derived">${derived((p.attributes || {})[a.code])}</td>`).join('')}
-        <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"></td>
-        <td><input type="number" class="form-input num" data-po-field="rate" min="0" step="0.01" value="${escapeHTMLText(line.rate)}"></td>
+        <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"${line.pack_qty ? ' readonly' : ''}></td>
+        <td><input type="number" class="form-input num" data-po-field="rate" min="0" step="0.01" value="${escapeHTMLText(line.pack_qty && line.pack_rate && line.rate !== '' ? Number(Number(line.rate).toFixed(4)) : line.rate)}"${line.pack_qty && line.pack_rate ? ' readonly' : ''}></td>
         <td><input type="number" class="form-input num" data-po-field="discount_pct" min="0" max="100" step="0.01" value="${escapeHTMLText(line.discount_pct)}"></td>
         <td><input type="number" class="form-input num" data-po-field="discount_amt" min="0" step="0.01" value="${escapeHTMLText(line.discount_amt)}"></td>
         <td class="po-derived num">${p.free_qty ? escapeHTMLText(String(p.free_qty)) : '<span class="text-muted">&mdash;</span>'}</td>
         <td><input type="number" class="form-input num" data-po-field="mrp" min="0" step="1" value="${escapeHTMLText(line.mrp)}" placeholder="&mdash;"></td>
         <td class="po-derived">${derived(p.hsn_code)}</td>
         <td class="po-derived num">${p.gst_rate ? escapeHTMLText(String(p.gst_rate)) + '%' : (p.tax_treatment && p.tax_treatment !== 'Taxable' ? escapeHTMLText(p.tax_treatment) : '<span class="text-muted">&mdash;</span>')}</td>
+        ${poLineItcOn ? `<td><select class="form-input" data-po-field="itc" aria-label="GST credit"><option value=""></option>${['Eligible', 'Blocked'].map(v => `<option${line.itc === v ? ' selected' : ''}>${v}</option>`).join('')}</select></td>` : ''}
         <td class="po-derived num">${p.taxable ? formatMoney(p.taxable) : '<span class="text-muted">&mdash;</span>'}</td>
         <td class="po-derived num">${p.tax_amount ? formatMoney(p.tax_amount) : '<span class="text-muted">&mdash;</span>'}</td>
         <td class="po-derived num po-line-total">${p.line_total ? formatMoney(p.line_total) : '<span class="text-muted">&mdash;</span>'}</td>
@@ -1354,7 +1383,7 @@ function renderPOLines() {
       const commit = () => {
         if (poLinesRebuilding || !input.isConnected) return;
         const v = input.value.trim();
-        if (poDraft.lines[i][field] === v) return;
+        if ((poDraft.lines[i][field] ?? '') === v) return;
         poDraft.lines[i][field] = v;
         schedulePOPreview();
       };
@@ -1677,11 +1706,11 @@ function renderPOEntryAttrs() {
       <button type="button" class="link-btn" id="pod-close">${d.editing ? 'Cancel edit' : 'Clear item name'}</button>
     </div>
     ${otherAttrs.length ? `<div class="po-design-row">${otherAttrs.map(a => `
-      <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input" style="width:150px;" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
+      <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input s-7c07cd" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
     ${selectAttrs.length === 0 && otherAttrs.length === 0 ? `<p class="text-muted">No product attributes yet.</p>` : ''}
     <div class="table-wrapper">
       <table class="po-lines pod-variants">
-        <thead><tr>${selectAttrs.map(a => `<th>${escapeHTMLText(a.label)}</th>`).join('')}${selectAttrs.length ? '' : '<th>Item</th>'}<th class="num" style="width:90px;">Qty</th><th class="num" style="width:120px;">Purchase price</th><th class="num" style="width:110px;">MRP</th>${d.loaded ? '<th>Combination ID</th>' : ''}<th style="width:36px;"></th></tr></thead>
+        <thead><tr>${selectAttrs.map(a => `<th>${escapeHTMLText(a.label)}</th>`).join('')}${selectAttrs.length ? '' : '<th>Item</th>'}<th class="num s-581be4">Qty</th><th class="num s-465bfe">Purchase price</th><th class="num s-607468">MRP</th>${d.loaded ? '<th>Combination ID</th>' : ''}<th class="s-387298"></th></tr></thead>
         <tbody>
           ${d.vrows.map((r, i) => {
             const existing = d.loaded ? poDesignExistingFor(d, combos[i].values) : null;
@@ -2108,6 +2137,10 @@ async function runPOPreview() {
   // Stage 148.6: a blank price takes the vendor agreement's; a typed one stays.
   (poPreview.lines || []).forEach((p, i) => {
     const l = d.lines[i];
+    if (l && p.sku === l.sku && l.pack_qty && p.pack_factor) { // Stage 148.35: the pieces and the price a piece
+      l.qty = p.qty; l.pack_factor = p.pack_factor; l.pack_unit = p.pack_unit || '';
+      if (l.pack_rate) l.rate = p.rate;
+    }
     if (!l || !p.rate || p.sku !== l.sku) return;
     if (l.rate === '' || l.rate == null || (l.agreement_rate && Number(l.rate) === Number(l.agreement_rate))) {
       l.rate = p.rate;
@@ -2146,7 +2179,9 @@ function poDraftPayload(d) {
       ...(Number(l.discount_pct) > 0 ? { discount_pct: Number(l.discount_pct) } : {}),
       ...(Number(l.discount_amt) > 0 ? { discount_amt: Number(l.discount_amt) } : {}),
       ...(l.agreement_rate ? { agreement_rate: Number(l.agreement_rate) } : {}),
-      ...(l.price_locked ? { price_locked: true } : {})
+      ...(l.price_locked ? { price_locked: true } : {}),
+      ...(l.itc ? { itc: l.itc } : {}),
+      ...(Number(l.pack_qty) > 0 ? { pack_qty: Number(l.pack_qty), ...(l.pack_rate !== '' && l.pack_rate != null ? { pack_rate: Number(l.pack_rate) } : {}), ...(l.pack_factor ? { pack_factor: Number(l.pack_factor), pack_unit: l.pack_unit || '' } : {}) } : {})
     }));
   return {
     vendor: d.vendor,
@@ -2219,20 +2254,43 @@ function renderPOStateAsks(el, pos) {
     + (pick ? `<span>Pick ${pick} &mdash; the supply type is worked out from their states.</span>` : '')
     + (!asks.length && !pick ? `<span><strong>Supply type could not be worked out</strong> &mdash; ${escapeHTMLText(pos.reason || 'a state is missing')}.</span>` : '');
 
+  // Stage 148.48: a store with no Legal Entity cannot be saved (its own rule),
+  // so the Legal Entity is chosen right here, beside the state.
+  asks.forEach((a, k) => {
+    if (a.doctype !== 'Location' || !canUpdateDoctype('Location')) return;
+    lookupLinkDoc('Location', a.ref).then(async doc => {
+      const slot = el.querySelector(`[data-po-state-save="${k}"]`);
+      if (!doc || String(doc.legal_entity || '').trim() || !slot || el.querySelector(`[data-po-le="${k}"]`)) return;
+      const res = await apiFetch('/api/v1/doc/LegalEntity?limit=200');
+      const list = res && res.ok ? await res.json() : [];
+      if (!el.contains(slot)) return;
+      const pick = document.createElement('select');
+      pick.className = 'form-input';
+      pick.setAttribute('data-po-le', k);
+      pick.setAttribute('aria-label', 'Legal entity of ' + a.name);
+      pick.innerHTML = '<option value="">Legal entity...</option>' + (Array.isArray(list) ? list : []).map(e =>
+        `<option value="${escapeHTMLText(e.id || e.code)}">${escapeHTMLText(e.legal_name || e.name || e.code || e.id)}</option>`).join('');
+      slot.before(pick);
+    }).catch(() => {});
+  });
+
   el.querySelectorAll('[data-po-state-save]').forEach(btn => btn.addEventListener('click', () => {
     const k = btn.getAttribute('data-po-state-save');
     const a = asks[Number(k)];
     const box = el.querySelector(`[data-po-state="${k}"]`);
     const state = box ? box.value.trim() : '';
     if (!state) { box?.focus(); return; }
+    const leBox = el.querySelector(`[data-po-le="${k}"]`);
+    const le = leBox ? leBox.value.trim() : '';
+    if (leBox && !le) { leBox.focus(); return; }
     guardAgainstDoubleSubmit(btn, 'Saving...', async () => {
       const doc = await lookupLinkDoc(a.doctype, a.ref);
       if (!doc) { showToast(`${a.name} was not found.`, { variant: 'error' }); return; }
-      // An update keeps every field it does not send, so only the state goes.
-      const res = await apiFetch(`/api/v1/doc/${a.doctype}/${encodeURIComponent(doc.id || a.ref)}`, { method: 'POST', body: JSON.stringify({ state }) });
+      // An update keeps every field it does not send, so only the state (and a missing Legal Entity) goes.
+      const res = await apiFetch(`/api/v1/doc/${a.doctype}/${encodeURIComponent(doc.id || a.ref)}`, { method: 'POST', body: JSON.stringify(le ? { state, legal_entity: le } : { state }) });
       if (!res) return;
       if (!res.ok) { await showApiError(res, `Could not save the state on ${a.name}.`); return; }
-      rememberLinkDoc(a.doctype, { ...doc, state });
+      rememberLinkDoc(a.doctype, le ? { ...doc, state, legal_entity: le } : { ...doc, state });
       showToast(`${a.name}: state saved as ${state}.`, { variant: 'success' });
       runPOPreview();
     });
@@ -2438,7 +2496,8 @@ window.amendPurchaseOrder = async function(poId, { copy = false } = {}) {
     ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, record[k] || ''])),
     lines: lines.length ? lines.map(l => ({
       sku: l.sku || '', qty: l.qty ?? '', rate: l.rate ?? '', mrp: l.mrp ?? '',
-      discount_pct: l.discount_pct ?? '', discount_amt: l.discount_amt ?? '', agreement_rate: l.agreement_rate ?? '', price_locked: !!l.price_locked
+      discount_pct: l.discount_pct ?? '', discount_amt: l.discount_amt ?? '', agreement_rate: l.agreement_rate ?? '', price_locked: !!l.price_locked, itc: l.itc || '',
+      pack_qty: l.pack_qty ?? '', pack_rate: l.pack_rate ?? '', pack_factor: l.pack_factor ?? '', pack_unit: l.pack_unit || '' // Stage 148.35
     })) : [],
     order_discount_pct: record.order_discount_pct ?? '', order_discount_amt: record.order_discount_amt ?? '',
     charges: typeof record.charges === 'string' ? record.charges : (record.charges ? JSON.stringify(record.charges) : ''),
@@ -2594,7 +2653,7 @@ async function mergeCustomerRow(duplicateId) {
 }
 
 // GRN Workbench (Stage 26.3.1). GRN's own registered schema
-// (db/migrations_phase3.sql) has always had a mandatory received_items JSON
+// (db/migrations/migrations_phase3.sql) has always had a mandatory received_items JSON
 // field but no screen to fill it in - the only prior path was the generic
 // doctype form, and GRN is a Transaction (not Master) doctype so it was
 // never even reachable from the Setup submenu that path relies on. This
@@ -2705,11 +2764,15 @@ async function renderGRNWorkbenchView(container) {
         <label class="form-label" for="grn-inv-amount">Invoice Total (incl. GST)<span class="required">*</span></label>
         <input type="number" id="grn-inv-amount" class="form-input num" min="0" step="0.01">
       </div>
+      <div class="form-group hidden" id="grn-memo-box">
+        <label class="form-label" for="grn-memo">Memo stock</label>
+        <select id="grn-memo" class="form-select"><option value="">No</option><option value="Yes">Yes</option></select>
+      </div>
       ${chargeRowsHTML('grn-charges', '')}
       <!-- Stage 130.16 (74.3.2): the vendor's challan and the transport. -->
-      <details class="grn-logistics" style="flex-basis:100%;">
-        <summary style="cursor:pointer;font-weight:600;">Supplier documents and transport</summary>
-        <div class="txn-head" style="margin-top:8px;">
+      <details class="grn-logistics s-3717df">
+        <summary class="s-160dd9">Supplier documents and transport</summary>
+        <div class="txn-head s-8a77e5">
           <div class="form-group"><label class="form-label" for="grn-challan-no">Vendor challan no</label><input type="text" id="grn-challan-no" class="form-input" autocomplete="off"></div>
           <div class="form-group"><label class="form-label" for="grn-challan-date">Challan date</label><input type="date" id="grn-challan-date" class="form-input"></div>
           <div class="form-group"><label class="form-label" for="grn-lr">LR / AWB no</label><input type="text" id="grn-lr" class="form-input" autocomplete="off"></div>
@@ -2796,7 +2859,7 @@ async function renderGRNWorkbenchView(container) {
     <div id="grn-serial-row" class="txn-entry hidden">
       <div class="form-group txn-entry-main">
         <label class="form-label" for="grn-line-serials">Serial Numbers (one per unit)</label>
-        <textarea id="grn-line-serials" class="form-input" rows="2" style="font-family: Consolas, Monaco, monospace;" placeholder="one per line, or comma-separated"></textarea>
+        <textarea id="grn-line-serials" class="form-input s-e1690e" rows="2" placeholder="one per line, or comma-separated"></textarea>
       </div>
       <div id="grn-serial-note" class="txn-hint"></div>
     </div>
@@ -2850,6 +2913,8 @@ async function renderGRNWorkbenchView(container) {
 
   attachLinkTypeahead(document.getElementById('grn-vendor'), 'Vendor');
   attachGRNBeforePOBox();
+  // Stage 148.16: the server hides this field until the Memo stock module is on.
+  docHasField('GRN', 'memo_stock').then(on => document.getElementById('grn-memo-box')?.classList.toggle('hidden', !on));
   mountChargeRows('grn-charges', '');
   document.getElementById('grn-vendor').addEventListener('change', loadGRNOpenPOs);
   attachLinkTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
@@ -2896,7 +2961,7 @@ async function renderGRNWorkbenchView(container) {
       <tbody>
   `;
   if (grns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No goods receipts yet.</td></tr>`;
+    html += `<tr><td colspan="8" class="s-306094">No goods receipts yet.</td></tr>`;
   }
   // Newest first (the list API returns creation order), so a receipt just
   // posted - and the notes it raised - is the row at the top.
@@ -2909,12 +2974,12 @@ async function renderGRNWorkbenchView(container) {
     const statusBadge = g.status === 'Approved' ? 'badge-success' : g.status === 'Cancelled' ? 'badge-danger' : 'badge-warning';
     html += `
       <tr>
-        <td style="font-family: monospace;">${escapeHTMLText(g.code || g.id)}</td>
+        <td class="s-355794">${escapeHTMLText(g.code || g.id)}</td>
         <td>${(g.po_ids ? String(g.po_ids).split(',') : [g.po_id]).filter(Boolean).map(p => documentSearchLink('PurchaseOrder', p)).join('<br>')}</td>
         <td>${escapeHTMLText(g.location || '')}</td>
         <td>${lines.length}</td>
         <td>${receivedTotal} / ${rejectedTotal} / ${damagedTotal}</td>
-        <td>${g.vendor_invoice_no ? escapeHTMLText(g.vendor_invoice_no) : '<span class="text-muted">&mdash;</span>'}${(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total) ? `<div class="text-muted" style="font-size:12px;">${formatMoney(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total)}</div>` : ''}</td>
+        <td>${g.vendor_invoice_no ? escapeHTMLText(g.vendor_invoice_no) : '<span class="text-muted">&mdash;</span>'}${(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total) ? `<div class="text-muted s-6cb285">${formatMoney(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total)}</div>` : ''}</td>
         <td>${grnNotesCell(g)}</td>
         <td><span class="badge ${statusBadge}">${escapeHTMLText(g.flow === 'steps' && g.grn_step !== 'Posted' ? (g.grn_step || g.status || '') : (g.status || ''))}</span><div>${g.flow === 'steps'
           ? `<button class="action-btn" type="button" data-grn-steps-open="${escapeHTMLText(g.id)}">Open</button>`
@@ -3113,21 +3178,21 @@ function renderGRNLinesList() {
           // Stage 94.14: the row's value is what the invoice bills, so the
           // rows add up to the bar's Invoice value.
           const billed = grnBilledQty(line);
-          const value = invRate === '' ? null : Number(invRate) * billed;
+          const value = invRate === '' ? null : grnExactRate(line) * billed;
           const billGap = billed - (Number(line.accepted_qty) || 0);
           return `
             <tr${Math.abs(diff) >= 0.005 ? ' class="grn-rate-diff"' : ''}>
               <td class="num text-muted">${idx + 1}</td>
-              ${grnMultiPO ? `<td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(line.po_id || '')}</td>` : ''}
+              ${grnMultiPO ? `<td class="s-fc459a">${escapeHTMLText(line.po_id || '')}</td>` : ''}
               <td>${escapeHTMLText(info(line.sku).name || '')}</td>
               <td>${escapeHTMLText(info(line.sku).design || '') || '<span class="text-muted">&mdash;</span>'}</td>
-              <td style="font-family: monospace;">${escapeHTMLText(line.sku)}${line.barcode && line.barcode !== line.sku ? `<div><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode}</span></div>` : ''}</td>
+              <td class="s-355794">${escapeHTMLText(line.sku)}${line.barcode && line.barcode !== line.sku ? `<div><span class="badge badge-secondary s-263f9c">${line.barcode}</span></div>` : ''}</td>
               ${attrCols.map(c => `<td>${escapeHTMLText((info(line.sku).attrs || {})[c.code] || '')}</td>`).join('')}
               ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
               ${grnHasSerials ? `<td>${line.serial_numbers && line.serial_numbers.length ? `<span class="badge badge-secondary" title="${line.serial_numbers.map(escapeHTMLText).join(', ')}">${line.serial_numbers.length} unit(s)</span>` : ''}</td>` : ''}
               ${grnAskedFields.map(f => `<td>${askedCell(line, idx, f)}</td>`).join('')}
               ${grnBlindCount ? '' : `<td class="num">${hasOrdered ? ordered : '&mdash;'}</td>`}
-              <td class="num"><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-recv="${idx}" value="${escapeHTMLText(String(line.qty))}" aria-label="Received qty for ${escapeHTMLText(line.sku)}"></td>
+              <td class="num"><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-recv="${idx}" value="${escapeHTMLText(String(line.qty))}" aria-label="Received qty for ${escapeHTMLText(line.sku)}">${line.pack_factor ? `<div><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-packqty="${idx}" value="${escapeHTMLText(String(line.pack_qty ?? ''))}" aria-label="${escapeHTMLText(line.pack_unit || 'Packs')} received for ${escapeHTMLText(line.sku)}"><div class="po-line-note">${escapeHTMLText(line.pack_unit || 'Packs')} &times; ${escapeHTMLText(String(line.pack_factor))}</div></div>` : ''}</td>
               <td class="num grn-calc">${line.accepted_qty}</td>
               <td class="num">${setAsideCell(line, idx, 'rejected')}</td>
               <td class="num">${setAsideCell(line, idx, 'damaged')}</td>
@@ -3135,7 +3200,7 @@ function renderGRNLinesList() {
               <td class="num grn-calc">${excess === null ? '&mdash;' : excess > 0 ? `<span class="badge badge-warning">${excess}</span>` : '0'}</td>`}
               <td class="num"><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-invqty="${idx}" value="${escapeHTMLText(String(line.invoice_qty ?? line.qty))}" aria-label="Invoice qty for ${escapeHTMLText(line.sku)}">${Math.abs(billGap) > 0.0001 ? `<div class="grn-rate-delta up">${billGap > 0 ? '+' : '&minus;'}${Math.round(Math.abs(billGap) * 1000) / 1000} vs accepted</div>` : ''}</td>
               <td class="num">${hasPORate ? formatMoney(poShown) + inclNote : '<span class="text-muted">&mdash;</span>'}</td>
-              <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="0.01" data-grn-rate="${idx}" value="${escapeHTMLText(String(invRate))}" aria-label="Invoice rate for ${escapeHTMLText(line.sku)}">${Math.abs(diff) >= 0.005 ? `<div class="grn-rate-delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '&minus;'}${formatMoney(Math.abs(diff))} vs PO</div>` : ''}</td>
+              <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="0.01" data-grn-rate="${idx}" value="${escapeHTMLText(String(invRate))}" aria-label="Invoice rate for ${escapeHTMLText(line.sku)}">${line.pack_factor ? `<div><input type="number" class="form-input num grn-rate-input" min="0" step="any" data-grn-packrate="${idx}" value="${escapeHTMLText(String(line.invoice_pack_rate ?? ''))}" aria-label="Price per ${escapeHTMLText(line.pack_unit || 'pack')} for ${escapeHTMLText(line.sku)}"><div class="po-line-note">Per ${escapeHTMLText(line.pack_unit || 'pack')}</div></div>` : ''}${Math.abs(diff) >= 0.005 ? `<div class="grn-rate-delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '&minus;'}${formatMoney(Math.abs(diff))} vs PO</div>` : ''}</td>
               <td class="num">${value === null ? '<span class="text-muted">&mdash;</span>' : formatMoney(value)}</td>
               <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeGRNLine', [idx])}>Remove</button></td>
             </tr>
@@ -3164,7 +3229,22 @@ function renderGRNLinesList() {
       if (v === '' || isNaN(n) || n < setAside) { input.value = line.qty; return; }
       if (line.invoice_qty === undefined || Number(line.invoice_qty) === Number(line.qty)) line.invoice_qty = n;
       line.qty = n;
+      delete line.pack_qty; // typed in pieces: the pieces win
       line.accepted_qty = n - setAside;
+      renderGRNLinesList();
+    });
+  });
+  // Stage 148.35: packs received; the pieces follow, the server converts again on save.
+  el.querySelectorAll('[data-grn-packqty]').forEach(input => {
+    input.addEventListener('change', () => {
+      const line = grnLineItems[Number(input.getAttribute('data-grn-packqty'))];
+      const n = Number(input.value);
+      if (!line || input.value.trim() === '' || isNaN(n) || n < 0) { if (line) delete line.pack_qty; renderGRNLinesList(); return; }
+      const pcs = Math.round(n * line.pack_factor * 10000) / 10000;
+      const setAside = (Number(line.rejected_qty) || 0) + (Number(line.damaged_qty) || 0);
+      if (pcs < setAside) { input.value = line.pack_qty ?? ''; return; }
+      if (line.invoice_qty === undefined || Number(line.invoice_qty) === Number(line.qty)) line.invoice_qty = pcs;
+      line.pack_qty = n; line.qty = pcs; line.accepted_qty = pcs - setAside;
       renderGRNLinesList();
     });
   });
@@ -3208,7 +3288,19 @@ function renderGRNLinesList() {
       const i = Number(input.getAttribute('data-grn-rate'));
       const v = input.value.trim();
       if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { input.value = grnShownInvRate(grnLineItems[i]) ?? ''; return; }
+      delete grnLineItems[i].invoice_pack_rate; // typed by the piece: the piece price wins
       grnSetInvRate(grnLineItems[i], v === '' ? '' : grnR2(Number(v)));
+      renderGRNLinesList();
+    });
+  });
+  // Stage 148.35: the vendor's price per pack; the price a piece follows.
+  el.querySelectorAll('[data-grn-packrate]').forEach(input => {
+    input.addEventListener('change', () => {
+      const line = grnLineItems[Number(input.getAttribute('data-grn-packrate'))];
+      const n = Number(input.value);
+      if (!line) return;
+      if (input.value.trim() === '' || isNaN(n) || n < 0) delete line.invoice_pack_rate;
+      else { line.invoice_pack_rate = n; grnSetInvRate(line, grnR2(n / line.pack_factor)); }
       renderGRNLinesList();
     });
   });
@@ -3251,7 +3343,8 @@ function renderGRNTotals() {
     const k = l.gst_inclusive ? 1 : grnGSTFactor(l);
     // Stage 94: the invoice is what it bills - its own qty, not what arrived.
     const billed = grnBilledQty(l);
-    if (hasPO) poValue += l.gst_inclusive ? Number(l.po_rate_incl) * acc / grnGSTFactor(l) : Number(l.po_rate) * acc;
+    const poExact = Number(l.po_pack_rate) > 0 && Number(l.pack_factor) > 0 ? Number(l.po_pack_rate) / Number(l.pack_factor) : 0; // Stage 148.35
+    if (hasPO) poValue += l.gst_inclusive ? (poExact || Number(l.po_rate_incl)) * acc / grnGSTFactor(l) : (poExact || Number(l.po_rate)) * acc;
     const m = grnLineMoney(l, billed);
     invValue += m.taxable;
     invGST += m.gst;
@@ -3305,9 +3398,16 @@ function grnSetInvRate(l, v) {
   l.invoice_rate_incl = v;
   l.invoice_rate = v === '' ? '' : (Math.abs(v - Number(l.po_rate_incl)) < 0.005 ? l.po_rate : grnR2(v / grnGSTFactor(l)));
 }
+// grnExactRate is the shown rate, or a pack price's exact rate a piece while the
+// box still shows it (Stage 148.35): 50 of 144 at Rs 1,000 is Rs 50,000, not 49,968.
+function grnExactRate(l) {
+  const shown = Number(grnShownInvRate(l)) || 0;
+  const exact = Number(l.invoice_pack_rate) > 0 && Number(l.pack_factor) > 0 ? Number(l.invoice_pack_rate) / Number(l.pack_factor) : 0;
+  return exact && Math.abs(grnR2(exact) - shown) < 0.005 ? exact : shown;
+}
 // grnLineMoney is a line's taxable value and GST for qty units at its invoice rate.
 function grnLineMoney(l, qty) {
-  const shown = Number(grnShownInvRate(l)) || 0;
+  const shown = grnExactRate(l);
   if (l.gst_inclusive) {
     const gross = shown * qty;
     const taxable = gross / grnGSTFactor(l);
@@ -3807,6 +3907,9 @@ async function loadGRNItemsFromPOInner() {
     grnLineItems.push({
       po_id: poKey, sku, ordered_qty: open, qty: open, accepted_qty: open, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode,
       ...(poMRP ? { mrp: poMRP } : {}),
+      ...(Number(it.pack_factor) > 0 ? { pack_unit: it.pack_unit || '', pack_factor: Number(it.pack_factor),
+        ...(Number.isInteger(open / Number(it.pack_factor)) ? { pack_qty: open / Number(it.pack_factor) } : {}),
+        ...(Number(it.pack_rate) > 0 && items.filter(x => (x.sku || x.item_id) === sku).length === 1 ? { invoice_pack_rate: Number(it.pack_rate), po_pack_rate: Number(it.pack_rate) } : {}) } : {}), // Stage 148.35
       ...(r ? { po_rate: r.rate, gst_rate: r.gst, invoice_rate: r.rate, ...(r.incl ? { gst_inclusive: true, po_rate_incl: r.gross, invoice_rate_incl: r.gross } : {}) } : {})
     });
     added++;
@@ -3931,6 +4034,7 @@ async function createGRNInner() {
       vendor_invoice_amount: Number(invAmountRaw),
       ...grnLogisticsPayload(),
       received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] }))),
+      ...(document.getElementById('grn-memo')?.value ? { memo_stock: 'Yes' } : {}),
       ...readStockFromTo(document.getElementById('grn-screen'))
     })
   });
@@ -3943,6 +4047,8 @@ async function createGRNInner() {
   let saved = {};
   try { saved = await res.json(); } catch (e) { saved = {}; }
   showToast(`Goods receipt saved - nothing is in stock yet. Verify it next.`, { variant: 'success' });
+  const memoBox = document.getElementById('grn-memo');
+  if (memoBox) memoBox.value = ''; // never carried to the next receipt: it changes who owns the goods
   grnLineItems = [];
   grnPOs = [];
   grnListStale = true;
@@ -3974,51 +4080,51 @@ async function renderASNView(container) {
   formPanel.style.marginBottom = '24px';
   // ASN's asn_number/status/location fields (and the Expected/Received/
   // Cancelled status vocabulary) are the doctype's original, pre-Stage-26.5
-  // fields (db/migration.sql) - reused here rather than duplicated, per
+  // fields (db/migrations/migration.sql) - reused here rather than duplicated, per
   // this repo's "extend the existing doctype, don't build a parallel one"
   // rule. po_id/vendor/carrier/tracking_number/expected_date/expected_items
   // are this Stage's additive fields.
   formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div class="s-608a43">
       ${autoNumberField('ASN Number', 'ASN', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-po">PO Reference</label>
-        <input type="text" id="asn-po" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="asn-po" class="form-input s-0a9e77" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-location">Location</label>
-        <input type="text" id="asn-location" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="asn-location" class="form-input s-21b277" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-vendor">Vendor</label>
-        <input type="text" id="asn-vendor" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="asn-vendor" class="form-input s-0a9e77" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-carrier">Carrier</label>
-        <input type="text" id="asn-carrier" class="form-input" style="width: 130px;">
+        <input type="text" id="asn-carrier" class="form-input s-27652d">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-tracking">Tracking Number</label>
-        <input type="text" id="asn-tracking" class="form-input" style="width: 150px;">
+        <input type="text" id="asn-tracking" class="form-input s-0a9e77">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-expected-date">Expected Date</label>
-        <input type="date" id="asn-expected-date" class="form-input" style="width: 150px;">
+        <input type="date" id="asn-expected-date" class="form-input s-0a9e77">
       </div>
     </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="s-a46e91">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-line-sku">SKU</label>
-        <input type="text" id="asn-line-sku" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="asn-line-sku" class="form-input s-0a9e77" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group s-50435f">
         <label class="form-label" for="asn-line-qty">Expected Qty</label>
-        <input type="number" id="asn-line-qty" class="form-input" style="width: 100px;" min="1">
+        <input type="number" id="asn-line-qty" class="form-input s-da190a" min="1">
       </div>
       <button class="btn btn-outline" id="asn-add-line-btn" type="button">Add Line</button>
     </div>
-    <div id="asn-lines-list" style="margin: 12px 0;"></div>
-    <div id="asn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <div id="asn-lines-list" class="s-53321a"></div>
+    <div id="asn-form-error" class="login-error hidden s-5beb8f"></div>
     <button class="btn btn-primary" id="asn-create-btn">Save ASN</button>
   `;
 
@@ -4030,14 +4136,14 @@ async function renderASNView(container) {
       <tbody>
   `;
   if (asns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet.</td></tr>`;
+    html += `<tr><td colspan="8" class="s-306094">No ASNs yet.</td></tr>`;
   }
   asns.forEach(a => {
     let lines = [];
     try { lines = JSON.parse(a.expected_items || '[]'); } catch (e) { lines = []; }
     html += `
       <tr>
-        <td style="font-family: monospace;">${escapeHTMLText(a.asn_number || a.id)}</td>
+        <td class="s-355794">${escapeHTMLText(a.asn_number || a.id)}</td>
         <td>${escapeHTMLText(a.po_id || a.po_number || '')}</td>
         <td>${escapeHTMLText(a.location || '')}</td>
         <td>${escapeHTMLText(a.vendor || '')}</td>
@@ -4069,16 +4175,16 @@ function renderASNLinesList() {
   const el = document.getElementById('asn-lines-list');
   if (!el) return;
   if (asnLineItems.length === 0) {
-    el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
+    el.innerHTML = `<p class="s-8cef07">No lines added yet.</p>`;
     return;
   }
   el.innerHTML = `
-    <table style="margin-top: 4px;">
+    <table class="s-6b1f0d">
       <thead><tr><th>SKU</th><th>Expected Qty</th><th></th></tr></thead>
       <tbody>
         ${asnLineItems.map((line, idx) => `
           <tr>
-            <td style="font-family: monospace;">${line.sku}</td>
+            <td class="s-355794">${line.sku}</td>
             <td>${line.qty}</td>
             <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeASNLine', [idx])}>Remove</button></td>
           </tr>
@@ -4239,15 +4345,15 @@ async function renderPurchaseReturnsView(container) {
           <thead><tr><th>Return #</th><th>GRN</th><th>Vendor</th><th>Reason</th><th>Value (ex-GST)</th><th>Debit Note</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             ${returns.length === 0
-              ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase returns yet.</td></tr>`
+              ? `<tr><td colspan="8" class="s-306094">No purchase returns yet.</td></tr>`
               : returns.map(r => `
                 <tr>
-                  <td style="font-family: monospace;">${escapeHTMLText(r.code || r.id)}</td>
-                  <td style="font-family: monospace;">${escapeHTMLText(r.grn_id || '')}</td>
+                  <td class="s-355794">${escapeHTMLText(r.code || r.id)}</td>
+                  <td class="s-355794">${escapeHTMLText(r.grn_id || '')}</td>
                   <td>${escapeHTMLText(r.vendor_id || '')}</td>
                   <td>${escapeHTMLText(r.reason || '')}</td>
                   <td>${formatMoney(r.total_amount || 0)}</td>
-                  <td style="font-family: monospace;">${escapeHTMLText(r.debit_note_id || '')}</td>
+                  <td class="s-355794">${escapeHTMLText(r.debit_note_id || '')}</td>
                   <td><span class="badge ${badge(r.status)}">${escapeHTMLText(r.status || '')}</span></td>
                   <td>${actions(r)}</td>
                 </tr>`).join('')}
@@ -4320,15 +4426,15 @@ async function loadPurchaseReturnLines(grnID) {
       <tbody>
         ${lines.map((l, i) => `
           <tr>
-            <td style="font-family: monospace;">${escapeHTMLText(l.sku)}</td>
-            <td style="font-family: monospace;">${escapeHTMLText(l.batch_no || '')}</td>
+            <td class="s-355794">${escapeHTMLText(l.sku)}</td>
+            <td class="s-355794">${escapeHTMLText(l.batch_no || '')}</td>
             <td>${escapeHTMLText(l.stock_bucket)}</td>
             <td>${l.received}</td>
             <td>${l.returned}</td>
             <td>${l.on_open_returns}</td>
             <td><b>${l.returnable}</b></td>
             <td>${l.stock_bucket === 'Accepted' ? formatMoney(l.unit_cost) : '<span title="Set aside at receipt and never costed, so it carries no debit note value">-</span>'}</td>
-            <td><input type="number" class="form-input prt-qty" data-line="${i}" min="0" max="${l.returnable}" step="1" value="0" style="width: 90px;" ${l.returnable > 0 ? '' : 'disabled'} aria-label="Return quantity for ${escapeHTMLText(l.sku)}"></td>
+            <td><input type="number" class="form-input prt-qty s-34deaa" data-line="${i}" min="0" max="${l.returnable}" step="1" value="0" ${l.returnable > 0 ? '' : 'disabled'} aria-label="Return quantity for ${escapeHTMLText(l.sku)}"></td>
           </tr>`).join('')}
       </tbody>
     </table>
@@ -4381,6 +4487,11 @@ async function postPurchaseReturn(id) {
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to post the purchase return.'); return; }
   const result = await res.json();
+  if (result.pending_approval) {
+    showToast(`Purchase return ${id} needs approval - the reason is high severity. Nothing has moved yet.`, { variant: 'info' });
+    renderView('purchase-returns');
+    return;
+  }
   if (result.debit_note_warning) {
     showToast(result.debit_note_warning, { variant: 'error', title: 'Debit note not posted' });
   } else if (result.debit_note_id) {

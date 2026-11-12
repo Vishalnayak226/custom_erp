@@ -429,7 +429,7 @@ func dispatchTrackedLineTx(tx *sql.Tx, tenantID, schema, transferOrderID, fromWa
 			if err != nil {
 				return out, bal, err
 			}
-			if unit.Status != SerialInStock || (unit.LocationCode != "" && unit.LocationCode != fromWarehouse) || unit.ReservedFor != "" {
+			if unit.Status != SerialInStock || (unit.LocationCode != "" && unit.LocationCode != fromWarehouse) || unit.ReservedFor != "" || holdActive(unit) {
 				return out, bal, &ValidationError{Code: "STOCKT-0483", Message: fmt.Sprintf(
 					"serial %s of %s is %s at %s - only an unreserved unit in stock at %s can be transferred", sn, line.Sku, unit.Status, orDash(unit.LocationCode), fromWarehouse)}
 			}
@@ -649,6 +649,7 @@ func ReceiveTransferOrder(tenantID, transferOrderID, userID string, receivedItem
 			line.Qty = q
 		}
 		line.Reason, _ = itemMap["reason"].(string)
+		line.ReasonCode, _ = itemMap["reason_code"].(string)
 		req.Lines = append(req.Lines, line)
 	}
 	_, err := ReceiveTransferOrderLines(tenantID, transferOrderID, userID, req)

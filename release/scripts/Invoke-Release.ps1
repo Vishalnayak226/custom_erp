@@ -313,6 +313,22 @@ if ($budgetText -match '"status":\s*"over') {
 if ($budgetText -notmatch '"cold_core_gzip_bytes"') { Stop-Release "releasebudget gave no report:`n$(($budgetText -split "`n" | Select-Object -Last 15) -join "`n")" }
 Note 'release budget within limits'
 
+# ------------------------------------------------- G4f footprint ledger
+# 162.21 (user, 2026-11-11): each release records one entry in the footprint
+# ledger (cmd/epicledger, docs/qa/epic-ledger.json), from the budget report just
+# taken, so the next epic has a point to compare with. Warn-only: a missing entry
+# never stops a release. Its commit is the one this release is built on.
+Write-Gate 'G4f Footprint ledger'
+$budgetFile = Join-Path $env:TEMP "release_budget_$ts.json"
+$i, $j = $budgetText.IndexOf('{'), $budgetText.LastIndexOf('}')
+if ($i -ge 0 -and $j -gt $i) {
+    Write-Text $budgetFile $budgetText.Substring($i, $j - $i + 1)
+    $ledgerOut = Invoke-Native -Exe $go -Arguments @('run', './cmd/epicledger', 'record', '-id', "release-$releaseVersion", '-label', "release $releaseVersion", '-root', '.', '-budget', $budgetFile, '-replace') -WorkDir $wt -AllowFail
+    if ($LASTEXITCODE -ne 0) { Note "WARNING footprint ledger not recorded: $(($ledgerOut | Select-Object -Last 3) -join ' ')" }
+    else { Note "footprint ledger: release-$releaseVersion recorded" }
+    Remove-Item -LiteralPath $budgetFile -ErrorAction SilentlyContinue
+} else { Note 'WARNING footprint ledger not recorded: no budget report' }
+
 # ------------------------------------------------- G4e compliance reviews
 # Stage 47.16.1a: every row of docs/security/compliance-control-matrix.json
 # carries the date it is next reviewed by. `go test` only logs OVERDUE, so a
@@ -349,6 +365,7 @@ if ($baseLines.Count -gt 0 -and $baseLines[0] -eq '{') {
     ($baseLines -join "`n") | Set-Content -LiteralPath $surfBase -Encoding utf8NoBOM
     $impact = Invoke-Native -Exe $go -Arguments @('run', './cmd/securityimpact', '-base', $surfBase, '-new', $surfTmp) -WorkDir $wt -AllowFail
     $report.Add(''); $report.Add('Security impact (G6b):'); $impact | ForEach-Object { $report.Add("    $_") }
+    $impact | Set-Content -LiteralPath (Join-Path $env:TEMP "release_impact_$ts.txt") -Encoding utf8NoBOM   # read again by G10b
     $high = @($impact | Where-Object { $_ -like '  ! *' }).Count
     Note "security impact: $high high-risk change(s), see the report"
     Remove-Item $surfBase -ErrorAction SilentlyContinue
@@ -366,6 +383,12 @@ $graph = Start-Process -FilePath 'graphify' -ArgumentList @('update', '.') -Work
 $null = $graph.Handle
 $kb = Invoke-Docs 'KB'
 if (-not $kb.ok) { Stop-Release "update-docs -Group KB failed:`n$(($kb.out | Select-Object -Last 15) -join "`n")" }
+# The checklist's module map (2026-11-10): counts and empty-sub-module markers are refreshed
+# here, so a session that forgot to run it never ships stale numbers; a skeleton that differs
+# between the tracker and its archive, an open item in the archive or an item outside a module
+# stops the release.
+$map = Invoke-Native -Exe 'pwsh' -Arguments @('-NoProfile', '-File', 'docs/update-checklist-map.ps1') -WorkDir $wt -AllowFail
+if ($LASTEXITCODE -ne 0) { Stop-Release "checklist module map (docs/update-checklist-map.ps1):`n$(($map | Select-Object -Last 10) -join "`n")" }
 Note (($kb.out | Where-Object { $_ -match 'Published' }) -join ' ')
 $graph.WaitForExit()
 if ($graph.ExitCode -ne 0) { Stop-Release "graphify update failed:`n$((Get-Content $graphLog, "$graphLog.err" -ErrorAction SilentlyContinue | Select-Object -Last 10) -join "`n")" }
@@ -642,6 +665,81 @@ try {
 }
 foreach ($db in @($copies) + $scratchDb) { Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "DROP DATABASE IF EXISTS $db") -AllowFail | Out-Null }
 
+# ------------------------------------------------------- G10a browser smoke run
+# 158.4: the snapshot's own server and screens in a real browser, through Guide (the bug
+# inspector, outside the repo - config.json "guide"): admin and cashier1 signed in, the POS
+# screen, one sale end to end (PO -> GRN -> sale -> same-day return, numbers read back) and
+# the Sales Register showing that bill. The tests prove the rules; this proves the app opens
+# and sells. Its migrations also run over a copy of the dev data (custom_erp_smoke, cloned
+# once and reused), where G10 only migrates an empty database. Stops on an uncaught browser
+# error, a failed request or 5xx, a step that could not be done, a PANIC row, or a setup
+# failure of the release's own (migrate, server start); a number that differs between two
+# places and the server's other error rows are warnings. Skipped, with a note, when Guide,
+# Node, Playwright or Edge is not on this machine.
+Write-Gate 'G10a Browser smoke run'
+$guidePs1 = if ($cfg.PSObject.Properties['guide']) { [Environment]::ExpandEnvironmentVariables([string]$cfg.guide) } else { '' }
+$smokeResult = 'not run'
+if (-not $guidePs1 -or -not (Test-Path -LiteralPath $guidePs1)) {
+    Note "WARNING smoke: SKIPPED - Guide is not at '$guidePs1' on this machine"
+} else {
+    # The snapshot's tree before and after: G11 commits whatever is in it, so nothing may be left behind.
+    Invoke-Git @('add', '-A') $wt | Out-Null; $treeBefore = (Invoke-Git @('write-tree') $wt)[0]
+    $smokePath = $env:PATH; $env:PATH = "$goDir;$env:PATH"   # Guide builds with the go on PATH: the release's own
+    try {
+        $smokeOut = Invoke-Native -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $guidePs1, '-Suite', 'smoke', '-Roles', 'admin,cashier1',
+            '-WorkingTree', '-Repo', $wt, '-Db', 'custom_erp_smoke', '-BinSuffix', 'release', '-PgPort', [string]$cfg.pgPort) -AllowFail
+        $smokeCode = $LASTEXITCODE
+    } finally { $env:PATH = $smokePath }
+    Invoke-Git @('add', '-A') $wt | Out-Null; $treeAfter = (Invoke-Git @('write-tree') $wt)[0]
+    if ($treeAfter -ne $treeBefore) {
+        $stray = Invoke-Git @('diff', '--name-only', $treeBefore, $treeAfter) $wt   # an array already: Invoke-Native returns one
+        Stop-Release "the smoke run wrote into the release snapshot, so it would ship: $(($stray | Select-Object -First 8) -join ', ')"
+    }
+    $setup = @($smokeOut | Where-Object { $_ -match 'SETUP FAILED: (.+)$' } | ForEach-Object { $_ -replace '^.*SETUP FAILED: ', '' })
+    $runDir = ''
+    foreach ($l in $smokeOut) { if ($l -match '^\[guide\] report: (.+)\\report\.html$') { $runDir = $Matches[1] } }
+    if ($setup.Count -and $setup[0] -match 'node is not on PATH|Playwright is not installed|is not installed|no free port') {
+        Note "WARNING smoke: SKIPPED - $($setup[0])"
+    } elseif ($setup.Count -or -not $runDir -or -not (Test-Path -LiteralPath (Join-Path $runDir 'findings.json'))) {
+        Stop-Release "the smoke run could not start (exit $smokeCode):`n$(($smokeOut | Select-Object -Last 15) -join "`n")"
+    } else {
+        $found = @((Get-Content -LiteralPath (Join-Path $runDir 'findings.json') -Raw | ConvertFrom-Json).findings)
+        $rows = @(); try { $rows = @(Get-Content -LiteralPath (Join-Path $runDir 'server-errors.json') -Raw | ConvertFrom-Json) } catch { }
+        $stops = @($found | Where-Object { $_.severity -eq 'high' -and $_.kind -ne 'numbers' } | ForEach-Object { "$($_.role) | $($_.step) | $($_.kind): $($_.message)" })
+        $stops += @($rows | Where-Object { $_.severity -eq 'PANIC' } | ForEach-Object { "server PANIC: $($_.module_source): $($_.error_message)" })
+        $warns = @($found | Where-Object { $_.kind -eq 'numbers' -or $_.severity -eq 'medium' } | ForEach-Object { "$($_.step) | $($_.kind): $($_.message)" })
+        $warns += @($rows | Where-Object { $_.severity -ne 'PANIC' } | ForEach-Object { "server $($_.severity): $($_.module_source): $($_.error_message)" })
+        $report.Add(''); $report.Add("Browser smoke run (G10a) - Guide report: $runDir\report.html")
+        ($stops + $warns) | Select-Object -First 40 | ForEach-Object { $report.Add("    $_") }
+        if ($stops.Count) { Stop-Release "the browser smoke run found $($stops.Count) problem(s):`n$(($stops | Select-Object -First 10) -join "`n")`nReport: $runDir\report.html" }
+        $smokeResult = "pass ($($warns.Count) warning(s))"
+        Note "smoke: signed in, POS screen, one sale and the Sales Register - $($warns.Count) warning(s); Guide report $runDir\report.html"
+    }
+}
+
+# ------------------------------------------------ G10b release-candidate gate
+# Stage 47.17.3 / 49.17.2: one evidence record for this exact candidate (base commit +
+# tree, migrations with checksums, SBOM, config contract, surface diff, the results
+# G8/G10 just produced, the exceptions register, run evidence). cmd/releasegate holds
+# the rules; release\gate-policy.json says which of them only warn. Written to %TEMP% and
+# copied in (Controlled Folder Access), kept in reports\ with the release report.
+Write-Gate 'G10b Release-candidate gate'
+Invoke-Git @('add', '-A') $wt | Out-Null
+$rcTree = (Invoke-Git @('write-tree') $wt)[0]
+$rcOut = Join-Path $env:TEMP "release_rc_$ts"
+$impactFile = Join-Path $env:TEMP "release_impact_$ts.txt"
+$rcArgs = @('run', './cmd/releasegate', 'check', '-root', '.', '-base', $startHead, '-tree', $rcTree, '-out', $rcOut,
+    '-result', 'build=pass', '-result', 'vet=pass', '-result', "tests=pass ($ranCount engines+server tests, $($state.flaky.Count) flaky)", '-result', "smoke=$smokeResult")
+if (Test-Path -LiteralPath $impactFile) { $rcArgs += @('-impact-file', $impactFile) }
+$rcOutLines = Invoke-Native -Exe $go -Arguments $rcArgs -WorkDir $wt -AllowFail
+$rcCode = $LASTEXITCODE
+$report.Add(''); $report.Add('Release-candidate gate (G10b):'); $rcOutLines | ForEach-Object { $report.Add("    $_") }
+if (Test-Path -LiteralPath $rcOut) { Get-ChildItem -LiteralPath $rcOut | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $reportDir -Force } }
+Remove-Item $impactFile, $rcOut -Recurse -ErrorAction SilentlyContinue
+$rcWarn = @($rcOutLines | Where-Object { $_ -match '^(WARN|NOT-RUN)\s' }).Count
+if ($rcCode -ne 0) { Stop-Release "release-candidate gate failed:`n$(($rcOutLines | Where-Object { $_ -match '^FAIL' }) -join "`n")`nRecord: $reportDir" }
+Note "release-candidate record written to reports\ ($rcWarn warning/not-run - see the report; docs/operations/release-candidate-gate.md)"
+
 if ($DryRun) {
     $state.status = 'dry-run passed'
     $files = Invoke-Git @('diff', '--cached', '--name-status', '--no-renames', 'HEAD') $wt
@@ -691,9 +789,16 @@ if ($tree -ne $headTree) {
     $sharedTree = (Invoke-Git @('write-tree'))[0]
     if ($sharedTree -ne $tree) { Invoke-Git @('reset', '-q') | Out-Null; Stop-Release 'the staged tree did not match the tested tree; index reset, nothing committed' }
 
-    # Message: the ledger sections this release adds, else the new checklist stages.
+    # Message: the ledger sections this release adds, else the new asks in the checklist.
+    # Since 2026-11-10 the checklist is arranged by module: a new ask adds a run header
+    # (> **User, <date>: "<words>"**) to its Asks log instead of a "## Stage" heading.
     $titles = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/project_ledger.md') $wt) | Where-Object { $_ -match '^\+## \d+\. ' } | ForEach-Object { ($_ -replace '^\+## \d+\.\s*', '') -replace '\s*\(\d{4}-.*$', '' })
-    if (-not $titles.Count) { $titles = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/micro_checklist.md') $wt) | Where-Object { $_ -match '^\+## Stage ' } | ForEach-Object { ($_ -replace '^\+## ', '') -replace '\s*\(opened.*$', '' }) }
+    if (-not $titles.Count) {
+        $titles = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/micro_checklist.md') $wt) | ForEach-Object {
+            if ($_ -match '^\+> \*\*User, \d{4}-\d{2}-\d{2}: "([^"]+)"') { $w = $Matches[1]; if ($w.Length -gt 80) { $w.Substring(0, 77) + '...' } else { $w } }
+            elseif ($_ -match '^\+## Stage ') { ($_ -replace '^\+## ', '') -replace '\s*\(opened.*$', '' }
+        } | Select-Object -Unique)
+    }
     if (-not $titles.Count) {
         # No new ledger section or stage: name the checklist items this release adds or moves (0.6.0 said only "39 file(s)").
         $ids = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/micro_checklist.md') $wt) | ForEach-Object { if ($_ -match '^\+- \[[ x]\] \*\*([0-9][0-9A-Za-z.]*) ') { $Matches[1] } } | Select-Object -Unique)

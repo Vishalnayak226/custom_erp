@@ -18,8 +18,8 @@ export async function renderTransferAllocationView(container) {
   box.className = 'table-panel';
   box.style.padding = '24px';
   box.innerHTML = `
-    <h3 style="margin:0 0 12px;font-size:16px;font-weight:600;">Allocation</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px;max-width:760px;">
+    <h3 class="s-ca6dfe">Allocation</h3>
+    <div class="s-7e6838">
       <div class="form-group"><label class="form-label" for="ta-run">Run ID</label><input id="ta-run" class="form-input" autocomplete="off"></div>
       <div class="form-group"><label class="form-label" for="ta-from">From</label>
         <select id="ta-from" class="form-select">${locs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
@@ -27,7 +27,7 @@ export async function renderTransferAllocationView(container) {
         <select id="ta-purpose" class="form-select"><option value="">Replenishment</option><option>New store</option><option>Launch allocation</option></select></div>
     </div>
     <div class="form-group"><label class="form-label" for="ta-file">File (CSV: store, sku, qty)</label><input id="ta-file" type="file" accept=".csv,text/csv"></div>
-    <div style="display:flex;gap:8px;margin:8px 0 16px;">
+    <div class="s-881549">
       <button class="btn" id="ta-preview" disabled>Preview</button>
       <button class="btn btn-primary" id="ta-make" disabled>Make Drafts</button>
     </div>
@@ -55,18 +55,18 @@ async function taSend(dry) {
   if (!res) return;
   const body = await res.clone().json().catch(() => ({}));
   if (!res.ok && !(body.errors && body.errors.length)) {
-    out.innerHTML = `<p style="color:var(--danger-color);font-size:14px;">${esc(await getErrorMessage(res, 'The file could not be read.'))}</p>`;
+    out.innerHTML = `<p class="s-196e02">${esc(await getErrorMessage(res, 'The file could not be read.'))}</p>`;
     return;
   }
   let html = '';
   if (body.errors && body.errors.length) {
-    html += `<ul style="font-size:13px;color:var(--danger-color);margin:0 0 12px;">${body.errors.map(e => `<li>Row ${e.row_number}: ${esc(e.message)}</li>`).join('')}</ul>`;
+    html += `<ul class="s-cbbc5d">${body.errors.map(e => `<li>Row ${e.row_number}: ${esc(e.message)}</li>`).join('')}</ul>`;
   }
   if (body.stores && body.stores.length) {
     html += `<table class="data-table"><thead><tr><th>Store</th><th>Lines</th><th>Units</th></tr></thead><tbody>${body.stores.map(s => `<tr><td>${esc(s.store)}</td><td>${s.lines}</td><td>${s.units}</td></tr>`).join('')}</tbody></table>`;
   }
   if (body.shortfalls && body.shortfalls.length) {
-    html += `<p style="font-size:13px;margin:12px 0 4px;">Source is short</p><table class="data-table"><thead><tr><th>SKU</th><th>Wanted</th><th>Available</th><th>Short</th></tr></thead><tbody>${body.shortfalls.map(s => `<tr><td>${esc(s.sku)}</td><td>${s.wanted}</td><td>${s.available}</td><td>${s.short}</td></tr>`).join('')}</tbody></table>`;
+    html += `<p class="s-62cb07">Source is short</p><table class="data-table"><thead><tr><th>SKU</th><th>Wanted</th><th>Available</th><th>Short</th></tr></thead><tbody>${body.shortfalls.map(s => `<tr><td>${esc(s.sku)}</td><td>${s.wanted}</td><td>${s.available}</td><td>${s.short}</td></tr>`).join('')}</tbody></table>`;
   }
   out.innerHTML = html;
   if (!dry && res.ok) { taRun = runId; await taShowRun(); }
@@ -78,13 +78,13 @@ async function taShowRun() {
   if (!res || !res.ok) return;
   const { transfers = [] } = await res.json();
   out.innerHTML = `
-    <p style="font-size:14px;margin:0 0 8px;">${esc(taRun)}: ${transfers.length} transfer(s)</p>
+    <p class="s-b5b844">${esc(taRun)}: ${transfers.length} transfer(s)</p>
     <table class="data-table"><thead><tr><th>Transfer</th><th>Store</th><th>Lines</th><th>Status</th></tr></thead>
     <tbody>${transfers.map(t => `<tr><td>${esc(t.id)}</td><td>${esc(t.store)}</td><td>${t.lines}</td><td>${esc(t.status)}</td></tr>`).join('')}</tbody></table>
-    <div style="display:flex;gap:8px;margin-top:12px;">
+    <div class="s-918f5b">
       <button class="btn" id="ta-submit">Submit all</button>
       <button class="btn btn-primary" id="ta-approve">Approve all</button>
-    </div><div id="ta-note" style="font-size:13px;margin-top:8px;"></div>`;
+    </div><div id="ta-note" class="s-932645"></div>`;
   document.getElementById('ta-submit').addEventListener('click', () => taDecide('submit'));
   document.getElementById('ta-approve').addEventListener('click', () => taDecide('approve'));
 }
@@ -96,5 +96,5 @@ async function taDecide(action) {
   const { done = [], failed = {} } = await res.json();
   await taShowRun();
   const bad = Object.entries(failed);
-  document.getElementById('ta-note').innerHTML = `${done.length} done` + (bad.length ? `<ul style="color:var(--danger-color);margin:4px 0 0;">${bad.map(([id, m]) => `<li>${esc(id)}: ${esc(m)}</li>`).join('')}</ul>` : '');
+  document.getElementById('ta-note').innerHTML = `${done.length} done` + (bad.length ? `<ul class="s-1e9d0d">${bad.map(([id, m]) => `<li>${esc(id)}: ${esc(m)}</li>`).join('')}</ul>` : '');
 }

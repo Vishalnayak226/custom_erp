@@ -14,18 +14,18 @@ async function renderGateEntryView(container) {
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '24px';
-  form.innerHTML = `<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-    ${GE_FIELDS.map(([id, label]) => `<div class="form-group" style="margin-bottom:0;"><label class="form-label" for="${id}">${label}</label>
-      <input id="${id}" class="form-input" ${id === 'ge-parcels' ? 'type="number" min="0"' : ''} style="width:150px;" autocomplete="off"></div>`).join('')}
-    <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="ge-photo">Photo</label>
-      <input id="ge-photo" type="file" class="form-input" accept="image/jpeg,image/png,image/webp,application/pdf" style="width:200px;"></div>
+  form.innerHTML = `<div class="s-97380c">
+    ${GE_FIELDS.map(([id, label]) => `<div class="form-group s-ef0b7a"><label class="form-label" for="${id}">${label}</label>
+      <input id="${id}" class="form-input s-7c07cd" ${id === 'ge-parcels' ? 'type="number" min="0"' : ''} autocomplete="off"></div>`).join('')}
+    <div class="form-group s-ef0b7a"><label class="form-label" for="ge-photo">Photo</label>
+      <input id="ge-photo" type="file" class="form-input s-2acaf3" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
     <button class="btn btn-primary" id="ge-save">Save</button></div>`;
 
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.innerHTML = `<table><thead><tr><th>Entry</th><th>Vendor</th><th>PO</th><th>Location</th><th>Parcels</th><th>Transporter</th><th>LR no</th><th>Vehicle</th><th>Status</th><th>GRN</th><th></th></tr></thead><tbody>${rows.length === 0
-    ? '<tr><td colspan="11" class="text-muted" style="text-align:center;">No gate entries yet.</td></tr>'
-    : rows.map(r => `<tr><td style="font-family:monospace;">${escapeHTMLText(r.code || r.id)}</td><td>${escapeHTMLText(r.vendor || '')}</td><td>${escapeHTMLText(r.po_id || '')}</td>
+    ? '<tr><td colspan="11" class="text-muted s-91a870">No gate entries yet.</td></tr>'
+    : rows.map(r => `<tr><td class="s-72126d">${escapeHTMLText(r.code || r.id)}</td><td>${escapeHTMLText(r.vendor || '')}</td><td>${escapeHTMLText(r.po_id || '')}</td>
       <td>${escapeHTMLText(r.location_code || '')}</td><td>${escapeHTMLText(r.parcels || '')}</td><td>${escapeHTMLText(r.transporter || '')}</td>
       <td>${escapeHTMLText(r.lr_no || '')}</td><td>${escapeHTMLText(r.vehicle_number || '')}</td><td>${escapeHTMLText(r.status || '')}</td>
       <td>${escapeHTMLText(r.grn_id || '')}</td>

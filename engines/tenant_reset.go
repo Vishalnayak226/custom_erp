@@ -39,12 +39,16 @@ var tenantResetKeep = map[string]string{
 	"mfa_trusted_devices":       "the logins' remembered devices (Stage 125.8)",
 	"roles":                     "roles",
 	"role_permissions":          "permissions",
+	"role_landing":              "roles' landing screens (Stage 47.14.5)",
 	"field_permissions":         "permissions",
 	"role_template_migrations":  "role template history",
 	"role_grant_changes":        "evidence: role permission changes (Stage 49.3.6)",
 	"store_access_changes":      "evidence: store access changes (Stage 49.3.6)",
+	"access_reviews":            "evidence: user access reviews, confirmed or revoked (Stage 49.2.1b)",
 	"privileged_sessions":       "evidence: full-access sign-ins (Stage 49.11.7; swept after 30 days)",
+	"user_sessions":             "who is signed in; a reset must not revive a signed-out token (162.15; swept after the token expires)",
 	"setup_step_history":        "evidence: the guided setup steps' state history (Stage 47.12.4)",
+	"golive_records":            "evidence: scope answers, evidence, waivers and sign-offs of the go-live packs (Stage 47.12 / 49.17.3)",
 	"reconciliation_exceptions": "evidence: dismissed order-to-cash mismatches and their notes (Stage 49.5.5)",
 	"doctype_meta":              "record definitions",
 	"doctype_fields":            "record definitions",
@@ -71,6 +75,10 @@ var tenantResetKeep = map[string]string{
 	"crm_suppressions":          "evidence: numbers and addresses that asked for no messages (by contact, so a re-imported one stays stopped)",
 	"store_app_pins":            "the logins' store app PINs",
 	"web_push_vapid":            "the browser-alert signing key",
+
+	"security_export_config":       "the security-event export destination and its cursor (Stage 49.11.6)",
+	"notification_matrix_versions": "evidence: the notification matrix, every version (Stage 49.12.5)",
+	"notification_decisions":       "evidence: incident notification decisions (Stage 49.12.5)",
 }
 
 // tenantResetClear are emptied.
@@ -80,6 +88,7 @@ var tenantResetClear = map[string]string{
 	"period_close_log":                  "period close history",
 	"master_merges":                     "supplier / item merge history (Stage 47.13.5)",
 	"master_merge_rows":                 "supplier / item merge history (Stage 47.13.5)",
+	"import_staging_rows":               "staged import rows (Stage 47.13.1)",
 	"period_close_tasks":                "period close tasks",
 	"inventory_availability":            "stock",
 	"inventory_reservation":             "stock reservations",
@@ -93,6 +102,14 @@ var tenantResetClear = map[string]string{
 	"warehouse_owner":                   "warehouse owners",
 	"item_cost":                         "item costs",
 	"item_purchase_rate_history":        "item purchase rates",
+	"memo_stock_lots":                   "memo stock lots",
+	"memo_stock_sales":                  "memo stock sales",
+	"sales_incentive_entries":           "sales incentives", // Stage 148.30
+	"gstr1_filed_months":                "GSTR-1 filed months",
+	"vendor_po_files":                   "vendor link files",
+	"vendor_po_links":                   "vendor links",
+	"vendor_po_proposals":               "vendor link proposals",
+	"vendor_unit_names":                 "vendor unit names",
 	"grn_line":                          "goods receipt lines",
 	"grn_line_change":                   "goods receipt changes",
 	"customer_advances":                 "customer advances",
@@ -124,6 +141,7 @@ var tenantResetClear = map[string]string{
 	"channel_credentials":               "sales channel connections",
 	"channel_order_mapping":             "sales channel orders",
 	"channel_product_mapping":           "sales channel products",
+	"channel_listings":                  "sales channel listings", // Stage 146.4.5
 	"shopify_links":                     "Shopify product links",
 	"clevertap_credentials":             "CleverTap connection",
 	"clevertap_event_log":               "CleverTap events",
@@ -136,6 +154,7 @@ var tenantResetClear = map[string]string{
 	"extension_hook_log":                "extension hook history",
 	"api_credentials":                   "API keys",
 	"api_oauth_tokens":                  "API tokens",
+	"ai_access_clients":                 "AI assistant links (their API keys go too)", // Stage 148.37
 	"api_idempotency_keys":              "API replay guards",
 	"api_request_log":                   "API request history",
 	"inbound_webhook_receipts":          "inbound webhook replay guards", // Stage 134.3
@@ -335,7 +354,6 @@ func ResetTenantData(tenantID, actor, reason, requestID string) (*TenantResetPla
 	if len(plan.Blockers) > 0 {
 		return plan, fmt.Errorf("not reset: %s", strings.Join(plan.Blockers, "; "))
 	}
-	schema := plan.Schema
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return nil, err
@@ -345,30 +363,8 @@ func ResetTenantData(tenantID, actor, reason, requestID string) (*TenantResetPla
 	if err != nil {
 		return plan, fmt.Errorf("not reset: %w", err)
 	}
-	// Stage 47.16.4b: the one sanctioned delete of ledger rows - and, from
-	// 47.16.4g, of gift card events.
-	if err := sanctionWriteTx(tx, sanctionPurge); err != nil {
+	if err := applyTenantResetTablesTx(tx, plan); err != nil {
 		return nil, err
-	}
-	for _, t := range plan.Tables {
-		switch {
-		case t.Table == "documents":
-			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE NOT (doctype = ANY($1) AND COALESCE(created_by, '') = 'system')`, schema),
-				pqStringArray(tenantResetSeedDoctypes)); err != nil {
-				return nil, fmt.Errorf("documents: %w", err)
-			}
-		case t.Table == "prefix_configs":
-			if schema == "tenant_default" {
-				continue
-			}
-			if err := restoreShippedRows(tx, schema, "prefix_configs"); err != nil {
-				return nil, err
-			}
-		case t.Action == "clear":
-			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.%s`, schema, t.Table)); err != nil {
-				return nil, fmt.Errorf("%s: %w", t.Table, err)
-			}
-		}
 	}
 	removed := int64(0)
 	for _, n := range plan.DocumentsRemoved {
@@ -384,6 +380,39 @@ func ResetTenantData(tenantID, actor, reason, requestID string) (*TenantResetPla
 	InvalidateTenantLifecycleCache(tenantID)
 	plan.Applied = true
 	return plan, nil
+}
+
+// applyTenantResetTablesTx clears and resets the planned tables inside tx -
+// the body ResetTenantData and ResetSandboxData share, so a sandbox is wiped
+// by exactly the classification a real client's reset uses.
+func applyTenantResetTablesTx(tx *sql.Tx, plan *TenantResetPlan) error {
+	schema := plan.Schema
+	// Stage 47.16.4b: the one sanctioned delete of ledger rows - and, from
+	// 47.16.4g, of gift card events.
+	if err := sanctionWriteTx(tx, sanctionPurge); err != nil {
+		return err
+	}
+	for _, t := range plan.Tables {
+		switch {
+		case t.Table == "documents":
+			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE NOT (doctype = ANY($1) AND COALESCE(created_by, '') = 'system')`, schema),
+				pqStringArray(tenantResetSeedDoctypes)); err != nil {
+				return fmt.Errorf("documents: %w", err)
+			}
+		case t.Table == "prefix_configs":
+			if schema == "tenant_default" {
+				continue
+			}
+			if err := restoreShippedRows(tx, schema, "prefix_configs"); err != nil {
+				return err
+			}
+		case t.Action == "clear":
+			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.%s`, schema, t.Table)); err != nil {
+				return fmt.Errorf("%s: %w", t.Table, err)
+			}
+		}
+	}
+	return nil
 }
 
 // restoreShippedRows replaces a client's copy of a seeded table with the

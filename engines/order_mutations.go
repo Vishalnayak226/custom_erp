@@ -273,6 +273,7 @@ type OrderEdit struct {
 	ShippingAddress *string
 	BillingAddress  *string
 	PaymentStatus   *string
+	DeliveryDate    *string // Stage 148.32: follows to a drop-ship PO
 	CustomFields    map[string]string
 }
 
@@ -307,6 +308,12 @@ func EditSalesOrder(tenantID, orderID string, edit OrderEdit, userID string) err
 	apply("billing_address", edit.BillingAddress)
 	apply("customer_reference", edit.CustomerRef) // Stage 73.2.9
 	apply("payment_status", edit.PaymentStatus)
+	if edit.DeliveryDate != nil {
+		if err := checkDropShipDate(tenantID, orderID, orderData, *edit.DeliveryDate); err != nil { // Stage 148.32
+			return err
+		}
+		apply("delivery_date", edit.DeliveryDate)
+	}
 	if edit.CustomerPhone != nil {
 		// Cleaned through the same phone engine CreateSalesOrder uses, so an
 		// edited number is stored in the identical shape to an imported one.
@@ -360,6 +367,9 @@ func EditSalesOrder(tenantID, orderID string, edit OrderEdit, userID string) err
 		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesOrder' AND id = $3`, schema),
 		marshaled, newStatus, orderID); err != nil {
 		return err
+	}
+	if edit.DeliveryDate != nil {
+		syncDropShipDate(tenantID, schema, orderID, *edit.DeliveryDate) // Stage 148.32
 	}
 	LogAuditEvent(tenantID, userID, "ORDER_EDIT", "SUCCESS",
 		fmt.Sprintf("order=%s fields=%s status=%s hold=%s", orderID, strings.Join(changed, ","), newStatus, holdReason))

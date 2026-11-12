@@ -128,7 +128,7 @@ func handlePIMMediaBulkDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", "attachment; filename=pim_media_bulk.zip")
+	w.Header().Set("Content-Disposition", attachmentDisposition("pim_media_bulk.zip"))
 	_, _ = w.Write(zipBytes)
 }
 

@@ -56,6 +56,9 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 	if err := json.Unmarshal(orderDataBytes, &orderData); err != nil {
 		return "", err
 	}
+	if wholesaleSummaryPayer(tenantID, orderData) { // Stage 148.31: billed once per period, not per order
+		return "", nil
+	}
 	total := numFromInterface(orderData["total_amount"])
 	// 2026-10-07: bill what shipped, with its GST. Dispatch records
 	// shipped_qty on each line; a short-picked unit never left, so its value
@@ -128,6 +131,7 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 	if ref, _ := orderData["customer_reference"].(string); ref != "" {
 		invoiceData["customer_reference"] = ref // Stage 73.2.9: the customer's PO, onto its invoice
 	}
+	applyBillTo(tenantID, schema, orderData, invoiceData) // Stage 148.31: the bill-to customer receives it
 	if shortValue > 0 {
 		invoiceData["short_shipped_value"] = shortValue
 	}

@@ -52,6 +52,10 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	if err := validateEInvoiceLock(tenantID, doctype, docID, priorData, payload); err != nil {
 		return err
 	}
+	// Stage 162.3: a dispatched challan or a posted return keeps its body.
+	if err := validateLockedRecordEdit(doctype, docID, priorStatus, priorData, payload); err != nil {
+		return err
+	}
 
 	switch doctype {
 	case "StatusTransitionRule":
@@ -68,6 +72,15 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validatePostingProfileRules(tenantID, payload)
 	case GLAccountChangeDoctype: // Stage 148.5
 		return validateGLAccountChange(tenantID, payload)
+	case StewardshipChangeDoctype: // Stage 47.13.4
+		if docID != "" && priorData != nil {
+			return validateStewardshipChange(tenantID, payload) // an edit of the same request
+		}
+		return validateNewStewardshipChange(tenantID, payload)
+	case PartyPairDoctype: // Stage 148.23
+		return validatePartyPair(tenantID, docID, priorData, payload)
+	case SetOffVoucherDoctype: // Stage 148.23
+		return validateSetOffVoucher(tenantID, docID, priorStatus, priorData, payload)
 	case "TransferOrder":
 		return validateTransferOrderCreateRules(tenantID, payload)
 	case "CycleCountLine":
@@ -223,7 +236,7 @@ func (l grnReceivedLine) derivedAcceptedQty() float64 {
 
 // PrepareGRNReceipt fills in a GRN's receiving `location` from its referenced
 // PurchaseOrder when the caller didn't supply one, and is Stage 30.2.1's half
-// of that fix (the other half is db/migrations_stage30_2_1_grn_location.sql,
+// of that fix (the other half is db/migrations/migrations_stage30_2_1_grn_location.sql,
 // which declares `location` as a real mandatory GRN field).
 //
 // The defect: the stock-posting hook in handlers_core_doc_engine.go reads
@@ -268,7 +281,7 @@ func PrepareGRNReceipt(tenantID string, payload map[string]interface{}) error {
 		return nil
 	}
 	// target_warehouse is PurchaseOrder's own mandatory "where is this going"
-	// field (db/migration.sql); `location` is its store/site sibling, used as
+	// field (db/migrations/migration.sql); `location` is its store/site sibling, used as
 	// the fallback for POs that carry one but no warehouse.
 	for _, key := range []string{"target_warehouse", "location"} {
 		if v := strings.TrimSpace(fmt.Sprintf("%v", poData[key])); v != "" && v != "<nil>" {
@@ -522,6 +535,9 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 // the PO, or an item not on it - and Verify asks Keep or Return for whatever
 // is beyond the tolerance, so the two over-receipt refusals do not apply here.
 func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine, stepFlow bool) error {
+	if err := refuseDropShipGRN(tenantID, poID); err != nil { // Stage 148.32: the goods never come to our stores
+		return err
+	}
 	ordered, err := fetchPOItemQuantities(tenantID, poID)
 	if err != nil && err != sql.ErrNoRows {
 		// 24.33: fail closed on a corrupt PO row instead of silently
@@ -724,7 +740,7 @@ func validateASNRules(tenantID string, payload map[string]interface{}) error {
 // validateVendorInvoiceCreateRules covers GOODSR-0095: grn_id's own
 // existence is already enforced by ValidateDocument's Link check
 // (META-0198, it's a mandatory Link field per
-// db/migrations_stage17g_vendor_invoice.sql) - what that doesn't catch is a
+// db/migrations/migrations_stage17g_vendor_invoice.sql) - what that doesn't catch is a
 // GRN that exists but was never actually completed (no received_items at
 // all, a shell record), which is what "GRN is not completed" describes.
 func validateVendorInvoiceCreateRules(tenantID string, payload map[string]interface{}) error {
@@ -789,6 +805,21 @@ func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorDa
 	}
 	if docID == "" || priorData == nil {
 		return nil
+	}
+	// Stage 49.5.7: once goods have been received against a PO, its currency
+	// and rate are what those receipts were priced and booked at; a change
+	// would revalue the PO against receipts already posted.
+	if f := changedPOMoneyBasis(priorData, payload); f != "" {
+		received, err := fetchGRNQuantities(tenantID, docID, "", false)
+		if err != nil {
+			return err
+		}
+		for _, q := range received {
+			if q > 0 {
+				return &ValidationError{Code: "FIN-0844", Message: fmt.Sprintf(
+					"PO %s has goods received against it, so its %s cannot change - raise a new PO, or correct the receipts", docID, f)}
+			}
+		}
 	}
 	oldItems, _ := priorData["items"].(string)
 	newItems, _ := payload["items"].(string)

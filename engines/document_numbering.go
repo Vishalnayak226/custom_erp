@@ -17,8 +17,8 @@ import (
 // NumberFields lists the payload fields that must carry the generated number.
 // Most doctypes have exactly one; PurchaseOrder has two (po_number and code)
 // because it accumulated two overlapping mandatory field registrations early in
-// this project's history - db/migration.sql declared po_number, and
-// db/migrations_phase3.sql declared code - and both are still mandatory, so
+// this project's history - db/migrations/migration.sql declared po_number, and
+// db/migrations/migrations_phase3.sql declared code - and both are still mandatory, so
 // both are still filled, exactly as the create form did by hand before.
 //
 // StoreFields (Stage 76.8) names the document's own store, tried in order: the
@@ -92,6 +92,8 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"DeliveryChallan": {SeriesKey: "DC", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 	// Stage 130.16 (74.3.3): job work orders on the planned JO series.
 	"SubcontractOrder": {SeriesKey: "JO", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	// Stage 148.23: the number is the id, so the statement and the ledger read it.
+	"SetOffVoucher": {SeriesKey: "SetOffVoucher", NumberFields: []string{"code"}},
 }
 
 // DocumentNumber (Stage 76.11) is the number a person reads for a document

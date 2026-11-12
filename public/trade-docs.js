@@ -1136,7 +1136,7 @@ async function rollToReceipt(pages, w, h, ref, store, browserPrint) {
 // advance voucher, a gift-card receipt - on this computer's receipt printer,
 // like the bill. browserPrint is how the slip printed before.
 export async function printSlip(html, ref, browserPrint) {
-  const page = `<div style="width:80mm; box-sizing:border-box; padding:3mm 4mm; background:#fff; color:#000; font:12px/1.4 system-ui, sans-serif;">` +
+  const page = `<div class="s-2520da">` +
     `<style>.receipt-line{display:flex;justify-content:space-between;gap:8px}hr{border:0;border-top:1px dashed #000;margin:6px 0}</style>${html}</div>`;
   const probe = document.createElement('div');
   probe.style.cssText = 'position:fixed; left:-10000px; top:0;';
@@ -1222,7 +1222,7 @@ function previewPages(pages, layout, title) {
     const overlay = document.createElement('div');
     overlay.className = 'td-overlay';
     overlay.innerHTML = `
-      <div class="td-dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}" style="width: min(560px, 100%);">
+      <div class="td-dialog s-970ccf" role="dialog" aria-modal="true" aria-label="${esc(title)}">
         <div class="td-dialog-head">
           <h2>${esc(title)}</h2>
           <button type="button" class="btn btn-ghost btn-sm" data-td="close" aria-label="Close">&times;</button>

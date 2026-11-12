@@ -172,6 +172,14 @@ var reviewedEgress = map[string]egressEntry{
 		KillSwitch: `Off outside production and under the emergency switch; the alert is logged instead.`,
 		Evidence:   []string{"OPS_ALERT_WEBHOOK_URL", viaKillCheck},
 	},
+	"engines/security_test_alert.go": {
+		Uses:        map[string]int{"http-request": 1},
+		Destination: `The operator's ops-alert webhook (OPS_ALERT_WEBHOOK_URL) - the scheduled test alert, 49.11.5.`,
+		Guard: `Not client-typed: the address is the operator's own setting, sent through the 5-second
+			client of alerting.go (opsAlertHTTPClient).`,
+		KillSwitch: `Off by default (security.test_alert_hours). Off outside production and under the emergency switch.`,
+		Evidence:   []string{"OpsAlertWebhookEnv", viaKillCheck},
+	},
 	"engines/password_reset.go": {
 		Uses:        map[string]int{"smtp": 3},
 		Destination: `The operator's mail relay (SMTP_HOST) - password reset and email-change mail.`,
@@ -228,6 +236,41 @@ var reviewedEgress = map[string]egressEntry{
 		Guard:       `The operator names the target; it must be an https URL.`,
 		KillSwitch:  `Not the server: an operator's check, run by hand.`,
 		Evidence:    []string{`baseURL.Scheme != "https"`},
+	},
+	"cmd/installcheck/checks.go": {
+		Uses:        map[string]int{"dial": 2},
+		Destination: `The operator's own domain on port 443 (-domain), to read the TLS certificate it serves.`,
+		Guard:       `The operator names the domain; a 5-second dial; only the handshake, nothing is sent.`,
+		KillSwitch:  `Not the server: an install check run by hand; skipped without -domain.`,
+		Evidence:    []string{`net.JoinHostPort(c.Domain, "443")`, `"no -domain given"`},
+	},
+	"cmd/installcheck/ntp.go": {
+		Uses:        map[string]int{"dial": 1},
+		Destination: `Two public time servers (pool.ntp.org, time.cloudflare.com): one 48-byte SNTP request each.`,
+		Guard:       `Fixed hosts, a 3-second timeout; the request carries nothing about the host.`,
+		KillSwitch:  `Not the server: an install check run by hand; an unreachable server is only a warning.`,
+		Evidence:    []string{`"pool.ntp.org:123"`, `"time.cloudflare.com:123"`},
+	},
+	"cmd/journeylab/client.go": {
+		Uses:        map[string]int{"http-client": 1, "http-request": 1},
+		Destination: `The ERP server named with -base-url: a scratch instance the operator runs.`,
+		Guard:       `journeylab refuses a non-local server and a non-scratch database unless told otherwise.`,
+		KillSwitch:  `Not the server: a QA tool run by hand.`,
+		Evidence:    []string{`c.Base+path`, `Timeout: 60 * time.Second`},
+	},
+	"cmd/journeylab/soak.go": {
+		Uses:        map[string]int{"http-client": 1},
+		Destination: `The soak's own private server on 127.0.0.1 (its health endpoint).`,
+		Guard:       `The address is the one the soak started itself.`,
+		KillSwitch:  `Not the server: a QA tool run by hand.`,
+		Evidence:    []string{`"http://127.0.0.1:%d"`, `"/api/v1/health"`},
+	},
+	"cmd/journeylab/soak_disturb.go": {
+		Uses:        map[string]int{"http-client": 1, "http-request": 1},
+		Destination: `The soak's own private server on 127.0.0.1, for the token and limiter churn.`,
+		Guard:       `The base address is the one the soak started itself.`,
+		KillSwitch:  `Not the server: a QA tool run by hand.`,
+		Evidence:    []string{`"/api/v1/doc/Item?limit=1"`},
 	},
 }
 

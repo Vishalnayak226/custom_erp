@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 )
@@ -68,6 +69,8 @@ type returnItemRecord struct {
 	// RoundOffPaise (Stage 94.15) is the part of NetPaise that was these
 	// units' share of the bill's round-off to the rupee, reversed from 5280.
 	RoundOffPaise int64 `json:"round_off_paise,omitempty"`
+	// NextAction (Stage 148.28) is what the disposition rule drafts for this line.
+	NextAction string `json:"next_action,omitempty"`
 }
 
 // originalLinePrice is what resolveOriginalSaleLinePrices/
@@ -151,6 +154,9 @@ type salesInvoiceLine struct {
 	// Stage 148.1: the pieces or lot this line sells, at their own cost.
 	SerialNos pieceList `json:"serial_nos,omitempty"`
 	BatchNo   string    `json:"batch_no,omitempty"`
+	// Stage 148.22: a line with no item credits this revenue account (blank: the invoice's own).
+	IncomeAccount string  `json:"income_account,omitempty"`
+	Taxable       float64 `json:"taxable,omitempty"`
 }
 
 // paidUnitPrice is what the customer was charged for one unit, tax included.
@@ -757,6 +763,8 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	}
 
 	var refundTotal, costReceivedTotal, exchangeCostTotal float64
+	giftCostByAccount := map[string]float64{}
+	originalOrderID, _ := data["original_order_id"].(string)
 	// Stage 73.1.1: what goes back, split the way the sale was paid. money is
 	// every tender except points; points go back as points (73.1.3).
 	var moneyPaise, pointsPaise, netPaise, roundOffPaise int64
@@ -770,6 +778,11 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		returnedBySKU[it.SKU] += it.Qty
 	}
 	ledgered := map[string]bool{}
+	// Stage 148.28: what each disposition drafts and charges; no rule = as before.
+	dispRules := loadReturnDispositionRules(tx, schema)
+	var creditLines []returnItemRecord
+	var creditPaise, feeTotal int64
+	feeByGL := map[string]int64{}
 	for i := range items {
 		disposition := dispositions[items[i].SKU]
 		rule, ok := returnDispositionRule[disposition]
@@ -777,6 +790,10 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			return 0, "", fmt.Errorf("a valid disposition is required for sku %q (must be one of Sellable/Damaged/Repairable/Missing/Wrong-Item/Rejected)", items[i].SKU)
 		}
 		items[i].Disposition = disposition
+		items[i].NextAction = dispRules.action(disposition)
+		if items[i].NextAction == returnActionScrap && rule.ReceivesStock {
+			rule.Bucket = "qc_hold"
+		}
 		if rule.ReceivesStock {
 			if err := applyReturnedStockToBucket(tx, schema, items[i].SKU, returnLocation, items[i].Qty, rule.Bucket); err != nil {
 				return 0, "", err
@@ -806,7 +823,12 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 					items[i].PutawayBin = bin
 				}
 			}
-			costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
+			// Stage 148.45: a gift's cost goes back where the sale charged it.
+			if acct := giftReturnAccount(tx, schema, tenantID, originalOrderID, items[i].SKU); acct != "" {
+				giftCostByAccount[acct] += items[i].OriginalCostPrice * float64(items[i].Qty)
+			} else {
+				costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
+			}
 		}
 
 		if exchangeSKU, wantsExchange := exchanges[items[i].SKU]; wantsExchange {
@@ -835,7 +857,18 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			continue
 		}
 
+		if rule.RefundEligible && items[i].NextAction == returnActionCredit {
+			// 148.28: credited by a draft credit note instead of a refund, less any restocking fee.
+			fee, _ := dispRules.fee(disposition, items[i].moneyPaise())
+			creditPaise += items[i].moneyPaise() - fee
+			creditLines = append(creditLines, items[i])
+			continue
+		}
 		if rule.RefundEligible {
+			if fee, gl := dispRules.fee(disposition, items[i].moneyPaise()); fee > 0 {
+				feeByGL[gl] += fee
+				feeTotal += fee
+			}
 			moneyPaise += items[i].moneyPaise()
 			if items[i].Allocated {
 				netPaise += items[i].NetPaise
@@ -850,6 +883,12 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			}
 		}
 	}
+	if feeTotal > 0 {
+		// 148.28: the restocking fee stays with us; the customer gets the rest.
+		moneyPaise -= feeTotal
+		netPaise -= feeTotal
+		takeFeeOffTenders(refundTenders, feeTotal)
+	}
 	refundTotal = PaiseToRupees(moneyPaise)
 
 	finalStatus := "QC Complete"
@@ -859,6 +898,13 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	data["items"] = items
 	data["status"] = finalStatus
 	data["total_refund_eligible"] = refundTotal
+	if len(creditLines) > 0 {
+		noteID, derr := draftCreditNoteTx(tx, tenantID, schema, returnRequestID, data, creditLines, creditPaise)
+		if derr != nil {
+			return 0, "", derr
+		}
+		data["drafts"] = append(readReturnDrafts(data["drafts"]), returnDraft{Line: -1, SKU: creditLines[0].SKU, Action: returnActionCredit, Doctype: "CreditNote", ID: noteID})
+	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {
 		return 0, "", err
@@ -887,6 +933,11 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		if roundOffPaise != 0 {
 			refundDoc["round_off_paise"] = roundOffPaise
 		}
+		if feeTotal > 0 {
+			refundDoc["restocking_fee"] = PaiseToRupees(feeTotal)
+			refundDoc["restocking_fee_paise"] = feeTotal
+			refundDoc["restocking_fee_gl"] = feeByGL
+		}
 		returnLocation, _ := data["return_location"].(string)
 		issueNumberInto(refundDoc, tenantID, "RefundRequest", refundRequestID, "", returnLocation) // Stage 76.11
 		refundMarshaled, err := json.Marshal(refundDoc)
@@ -909,9 +960,8 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	if err := returnCostsToAverageTx(tx, schema, returnLocation, items); err != nil {
 		return 0, "", err
 	}
-	if costReceivedTotal > 0 {
-		inventoryDebits := map[string]int64{"1200": RupeesToPaise(costReceivedTotal)}
-		inventoryCredits := map[string]int64{"5100": RupeesToPaise(costReceivedTotal)}
+	if costReceivedTotal > 0 || len(giftCostByAccount) > 0 {
+		inventoryDebits, inventoryCredits := returnCostLegs(costReceivedTotal, giftCostByAccount)
 		if err := PostDoubleEntryTx(tx, tenantID, schema, "ReturnRequest", returnRequestID, inventoryDebits, inventoryCredits, "",
 			fmt.Sprintf("ReturnRequest:%s:COGS_REVERSAL", returnRequestID)); err != nil {
 			return 0, "", err
@@ -931,6 +981,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 
 	if err := tx.Commit(); err != nil {
 		return 0, "", err
+	}
+	if _, derr := DraftReturnNextDocuments(tenantID, returnRequestID, qcBy); derr != nil {
+		log.Printf("return %s: next documents not drafted: %v", returnRequestID, derr)
 	}
 
 	return refundTotal, refundRequestID, nil
@@ -1142,8 +1195,16 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	moneyPaise := RupeesToPaise(amountF)
 	pointsPaise := RupeesToPaise(numFromInterface(data["points_value"]))
 	refundPoints := int(numFromInterface(data["points"]))
-	revenueDebits := map[string]int64{"4100": moneyPaise + pointsPaise}
+	// Stage 148.28: a restocking fee was kept out of the refund; revenue still goes
+	// back whole and the fee is credited to its charge code's account.
+	feePaise := int64(numFromInterface(data["restocking_fee_paise"]))
+	revenueDebits := map[string]int64{"4100": moneyPaise + pointsPaise + feePaise}
 	revenueCredits := map[string]int64{}
+	if feePaise > 0 {
+		for gl, v := range feeByGLFromDoc(data["restocking_fee_gl"]) {
+			revenueCredits[gl] += v
+		}
+	}
 	// Stage 94.15: the units' share of the bill's round-off came in through
 	// 5280, not revenue, so it goes back out the same way.
 	if ro := int64(numFromInterface(data["round_off_paise"])); ro != 0 && ro < moneyPaise+pointsPaise {
@@ -1375,6 +1436,7 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 
 	// Stage 101.11: a returned bill's single-use code and referral reward.
 	RecordCRMBillReturned(tenantID, originalOrderID, refundRequestID)
+	ClawbackReturnIncentives(tenantID, originalOrderID, refundRequestID, returnRequestID) // 148.30
 	if returnRequestID != "" {
 		DispatchNotification(tenantID, "Refund Processed", originalOrderID, map[string]string{
 			"return_request_id": returnRequestID, "refund_request_id": refundRequestID,

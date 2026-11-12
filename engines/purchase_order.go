@@ -55,6 +55,13 @@ type POLineInput struct {
 	CommitUsedQty        float64 `json:"commit_used_qty,omitempty"`
 	CommitValue          float64 `json:"commit_value,omitempty"`
 	CommitUsedValue      float64 `json:"commit_used_value,omitempty"`
+	// ITC is "Eligible" or "Blocked" (Stage 148.42); blank takes the HSN row's, then the vendor's.
+	ITC string `json:"itc,omitempty"`
+	// Stage 148.35: a line keyed in packs (the setting inventory.pack_units).
+	PackUnit   string  `json:"pack_unit,omitempty"`
+	PackQty    float64 `json:"pack_qty,omitempty"`
+	PackRate   float64 `json:"pack_rate,omitempty"`
+	PackFactor float64 `json:"pack_factor,omitempty"`
 }
 
 // POLinePreview is one line resolved against the Item master and priced.
@@ -68,15 +75,18 @@ type POLinePreview struct {
 	POLineInput
 	ItemName string `json:"item_name,omitempty"`
 	// Design is the design (ProductFamily) the item is a combination of (118.3).
-	Design    string  `json:"design,omitempty"`
-	UOM       string  `json:"uom,omitempty"`
-	HSNCode   string  `json:"hsn_code,omitempty"`
-	GSTRate   float64 `json:"gst_rate"`
-	Treatment string  `json:"tax_treatment,omitempty"`
-	Taxable   float64 `json:"taxable"`
-	TaxAmount float64 `json:"tax_amount"`
-	LineTotal float64 `json:"line_total"`
-	Error     string  `json:"error,omitempty"`
+	Design string `json:"design,omitempty"`
+	UOM    string `json:"uom,omitempty"`
+	// PackOffer*: the item's purchase unit, while inventory.pack_units is on (148.35).
+	PackOfferUnit   string  `json:"pack_offer_unit,omitempty"`
+	PackOfferFactor float64 `json:"pack_offer_factor,omitempty"`
+	HSNCode         string  `json:"hsn_code,omitempty"`
+	GSTRate         float64 `json:"gst_rate"`
+	Treatment       string  `json:"tax_treatment,omitempty"`
+	Taxable         float64 `json:"taxable"`
+	TaxAmount       float64 `json:"tax_amount"`
+	LineTotal       float64 `json:"line_total"`
+	Error           string  `json:"error,omitempty"`
 	// Attributes are the line's Colour / Size... values, keyed by the
 	// AttributeColumns codes (Stage 87).
 	Attributes map[string]string `json:"attributes,omitempty"`
@@ -170,6 +180,7 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 			p.ItemName, _ = item.Data["name"].(string)
 			p.Design = firstNonEmpty(strField(item.Data, "parent_product_code"), strField(item.Data, "family"))
 			p.UOM, _ = item.Data["uom"].(string)
+			p.PackOfferUnit, p.PackOfferFactor = packOffer(tenantID, item.Data) // Stage 148.35
 			p.Attributes = ItemAttributeValues(tenantID, item.Data, designs)
 		}
 
@@ -181,6 +192,18 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 			continue
 		}
 		p.HSNCode, p.GSTRate, p.Treatment = info.HSNCode, info.GSTRate, info.Treatment
+		// Stage 148.42: the HSN row's value band and the line's credit choice.
+		if info.Taxable() {
+			gl := GSTLineInput{UnitRate: poLineUnitRate(l)}
+			purchaseLineITCInto(tenantID, payload, l, &gl)
+			if gl.Bands {
+				info.GSTRate = bandedGSTRate(tenantID, info.HSNCode, gl.UnitRate, info.GSTRate)
+				p.GSTRate = info.GSTRate
+			}
+			if gl.Blocked {
+				p.ITC = "Blocked"
+			}
+		}
 
 		gross := POLineNet(l)
 		if !info.Taxable() {
@@ -221,6 +244,9 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 		out.Breakdown.IGST += lineBreakdown.IGST
 		out.Breakdown.TotalTax += lineBreakdown.TotalTax
 		out.Breakdown.TotalAmount += lineBreakdown.TotalAmount
+		if p.ITC == "Blocked" {
+			out.Breakdown.BlockedTax = round2(out.Breakdown.BlockedTax + lineBreakdown.TotalTax)
+		}
 		out.Lines = append(out.Lines, p)
 	}
 
