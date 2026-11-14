@@ -44,6 +44,15 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 358. "push & deploy all" - release 0.24.0 (bfd0ff0) and its deploy to app and minn (2026-11-14, release + deploy, session erp-5c, ask 174)
+
+Detail is in the tracker: 174.1 in *OPS › Release pipeline & gates* and the ask 174 run header.
+
+- **Shipped:** asks 166-173 and the D0a deploy rule (records committed after a release no longer stop Deploy).
+- **First run stopped late:** nine guard tests failed near the end, each a registration the builds had missed: the report catalog spec, a cache missing from the security-cost review, five background workers with no owner, the bypass and safe-override lists, the GST files route and a freight call. All were fixed in code. The second run passed every gate with 0 failed tests, and G10a's browser smoke run had 0 warnings, so 158.4 is Done.
+- **Deploy:** `-Check`, then `-Yes`. 49 migrations, seed rows only (GL accounts, setup documents, retention policies). Backup sha256 OK. Both hosts answer 0.24.0 (bfd0ff0).
+- **Time:** 52 min for the release, 35 of them the full suite on the laptop. The user called this unacceptable, which became ask 177: the suite moves to GitHub's machines.
+
 ## 357. "Start building next 20 item. Include from prev which was left in half way" - eight decisions built as recommended (a read-only mode, an encrypted evidence pack, buyer e-mails dropped after delivery, no takeover of an unrecorded command claim, the store cut on two old reports and the payroll export), the loyalty spend served by an index, PO and transfer-in line upload, security friction measured, a privacy-requests screen, and two more replayed commands in the E8 journey (2026-11-14, code + tests + guides, session erp-2b, ask 173; NOT COMMITTED)
 
 Detail is in the tracker: the ask 173 run header in the Asks log, and each item named below in its sub-module.

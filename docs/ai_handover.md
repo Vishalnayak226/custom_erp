@@ -89,6 +89,9 @@ for checking the current source and worktree.
   the previous long-form handoff; follow the live sources above where it is stale.
 
 ## 6. Version Control
+- **2026-11-14 0.24.0 released and deployed (session erp-5c; ask 174, ledger §358).** `bfd0ff0` is on origin/main and live on app and minn (14:34, backup checked). It ships asks 166-173 and the D0a deploy rule. Everything above this entry marked NOT COMMITTED is now in 0.24.0. Left in the tree afterwards: 9 modified files of other sessions (`engines/state_forecast.go`, `engines/wms_productivity.go`, `internal/server/handlers_access_governance.go`, `public/kb.css`, `public/rf.css` and four docs), not mine.
+  - **Ask 177 in progress (same session): the release suite moves to GitHub.** New `.github/workflows/release.yml` and `release/scripts/Invoke-TestShard.ps1`, plus edits to `Invoke-Release.ps1`, `Invoke-Deploy.ps1`, `ReleaseCommon.ps1`, `release/README.md`, `config.json` and `internal/releasegate/gate.go`. These sit only in a scratch folder and on branch `trial/177` (commit 3f5f88d, from `bfd0ff0`, never for main) until its GitHub run passes. Then they land in the tree and go out in the next release. Do not edit those files meanwhile.
+  - **ci.yml has been red on every push** at the binary budget (35.4 MB against 25 MiB). Decision 177.4 is open.
 - **2026-11-14 "Start building next 20 item. Include from prev which was left in half way" (session erp-2b; ask 173, ledger §357): eight decisions built as recommended, the half-built items' Left parts, and 74.U.2's E8 journey extended. 11 Done (148.38b, 157.4c, 49.4.7, 49.6.2, 49.12.3, 49.12.4, 49.5.7, 49.5.7a, 166.1, 83.2, 77.12); 77.14 and 49.17.4 Built, not verified (no live browser check); 76.10 and new 173.1 Need decision. NOT COMMITTED, not deployed.**
   - **New files (all `??`):**
     - `db/migrations/migrations_stage166_1_loyalty_tier_spend_indexes.sql`.
