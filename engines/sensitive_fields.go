@@ -149,6 +149,7 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 	"Employee": {
 		"bank_account_no": {Category: SensitiveCategoryPayroll, Why: "Employee salary account - payroll-grade personal data"},
 		"bank_ifsc":       {Category: SensitiveCategoryPayroll, Why: "Employee salary account - payroll-grade personal data"},
+		"cost_rate":       {Category: SensitiveCategoryPayroll, Why: "Employee hourly cost - individual compensation"},
 	},
 
 	// --- Grievance (read Super Admin only; description writable by the

@@ -223,7 +223,8 @@ let stickerSKUs = [];
 const BULK_STICKER_SOURCE_DOCTYPES = [
   { doctype: 'GRN', label: 'Goods Receipt (GRN)' },
   { doctype: 'TransferOrder', label: 'Transfer Order' },
-  { doctype: 'PurchaseOrder', label: 'Purchase Order' } // 146.4.6c
+  { doctype: 'PurchaseOrder', label: 'Purchase Order' }, // 146.4.6c
+  { doctype: 'SalesOrder', label: 'Sales Order' } // 52.7: its lines are SalesOrderLine records
 ];
 // stickerSourceDoctypes (Stage 127.5: "any new taxn should load properly in
 // print"): GRN and Transfer Order, then every other transaction the client's

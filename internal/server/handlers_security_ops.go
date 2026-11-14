@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -152,7 +154,8 @@ func handleFreezeExports(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleForensicExport downloads the evidence pack for ?from=&to= (dates,
-// YYYY-MM-DD, the end day included).
+// YYYY-MM-DD, the end day included), encrypted with the passphrase in the
+// X-Evidence-Passphrase header (49.12.4; URI-encoded, never in the address).
 func handleForensicExport(w http.ResponseWriter, r *http.Request) {
 	from, err1 := time.Parse("2006-01-02", r.URL.Query().Get("from"))
 	to, err2 := time.Parse("2006-01-02", r.URL.Query().Get("to"))
@@ -160,15 +163,25 @@ func handleForensicExport(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Choose a From and a To date")
 		return
 	}
+	pass, err := url.PathUnescape(r.Header.Get("X-Evidence-Passphrase"))
+	if err != nil || utf8.RuneCountInString(pass) < engines.EvidencePassphraseMinLen {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, engines.ErrEvidencePassphrase.Error())
+		return
+	}
 	pack, _, err := engines.BuildForensicPack(r.Header.Get("Resolved-Tenant-ID"), from, to.AddDate(0, 0, 1), r.Header.Get("Resolved-Username"))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/zip")
+	sealed, err := engines.EncryptEvidencePack(pack, pass)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Could not encrypt the evidence pack")
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Disposition", attachmentDisposition("evidence-"+from.Format("20060102")+"-to-"+to.Format("20060102")+".zip"))
-	_, _ = w.Write(pack)
+	w.Header().Set("Content-Disposition", attachmentDisposition("evidence-"+from.Format("20060102")+"-to-"+to.Format("20060102")+".zip.enc"))
+	_, _ = w.Write(sealed)
 }
 
 // handleListPrivilegedSessions lists the recent sign-ins of full-access users

@@ -24,6 +24,9 @@ func posSellabilityGate(tenantID, cartNumber, location, sku string, item map[str
 		logPOSPolicyAttempt(tenantID, cartNumber, location, sku, ItemExceptionNotSellable, "POSOFF-1304", err.Error())
 		return err
 	}
+	if err := assortmentSaleGate(tenantID, cartNumber, location, sku, item); err != nil {
+		return err
+	}
 	var code, msg string
 	name := posLineLabel(item, sku)
 	switch policy.Sellability {

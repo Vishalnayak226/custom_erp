@@ -60,6 +60,7 @@ type ExpenseBillLine struct {
 	ITC         string  `json:"itc"` // Eligible or Blocked; blank takes the HSN row's, then the vendor's
 	HSN         string  `json:"hsn"`
 	CostCenter  string  `json:"cost_center"`
+	CwipAsset   string  `json:"cwip_asset"` // 170.6: charge the line to this CWIP asset (account 1450)
 }
 
 type ExpenseBillInput struct {
@@ -108,6 +109,7 @@ type expenseLineRow struct {
 	Rate        float64 `json:"gst_rate"`
 	Blocked     bool    `json:"blocked"`
 	CostCenter  string  `json:"cost_center,omitempty"`
+	CwipAsset   string  `json:"cwip_asset,omitempty"`
 }
 
 func (r expenseLineRow) debit() int64 {
@@ -282,10 +284,20 @@ func CreateExpenseBill(tenantID, userID string, in ExpenseBillInput) (*ExpenseBi
 			ctx := PostingContext{VendorGroup: group, CostCenter: l.CostCenter}
 			account = ResolvePostingAccounts(tenantID, PostingEventExpenseBill, ctx, "", "").Debit
 		}
-		if account == "" {
+		if account == "" && strings.TrimSpace(l.CwipAsset) == "" {
 			return nil, expBillRefused(expBillLineCode, "Account", "Line %d needs an expense account.", i+1)
 		}
-		if err := expenseAccountOK(tx, schema, account); err != nil {
+		cwipAsset := strings.TrimSpace(l.CwipAsset)
+		if cwipAsset != "" {
+			// 170.6: the line is a cost of a CWIP asset, so it debits 1450.
+			if err := cwipChargeOK(tenantID, cwipAsset, i+1); err != nil {
+				return nil, err
+			}
+			account = cwipAccount
+			if !leaseAccountExists(tx, schema, account) {
+				return nil, expBillRefused(expBillLineCode, "Account", "Line %d: account %s is not in the chart of accounts.", i+1, account)
+			}
+		} else if err := expenseAccountOK(tx, schema, account); err != nil {
 			return nil, err
 		}
 		if err := validateCostCenterReference(tenantID, strings.TrimSpace(l.CostCenter)); err != nil {
@@ -294,7 +306,7 @@ func CreateExpenseBill(tenantID, userID string, in ExpenseBillInput) (*ExpenseBi
 		net := RupeesToPaise(l.Amount)
 		tax := int64(math.Round(float64(net) * l.GSTRate / 100))
 		row := expenseLineRow{Description: strings.TrimSpace(l.Description), Account: account, Net: net, Tax: tax,
-			Rate: l.GSTRate, Blocked: choice == itcBlocked, CostCenter: strings.TrimSpace(l.CostCenter)}
+			Rate: l.GSTRate, Blocked: choice == itcBlocked, CostCenter: strings.TrimSpace(l.CostCenter), CwipAsset: cwipAsset}
 		rows = append(rows, row)
 		gross += net + tax
 		if row.Blocked {

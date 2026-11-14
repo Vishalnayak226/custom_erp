@@ -7,8 +7,8 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **449**
-across **27** categories.
+Every report reachable from **Sales & Marketplace -> Reports**. There are **456**
+across **28** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
 **required**, and run it. Where a report supports **drill-down**, clicking a
@@ -29,7 +29,8 @@ table has the same shape whoever runs it.
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 41 reports
+- [Expenses](#expenses) - 1 reports
+- [Finance](#finance) - 43 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
@@ -38,16 +39,16 @@ table has the same shape whoever runs it.
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data--audit) - 11 reports
 - [OMS](#oms) - 25 reports
-- [PIM](#pim) - 6 reports
+- [PIM](#pim) - 8 reports
 - [PIM / PIMS](#pim--pims) - 16 reports
 - [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement--grn) - 27 reports
-- [Quality](#quality) - 2 reports
+- [Quality](#quality) - 3 reports
 - [Sales](#sales) - 14 reports
 - [Sales & POS](#sales--pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
-- [WMS](#wms) - 49 reports
+- [WMS](#wms) - 50 reports
 
 ---
 
@@ -1339,6 +1340,19 @@ table has the same shape whoever runs it.
 **Drill-down:** no.
 
 
+## Expenses
+
+### Employee advance balance
+
+**Report id:** `employee-advance-balance`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Employee · Advanced *(sensitive)* · Settled *(sensitive)* · Balance *(sensitive)*
+
+**Drill-down:** no.
+
+
 ## Finance
 
 ### Balance Sheet
@@ -1566,7 +1580,7 @@ table has the same shape whoever runs it.
 
 - **Account Code** (`account_code`) - text, **required**
 
-**Columns:** Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Running Balance *(sensitive)* · Date
+**Columns:** Document Type · Document ID · Line · Debit *(sensitive)* · Credit *(sensitive)* · Running Balance *(sensitive)* · Date
 
 **Drill-down:** no.
 
@@ -1595,6 +1609,19 @@ table has the same shape whoever runs it.
 **Columns:** From · To · Taxable Value *(sensitive)* · Output CGST *(sensitive)* · Output SGST *(sensitive)* · Output IGST *(sensitive)* · Total Tax Liability *(sensitive)* · Input Tax Credit *(sensitive)* · Net GST Payable *(sensitive)* · Exempt Value *(sensitive)* · Nil-Rated Value *(sensitive)* · Zero-Rated Value *(sensitive)* · Total Non-Taxable *(sensitive)* · Transactions
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### GSTR-2B reconciliation
+
+**Report id:** `gstr2b-reconciliation`
+
+**Parameters:**
+
+- **Month (YYYY-MM)** (`month`) - text, **required**
+- **Status** (`status`) - text, optional
+
+**Columns:** Status · Supplier GSTIN · Supplier · Invoice · Date · Value · Tax · Vendor bill · Why · Decision
+
+**Drill-down:** no.
 
 ### General Journal (who posted what)
 
@@ -1760,6 +1787,18 @@ table has the same shape whoever runs it.
 **Columns:** Project · Type · Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Project budget vs actual
+
+**Report id:** `project-budget-vs-actual`
+
+**Parameters:**
+
+- **Project** (`project`) - text, **required**
+
+**Columns:** Cost type · Budget *(sensitive)* · Actual *(sensitive)* · Left *(sensitive)*
+
+**Drill-down:** no.
 
 ### Receivables Ageing
 
@@ -3669,6 +3708,18 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Listing drift
+
+**Report id:** `listing-drift`
+
+**Parameters:**
+
+- **Channel** (`channel`) - text, optional
+
+**Columns:** Channel · Item · Name · Differs · Listing · Item master
+
+**Drill-down:** no.
+
 ### PIM Overdue Tasks
 
 **Report id:** `pim-task-overdue`
@@ -3710,6 +3761,18 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Assignee · Open · In Progress · Blocked · Overdue · Due This Week
+
+**Drill-down:** no.
+
+### Range by store
+
+**Report id:** `range-by-store`
+
+**Parameters:**
+
+- **Store or channel** (`store`) - text, optional
+
+**Columns:** Store or channel · Item · Name · In range by · From · To
 
 **Drill-down:** no.
 
@@ -4234,7 +4297,7 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 - **Vendor** (`vendor`) - link, optional, one of: Vendor
 
-**Columns:** Vendor · Orders · Receipts · On time · Fill rate · QC reject · Price variance · Bills · Bill mismatches
+**Columns:** Vendor · Orders · Receipts · On time · Fill rate · QC reject · Defects per million · Open SCARs · Price variance · Bills · Bill mismatches
 
 **Drill-down:** no.
 
@@ -4637,6 +4700,19 @@ table has the same shape whoever runs it.
 
 
 ## Quality
+
+### AQL Sample Plan
+
+**Report id:** `aql-sample-plan`
+
+**Parameters:**
+
+- **Lot size** (`lot_size`) - text, **required**
+- **AQL** (`aql`) - select, optional, one of: 0.065,0.10,0.15,0.25,0.40,0.65,1.0,1.5,2.5,4.0,6.5
+
+**Columns:** Lot size · AQL · Code letter · Sample · Accept at · Reject at · Whole lot
+
+**Drill-down:** no.
 
 ### Inspection lots
 
@@ -5701,6 +5777,20 @@ table has the same shape whoever runs it.
 - **Store** (`location`) - text, optional
 
 **Columns:** Barcode · SKU · LPN · Bin Code · Movement Date · Movement Type · Source Document No · RF User · Status
+
+**Drill-down:** no.
+
+### Lot Trace (Both Ways)
+
+**Report id:** `lot-trace`
+
+**Parameters:**
+
+- **Batch / Lot** (`batch_no`) - text, **required**
+- **Item Code (optional)** (`sku`) - text, optional
+- **Direction** (`direction`) - select, optional, one of: Both,Forward,Backward
+
+**Columns:** Direction · Step · What · Item · Batch / Lot · Qty · Document · Vendor / Location · When · Lot source
 
 **Drill-down:** no.
 

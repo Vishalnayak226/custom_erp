@@ -27,10 +27,11 @@ func handleCreateDataSubjectRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		SubjectDoctype string `json:"subject_doctype"`
-		SubjectID      string `json:"subject_id"`
-		RequestType    string `json:"request_type"`
-		Reason         string `json:"reason"`
+		SubjectDoctype string                 `json:"subject_doctype"`
+		SubjectID      string                 `json:"subject_id"`
+		RequestType    string                 `json:"request_type"`
+		Reason         string                 `json:"reason"`
+		Corrections    map[string]interface{} `json:"corrections"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SubjectDoctype == "" || req.SubjectID == "" || req.RequestType == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'subject_doctype', 'subject_id' and 'request_type' are required")
@@ -38,7 +39,7 @@ func handleCreateDataSubjectRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	actor := r.Header.Get("Resolved-Username")
-	id, err := engines.RequestDataSubjectAction(tenantID, req.SubjectDoctype, req.SubjectID, req.RequestType, req.Reason, actor)
+	id, err := engines.RequestDataSubjectCorrection(tenantID, req.SubjectDoctype, req.SubjectID, req.RequestType, req.Reason, actor, req.Corrections)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -116,11 +117,18 @@ func handleExecuteDataSubjectRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	actor := r.Header.Get("Resolved-Username")
-	if err := engines.ExecuteDataSubjectRequest(tenantID, id, actor); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+	data, err := engines.RunDataSubjectRequest(tenantID, id, actor)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "executed"})
+	// 49.6.8: an export or access run hands back what it gathered, so the
+	// screen can save the subject's copy; other types carry no data.
+	out := map[string]interface{}{"status": "executed"}
+	if data != nil {
+		out["data"] = data
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func handleSetSubjectLegalHold(w http.ResponseWriter, r *http.Request) {

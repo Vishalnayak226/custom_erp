@@ -135,6 +135,23 @@ async function renderDocTableView(container) {
       window.openPriceTools?.();
     });
   }
+  if (currentDoctype === 'Bin') { // Stage 146.3.4b: ticked bins (else this page) through a sticker template
+    const tool = document.createElement('button');
+    tool.className = 'btn btn-outline'; tool.id = 'doc-bin-labels'; tool.textContent = 'Print labels';
+    const anchor = header.querySelector('#doc-create-button');
+    if (anchor) anchor.before(tool); else header.lastElementChild?.appendChild(tool);
+    tool.addEventListener('click', async () => {
+      const shown = state.docData || [];
+      let bins = shown;
+      if (bulkSelectedDocIDs.size) {
+        const have = new Map(shown.map(b => [b.id, b]));
+        bins = await Promise.all([...bulkSelectedDocIDs].map(async id => have.get(id) ||
+          apiFetch(`/api/v1/doc/Bin/${encodeURIComponent(id)}`).then(r => (r && r.ok ? r.json() : null))));
+      }
+      await loadViewModule('/view-bin-tools.js?v=1');
+      window.printBinLabels?.(bins.filter(Boolean));
+    });
+  }
   // Stage 55.18: service tickets, contracts and projects open with their
   // working view (queue, coverage, ledger) above the record list.
   if (['ServiceTicket', 'ServiceContract', 'Project'].includes(currentDoctype)) {
@@ -191,7 +208,10 @@ async function renderDocTableView(container) {
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
+  window.docTableFilter = null; // 74.1.1: a list opens on All
+  if (DOC_CATEGORY_TABS[currentDoctype]) await loadViewStyles('txn-screen.css');
   panel.innerHTML = `
+    ${docCategoryTabsHTML()}
     <div class="table-controls">
       <div class="search-box">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
@@ -201,6 +221,7 @@ async function renderDocTableView(container) {
         <input type="text" id="doc-table-search" aria-label="Search this list" placeholder="Search table..." value="${escapeHTMLText(currentSearchQuery)}">
       </div>
       ${currentDoctype === 'Item' ? `<button class="btn btn-outline" id="pim-group-actions-btn" title="Act on a saved Product Group instead of hand-picking rows">Group Actions</button>` : ''}
+      ${currentDoctype === 'Project' ? `<button class="btn btn-outline" id="project-revenue-run-btn">Run revenue</button>` : ''}
       ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" disabled>Reject Selected</button>` : ''}</div>` : ''}
     </div>
     ${!isPIMBulkEditDoctype() && currentDoctype !== 'PasswordResetRequest' ? `<div class="bulk-edit-bar hidden s-c2034d" id="doc-bulk-bar">
@@ -215,12 +236,34 @@ async function renderDocTableView(container) {
   container.appendChild(panel);
   panel.querySelectorAll('[data-doc-bulk]').forEach(b => b.addEventListener('click', () => runDocBulk(b.dataset.docBulk, b)));
   panel.querySelector('#doc-table-search')?.addEventListener('input', handleTableSearch);
+  panel.querySelectorAll('[data-doc-cat]').forEach(b => b.addEventListener('click', () => pickDocCategory(panel, b)));
   panel.querySelector('#pim-group-actions-btn')?.addEventListener('click', openPIMProductGroupActionsModal);
+  panel.querySelector('#project-revenue-run-btn')?.addEventListener('click', e => runProjectRevenue(e.currentTarget));
   panel.querySelector('#pim-bulk-edit-button')?.addEventListener('click', openPIMBulkEditModal);
   panel.querySelector('#pim-bulk-approve-button')?.addEventListener('click', () => bulkDecideProductContent('Approved'));
   panel.querySelector('#pim-bulk-reject-button')?.addEventListener('click', () => bulkDecideProductContent('Rejected'));
 
   renderDocTable();
+}
+
+// 74.1.1: a long Setup list narrows by one field's options (a server filter, so
+// paging and the count follow it); the tabs show only when the field has options.
+const DOC_CATEGORY_TABS = { ReasonCode: 'category' };
+function docCategoryTabsHTML() {
+  const field = DOC_CATEGORY_TABS[currentDoctype];
+  const f = field && (state.activeDocFields || []).find(x => x.fieldname === field);
+  const cats = f && f.options ? f.options.split(',').map(s => s.trim()).filter(Boolean) : [];
+  if (cats.length < 2) return '';
+  return `<div class="txn-tabs doc-cat-tabs" role="tablist" aria-label="Category">${['', ...cats].map(c => `<button type="button" role="tab" class="txn-tab${c ? '' : ' active'}" aria-selected="${!c}" data-doc-cat="${escapeHTMLText(c)}">${c ? escapeHTMLText(c) : 'All'}</button>`).join('')}</div>`;
+}
+function pickDocCategory(panel, btn) {
+  const value = btn.dataset.docCat;
+  window.docTableFilter = value ? { doctype: currentDoctype, field: DOC_CATEGORY_TABS[currentDoctype], value } : null;
+  panel.querySelectorAll('[data-doc-cat]').forEach(b => { const on = b === btn; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
+  currentTablePage = 1;
+  bulkSelectedDocIDs = new Set();
+  updatePIMBulkEditBar();
+  refreshDocTablePage();
 }
 
 window.handleTableSearch = function(e) {
@@ -315,6 +358,14 @@ async function refreshDocTablePage() {
 // itself still opens with every field, and search still covers them all.
 const LIST_MAX_COLUMNS = 8;
 const LIST_SKIP_TYPES = new Set(['JSONTable', 'JSONMap', 'JSON', 'Text']);
+
+// 49.6.8: an admin opens a customer's, employee's or vendor's privacy requests.
+function privacyRowButton(row) {
+  return isMenuRuleVisible({ adminOnly: true })
+    ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="privacy-requests" data-doc-id="${escapeHTMLText(row.id)}">Privacy</button>`
+    : '';
+}
+
 function listColumns() {
   const fields = state.activeDocFields || [];
   if (fields.length <= LIST_MAX_COLUMNS) return fields;
@@ -322,7 +373,7 @@ function listColumns() {
     const n = String(f.fieldname || '').toLowerCase();
     if (n === 'code' || n === 'id') return 0;
     if (/(^|_)(name|title)$/.test(n)) return 1;
-    if (n === 'status') return 2;
+    if (n === 'status' || n === 'onboarding_status') return 2;
     return f.mandatory ? 3 : 4;
   };
   const picked = fields.map((f, i) => ({ f, i }))
@@ -457,6 +508,8 @@ function renderDocTable() {
         ? ['apply', 'refund', ...(row.status === 'Open' && !Number(row.refunded_amount) ? ['cancel'] : [])].map(op => `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="vendor-op" data-op="${op}" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText(row.vendor_id || '')}" data-po="${escapeHTMLText(row.po_id || '')}" data-open="${escapeHTMLText(String(row.open_amount ?? ''))}">${op[0].toUpperCase() + op.slice(1)}</button>`).join('')
         : currentDoctype === 'VendorRebateClaim' && ['Calculated', 'Rejected', 'Approved'].includes(row.status) && isMenuRuleVisible({ capability: 'finance.post' })
         ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="vendor-op" data-op="${row.status === 'Approved' ? 'settle' : 'submit'}" data-doc-id="${escapeHTMLText(row.id)}">${row.status === 'Approved' ? 'Settle' : 'Send'}</button>`
+        : currentDoctype === 'Vendor' && (row.onboarding_status || isMenuRuleVisible({ adminOnly: true }))
+        ? `${row.onboarding_status ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="vendor-onboarding" data-doc-id="${escapeHTMLText(row.id)}" data-status="${escapeHTMLText(row.onboarding_status)}">Onboarding</button>` : ''}${privacyRowButton(row)}`
         : currentDoctype === 'PartyPair' && row.status === 'Active' && isMenuRuleVisible({ capability: 'finance.post' })
         ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="set-off" data-op="balances" data-doc-id="${escapeHTMLText(row.id)}">Balances</button>`
         // Stage 148.23: a posted set-off prints its statement; it reverses once.
@@ -467,10 +520,12 @@ function renderDocTable() {
         ? `${row.status === 'Estimated' ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="charge-bill" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.vendor_id || '')}">Book bill</button>` : ''}${row.source_doctype === 'GRN' || row.grn_id ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="charge-lines" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.grn_id || row.source_id || '')}">Lines</button>` : ''}`
         // Stage 26.7.9: customer householding/merge - this row (the
         // duplicate) merges INTO another customer id the user provides.
-        : currentDoctype === 'Customer' && row.status !== 'Merged'
-        ? `<button class="action-btn s-c6b76b" title="Merge Into Another Customer" aria-label="Merge ${escapeHTMLText(row.id)} into another customer" data-doc-action="merge-customer" data-doc-id="${escapeHTMLText(row.id)}">
+        : currentDoctype === 'Customer' && (row.status !== 'Merged' || isMenuRuleVisible({ adminOnly: true }))
+        ? `${row.status !== 'Merged' ? `<button class="action-btn s-c6b76b" title="Merge Into Another Customer" aria-label="Merge ${escapeHTMLText(row.id)} into another customer" data-doc-action="merge-customer" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M3 16v5h5"/><path d="M16 21h5v-5"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
-           </button>`
+           </button>` : ''}${privacyRowButton(row)}`
+        : currentDoctype === 'Employee' && isMenuRuleVisible({ adminOnly: true })
+        ? privacyRowButton(row)
         // Stage 26.8.8/26.8.10: Appraisal/Grievance are the same "flat
         // doctype, only the submit-for-approval action is bespoke" shape
         // QualityInspection already uses above.
@@ -506,6 +561,11 @@ function renderDocTable() {
         // row action per status, through the dedicated endpoints.
         : currentDoctype === 'ServiceTicket' && SERVICE_TICKET_NEXT[row.status]
         ? serviceTicketActions(row)
+        // 170.30 / 170.32: pay a Draft staff advance; complete a Planned milestone.
+        : currentDoctype === 'StaffAdvance' && (row.status || 'Draft') === 'Draft'
+        ? `<button class="action-btn s-c6b76b" title="Pay advance" aria-label="Pay advance ${escapeHTMLText(row.id)}" data-doc-action="staff-advance-pay" data-doc-id="${escapeHTMLText(row.id)}">Pay advance</button>`
+        : currentDoctype === 'ProjectMilestone' && (row.status || 'Planned') === 'Planned'
+        ? `<button class="action-btn s-c6b76b" title="Complete milestone" aria-label="Complete milestone ${escapeHTMLText(row.id)}" data-doc-action="milestone-complete" data-doc-id="${escapeHTMLText(row.id)}">Complete milestone</button>`
         // Stage 148.40: correct a batch's or serial's purity, karat and weights.
         : (currentDoctype === 'Batch' || currentDoctype === 'SerialNumber') && (state.permissions.isAdmin || state.permissions.create.has('InventoryAdjustment'))
         ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="correct-piece" data-doc-id="${escapeHTMLText(row.id)}">Correct</button>` + (currentDoctype === 'SerialNumber' && row.hold_customer ? `<button class="btn btn-outline btn-sm s-c6b76b" data-doc-action="release-piece-hold" data-doc-id="${escapeHTMLText(row.id)}">Release</button>` : '')
@@ -566,6 +626,8 @@ function renderDocTable() {
           if (op === 'submit' || op === 'settle') window.vendorRebateOp?.(op, id); else window.vendorAdvanceOp?.(op, id, button.dataset.open, button.dataset.vendor, button.dataset.po);
           break;
         }
+        case 'vendor-onboarding': await loadViewModule('/view-vendor-onboarding.js?v=1'); window.openVendorOnboarding?.(id, button.dataset.status); break;
+        case 'privacy-requests': await loadViewModule('/view-privacy-requests.js?v=1'); window.openPrivacyRequests?.(id, currentDoctype); break;
         case 'set-off': {
           await loadViewModule('/view-set-off.js?v=1');
           if (button.dataset.op === 'reverse') window.reverseSetOff?.(id); else if (button.dataset.op === 'balances') window.openSetOffBalances?.(id); else window.openSetOffStatement?.(id);
@@ -573,6 +635,8 @@ function renderDocTable() {
         }
         case 'charge-lines': window.showChargeLinesRow?.(button.dataset.docName); break;
         case 'service-ticket': runServiceTicketStep(id, button.dataset.step, button); break;
+        case 'staff-advance-pay': runProjectOrAdvanceAction('/api/v1/expenses/advance/pay', { advance_id: id }, 'Pay this advance? It posts to the ledger once.', 'Pay advance', button); break;
+        case 'milestone-complete': runProjectOrAdvanceAction('/api/v1/projects/milestone/complete', { milestone_id: id }, 'Complete this milestone? A billable one raises a draft sales invoice.', 'Complete milestone', button); break;
         case 'submit-document': submitGenericDocForApproval(button.dataset.doctype, id, button); break;
         case 'run-pim-import': loadViewModule('/view-pim.js?v=1').then(() => window.openPIMImportTemplateRun?.(id)).catch(() => showToast('Import tools could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'run-pim-export': window.runPIMExportTemplateRow?.(id); break;
@@ -815,6 +879,49 @@ function serviceTicketActions(row) {
   return button(step, label) +
     (row.status === 'Assigned' ? button('assign', 'Reassign') : '') +
     (row.status !== 'Resolved' ? button('cancel', 'Cancel') : '');
+}
+
+// 170.30 / 170.32: one confirmed POST for a staff advance or milestone row.
+async function runProjectOrAdvanceAction(url, body, question, title, button) {
+  if (!await showCustomConfirm(question, title)) return;
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, `${title} failed.`);
+      return;
+    }
+    const out = await res.json().catch(() => ({}));
+    showToast(out.invoice_id ? `Done. Draft invoice ${out.invoice_id}.` : 'Done.', { variant: 'success' });
+    renderView('doctype-table');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// 170.33: book project revenue for one month (YYYY-MM); safe to run again.
+async function runProjectRevenue(button) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  const last = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const period = (await showCustomPrompt('Month (YYYY-MM):', last, 'Run revenue') || '').trim();
+  if (!period) return;
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const res = await apiFetch('/api/v1/projects/revenue/run', { method: 'POST', body: JSON.stringify({ period }) });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'Revenue could not be run.');
+      return;
+    }
+    const out = await res.json().catch(() => ({}));
+    showToast(`Revenue run for ${period}: ${(out.projects || []).length} project(s).`, { variant: 'success' });
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function runServiceTicketStep(id, step, button) {

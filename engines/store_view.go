@@ -42,7 +42,7 @@ func (s LiveUserState) ListsFollowWorkingStore() bool {
 var storeViewEitherFields = map[string][]string{
 	"TransferOrder": {"from_warehouse", "to_warehouse"},
 	"PurchaseOrder": {"location", "target_warehouse"},
-	"ReturnRequest": {"return_location"},
+	"ReturnRequest": {"return_location", "collected_at"}, // 77.8: a centralised return at both stores
 }
 
 // StoreViewListFields is what a list following the working store matches:

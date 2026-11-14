@@ -177,10 +177,16 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidatePIMExportScheduleDocument(tenantID, payload)
 	case "ProductAttributeValue": // 146.5.11
 		return ValidateProductAttributeValueDocument(tenantID, payload)
+	case CategoryAttributeRuleDoctype: // 168.12
+		return ValidateCategoryAttributeRuleDocument(tenantID, payload)
+	case "Item": // 168.12: only does anything with pim.enforce_category_attribute_rules on
+		return ValidateItemCategoryRules(tenantID, payload)
 	case StewardshipDoctype: // 47.13.4: applied by raw SQL from an approved request, never saved
 		return stewardshipRegisterRefusal()
 	case "ProductRelation": // 146.5.12
 		return ValidateProductRelationDocument(tenantID, payload)
+	case ScheduledItemChangeDoctype: // 168.10
+		return ValidateScheduledItemChangeDocument(tenantID, payload)
 	case "PIMFeed": // 146.5.6
 		return ValidatePIMFeedDocument(tenantID, payload)
 	case "ChannelCategoryTemplate": // 146.5.2
@@ -228,6 +234,8 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidateInspectionPlanDocument(tenantID, payload)
 	case "MaintenanceSchedule":
 		return ValidateMaintenanceScheduleDocument(tenantID, payload)
+	case "AssetMeterReading":
+		return ValidateAssetMeterReadingDocument(tenantID, payload)
 	case "ReorderPointConfig":
 		return ValidateReorderPointConfigDocument(tenantID, payload)
 	case "WebhookSubscription":

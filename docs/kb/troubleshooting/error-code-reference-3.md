@@ -2,7 +2,7 @@
 title: Error code reference (part 3)
 section: Troubleshooting
 order: 22
-summary: Error codes for Purchase Order to WMS / Logistics, continued from the error code reference.
+summary: Error codes for PIM / Product Publishing to Tax / GST / E-Invoice, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,15 +20,24 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 3)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **243** codes, from
-Purchase Order to WMS / Logistics.
+lists every area and explains how to read a code. It holds **319** codes, from
+PIM / Product Publishing to Tax / GST / E-Invoice.
 
 ## Contents
 
-- [Purchase Order](#purchase-order) - 73 codes
+- [PIM / Product Publishing](#pim-product-publishing) - 8 codes
+- [POS / Billing](#pos-billing) - 42 codes
+- [POS / Offline & Cash Drawer](#pos-offline-cash-drawer) - 8 codes
+- [Patch / Bug Governance](#patch-bug-governance) - 3 codes
+- [Payments](#payments) - 7 codes
+- [Planning](#planning) - 1 codes
+- [Procurement](#procurement) - 1 codes
+- [Procurement / RFQ](#procurement-rfq) - 6 codes
+- [Purchase Order](#purchase-order) - 82 codes
 - [Purchase Requisition](#purchase-requisition) - 6 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return-rtv) - 5 codes
+- [Quality](#quality) - 6 codes
 - [Quality & Maintenance](#quality-maintenance) - 12 codes
 - [RFQ](#rfq) - 6 codes
 - [Reports](#reports) - 3 codes
@@ -36,14 +45,127 @@ Purchase Order to WMS / Logistics.
 - [SaaS / Multi-Tenant](#saas-multi-tenant) - 8 codes
 - [Sales / POS](#sales-pos) - 40 codes
 - [Sales Return](#sales-return) - 9 codes
+- [Security](#security) - 9 codes
 - [Security / AI assistant access](#security-ai-assistant-access) - 10 codes
 - [Security / Rate Limit](#security-rate-limit) - 6 codes
 - [Stock Transfer](#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](#tax-gst-e-invoice) - 15 codes
-- [User Access & Security](#user-access-security) - 9 codes
-- [Vendor Invoice / AP](#vendor-invoice-ap) - 7 codes
-- [WMS](#wms) - 5 codes
-- [WMS / Logistics](#wms-logistics) - 3 codes
+
+## PIM / Product Publishing
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PIM-0229` | Product family missing | Product family is required before enrichment and publishing. | Select a product family. | High | 422 |
+| `PIM-0230` | Product completeness failed | Product is not complete for {channel}/{locale}. Please complete missing fields. | Fill missing fields shown in checklist. | High | 503 |
+| `PIM-0231` | Content approval pending | Product content is pending approval and cannot be published yet. | Wait for approval or request review. | High | 200 |
+| `PIM-0232` | Primary image missing | Primary product image is required before publishing. | Upload and assign a primary image. | High | 422 |
+| `PIM-0233` | Media hash duplicate | This media file already exists and has been linked to the product. | No action required. | Low | 200 |
+| `PIM-0234` | Field edit permission denied | You cannot edit this product field. Please contact administrator. | Request access or ask authorized user. | High | 403 |
+| `PIM-0235` | Bulk edit partially failed | Some products could not be updated. Please download the error file. | Download error file and correct failed rows. | Medium | 200 |
+| `PIM-0236` | Product already queued or published | This product already has an active publish job. Current status: {status}. | Review existing publish job. | Medium | 200 |
+
+## POS / Billing
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `POSOFF-0245` | POS session or sale attempted at a location that is not a selling location | This location is not a selling location, so a till cannot sell from it. | Choose the store you are selling from, or ask an administrator to set Sellable = Yes on this Location. | High | 422 |
+| `POSOFF-0314` | Free-with-item product billed without its parent item | This item is free only with its parent item, which is not on the bill in the same quantity. | Add the parent item to the bill, or remove the free item. | Medium | 422 |
+| `POSOFF-0411` | Non-sellable item put on a bill (ITM-003) | This item is not sold at the till. | Remove it. Packaging is taken out of stock automatically with the sale - use Packaging to change the box. | Medium | 422 |
+| `POSOFF-0412` | Promotional item without an eligible promotion (ITM-004) | This promotional gift has not been earned by this bill. | Give it only when the till shows it as eligible (a Gift With Purchase offer), in that quantity. | Medium | 422 |
+| `POSOFF-0413` | Stored-value item scanned as merchandise | A gift card is issued, not sold as a bill line. | Use Gift Card -> Issue on the POS screen. | Medium | 422 |
+| `POSOFF-0414` | Packaging override reason is required (ITM-011) | Say why the packaging was changed. | Open Packaging and type a reason next to the changed choice. | Low | 422 |
+| `POSOFF-0415` | Packaging choice not allowed by its rule | That packaging choice is not allowed here. | Pick one of the options Packaging offers for this line, or keep the default. | Low | 422 |
+| `POSOFF-0416` | Insufficient component stock for automatic consumption (ITM-012) | The store is short of a component this sale uses. | Choose another option under Packaging, or receive the stock. Rules set to Allow or Warn let the sale go ahead and list the shortfall under Item Exceptions. | Medium | 422 |
+| `POSOFF-0431` | Gift card number not found or not valid | This gift card number is not recognised. | Check the number on the card and scan or type it again. | Medium | 422 |
+| `POSOFF-0432` | Gift card number already active or has history (ITM-014) | This gift card has already been issued. | Use a new, unissued card - or Add value, if this card allows reloading. | High | 422 |
+| `POSOFF-0433` | Gift card balance cannot become negative (ITM-015) | The gift card does not have that much balance. | Check the balance and take the rest by another payment mode. | High | 422 |
+| `POSOFF-0434` | Gift card not active (not issued, blocked, expired, cancelled) | This gift card cannot be used right now. | Check its status under Gift Card -> Balance; a blocked card is released by a manager. | High | 422 |
+| `POSOFF-0435` | Gift card amount outside the card's rules | That amount is not allowed for this gift card. | Use one of the card's denominations, or an amount between its minimum and maximum. | Medium | 422 |
+| `POSOFF-0436` | Gift card event already processed with different details (ITM-016) | This gift card action was already processed. | Check the card's history before trying again - do not issue or redeem twice. | High | 409 |
+| `POSOFF-0604` | Split payment adds up to more than the bill | The split payment is more than the bill. | Open More -> Split payment and lower one of the parts; the Payment Mode takes whatever is left. | Medium | 422 |
+| `POSOFF-0605` | Split payment names a payment mode the till does not take | A split payment can only be Cash, Card or UPI. | Use Cash, Card or UPI for each part; pay by gift card or points with their own buttons. | Low | 422 |
+| `POSOFF-0606` | Refund cannot go back onto a blocked or cancelled gift card | Part of this refund goes back to a gift card that is blocked or cancelled. | A manager releases the card (Gift Card -> Release a blocked card), then the refund is processed again. | High | 422 |
+| `POSOFF-0607` | Cash movement not valid (type, amount, reason, or more than the drawer holds) | This cash movement can't be recorded. | Choose Paid In, Paid Out or Safe Drop, an amount the drawer can cover, and a Cash Movement reason code. | Medium | 422 |
+| `POSOFF-0608` | Cash movement or takeover on a session that is not the cashier's open one | There is no open session here for you to use. | Open your own session, or take over the till from the cashier who has it open. | Medium | 422 |
+| `POSOFF-0609` | Bill cannot be held (empty, already held, or already being paid) | This bill can't be held. | Add items before holding a bill. A bill that is already held, or already being paid, stays as it is. | Low | 422 |
+| `POSOFF-0610` | Held bill already resumed, discarded, or held at another store | That bill is no longer held here. | Refresh the list of held bills - another till may have resumed it. | Low | 409 |
+| `POSOFF-0611` | Exchange cannot start (no bill, store or items, or nothing refundable coming back) | This exchange can't be started. | Look up the original bill, choose what is coming back and its condition - Missing, Wrong Item and Rejected items carry no credit. | Medium | 422 |
+| `POSOFF-0612` | Exchange credit used, missing, at another store, or offline | This exchange credit can't be used here. | An exchange credit is used once, at the store and online. Check it under Sales & Marketplace -> Returns, or start the exchange again. | High | 422 |
+| `POSOFF-0613` | Voucher can no longer be used when the sale completes (used up, expired, another customer's) | The voucher on this bill can't be used any more. | Remove the voucher code from the Coupon box, or ask the customer for another; the bill is priced again without it. | Medium | 422 |
+| `POSOFF-0866` | High-value bill without the buyer's details | This bill needs the buyer's details. | Take the customer's mobile number and fill in their address (line 1, state and city or PIN) in Customer details, then complete the sale. | High | 422 |
+| `POSOFF-0867` | Bill above the PAN limit without PAN or Form 97 | This bill needs the buyer's PAN. | Add the PAN in Customer details, or tick Form 97 when the buyer has no PAN and has signed the declaration. | High | 422 |
+| `POSOFF-0868` | Cash on one bill at or above the legal cash limit | This much cash cannot be taken on one bill. | Take part of the payment by card or UPI (Split payment) so the cash stays under the limit. | High | 422 |
+| `POSOFF-0871` | Customer advance missing its customer, amount or a payment mode the till takes | The advance is not complete. | Take the customer's mobile number (not Walk-in), the amount, and Cash, Card or UPI. | Medium | 422 |
+| `POSOFF-0872` | Advance not found, used twice on a bill, larger than the bill, or used offline | This advance cannot be used on this bill. | Use the customer's own open advance, once, for no more than the bill - online at the till. | Medium | 422 |
+| `POSOFF-0873` | Advance used on another customer's bill | An advance can only be used by the customer who paid it. | Put the customer who paid the advance on the bill, or take another payment. | High | 422 |
+| `POSOFF-0874` | Advance refund without a reason or larger than what is left | The advance refund is not complete. | Say why it is refunded, and refund no more than is left on the advance. | Medium | 422 |
+| `POSOFF-0875` | Bill paid by a tender the store does not take | This store does not take that tender. | Pick one of the store's tenders, or add it in Setup -> Masters -> POS Tender (and the store to its Stores). | Medium | 422 |
+| `POSOFF-0876` | Bill without the salesman the store asks for, or with someone not its salesman | The bill needs one of the store's salesmen. | Pick the salesman on the till. Add or reactivate them in Setup -> Masters -> Salesman. | Medium | 422 |
+| `POSOFF-0877` | Bill discount above the reason limit without a reason | This discount needs a reason. | Say why the discount is given; above an approval slab a manager approves it too. | Medium | 422 |
+| `POSOFF-1301` | Bill cannot be cancelled (not found, not today's, partly returned, nothing left, or no reason) | This bill can't be cancelled. | Only today's bill, with nothing returned yet, can be cancelled - give the reason. For an older bill, or one already partly returned, take a return instead. | Medium | 422 |
+| `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
+| `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |
+| `POSOFF-1309` | Store credit cannot pay (no customer, none or not enough, more than due, above the manager limit, daily uses reached) | Store credit can't pay this. | Store credit is the bill's own customer's: take their number, use no more than they have and the bill needs. Above the limit a store manager switches in. | Medium | 422 |
+| `POSOFF-1361` | Offline sale validated with a line not scanned, or scanned with a code that is not that item's barcode | The scanned barcodes don't match. | Every line must have been scanned with one of the item's own barcodes. Check the goods with the cashier; if it can't be put right, reject the sale with the reason. | High | 422 |
+| `POSOFF-1362` | Offline sale cannot be decided (already validated or rejected, rung up by the person deciding, or a rejection with no reason) | This offline sale can't be decided. | Only a Pending sale is validated or rejected, by a manager other than the cashier who rang it up; a rejection needs the reason. | Medium | 422 |
+| `POSOFF-1363` | Duplicate tender - the same card / UPI / cheque reference and amount was taken at this store minutes ago | This payment was already taken on an earlier bill. | Check the earlier bill. If the customer really paid twice with the same reference, mark the tender as a second payment and try again. | High | 409 |
+| `STORE-0854` | Store switch while the user's till session is open at the current store | Your till session is still open at this store. | Close the session (POS -> More... -> Close Session), then switch store. | High | 422 |
+
+## POS / Offline & Cash Drawer
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `POSOFF-0237` | POS profile missing | This till has no POS profile yet. | Ask an administrator to set up the POS profile for this store and till, then open the till again. | Critical | 422 |
+| `POSOFF-0238` | Cash opening required | Cash opening is required before billing. Please open the shift drawer. | Open the till session and enter the opening cash, then bill. | High | 422 |
+| `POSOFF-0239` | Cash closing pending | Cash closing is pending for this shift. Please close the drawer before logout. | Close cash drawer and enter counted cash. | High | 200 |
+| `POSOFF-0240` | Drawer variance exceeds tolerance | Cash variance exceeds allowed tolerance. Manager approval is required. | Count the cash again. If the difference stands, enter a reason and ask a manager to approve it. | High | 422 |
+| `POSOFF-0241` | Offline invoice sync conflict | Offline bill could not be synced because server data changed. Please review the conflict. | Open the bill's conflict, choose which version to keep, then sync again. | High | 409 |
+| `POSOFF-0242` | Duplicate offline invoice UUID | This offline bill was already synced. Duplicate submission was ignored. | No action required unless bill is missing. | Medium | 200 |
+| `POSOFF-0243` | Payment terminal not mapped | This till has no card machine linked to it. | Take the payment another way, and ask an administrator to link the card machine in POS settings. | High | 422 |
+| `POSOFF-0244` | Payment callback mismatch | Payment confirmation does not match bill amount or reference. Please reconcile manually. | Hold the bill and check the payment on the card machine or UPI app before finishing it. | Critical | 422 |
+
+## Patch / Bug Governance
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PATCH-0292` | Patch proposal pending approval | A system patch proposal is waiting for review. Please approve or reject it. | Review and decide patch proposal. | Medium | 200 |
+| `PATCH-0293` | Patch decision already completed | This patch decision is already completed. Please refresh. | Refresh page. | Medium | 409 |
+| `PATCH-0294` | Bug reopened after verification | Bug has reopened after verification. Root cause review is required. | Assign owner and add regression test. | High | 200 |
+
+## Payments
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PAY-0262` | Payment proposal approval pending | Payment cannot be released until approval is completed. | Send for approval or wait for approval. | Critical | 422 |
+| `PAYMEN-0094` | Duplicate vendor invoice | Vendor invoice number already exists for this vendor. | Correct transaction or send for approval. | High | 409 |
+| `PAYMEN-0097` | Payment exceeds payable | Payment amount cannot exceed open payable amount. | Correct transaction or send for approval. | High | 422 |
+| `PAYMEN-0098` | UTR missing | UTR number is required to record payment. | Correct transaction or send for approval. | High | 422 |
+| `PAYMEN-0099` | Duplicate UTR | UTR number already exists. Please verify payment details. | Correct transaction or send for approval. | High | 409 |
+| `PAYMEN-0100` | TDS deduction missing | TDS deduction details are required for this payment as per configuration. | Correct transaction or send for approval. | High | 422 |
+| `PAYMEN-0182` | Payment recorded | Payment recorded successfully. | No action required. | Low | 200 |
+
+## Planning
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PLAN-0557` | Supply proposal cannot be generated, approved or rejected as asked | These proposals cannot be processed as asked. | Choose open proposals of one location, the action and what it needs (vendor, source location, an item with a BOM), and a reason to reject. | Medium | 422 |
+
+## Procurement
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PURCHA-5100` | Save a PO routing rule whose approver or escalation role does not exist | That is not a role here. | Pick a role from the list. | Medium | 422 |
+
+## Procurement / RFQ
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PROCUR-0078` | RFQ vendor missing | Please select at least one vendor before releasing the RFQ. | Correct transaction or send for approval. | High | 422 |
+| `PROCUR-0079` | RFQ item missing | Please add at least one item before releasing the RFQ. | Correct transaction or send for approval. | High | 422 |
+| `PROCUR-0080` | Quotation upload missing | Vendor quotation is required before approval. | Correct transaction or send for approval. | High | 422 |
+| `PROCUR-0081` | Quotation cycle exceeded | Maximum quotation revision cycle has been reached. Further revision is not allowed. | Correct transaction or send for approval. | High | 422 |
+| `RFQ-0250` | Budget code missing | Budget code is required before requisition submission. | Select budget/cost center. | High | 422 |
+| `RFQ-0251` | PR already converted | This requisition is already converted to RFQ/PO. Further changes are not allowed. | Create amendment/change request. | High | 409 |
 
 ## Purchase Order
 
@@ -122,6 +244,15 @@ Purchase Order to WMS / Logistics.
 | `PURCHA-5130` | Pack quantity on an item with no purchase unit (148.35) | This item has no purchase unit. | Set a purchase unit on the item, or key pieces. | Medium | 422 |
 | `PURCHA-5132` | Packs convert to a part-piece on a PO (148.35) | A PO takes whole pieces. | Order whole pieces; receive the part-pack on the goods receipt. | Medium | 422 |
 | `PURCHA-5133` | Pack quantity or pack price not a valid number (148.35) | Pack quantity or price is not valid. | Enter a pack quantity above zero and a price of zero or more. | Medium | 422 |
+| `PURCHA-6100` | Purchase order names a contract that is not Active, is for another vendor or store, or is outside its dates | This contract can't be used for this order. | Pick an Active contract for the same vendor and store, and date the order inside its validity. | Medium | 422 |
+| `PURCHA-6101` | Purchase order line not on the contract, or above its rate | A line is not on the contract or is above its rate. | Use only items on the contract, at the contract rate. | Medium | 422 |
+| `PURCHA-6102` | Release would pass the contract's value or quantity cap | This release is over the contract cap. | Reduce the quantity to what is left on the contract, or ask for the cap to be raised on a new contract. | Medium | 422 |
+| `PURCHA-6103` | Contract saved with bad terms, or changed after it went Active | This contract can't be saved. | Fix the dates, cap and lines; an Active contract keeps its terms - close it and raise a new one. | Medium | 422 |
+| `PURCHA-6104` | Contract activated or closed from the wrong status or by a role that cannot approve its value | This contract can't be activated or closed. | Ask the person who approves purchase orders of this value, and check the contract's status. | Medium | 422 |
+| `PURCHA-6120` | Goods receipt against a service order, or a purchase order's type changed after approval | A service order is not received as goods. | Record the work on a service entry sheet. Raise a new order to change its type. | Medium | 422 |
+| `PURCHA-6121` | Service entry sheet with no lines, an item not on the order, or more than is still open; or an accepted sheet edited | This service entry sheet can't be saved. | Use items on the approved service order and no more than is still open. | Medium | 422 |
+| `PURCHA-6122` | Service entry sheet accepted twice, past the open quantity, or by a role that cannot approve its value | This sheet can't be accepted. | Ask the person who approves purchase orders of this value; check the sheet is Draft and within the order. | Medium | 422 |
+| `PURCHA-6123` | Bill for a service order without a service entry sheet | A service bill needs its service entry sheet. | Pick the accepted service entry sheet on the bill, then match it. | Medium | 422 |
 
 ## Purchase Requisition
 
@@ -149,6 +280,17 @@ Purchase Order to WMS / Logistics.
 | `PURCHA-0118` | RTV without GRN | RTV must be created against a valid GRN or accepted returnable stock. | Correct RTV details. | Medium | 422 |
 | `PURCHA-0119` | RTV already created | RTV is already created for the selected rejected quantity. | Correct RTV details. | Medium | 409 |
 | `PURCHA-0120` | Credit note pending | Vendor credit note is pending for this RTV. | Correct RTV details. | Medium | 422 |
+
+## Quality
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `QUALIT-1760` | AQL not one of the table values | Pick an AQL from the list. | Choose one of the AQL values on the inspection plan. | Medium | 422 |
+| `QUALIT-1761` | Lot size missing or not a whole number for AQL sampling | Enter the lot size as a whole number. | Type the number of units in the lot. | Medium | 422 |
+| `QUALIT-1762` | Inspection against an AQL plan with no defects count | Enter the defects found. | Count the defects in the sample and enter the number. | Medium | 422 |
+| `QUALIT-1763` | SCAR missing vendor, issue or reply-by date, or its vendor or non-conformance not found | The SCAR is not complete. | Give the vendor, the issue and the reply-by date. | Medium | 422 |
+| `QUALIT-1764` | SCAR opened for a non-conformance that already has an open SCAR | That non-conformance already has an open SCAR. | Close the open SCAR first. | Medium | 422 |
+| `QUALIT-1765` | SCAR step out of order, with no text, or on an unknown SCAR | That SCAR step cannot be recorded. | Record root cause, then action, then verification. | Medium | 422 |
 
 ## Quality & Maintenance
 
@@ -271,6 +413,20 @@ Purchase Order to WMS / Logistics.
 | `SALESR-1315` | A return raised without a reason | A return needs a reason. | Pick a reason or type one. | Low | 422 |
 | `SALESR-1316` | Credit note on stock items before the return is received | This credit note needs a received return. | Receive and check in the return first, then post the note. | Low | 422 |
 
+## Security
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `SEC-1700` | Retention rule not valid (record type, unit, action or field missing) | The retention rule is not valid. | Fill the record type, a keep period, and the field for a clear-field rule. | Medium | 422 |
+| `SEC-1701` | Retention below the statutory floor (audit address 180 days) | That record must be kept longer. | Use the minimum shown in the message or more. | Medium | 422 |
+| `SEC-1705` | Erasure of an employee or vendor refused: legal hold | This record is under legal hold. | Lift the hold first, or leave it as it is. | Medium | 422 |
+| `SEC-1706` | Erasure of an employee refused: still active | The employee is still active. | Set the exit date and status first. | Medium | 422 |
+| `SEC-1707` | Erasure of an employee refused: inside the payroll retention window | Payroll records must be kept longer. | Try again after the date in the message. | Medium | 422 |
+| `SEC-1708` | Erasure of a vendor refused: open purchase documents | The vendor has open documents. | Finish or cancel them, then try again. | Medium | 422 |
+| `SEC-1709` | Privacy request subject not found or not an employee or vendor | That record was not found. | Check the record and try again. | Medium | 422 |
+| `SEC-1710` | Masked copy target is not a sandbox, or is a production client name | A copy can only go into a sandbox client. | Create a new sandbox for the copy. | Medium | 422 |
+| `SEC-1711` | Masked copy source missing, unknown or the same as the target | Pick a different client to copy from. | Choose the client to copy. | Medium | 422 |
+
 ## Security / AI assistant access
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -338,48 +494,4 @@ Purchase Order to WMS / Logistics.
 | `TAXGST-0076` | GST round off mismatch | GST total has a rounding difference beyond allowed tolerance. | Correct GST details or retry API. | High | 422 |
 | `TAXGST-0077` | GSTR data locked | GST return data is locked for the selected period. Changes are not allowed. | Correct GST details or retry API. | High | 409 |
 | `TAXGST-0186` | IRN generated | IRN generated successfully. | No action required. | Low | 200 |
-
-## User Access & Security
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `USERAC-0021` | Invalid login | Invalid username or password. Please check and try again. | Contact admin or correct input. | High | 401 |
-| `USERAC-0022` | Account locked | Your account is locked due to multiple failed login attempts. Please contact your administrator. | Contact admin or correct input. | High | 409 |
-| `USERAC-0023` | Password expired | Your password has expired. Please reset your password to continue. | Contact admin or correct input. | High | 422 |
-| `USERAC-0024` | Weak password | Password does not meet the required policy. Please use the required length, complexity, and special characters. | Contact admin or correct input. | High | 422 |
-| `USERAC-0025` | MFA failed | Verification failed. Please enter the correct verification code. | Contact admin or correct input. | High | 401 |
-| `USERAC-0026` | Role not mapped | No role is assigned to this user. Please contact your administrator. | Contact admin or correct input. | High | 422 |
-| `USERAC-0027` | Store access missing | You do not have access to this store. Please contact your administrator. | Contact admin or correct input. | High | 403 |
-| `USERAC-0028` | Company/state access missing | You do not have access to this company or state. Please contact your administrator. | Contact admin or correct input. | High | 403 |
-| `USERAC-0029` | Maker-checker violation | The same user cannot create and approve this transaction. | Contact admin or correct input. | High | 403 |
-
-## Vendor Invoice / AP
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `VENDOR-0092` | Invoice amount mismatch | Invoice amount does not match PO/GRN value within allowed tolerance. | Correct transaction or send for approval. | High | 422 |
-| `VENDOR-0093` | Invoice quantity mismatch | Invoice quantity does not match accepted GRN quantity. | Correct transaction or send for approval. | High | 422 |
-| `VENDOR-0096` | Three-way match failed | Three-way matching failed between PO, GRN, and Invoice. Please review differences. | Correct transaction or send for approval. | High | 503 |
-| `VENDOR-0181` | Invoice posted | Vendor invoice posted successfully. | No action required. | Low | 200 |
-| `VENDOR-0190` | Purchase order for a vendor held from new orders | This vendor is on hold for new purchase orders. | Take the hold off the vendor, or choose another vendor. | Medium | 422 |
-| `VENDOR-0191` | Payment to a vendor held from payment | This vendor is on hold for payment. | Take the hold off the vendor, then pay again. | Medium | 422 |
-| `VENDOR-0192` | Payment to a vendor with a change waiting for approval | A change to this vendor is waiting for approval. | Ask an approver to decide the change in Approvals; payments resume then. | Medium | 422 |
-
-## WMS
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `WMS-1311` | Pick confirmation or wave sortation without a wave / line / station, or a wave with no open orders | Choose the wave first. | Pick the wave (and the sort station) - a wave with no open orders has nothing to sort. | Low | 422 |
-| `WMS-1312` | Bin or zone block with an unknown kind or no reason | Say why it is blocked. | Choose No receipts or No picks and give a short reason - or clear the block. | Low | 422 |
-| `WMS-1313` | Stock put into, moved into or received into a bin or zone blocked for receipts | This bin is closed to receipts. | Choose another bin, or ask a store manager to lift the block on the bin or its zone. | Medium | 422 |
-| `WMS-1314` | Put-away rule naming more than one of item, design and category, no zone or bin, or something that does not exist | This put-away rule is not complete. | Name one of item, design or category (or none for a location default) and the zone or bin the stock goes to. | Low | 422 |
-| `WMS-1315` | Bin move request refused (work queue off, bins or item missing, same bin, or not enough stock in the from bin) | This move can't be requested. | Check the two bins, the item and the quantity; the work queue must be on (Configuration > Warehouse). | Low | 422 |
-
-## WMS / Logistics
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `WMSLOG-0137` | Shipment partner missing | Logistics partner is required before dispatch. | Choose the courier for the shipment, then dispatch. | High | 422 |
-| `WMSLOG-0138` | AWB generation failed | AWB generation failed. Please review courier response and try again. | Read the courier's reason below, correct the shipment details, then try again. | High | 503 |
-| `WMSLOG-0139` | Delivery status update failed | Delivery status could not be updated. Please retry or check integration. | Try again in a few minutes. If it keeps failing, tell your administrator the courier link may be down. | High | 503 |
 

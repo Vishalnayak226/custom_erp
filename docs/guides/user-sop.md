@@ -521,7 +521,7 @@ Designed for a phone or handheld held one-handed in an aisle; it works on a desk
 
 Reached via the **Stock** flyout → **Cycle Count**. Counts stock in place, without shutting the warehouse.
 
-1. **Get Plan** (with a **Location**) suggests which bins are due a count. How often a bin comes round depends on its ABC tier, and the intervals are configurable (ADMIN_SOP Part A → Configuration).
+1. **Get Plan** (with a **Location**) suggests which bins are due a count. How often a bin comes round depends on its ABC tier, and the intervals are configurable (ADMIN_SOP Part A → Configuration). Items marked **Leave out of cycle counts** on the Item form are left off the plan.
 2. **Manage Count Lines** opens the lines for a **Count Session**. Enter the **Counted Qty (blind)** for each — *blind* means the counter is not shown the expected figure, so the count is not anchored by it.
 3. Click **Reconcile Session**:
    - Lines that match the system exactly **post immediately**.

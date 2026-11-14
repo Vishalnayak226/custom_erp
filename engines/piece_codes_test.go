@@ -223,3 +223,87 @@ func TestStage14632RFPieceCodesOfferedOnlyWhenSettingSet(t *testing.T) {
 		t.Fatal("a store list reported as off")
 	}
 }
+
+// Stage 146.3.2b: the handheld's Receive pieces screen keeps the codes scanned
+// for each line of a goods receipt received in steps, and posting keeps them.
+func TestStage14632bReceivePiecesOnTheHandheld(t *testing.T) {
+	f := pcSetup(t, true, "all")
+	lines := []map[string]interface{}{
+		{"line_no": 1, "sku": "PC1", "qty": 3.0, "child": "A"},
+		{"line_no": 2, "sku": "PC1", "qty": 2.0},
+		{"line_no": 3, "sku": "PLAIN", "qty": 1.0},
+	}
+	raw, _ := json.Marshal(lines)
+	f.insert("GRN-PC-RF", "GRN", "Draft", "system", map[string]interface{}{"flow": "steps", "code": "RCV-77", "location": "PCS",
+		"grn_step": GRNStepReceived, "received_items": string(raw), "children": `[{"key":"A","status":"Open"}]`})
+	f.insert("SN-OLD", "SerialNumber", "Active", "system", map[string]interface{}{"item": "PC1", "serial_no": "OLD-1"})
+
+	v, err := GRNPieceLines(f.tenantID, "RCV-77") // the receipt's code, as scanned
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.ID != "GRN-PC-RF" || len(v.Lines) != 2 || v.Lines[0].Pieces != 3 || v.Lines[1].Pieces != 2 {
+		t.Fatalf("lines = %+v; want the two PC1 lines (3 and 2 pieces), not the uncoded one", v)
+	}
+	if v, err = SetGRNPieceCodes(f.tenantID, "system", "GRN-PC-RF", 1, []string{" S-1 ", "S-2"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(v.Lines[0].Codes, ","); got != "S-1,S-2" {
+		t.Fatalf("line 1 codes = %s; want S-1,S-2", got)
+	}
+	for _, bad := range []struct {
+		line  int
+		codes []string
+		why   string
+	}{
+		{1, []string{"S-1", "S-1"}, "a code twice"},
+		{1, []string{"A", "B", "C", "D"}, "more codes than pieces"},
+		{2, []string{"S-1"}, "a code already on line 1"},
+		{2, []string{"OLD-1"}, "a code already in the serial register"},
+		{3, []string{"X-1"}, "a line that takes no codes"},
+	} {
+		if _, err := SetGRNPieceCodes(f.tenantID, "system", "GRN-PC-RF", bad.line, bad.codes, false); err == nil {
+			t.Fatalf("%s was accepted", bad.why)
+		}
+	}
+	if v, err = SetGRNPieceCodes(f.tenantID, "system", "GRN-PC-RF", 1, []string{"S-1", "S-2"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c := v.Lines[0].Codes; len(c) != 3 || c[0] != "S-1" || c[1] != "S-2" || !strings.HasPrefix(c[2], "PC") {
+		t.Fatalf("mint the rest = %v; want S-1, S-2 and one minted code", c)
+	}
+	var logged int
+	_ = db.DB.QueryRow("SELECT count(*) FROM "+f.schema+".grn_line_change WHERE grn_id = $1 AND step = 'Piece codes'", "GRN-PC-RF").Scan(&logged)
+	if logged == 0 {
+		t.Fatal("the change log has no Piece codes row")
+	}
+
+	// Posting keeps the scanned and minted codes and mints only line 2's.
+	var stored string
+	_ = db.DB.QueryRow("SELECT data->>'received_items' FROM " + f.schema + ".documents WHERE id = 'GRN-PC-RF'").Scan(&stored)
+	var all []interface{}
+	_ = json.Unmarshal([]byte(stored), &all)
+	if _, err := PostGRNReceiptWithQC(f.tenantID, "PCS", all[:2], "system", "GRN-PC-RF"); err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, s := range f.serials(t, "PC1") {
+		have[s] = true
+	}
+	if len(have) != 6 || !have["S-1"] || !have["S-2"] || !have[v.Lines[0].Codes[2]] {
+		t.Fatalf("serial register = %v; want OLD-1, line 1's three codes and two minted for line 2", have)
+	}
+
+	// Once its child has posted, a line's codes are fixed.
+	if _, err := db.DB.Exec("UPDATE " + f.schema + `.documents SET data = data || '{"children":"[{\"key\":\"A\",\"status\":\"Posted\"}]"}' WHERE id = 'GRN-PC-RF'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetGRNPieceCodes(f.tenantID, "system", "GRN-PC-RF", 1, []string{"S-9"}, false); err == nil {
+		t.Fatal("a posted line's codes were changed")
+	}
+	// A receipt posted in one step has nothing to scan onto.
+	f.grn(t, "GRN-PC-ONE", []map[string]interface{}{{"sku": "PC1", "qty": 1.0}})
+	if _, err := GRNPieceLines(f.tenantID, "GRN-PC-ONE"); err == nil {
+		t.Fatal("a one-step receipt was offered")
+	}
+}

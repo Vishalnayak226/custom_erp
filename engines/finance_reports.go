@@ -496,7 +496,7 @@ func init() {
 	RegisterReport(ReportDefinition{
 		ID: "gl-drilldown", Label: "GL Drill-down (by Account)", Category: "Finance",
 		Columns: []ReportColumn{
-			{Key: "document_type", Label: "Document Type"}, {Key: "document_id", Label: "Document ID"},
+			{Key: "document_type", Label: "Document Type"}, {Key: "document_id", Label: "Document ID"}, {Key: "source_line_id", Label: "Line"},
 			{Key: "debit", Label: "Debit", Sensitive: true}, {Key: "credit", Label: "Credit", Sensitive: true},
 			{Key: "balance", Label: "Running Balance", Sensitive: true}, {Key: "created_at", Label: "Date"},
 		},

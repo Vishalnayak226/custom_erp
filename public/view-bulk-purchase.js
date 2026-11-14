@@ -290,7 +290,7 @@ function bpKind(r, applied) {
 function bpMsg(r) {
   if (!r.message) return '';
   const bad = r.action === 'error' || r.result === 'failed';
-  return `<span style="font-size:13px;${bad ? ' color:var(--danger-color);' : ''}">${bpEsc(r.message)}</span>`;
+  return `<span class="u-fs13${bad ? ' u-bad' : ''}">${bpEsc(r.message)}</span>`;
 }
 
 function bpSection(title, counts, body, open) {

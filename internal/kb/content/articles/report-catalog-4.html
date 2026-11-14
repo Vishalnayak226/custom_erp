@@ -1,7 +1,7 @@
 <h1 id="report-catalog-part-4">Report catalog (part 4) <a class="kb-anchor" href="#report-catalog-part-4" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>49</strong> reports, from WMS to WMS.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>50</strong> reports, from WMS to WMS.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#wms">WMS</a> - 49 reports</li></ul>
+<ul><li><a href="#wms">WMS</a> - 50 reports</li></ul>
 <h2 id="wms">WMS <a class="kb-anchor" href="#wms" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r4033-3pl-storage-handling-billing">R4033 3PL Storage &amp; Handling Billing <a class="kb-anchor" href="#r4033-3pl-storage-handling-billing" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>3pl-storage-billing</code></p>
@@ -181,6 +181,12 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Barcode · SKU · LPN · Bin Code · Movement Date · Movement Type · Source Document No · RF User · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4050-lot-trace-both-ways">R4050 Lot Trace (Both Ways) <a class="kb-anchor" href="#r4050-lot-trace-both-ways" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>lot-trace</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Batch / Lot</strong> (<code>batch_no</code>) - text, <strong>required</strong></li><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Direction</strong> (<code>direction</code>) - select, optional, one of: Both,Forward,Backward</li></ul>
+<p><strong>Columns:</strong> Direction · Step · What · Item · Batch / Lot · Qty · Document · Vendor / Location · When · Lot source</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r4044-owner-stock-exceptions-3pl">R4044 Owner Stock Exceptions (3PL) <a class="kb-anchor" href="#r4044-owner-stock-exceptions-3pl" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>owner-stock-exceptions</code></p>

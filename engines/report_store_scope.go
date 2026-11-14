@@ -105,6 +105,16 @@ func reportStoreList(a StoreAccess) []string {
 	return out
 }
 
+// ReportStoreCut is the store cut a store-limited user's report rows take, for
+// the callers outside the report framework (157.4c: the old current-stock and
+// sales-register endpoints). cut is false for a user who sees every store.
+func ReportStoreCut(tenantID, role, userID string) (stores []string, cut bool) {
+	if access, limited := reportStoreScope(tenantID, role, userID); limited {
+		return reportStoreList(access), true
+	}
+	return nil, false
+}
+
 // CheckReportStoreAccess is the up-front check an export makes before
 // queueing (the run applies the same rule again).
 func CheckReportStoreAccess(tenantID, reportID, role, userID string, params map[string]string) error {

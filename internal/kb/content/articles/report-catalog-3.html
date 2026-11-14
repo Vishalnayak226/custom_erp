@@ -1,7 +1,7 @@
 <h1 id="report-catalog-part-3">Report catalog (part 3) <a class="kb-anchor" href="#report-catalog-part-3" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>102</strong> reports, from Procurement to Stock Transfer.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>103</strong> reports, from Procurement to Stock Transfer.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#procurement">Procurement</a> - 27 reports</li><li><a href="#procurement-grn">Procurement &amp; GRN</a> - 27 reports</li><li><a href="#quality">Quality</a> - 2 reports</li><li><a href="#sales">Sales</a> - 14 reports</li><li><a href="#sales-pos">Sales &amp; POS</a> - 22 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#stock-transfer">Stock Transfer</a> - 9 reports</li></ul>
+<ul><li><a href="#procurement">Procurement</a> - 27 reports</li><li><a href="#procurement-grn">Procurement &amp; GRN</a> - 27 reports</li><li><a href="#quality">Quality</a> - 3 reports</li><li><a href="#sales">Sales</a> - 14 reports</li><li><a href="#sales-pos">Sales &amp; POS</a> - 22 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#stock-transfer">Stock Transfer</a> - 9 reports</li></ul>
 <h2 id="procurement">Procurement <a class="kb-anchor" href="#procurement" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r2060-back-orders">R2060 Back orders <a class="kb-anchor" href="#r2060-back-orders" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>backorder-list</code></p>
@@ -154,7 +154,7 @@
 <p><strong>Report id:</strong> <code>vendor-scorecard</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor</strong> (<code>vendor</code>) - link, optional, one of: Vendor</li></ul>
-<p><strong>Columns:</strong> Vendor · Orders · Receipts · On time · Fill rate · QC reject · Price variance · Bills · Bill mismatches</p>
+<p><strong>Columns:</strong> Vendor · Orders · Receipts · On time · Fill rate · QC reject · Defects per million · Open SCARs · Price variance · Bills · Bill mismatches</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="procurement-grn">Procurement &amp; GRN <a class="kb-anchor" href="#procurement-grn" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r2010-cancelled-po-register">R2010 Cancelled PO Register <a class="kb-anchor" href="#r2010-cancelled-po-register" aria-label="Copy link to this section">#</a></h3>
@@ -320,6 +320,12 @@
 <p><strong>Columns:</strong> From Date · To Date · Vendor Code · Vendor Name · PO Qty · Received Qty · Rejected Qty · Pending Qty · Amount Variance · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="quality">Quality <a class="kb-anchor" href="#quality" aria-label="Copy link to this section">#</a></h2>
+<h3 id="r7970-aql-sample-plan">R7970 AQL Sample Plan <a class="kb-anchor" href="#r7970-aql-sample-plan" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>aql-sample-plan</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Lot size</strong> (<code>lot_size</code>) - text, <strong>required</strong></li><li><strong>AQL</strong> (<code>aql</code>) - select, optional, one of: 0.065,0.10,0.15,0.25,0.40,0.65,1.0,1.5,2.5,4.0,6.5</li></ul>
+<p><strong>Columns:</strong> Lot size · AQL · Code letter · Sample · Accept at · Reject at · Whole lot</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="r9060-inspection-lots">R9060 Inspection lots <a class="kb-anchor" href="#r9060-inspection-lots" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>inspection-lots</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>

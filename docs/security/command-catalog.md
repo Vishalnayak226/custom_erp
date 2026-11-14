@@ -23,7 +23,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Family | Commands |
 |---|---|
 | Export | 8 |
-| Credential / config change | 29 |
+| Credential / config change | 30 |
 | Loyalty | 6 |
 | Tender | 2 |
 | Quote / discount / override | 9 |
@@ -31,14 +31,14 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Sale | 13 |
 | Allocation / pick / ship | 23 |
 | Adjustment / count | 18 |
-| Vendor / payment | 9 |
+| Vendor / payment | 10 |
 | Journal / period | 14 |
 | Payroll | 1 |
-| Master merge | 2 |
+| Master merge | 3 |
 | Staged import | 7 |
 | Channel listing | 3 |
 | Assistant order | 1 |
-| **Total** | **160** |
+| **Total** | **163** |
 
 ## Export
 
@@ -69,6 +69,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | `POST /api/v1/admin/security/notify/incidents` | admin · admin.audit-logs | an incident name, when it was noticed and the matrix rows to decide | an administrator; a discovery time within a year and not in the future | one decision per row, each fixed to the matrix version of that moment with its assessment and target time; the system never concludes that anyone must be told | none - a repeat is a second command | NOTIFY_INCIDENT_OPENED / SUCCESS |
 | `POST /api/v1/admin/security/notify/matrix` | admin · admin.audit-logs | the matrix rows and a note on what changed; who and when | an administrator; 1 to 60 valid rows | always a new version, never an edit; decisions already opened keep the version they used | none - a repeat is a second command | NOTIFY_MATRIX_VERSION / SUCCESS |
 | `POST /api/v1/admin/security/notify/review` | admin · admin.privacy-approval | approve or send back, with a note | an administrator who is the named approver and not the person who decided | approving closes the decision for good; sending back reopens it with the note | none - a repeat is a second command | NOTIFY_DECISION_REVIEWED / SUCCESS |
+| `POST /api/v1/admin/security/read-only` | admin · admin.audit-logs | on / off, a reason and the admin's own password; the setting and its stamp | an administrator | while on every change of this client is refused at the middleware with 423 READ_ONLY; reads, sign-in, sign-out and the emergency controls stay open; other clients are untouched | none - a repeat is a second command | SECURITY_CONTROL / (dynamic) |
 | `POST /api/v1/admin/security/sessions/end` | admin · admin.audit-logs | the session id, a reason and the admin's own password; who ended it and when | an administrator; a stored privileged session | that one token is refused at its next request; the user's other sessions carry on | none - a repeat is a second command | USER_MANAGEMENT / SESSION_ENDED |
 | `POST /api/v1/admin/security/sign-out-all` | admin · admin.audit-logs | session revocation stamp | an administrator | every session of the client is dead after | none - a repeat is a second command | USER_MANAGEMENT / ALL_SESSIONS_REVOKED |
 | `POST /api/v1/admin/security/sign-out-user` | admin · admin.audit-logs | session revocation stamp | an administrator; a user | every session of that user is dead after | none - a repeat is a second command | USER_MANAGEMENT / SESSIONS_REVOKED |
@@ -125,7 +126,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 |---|---|---|---|---|---|---|
 | `POST /api/v1/fulfillment/return` | authenticated · wms.default; module wms | return number, stock posting | a shipped order | returned quantity never exceeds shipped | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/inventory/challans/{id}/return` | authenticated · inventory.default; module inventory | return stamp, stock back at the issuing location | a dispatched challan | returned never exceeds dispatched | ClaimCommand(inventory.challan.return) via commandKeyed | RETURN_DELIVERY_CHALLAN / SUCCESS |
-| `POST /api/v1/inventory/material-requests/{id}/return` | authenticated · inventory.default; module inventory | return stamp, stock back | an issued material request | returned never exceeds issued | ClaimCommand(inventory.material.return) via commandKeyed | RETURN_MATERIAL / SUCCESS |
+| `POST /api/v1/inventory/material-requests/{id}/return` | authenticated · inventory.default; module inventory | return stamp, stock back | an issued material request | returned never exceeds issued | ClaimCommand(inventory.material.return) via commandKeyed | RETURN_MATERIAL / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/pos/exchange/start` | authenticated · pos.default; module oms | exchange cart with the return credit | an original bill of this store | the credit equals the returned lines' value; one exchange per returned line | ClaimCommand(returns.create) | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/procurement/purchase-returns/{id}/post` | authenticated · procurement.default; module procurement | debit note number, GL and stock posting | a Draft purchase return against a received GRN; *approval rule may gate it* | returned never exceeds received; the debit note equals the returned value; posts once | none - a repeat is a second command | POST_PURCHASE_RETURN / SUCCESS; refusal: <error code> / Error (AuditRequired entries); approval_log (approval engine) |
 | `POST /api/v1/refunds/{id}/approve` | authenticated · oms.default; module oms | approval stamp | a Pending refund; approver is not the requester | a refund is approved once | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
@@ -189,8 +190,8 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 
 | Command | Actor | Authoritative inputs | Preconditions | Invariants | Idempotency | Audit row |
 |---|---|---|---|---|---|---|
-| `POST /api/v1/inventory/adjustments` | authenticated · inventory.default; module inventory | adjustment number, status Draft, valuation at current cost | items and location exist; reason code; *approval rule may gate it* | a Draft adjustment moves no stock | ClaimCommand(inventory.adjustment.create) via commandKeyed; RunEconomicCommand(inventory.adjustment.post) | CREATE_INVENTORY_ADJUSTMENT / SUCCESS; POST_INVENTORY_ADJUSTMENT / SUCCESS; approval_log (approval engine) |
-| `POST /api/v1/inventory/adjustments/preview` | authenticated · inventory.default; module inventory | projected stock and value | lines given | a preview changes nothing | read-only preview | none (preview) |
+| `POST /api/v1/inventory/adjustments` | authenticated · inventory.default; module inventory | adjustment number, status Draft, valuation at current cost | items and location exist; reason code; *approval rule may gate it* | a Draft adjustment moves no stock | ClaimCommand(inventory.adjustment.create) via commandKeyed; RunEconomicCommand(inventory.adjustment.post) | CREATE_INVENTORY_ADJUSTMENT / SUCCESS; POST_INVENTORY_ADJUSTMENT / SUCCESS; refusal: <error code> / Error (AuditRequired entries); approval_log (approval engine) |
+| `POST /api/v1/inventory/adjustments/preview` | authenticated · inventory.default; module inventory | projected stock and value | lines given | a preview changes nothing | read-only preview | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/inventory/adjustments/{id}/post` | authenticated · inventory.default; module inventory | stock movement, GL posting at cost, posting stamp | a Draft adjustment; approval where a rule matches; stock never below zero unless allowed | the stock movement and the GL entry post together once (RunEconomicCommand); the GL value equals quantity x cost | ClaimCommand(dynamic); RunEconomicCommand(inventory.adjustment.post) | POST_INVENTORY_ADJUSTMENT / SUCCESS; REFRESH_INVENTORY_ADJUSTMENT / SUCCESS |
 | `POST /api/v1/inventory/adjustments/{id}/reverse` | authenticated · inventory.default; module inventory | the reversal's own number and postings | a Posted adjustment; *approval rule may gate it* | a reversal mirrors the original and happens once | none - a repeat is a second command | CREATE_INVENTORY_ADJUSTMENT / SUCCESS; REVERSE_INVENTORY_ADJUSTMENT / SUCCESS; approval_log (approval engine) |
 | `POST /api/v1/stock-age-inspections` | authenticated · quality.default; module quality | outcome, job-work reference or scrap lines | an open age inspection; *approval rule may gate it* | decided once; scrap posts only through the stock adjustment | none - a repeat is a second command | CREATE_INVENTORY_ADJUSTMENT / SUCCESS; STOCK_AGE_INSPECTION_DECIDED / SUCCESS; approval_log (approval engine) |
@@ -213,6 +214,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Command | Actor | Authoritative inputs | Preconditions | Invariants | Idempotency | Audit row |
 |---|---|---|---|---|---|---|
 | `POST /api/v1/finance/payment-proposal` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | proposal number, selected bills by due date | open payables | a bill is in one open proposal | none - a repeat is a second command | CREATE_PAYMENT_PROPOSAL / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
+| `POST /api/v1/finance/payment-proposal/{id}/bank-response` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | the bank's response CSV (payment reference, UTR, status, reason), the bank account for exceptions | an Executed proposal; a known bank account | a paid row records its UTR once; a rejected row raises a bank exception and reverses nothing; the same response loaded twice is skipped | none - a repeat is a second command | PAYMENT_BANK_RESPONSE / SUCCESS |
 | `POST /api/v1/finance/payment-proposal/{id}/execute` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | payment numbers, GL postings | an Approved proposal; approver is not the preparer | every bill in the proposal is paid once, for its proposed amount | ClaimCommand(finance.payment_proposal.execute) via commandKeyed | EXECUTE_PAYMENT_PROPOSAL / SUCCESS; PAY_VENDOR_INVOICE / SUCCESS; PAY_VENDOR_INVOICE_OVERRIDE_SUBMITTED / SUCCESS; VENDOR_EARLY_PAYMENT_DISCOUNT / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/finance/payment-proposal/{id}/record-utr` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | UTR stamp | an executed proposal | one UTR per payment | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/finance/vendor-credit-note/{id}/post` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | GL posting, posting stamp | a Draft vendor credit note against a bill | the note never exceeds the bill's open amount; posts once; posted money is frozen after | none - a repeat is a second command | POST_VENDOR_CREDIT_NOTE / SUCCESS |
@@ -253,6 +255,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 |---|---|---|---|---|---|---|
 | `POST /api/v1/crm/customer/merge` | authenticated · crm_loyalty.default; module crm_loyalty | survivor id, re-pointed documents, merge record | two customers; the survivor named | every document of the merged customer points at the survivor; balances and points are added, not lost | none - a repeat is a second command | CUSTOMER_MERGE / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/crm/merges` | authenticated · crm_loyalty.default; module crm_loyalty | merge request record | two customers; *approval rule may gate it* | a merge is applied once per request | none - a repeat is a second command | approval_log (approval engine) |
+| `POST /api/v1/pim/items/merge` | authenticated · pim.default; module pim | the item that stays, the duplicate | an admin or master-data role; same tax, unit and tracking on both; no open document blocks it | the duplicate's stock and average cost move in one transaction with no GL entry; its codes resolve to the item that stays; the duplicate is kept Inactive, never deleted; a replay changes nothing | ClaimCommand(dynamic); RunEconomicCommand(dynamic) | item.merge / Failure; item.merge / Success; refusal: <error code> / Error (AuditRequired entries) |
 
 ## Staged import
 
@@ -278,5 +281,5 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 
 | Command | Actor | Authoritative inputs | Preconditions | Invariants | Idempotency | Audit row |
 |---|---|---|---|---|---|---|
-| `POST /api/v1/orders/{id}/submit-assistant-draft` | authenticated · ai_access.default; module ai_access | the draft order id; the signed-in person | an open draft made by an assistant, in a store the person may use | the order is made through the ordinary create path; the draft is closed and linked to it | none - a repeat is a second command | AI_ACCESS_DRAFT_SUBMITTED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
+| `POST /api/v1/orders/{id}/submit-assistant-draft` | authenticated · ai_access.default; module ai_access | the draft order id; the signed-in person | an open draft made by an assistant, in a store the person may use | the order is made through the ordinary create path; the draft is closed and linked to it | none - a repeat is a second command | AI_ACCESS_DRAFT_SUBMITTED / SUCCESS |
 

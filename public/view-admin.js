@@ -1580,7 +1580,7 @@ async function renderSetupPathPanel(host) {
       ? ` <span class="text-muted s-7e3a94">· Next: ${escapeHTMLText(next.label)}</span> <button type="button" class="btn btn-primary btn-sm s-78fa54" data-setup-next>Continue</button>` : ''}</summary>
     <ol class="s-5c6f1c">${steps.map(s => {
       const [cls, text] = badge(s);
-      return `<li data-step-id="${escapeHTMLText(s.id)}"${s.next ? ' style="font-weight:500;"' : ''}>
+      return `<li data-step-id="${escapeHTMLText(s.id)}"${s.next ? ' class="u-fw5"' : ''}>
         <span class="badge ${cls}">${text}</span>
         <strong>${escapeHTMLText(s.label)}</strong>
         <span class="text-muted">${s.count ? `(${escapeHTMLText(String(s.count))})` : ''}${!s.done && s.waiting_for.length ? ` - after ${escapeHTMLText(s.waiting_for.map(w => label[w] || w).join(', '))}` : ''}</span>
@@ -1731,6 +1731,7 @@ let configModules = [];           // the modules this person can open
 let configRenderToken = -1;       // app.js viewRenderToken at the last Configuration render
 
 async function renderConfigurationView(container) {
+  if (currentViewTab === 'data-governance') return (await loadViewModule('/view-data-governance.js' + new URL(import.meta.url).search)).renderDataGovernanceView(container);
   if (currentViewTab === 'credentials') return (await loadViewModule('/view-integration-credentials.js' + new URL(import.meta.url).search)).renderIntegrationCredentialsView(container); // 49.8.5
   const header = document.createElement('div');
   header.className = 'page-header';

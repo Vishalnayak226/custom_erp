@@ -5,6 +5,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -164,8 +165,15 @@ func runScheduledReport(ctx context.Context, schema, tenantID, id, runBy string,
 	}
 
 	runStatus := "Delivered"
-	def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, runBy, params)
-	if err != nil {
+	var def *ReportDefinition
+	var resultRows []map[string]interface{}
+	var err error
+	if scheduledExportFrozen(tenantID, runBy, "ScheduledReport "+id) {
+		// 170.43: the export freeze stops a scheduled report too. err keeps
+		// last_run_rows blank below.
+		runStatus = exportsPausedRunStatus
+		err = errors.New(exportsPausedRunStatus)
+	} else if def, resultRows, _, err = RunReportContext(ctx, tenantID, reportID, role, runBy, params); err != nil {
 		runStatus = "Failed: " + err.Error()
 	} else if csvText, cerr := reportRowsToCSV(*def, resultRows); cerr != nil {
 		runStatus = "Failed: " + cerr.Error()

@@ -93,12 +93,13 @@ func handleConfirmProductionOperation(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		OrderID string `json:"order_id"`
 		Seq     int    `json:"seq"`
+		engines.OperationConfirmation
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
 		return
 	}
-	warning, err := engines.ConfirmOperation(tenantID, req.OrderID, req.Seq, userID)
+	warning, err := engines.ConfirmOperationRecorded(tenantID, req.OrderID, req.Seq, userID, req.OperationConfirmation)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
@@ -324,4 +325,20 @@ func handleActiveBOMForItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"bom_id": bomID})
+}
+
+// handleListProductionConfirmations (170.10): a work order's operation confirmations.
+func handleListProductionConfirmations(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	orderID := r.URL.Query().Get("order_id")
+	if orderID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
+		return
+	}
+	rows, err := engines.ListProductionConfirmations(tenantID, orderID)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(rows)
 }

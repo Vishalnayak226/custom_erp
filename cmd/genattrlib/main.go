@@ -89,6 +89,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "genattrlib:", err)
 		os.Exit(1)
 	}
+	if err := writeRules(sheets, *out); err != nil {
+		fmt.Fprintln(os.Stderr, "genattrlib:", err)
+		os.Exit(1)
+	}
 	values := 0
 	for _, v := range lib.ValueSets {
 		values += len(v)
@@ -312,4 +316,48 @@ func columnIndex(ref string) int {
 		n = n*26 + int(ch-'A'+1)
 	}
 	return n - 1
+}
+
+// writeRules reads 05_Category_Rules and writes the category / attribute
+// links next to the library (attribute_library_rules.json, the same folder as
+// out). Only a Mandatory or Optional default is kept: the workbook says a
+// Conditional or Regulatory flag is not the same as always required, so those
+// rows are counted and left out.
+func writeRules(sheets map[string][][]string, out string) error {
+	rows, err := table(sheets, "05_Category_Rules", "Default Requiredness")
+	if err != nil {
+		return err
+	}
+	type rule struct {
+		Industry     string `json:"industry"`
+		CategoryID   string `json:"category_id"`
+		CategoryName string `json:"category_name"`
+		Attribute    string `json:"attribute"`
+		Rule         string `json:"rule"`
+	}
+	var rules []rule
+	skipped := 0
+	for _, r := range rows {
+		if r["Attribute ID (FK)"] == "" || (r["Status"] != "" && r["Status"] != "Active") {
+			continue
+		}
+		var rl string
+		switch strings.ToLower(r["Default Requiredness"]) {
+		case "mandatory":
+			rl = "Required"
+		case "optional":
+			rl = "Optional"
+		default:
+			skipped++
+			continue
+		}
+		rules = append(rules, rule{r["Industry"], r["Category ID"], r["Category Name"], r["Attribute ID (FK)"], rl})
+	}
+	body, err := json.Marshal(map[string]interface{}{"skipped": skipped, "rules": rules})
+	if err != nil {
+		return err
+	}
+	dest := path.Join(path.Dir(strings.ReplaceAll(out, `\`, "/")), "attribute_library_rules.json")
+	fmt.Printf("genattrlib: %d category rules (%d conditional / regulatory left out) -> %s\n", len(rules), skipped, dest)
+	return os.WriteFile(dest, append(body, '\n'), 0o644)
 }

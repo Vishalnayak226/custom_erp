@@ -48,6 +48,7 @@ async function renderOMSWorkbenchView(container) {
   const tab = typeof currentViewTab === 'string' ? currentViewTab : '';
   if (tab === 'settlements') return renderOMSSettlementsView(container);
   if (tab === 'settings') return renderOMSSettingsView(container);
+  if (tab === 'freight') return (await import('./view-oms-freight.js' + new URL(import.meta.url).search)).renderOMSFreightView(container); // 73.4.2.6/7
   if (tab) {
     const steps = await import('./view-oms-steps.js' + new URL(import.meta.url).search);
     if (steps.isOMSStep(tab)) return steps.renderOMSStep(tab, container);
@@ -69,28 +70,21 @@ async function renderOMSWorkbenchView(container) {
          class names the previous version of this screen used do not exist in
          styles.css at all, which is why its four tiles rendered as full-width
          stacked bars with an unstyled number. -->
-    <div class="dashboard-stats-row" id="oms-tiles"></div>
-    <div class="table-panel s-bd6ccb">
-      <h2 class="s-78a190">Start with the work needing attention</h2>
-      <div class="s-b32917">
+    <!-- 152.6 (user 2026-11-13): the attention chips sit in the tile row and
+         the search box in the filter row, so the list fits a 768 px window. -->
+    <div class="oms-top-row">
+      <div class="dashboard-stats-row" id="oms-tiles"></div>
+      <div class="oms-attention" role="group" aria-label="Work needing attention">
         <button class="btn btn-outline btn-sm" data-oms-queue="hold">Allocation or payment holds</button>
         <button class="btn btn-outline btn-sm" data-oms-go="pending">Pending Orders</button>
         <button class="btn btn-outline btn-sm" data-oms-queue="overdue">Overdue open orders</button>
         <button class="btn btn-outline btn-sm" data-oms-go="settings">Unmapped channel items</button>
         <a class="btn btn-outline btn-sm" href="#/setup/ReturnRequest">Return requests</a>
+        <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
       </div>
-      <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
-      <div id="oms-queue-rows"></div>
     </div>
+    <div id="oms-queue-rows" class="table-panel oms-compact-panel"></div>
     <div class="table-panel s-bd6ccb" id="oms-ai-drafts"></div>
-    <div class="table-panel oms-compact-panel s-bd6ccb">
-      <div class="oms-search-row">
-        <input type="search" id="oms-global-search" class="form-input" aria-label="Search orders" placeholder="Search any order: order id, channel order id, AWB, phone, customer or SKU">
-        <button class="btn btn-outline" id="oms-search-btn">Search</button>
-        <button class="btn btn-outline" id="oms-search-clear">Clear</button>
-      </div>
-      <div id="oms-search-results"></div>
-    </div>
     <div class="table-panel s-ddaf9e">
       <div class="oms-console-head">
         <h2 class="s-b79c2e">Orders</h2>
@@ -100,7 +94,17 @@ async function renderOMSWorkbenchView(container) {
           <button class="btn btn-outline btn-sm" id="oms-delete-view">Delete view</button>
         </div>
       </div>
-      <div id="oms-facets" class="oms-facets"></div>
+      <div class="oms-filter-row">
+        <div class="oms-facet oms-facet-search"><span>Search</span>
+          <div class="oms-search-row">
+            <input type="search" id="oms-global-search" class="form-input" aria-label="Search orders" placeholder="Order, AWB, phone or SKU">
+            <button class="btn btn-outline btn-sm" id="oms-search-btn">Search</button>
+            <button class="btn btn-outline btn-sm" id="oms-search-clear">Clear</button>
+          </div>
+        </div>
+        <div id="oms-facets" class="oms-facets"></div>
+      </div>
+      <div id="oms-search-results"></div>
       <div class="bulk-edit-bar hidden" id="oms-bulk-bar">
         <span id="oms-selection-count">0 selected</span>
         <button class="btn btn-outline" id="oms-bulk-release">Release Hold</button>
@@ -428,7 +432,7 @@ async function loadOMSOrders(liveHost = null) {
   renderOMSOrderTable(result);
 }
 
-const OMS_HOLD_WORDS = { CREDIT: 'Over credit limit', MARGIN: 'Below floor rate' };
+const OMS_HOLD_WORDS = { CREDIT: 'Over credit limit', MARGIN: 'Below floor rate', FRAUD_RISK: 'Risk check', ALLOCATION_FAILED: 'Waiting for stock' };
 
 function renderOMSFacets(facets) {
   const host = document.getElementById('oms-facets');
@@ -723,6 +727,7 @@ window.openOMSOrderDetail = async function(orderID) {
       <td>${l.line_status === 'On Hold'
             ? `<button class="action-btn" data-line-release="${escapeHTMLText(l.line_id)}">Release line</button>`
             : (['Dispatched', 'Cancelled', 'Returned'].includes(l.line_status) ? '' : `<button class="action-btn" data-line-hold="${escapeHTMLText(l.line_id)}">Hold line</button>`)}
+          ${l.substitute && ['Reserved', 'Pending', 'On Hold'].includes(l.line_status) ? `<button class="action-btn" data-line-sub="${escapeHTMLText(l.line_id)}" data-sub-sku="${escapeHTMLText(l.substitute)}" title="Swap for ${escapeHTMLText(l.substitute)}, same quantity and price">Substitute</button>` : ''}
           <label class="oms-split-pick"><input type="checkbox" class="oms-split-line" data-line="${escapeHTMLText(l.line_id)}"> split</label></td>
     </tr>`).join('');
 
@@ -742,7 +747,9 @@ window.openOMSOrderDetail = async function(orderID) {
           <div><span class="stat-label">Source</span><div>${escapeHTMLText(order.channel || 'Manual')}${order.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(order.channel_order_id)}</div>` : ''}</div></div>
           <div><span class="stat-label">Customer</span><div>${escapeHTMLText(order.customer_name || '—')}${order.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(order.customer_phone)}</div>` : ''}</div></div>
           ${order.customer_reference ? `<div><span class="stat-label">Customer PO / Ref</span><div>${escapeHTMLText(order.customer_reference)}</div></div>` : ''}
-          <div><span class="stat-label">Payment</span><div>${escapeHTMLText(order.payment_status || '—')}</div></div>
+          <div><span class="stat-label">Payment</span><div>${escapeHTMLText(order.payment_status || '—')}${Number(order.refunded_amount) > 0 ? `<div class="oms-channel-ref">Refunded ${formatMoney(order.refunded_amount)}</div>` : ''}${order.chargeback_status ? `<div class="oms-channel-ref">Chargeback ${escapeHTMLText(order.chargeback_status)} · ${formatMoney(order.chargeback_amount)}</div>` : ''}</div></div>
+          ${order.risk_reasons ? `<div><span class="stat-label">Risk</span><div>${escapeHTMLText(order.risk_reasons)}${order.risk_cleared_at ? `<div class="oms-channel-ref">Released${order.risk_cleared_by ? ` by ${escapeHTMLText(order.risk_cleared_by)}` : ''}</div>` : ''}</div></div>` : ''}
+          ${order.promise_date || order.promise_reason ? `<div><span class="stat-label">Promised</span><div title="${escapeHTMLText(order.promise_reason || '')}">${escapeHTMLText(order.promise_date || '—')}${order.promise_date ? '' : `<div class="oms-channel-ref">${escapeHTMLText(order.promise_reason)}</div>`}</div></div>` : ''}
           <div><span class="stat-label">Priority</span><div>${escapeHTMLText(order.priority || 'Normal')}</div></div>
           ${order.channel_push && order.channel_push.decision ? `<div><span class="stat-label">Channel told</span><div title="${escapeHTMLText(order.channel_push.error || '')}">${escapeHTMLText(order.channel_push.decision)} · ${escapeHTMLText(order.channel_push.status || '')}</div></div>` : ''}
           <div><span class="stat-label">Value</span><div>${formatMoney(order.total_amount)}</div></div>
@@ -760,6 +767,11 @@ window.openOMSOrderDetail = async function(orderID) {
           ${['Shipped', 'Delivered', 'Closed', 'Dispatched', 'Partially Fulfilled'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="replace" title="Send lost, damaged or wrong goods again on a linked, no-charge order">Reship / replace</button>` : ''}
           ${['Shipped', 'Delivered', 'Closed', 'Dispatched', 'Partially Fulfilled'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="return">Return / RTO</button>` : ''}
           ${status === 'Cancelled' ? `<button class="btn btn-outline btn-sm" data-action="creditnote" title="Credit the customer for a cancelled, prepaid order">Credit note</button>` : ''}
+          ${status !== 'Cancelled' && !['Confirmed', 'Refunded', 'Charged back'].includes(order.payment_status) ? `<button class="btn btn-outline btn-sm" data-action="pay-capture" title="The customer's payment has been received">Capture payment</button>` : ''}
+          ${order.payment_status === 'Confirmed' ? `<button class="btn btn-outline btn-sm" data-action="pay-refund" title="Record money paid back to the customer">Refund</button>` : ''}
+          ${['Confirmed', 'Refunded'].includes(order.payment_status) && order.chargeback_status !== 'Open' ? `<button class="btn btn-outline btn-sm" data-action="pay-chargeback" title="The bank reversed this payment">Chargeback</button>` : ''}
+          ${order.chargeback_status === 'Open' ? `<button class="btn btn-outline btn-sm" data-action="pay-chargeback_won">Chargeback won</button><button class="btn btn-outline btn-sm" data-action="pay-chargeback_lost">Chargeback lost</button>` : ''}
+          ${(d.shipments || []).some(s => s.status !== 'Cancelled') && canCreateDoctype('CarrierClaim') ? `<button class="btn btn-outline btn-sm" data-action="claim" title="Lost, damaged or short in transit">Carrier claim</button>` : ''}
           <button class="btn btn-outline btn-sm" data-action="reallocate"${terminal ? ' disabled' : ''}>Reallocate</button>
           <button class="btn btn-outline btn-sm" data-action="switch"${terminal ? ' disabled' : ''}>Switch facility</button>
           <button class="btn btn-outline btn-sm" data-action="priority"${terminal ? ' disabled' : ''}>${order.priority === 'Expedite' ? 'Set Normal' : 'Expedite'}</button>
@@ -815,6 +827,11 @@ window.openOMSOrderDetail = async function(orderID) {
     if (reasonCode === null || !reasonCode.trim()) return;
     await omsPost(`/api/v1/order-lines/${encodeURIComponent(btn.getAttribute('data-line-hold'))}/hold`, { reason_code: reasonCode.trim() }, 'Failed to hold this line.', () => openOMSOrderDetail(orderID));
   }));
+  overlay.querySelectorAll('[data-line-sub]').forEach(btn => btn.addEventListener('click', async () => { // 73.4.2.5
+    const line = (d.lines || []).find(l => l.line_id === btn.dataset.lineSub) || {};
+    if (!(await showCustomConfirm(`Swap ${line.sku} for ${btn.dataset.subSku}? Same quantity and price.`, 'Substitute'))) return;
+    await omsPost(`/api/v1/orders/${encodeURIComponent(orderID)}/lines/${encodeURIComponent(btn.dataset.lineSub)}/substitute`, {}, 'Failed to substitute this line.', () => openOMSOrderDetail(orderID));
+  }));
   overlay.querySelectorAll('[data-line-release]').forEach(btn => btn.addEventListener('click', async () => {
     await omsPost(`/api/v1/order-lines/${encodeURIComponent(btn.getAttribute('data-line-release'))}/release-hold`, {}, 'Failed to release this line.', () => openOMSOrderDetail(orderID));
   }));
@@ -822,11 +839,39 @@ window.openOMSOrderDetail = async function(orderID) {
   overlay.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', async () => {
     const action = btn.getAttribute('data-action');
     const path = `/api/v1/orders/${encodeURIComponent(orderID)}`;
+    if (action === 'claim') { // 73.4.2.6: against the latest live shipment
+      const ship = (d.shipments || []).filter(s => s.status !== 'Cancelled')
+        .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0];
+      const { raiseCarrierClaimDialog } = await import('./view-oms-freight.js' + new URL(import.meta.url).search);
+      await raiseCarrierClaimDialog(ship ? ship.id : '', () => openOMSOrderDetail(orderID));
+      return;
+    }
+    if (action.startsWith('pay-')) { // 73.4.2.3: capture, refund, chargeback and its outcome
+      const move = action.slice(4);
+      const body = { action: move };
+      if (move === 'capture') {
+        const ref = await showCustomPrompt('Payment reference (optional)', '', 'Capture payment');
+        if (ref === null) return;
+        body.reference = ref.trim();
+      } else if (move === 'refund' || move === 'chargeback') {
+        const paid = Number(order.captured_amount) || Number(order.total_amount) || 0;
+        const left = move === 'refund' ? paid - (Number(order.refunded_amount) || 0) : paid;
+        const amt = await showCustomPrompt('Amount', String(Math.round(left * 100) / 100), move === 'refund' ? 'Refund' : 'Chargeback');
+        if (amt === null) return;
+        body.amount = Number(amt);
+        if (!(body.amount > 0)) { showToast('Enter an amount above 0.', { variant: 'error' }); return; }
+        const note = await showCustomPrompt(move === 'refund' ? 'Refund reference (optional)' : "Bank's reason", '', move === 'refund' ? 'Refund' : 'Chargeback');
+        if (note === null) return;
+        if (move === 'refund') body.reference = note.trim(); else body.reason = note.trim();
+      } else if (!(await showCustomConfirm(move === 'chargeback_won' ? 'Mark the chargeback won? The payment stands.' : 'Mark the chargeback lost? Payment becomes Charged back.', 'Chargeback'))) return;
+      return omsPost(`${path}/payment`, body, 'The payment change was not saved.', after);
+    }
     if (action === 'release' && order.hold_reason === 'MARGIN') { // 148.26: released with a reason
       const reason = await showCustomPrompt('Why is this rate accepted?', '', 'Release hold');
       if (!reason || !reason.trim()) return;
       return omsPost(`${path}/margin-release`, { reason: reason.trim() }, 'Failed to release the hold.', after);
     }
+    if (action === 'release' && order.hold_reason === 'FRAUD_RISK' && !(await showCustomConfirm(`Release this order? ${order.risk_reasons || ''}`, 'Risk check'))) return; // 73.4.2.4
     if (action === 'release') return omsPost(`${path}/release-hold`, {}, 'Failed to release the hold.', after);
     // FA-20261005-03: the Reserved order's next step - creates its pick
     // tasks, which then appear on the Pick page (Stage 88.2).
@@ -1137,7 +1182,7 @@ function openOMSOrderEdit(orderID, order, onSaved) {
         <div class="form-group"><label class="form-label" for="oms-edit-ship">Shipping address</label>
           <textarea id="oms-edit-ship" class="form-textarea" rows="2">${escapeHTMLText(order.shipping_address || '')}</textarea></div>
         <div class="form-group"><label class="form-label" for="oms-edit-bill">Billing address</label>
-          <textarea id="oms-edit-bill" class="form-textarea" rows="2">${escapeHTMLText(order.billing_address || '')}</textarea></div>
+          <textarea id="oms-edit-bill" class="form-textarea" rows="2" placeholder="Same as shipping">${escapeHTMLText(order.billing_address || '')}</textarea></div>
         <div class="form-group"><label class="form-label" for="oms-edit-payment">Payment status</label>
           <select id="oms-edit-payment" class="form-input">
             ${['Pending', 'Confirmed', 'COD'].map(v => `<option value="${v}"${order.payment_status === v ? ' selected' : ''}>${v}</option>`).join('')}
@@ -1243,7 +1288,7 @@ function renderManualOrderPanel(panel) {
     </div>
     <div class="table-wrapper">
       <table class="po-lines">
-        <thead><tr><th class="s-47b618">Item</th><th class="num s-581be4">Available</th><th class="num s-581be4">Qty</th><th class="num s-c6fffd">Unit price</th><th class="s-387298"></th></tr></thead>
+        <thead><tr><th class="s-47b618">Item</th><th class="num s-581be4">Available</th><th class="mo-promise-col s-581be4">Promised</th><th class="num s-581be4">Qty</th><th class="num s-c6fffd">Unit price</th><th class="s-387298"></th></tr></thead>
         <tbody id="mo-lines-body"></tbody>
       </table>
     </div>
@@ -1279,6 +1324,7 @@ function renderManualOrderLines() {
     <tr data-mo-line="${i}">
       <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Design, Combination ID or barcode" aria-label="Item for line ${i + 1}">${manualOrderNeedReason ? `<input type="text" class="form-input s-96ad60" data-mo-field="floor_reason" value="${escapeHTMLText(l.floor_reason || '')}" placeholder="Why this rate" aria-label="Why this rate, line ${i + 1}">` : ''}</td>
       <td class="num s-2a6e8f" data-mo-avail="${i}" title="${escapeHTMLText(l.availTitle || '')}">${manualOrderAvailHTML(l.avail)}</td>
+      <td class="mo-promise-col s-2a6e8f" data-mo-promise="${i}" title="${escapeHTMLText(l.promiseWhy || '')}">${escapeHTMLText(l.promise || '')}</td>
       <td><input type="number" class="form-input num" data-mo-field="qty" min="1" step="1" value="${escapeHTMLText(l.qty)}" aria-label="Quantity for line ${i + 1}"></td>
       <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}" aria-label="Unit price for line ${i + 1}"><div class="text-muted s-6cb285" data-mo-why>${escapeHTMLText(l.why || '')}</div></td>
       <td><button type="button" class="po-line-remove" data-mo-remove="${i}" aria-label="Remove line ${i + 1}">&times;</button></td>
@@ -1292,7 +1338,7 @@ function renderManualOrderLines() {
       const commit = () => { manualOrderLines[i][field] = input.value.trim(); };
       input.addEventListener('change', commit);
       if (field === 'unit_price') input.addEventListener('input', () => { manualOrderLines[i].rateTyped = true; manualOrderLines[i].why = ''; const w = tr.querySelector('[data-mo-why]'); if (w) w.textContent = ''; });
-      if (field === 'qty') input.addEventListener('change', () => priceManualOrderLine(i));
+      if (field === 'qty') input.addEventListener('change', () => { priceManualOrderLine(i); promiseManualOrderLine(i); });
       input.addEventListener('blur', commit);
       if (field === 'sku') input.addEventListener('change', () => fillManualOrderItem(i, input.value.trim()));
     });
@@ -1363,6 +1409,28 @@ async function fillManualOrderItem(i, sku) {
   const names = await Promise.all(top.map(l => lookupLinkDoc('Location', l.location_code).then(d => linkDisplayName(d) || l.location_code)));
   const more = (data.locations || []).length - top.length;
   show(Number(data.ats) || 0, top.map((l, k) => `${names[k]} ${l.ats}`).join(' · ') + (more > 0 ? ` · +${more} more` : ''));
+  line.promiseSku = item.code || item.id || sku;
+  promiseManualOrderLine(i);
+}
+
+// 73.4.2.1: the promise date for the line (148.27 - stock today, else confirmed
+// POs and transfers due), from the whole network as the order is sourced. The
+// column shows only while promise dates are on (a blank answer when off).
+async function promiseManualOrderLine(i) {
+  const line = manualOrderLines[i];
+  const sku = line && line.promiseSku;
+  if (!sku || line.sku !== line.filledSku) return;
+  const qty = Number(line.qty) || 1;
+  const channel = document.getElementById('mo-channel')?.value.trim() || '';
+  const res = await apiFetch(`/api/v1/oms/promise?sku=${encodeURIComponent(sku)}&qty=${qty}&channel=${encodeURIComponent(channel)}`).catch(() => null);
+  if (manualOrderLines[i] !== line || !res || !res.ok) return;
+  const p = await res.json();
+  if (manualOrderLines[i] !== line) return;
+  line.promise = p.promise_date || (p.promise_reason ? 'No date' : '');
+  line.promiseWhy = p.promise_reason || '';
+  const cell = document.querySelector(`[data-mo-promise="${i}"]`);
+  if (cell) { cell.textContent = line.promise; cell.title = line.promiseWhy; }
+  if (p.promise_date || p.promise_reason) cell?.closest('table')?.classList.add('mo-promise-on');
 }
 
 async function createManualOrder() {

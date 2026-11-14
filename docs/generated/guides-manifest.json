@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/gendocs",
   "generator_version": "stage48-v1",
-  "release": "0.23.0",
+  "release": "0.24.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/data/generated/dictionary.json",
-      "sha256": "fec2531a6b49a191c695463310aaaafad6c8c5465d4b12741cb31ae3df133b48",
+      "sha256": "bdbe5ba3d8f86d999c8f7436932ca30baf6629a5736ad6942645e8381ab7f76b",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -49,7 +49,7 @@
     },
     {
       "path": "docs/guides/error-codes.md",
-      "sha256": "e99c7f195756058922c889cb216d534b6938ce681ea53db942fc9bf92c2c7971",
+      "sha256": "8a39a0671876d81b1cd92437ed1a368b06ee3203a630a95b10d4236ba099a9a3",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -62,7 +62,7 @@
     },
     {
       "path": "docs/guides/report-catalog.md",
-      "sha256": "66577fcf20182dcc50b68fe19a57d8f18718e6090c971253d485267f3470a7e8",
+      "sha256": "d8461d10329af9743f98cd14a0207681d9b984cfe2ac340e050a085d70e11b9f",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-2.md",
-      "sha256": "8d2ed8f42506eca9db693ed1ffdaeabc3f79cfbe1e5732aea747afb5fe7273d6",
+      "sha256": "f12bdde576c6e2dd7846819f56ffb5229d31b13bab0efdd62ce69f1b889f6a91",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-3.md",
-      "sha256": "b6b7547b22841ecd86df76ec93501a3c7fad8e124344f90d56ab8a6d7ba5cb4b",
+      "sha256": "4c0f28e82a5874a5dfe791dd08f9f341c2c1931094cbb0b6dfd1d5e25072a265",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -114,7 +114,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "a24b96cf6e7c308c78526978f814b57a538c1c5590c0ad647e4abc49cf2ae2fa",
+      "sha256": "0df1ff5ad04bde20371cfb74ba51eeaf96cd84db0f8a52a23a33629aac47c6af",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/kb/reference/report-catalog-2.md",
-      "sha256": "59f7101887540e54b52f81b207b88eaf99f9c0e590bea9622e0f0429017da56c",
+      "sha256": "9d6388652d2a9211f6b95bc6812677608fafd9065abfd20cbeca83e39403ba9c",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -140,7 +140,7 @@
     },
     {
       "path": "docs/kb/reference/report-catalog-3.md",
-      "sha256": "ac5dc7cd0c07ae442ff62a9b31e00b62cf58bf19c0ff93daee6e41101bd4dc52",
+      "sha256": "fc5df89540b25c133915c4de339d49c43d01556a3879ca48bfa0de80ddfb3a8a",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -153,7 +153,7 @@
     },
     {
       "path": "docs/kb/reference/report-catalog-4.md",
-      "sha256": "65155c26a1d55b20ee2131a28d911b0bd42663051f4cb1ad3685ad40eaf8e627",
+      "sha256": "210b0e069d0b08970583dce9a2f473f188bf2552ca63e97ba16449abfa1cbcf7",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -166,7 +166,7 @@
     },
     {
       "path": "docs/kb/reference/report-catalog.md",
-      "sha256": "c93d4b4fdb8f3d3da8f3e02fdbaa104f300c798247c22779d96a355d7907c82c",
+      "sha256": "5fad3e745fcaafab27e22bab2d0e9341145cddc8be8190d9268ded8661d4daec",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -179,7 +179,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference-2.md",
-      "sha256": "3e707badc51fa92c21c5423ff5fdea07695a6292324697a081e43d4fd2092b21",
+      "sha256": "973347fc22739009190d47732a3ac4dc434a423c36fa5ce5333a09b94cbf76b2",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -192,7 +192,20 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference-3.md",
-      "sha256": "cea01dc4eb185f7a09344a05bc118bb558ad08e4f23207003007f79fdbb812e0",
+      "sha256": "c5ea1a0d49b66d43d858d695b15cbdcdf3bcfc709df031fde8f860722be864db",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
+      "path": "docs/kb/troubleshooting/error-code-reference-4.md",
+      "sha256": "d14249acf58c250a1c5b25ae86b97fcd2d41c5f51aa7559721f6026182122092",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -205,7 +218,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "bc0762434a860a34c739cf778b79c650b7a0b5cf46ec5c0df9ebf290062c754b",
+      "sha256": "01bcb48ecc7da48588000d97b20c036e134d94d4b3096e36478fe6fb0a512e2f",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -231,7 +244,7 @@
     },
     {
       "path": "docs/qa/generated/backlog-journey-map.md",
-      "sha256": "876717f2b1131514d5cfc2a2a936c7942e0e90dee75414b7e866400a1f79aaa3",
+      "sha256": "bd65bbe4192c06b988ea5802f8739d2a17b373d539808c95cb4374ba82d41daa",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -244,7 +257,7 @@
     },
     {
       "path": "docs/qa/generated/page-inventory.md",
-      "sha256": "ef77966069d169651d95541e6387436c282aaa24149c4ea2f856882d0178a820",
+      "sha256": "617847f4369c9a60cac3ce150ea6b4a6f9cfa4e6198082e4243f444349a653bc",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -257,7 +270,7 @@
     },
     {
       "path": "docs/qa/generated/security-assurance-statement.md",
-      "sha256": "d9fc362d37666997b7562357e0894d20cb5b1abdfe987c49b9ce1785efc80776",
+      "sha256": "8124c4194afe4d18cd080ee8d8d417c78e43840b78192fdaa24f0d7e640ddefd",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -270,7 +283,7 @@
     },
     {
       "path": "docs/qa/generated/security-scorecard.md",
-      "sha256": "d588c482ffb68947849317698d4951cd6707a36e0be394f3faa6cba448d9e6f4",
+      "sha256": "46b074a0efedfb558bb36772e58d170b8217c7c562176ab38bd588c53830bc4f",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -283,7 +296,7 @@
     },
     {
       "path": "docs/security/command-catalog.md",
-      "sha256": "0d4434f7829e7e4e081485b78d337ef60b5c3ef6355e03befe2a70e98d8efc5f",
+      "sha256": "5ae8f1234f7c214e270a70ff404b0948f63e191661400fbd6d0b855811fcbf11",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

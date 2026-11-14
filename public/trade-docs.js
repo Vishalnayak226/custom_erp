@@ -172,7 +172,7 @@ const col = (key, label, width, extra = {}) => ({ key, label, width, align: extr
 const TXN_COLUMNS = {
   PurchaseOrder: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 20), col('description', 'Description / Variant', 38), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('rate', 'Unit Price', 12), col('gst_rate', 'Tax %', 7), col('amount', 'Line Total', 14)],
   VendorPO: [col('sr', 'Ln', 4, { align: 'center' }), col('image', 'Image', 16, { format: 'image', align: 'center' }), col('item_code', 'Item / Barcode', 18), col('description', 'Description / Variant', 32), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('rate', 'Unit Price', 12), col('gst_rate', 'Tax %', 7), col('amount', 'Line Total', 14)],
-  GRN: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 17), col('description', 'Design / Variant', 25), col('po_qty', 'PO Qty', 8), col('qty', 'Received', 8), col('accepted_qty', 'Accepted', 8), col('rejected_qty', 'Rejected', 8), col('damaged_qty', 'Damaged', 8), col('qc_status', 'QC Status', 11, { align: 'left' }), col('variance_reason', 'Variance Reason', 17)],
+  GRN: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 17), col('description', 'Design / Variant', 20), col('po_qty', 'PO Qty', 10), col('qty', 'Received', 10), col('accepted_qty', 'Accepted', 10), col('rejected_qty', 'Rejected', 10), col('damaged_qty', 'Damaged', 10), col('qc_status', 'QC Status', 11, { align: 'left' }), col('variance_reason', 'Variance Reason', 12)], // 132.25: quantity headings 10 wide so they never break mid-word
   GRNVendorCopy: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 18), col('description', 'Description', 27), col('po_qty', 'Ordered Qty', 10), col('qty', 'Delivered Qty', 10), col('accepted_qty', 'Accepted Qty', 10), col('rejected_qty', 'Rejected Qty', 10), col('damaged_qty', 'Damaged Qty', 11), col('variance_reason', 'Remarks', 18)],
   PurchaseReturn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 16), col('description', 'Description', 27), col('received_qty', 'Received Qty', 9), col('return_qty', 'Return Qty', 9), col('uom', 'UOM', 6), col('rate', 'Rate', 11), col('gst_rate', 'Tax %', 7), col('taxable', 'Return Value', 13), col('reason', 'Reason', 16)],
   DeliveryChallan: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item', 16), col('description', 'Description', 30), col('hsn_code', 'HSN', 9), col('batch_no', 'Lot', 10), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('taxable', 'Value', 13), col('expected_return', 'Expected back', 12)],
@@ -244,7 +244,7 @@ TXN_SIGNATURES.VendorPO = TXN_SIGNATURES.PurchaseOrder;
 TXN_SIGNATURES.VendorCreditNote = TXN_SIGNATURES.CreditNote = TXN_SIGNATURES.DebitNote;
 // Stage 98.1: a Sales Invoice is laid out like the till's tax invoice.
 TXN_COLUMNS.SalesInvoice = TXN_COLUMNS.POSTaxInvoice;
-TXN_INFO.SalesInvoice = [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Sales order: {fields.sales_order}', 1, 0], ['Customer reference: {fields.customer_reference}', 0, 1]];
+TXN_INFO.SalesInvoice = [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Sales order: {fields.sales_order}', 1, 0], ['Customer reference: {fields.customer_reference}', 0, 1], ['{fields.export_declaration}', 0, 2], ['{fields.export_details}', 0, 3]];
 TXN_TOTALS.SalesInvoice = TXN_TOTALS.POSTaxInvoice;
 TXN_SIGNATURES.SalesInvoice = TXN_SIGNATURES.POSTaxInvoice;
 TXN_COLUMNS.OMSBill = TXN_COLUMNS.SalesInvoice;

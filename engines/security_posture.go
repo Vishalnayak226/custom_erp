@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // --- Stage 49.11.3: one investigation trail by correlation id --------------
@@ -123,6 +125,7 @@ type SecurityPosture struct {
 	DeadLetteredJobs   int                 `json:"dead_lettered_jobs_7d"`
 	ExportsFrozen      bool                `json:"exports_frozen"`
 	IntegrationsFrozen bool                `json:"integrations_frozen"`
+	ReadOnly           bool                `json:"read_only"` // 49.12.3
 	AlertsDelivered    bool                `json:"alerts_delivered"`
 	TestAlert          TestAlertState      `json:"test_alert"`
 	AuditRowsEstimate  int64               `json:"audit_rows_estimate"`
@@ -133,6 +136,41 @@ type SecurityPosture struct {
 	DormantDays        int              `json:"dormant_days"`
 	DormantAutoDisable bool             `json:"dormant_auto_disable"`
 	DormantAccounts    []DormantAccount `json:"dormant_accounts"`
+	SignInFriction     SignInFriction   `json:"sign_in_friction_14d"` // 49.17.4
+}
+
+// SignInFriction (49.17.4) is what got in people's way when signing in over
+// the last 14 days: accounts and phone PINs locked by wrong attempts,
+// password resets asked for or done by an administrator, a lost
+// authenticator (a recovery code used, or the two-factor reset by an
+// administrator), and the "No" answers on the sign-in and security help
+// articles - the friction users report themselves.
+type SignInFriction struct {
+	Locked            int `json:"locked"`
+	PasswordResets    int `json:"password_resets"`
+	LostAuthenticator int `json:"lost_authenticator"`
+	HelpNotHelpful    int `json:"help_not_helpful"`
+}
+
+// signInHelpArticles are the help articles a person who cannot sign in reads.
+var signInHelpArticles = []string{"first-login", "security-approvals"}
+
+func signInFriction(schema string) SignInFriction {
+	var f SignInFriction
+	since := utcStamp(time.Now().AddDate(0, 0, -14))
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT
+			COUNT(*) FILTER (WHERE status IN ('ACCOUNT_LOCKED', 'PIN_LOCKED')),
+			COUNT(*) FILTER (WHERE status IN ('PASSWORD_RESET_REQUESTED', 'PASSWORD_RESET_BY_ADMIN')),
+			COUNT(*) FILTER (WHERE status IN ('MFA_RECOVERY_CODE_USED', 'MFA_RESET_BY_ADMIN'))
+		FROM %s.audit_logs
+		WHERE created_at > $1::timestamp
+		  AND status IN ('ACCOUNT_LOCKED', 'PIN_LOCKED', 'PASSWORD_RESET_REQUESTED', 'PASSWORD_RESET_BY_ADMIN', 'MFA_RECOVERY_CODE_USED', 'MFA_RESET_BY_ADMIN')`, schema),
+		since).Scan(&f.Locked, &f.PasswordResets, &f.LostAuthenticator)
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents
+		WHERE doctype = 'HelpArticleFeedback' AND deleted_at IS NULL AND data->>'helpful' = 'No'
+		  AND data->>'article' = ANY($1) AND created_at > CURRENT_TIMESTAMP - INTERVAL '14 days'`, schema),
+		pq.Array(signInHelpArticles)).Scan(&f.HelpNotHelpful)
+	return f
 }
 
 // GetSecurityPosture reads the posture for one client.
@@ -216,11 +254,13 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 	if dormant, err := dormantAccounts(schema, p.DormantDays, false, nil); err == nil {
 		p.DormantAccounts = dormant
 	}
+	p.SignInFriction = signInFriction(schema)
 
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.async_jobs
 		WHERE status = 'DeadLettered' AND updated_at > CURRENT_TIMESTAMP - INTERVAL '7 days'`, schema)).Scan(&p.DeadLetteredJobs)
 	p.ExportsFrozen = GetSettingBool(tenantID, SettingFreezeExports)
 	p.IntegrationsFrozen = GetSettingBool(tenantID, SettingFreezeIntegrations)
+	p.ReadOnly = GetSettingBool(tenantID, SettingReadOnly)
 	p.AlertsDelivered = OpsAlertDeliveryStatus().DeliveryWouldBeSent
 	p.TestAlert = testAlertState(tenantID, schema)
 	p.AuditWritesLost, p.AuditLossReason, _ = AuditWriteLoss()

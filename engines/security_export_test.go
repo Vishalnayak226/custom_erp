@@ -410,6 +410,13 @@ func TestStage49116ExportErrorDropsTheAddressQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldEvent(t, action, "x")
+	// Start the batch at this test's own row: in a full suite a fresh row from
+	// an earlier test can sit between the saved cursor and it, and the batch
+	// (rightly) waits for that row to settle, so nothing would be posted.
+	if _, err := db.DB.Exec(`UPDATE tenant_default.security_export_config SET cursor_seq =
+		(SELECT MIN(seq) - 1 FROM tenant_default.audit_logs WHERE action = $1) WHERE id = 1`, action); err != nil {
+		t.Fatal(err)
+	}
 	_, err := RunSecurityExport("default", time.Now())
 	if err == nil || strings.Contains(err.Error(), "sekret-query-token") {
 		t.Fatalf("err = %v", err)

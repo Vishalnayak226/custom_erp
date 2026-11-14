@@ -21,12 +21,12 @@ screens: [reports]
 # Report catalog (part 4)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **49** reports, from
+every category and explains how to run a report. It holds **50** reports, from
 WMS to WMS.
 
 ## Contents
 
-- [WMS](#wms) - 49 reports
+- [WMS](#wms) - 50 reports
 
 ## WMS
 
@@ -424,6 +424,20 @@ WMS to WMS.
 - **Store** (`location`) - text, optional
 
 **Columns:** Barcode · SKU · LPN · Bin Code · Movement Date · Movement Type · Source Document No · RF User · Status
+
+**Drill-down:** no.
+
+### R4050 Lot Trace (Both Ways)
+
+**Report id:** `lot-trace`
+
+**Parameters:**
+
+- **Batch / Lot** (`batch_no`) - text, **required**
+- **Item Code (optional)** (`sku`) - text, optional
+- **Direction** (`direction`) - select, optional, one of: Both,Forward,Backward
+
+**Columns:** Direction · Step · What · Item · Batch / Lot · Qty · Document · Vendor / Location · When · Lot source
 
 **Drill-down:** no.
 

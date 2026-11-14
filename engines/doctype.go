@@ -487,6 +487,14 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 	// the Link to ItemType is checked (engines/item_types.go).
 	if doctype == "Item" {
 		normalizeItemType(docData)
+		if err := validateItemLifecycleFields(docData); err != nil { // 168.5
+			return err
+		}
+	}
+	if doctype == "Currency" || doctype == "BankAccount" { // 164.2: setup finance checks read them
+		if sch, err := db.GetTenantSchema(tenantID); err == nil {
+			InvalidateSetupFinanceChecks(sch)
+		}
 	}
 	if doctype == "ItemType" {
 		InvalidateItemTypeCache(tenantID)
@@ -494,6 +502,14 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 	if doctype == "SalesInvoice" { // Stage 148.3: a blank due date follows the customer's terms
 		defaultInvoiceDueDate(tenantID, docData)
 		if err := enforceInvoiceFloor(tenantID, docData); err != nil { // Stage 148.26 (setting off = no check)
+			return err
+		}
+		if err := validateExportInvoice(tenantID, docData); err != nil { // 170.37 (setting off = no check)
+			return err
+		}
+	}
+	if doctype == LutRegisterDoctype { // 170.37
+		if err := validateLutRegister(docData); err != nil {
 			return err
 		}
 	}
@@ -587,6 +603,8 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 				// System fields are auto-generated or defaulted by the backend
 			} else if doctype == "GRN" && f.Fieldname == "po_id" && grnBeforePOAllowed(tenantID, docData) {
 				// Stage 148.38: goods received before the PO, with a reason code
+			} else if doctype == "VendorInvoice" && f.Fieldname == "grn_id" && strings.TrimSpace(fmt.Sprintf("%v", orBlank(docData["service_entry_id"]))) != "" {
+				// Stage 168.2: a service bill names its service entry sheet instead
 			} else {
 				return &ValidationError{Code: "GLOBAL-0001", SubFor: f.Label, Message: fmt.Sprintf("Field %q (%s) is required", f.Label, f.Fieldname)}
 			}

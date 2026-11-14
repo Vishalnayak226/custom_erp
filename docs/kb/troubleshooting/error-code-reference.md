@@ -19,8 +19,8 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **826** of them,
-across **78** areas. This page is produced from the running catalog, so it
+Every refusal in this application carries a code. There are **965** of them,
+across **83** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
 Search is usually faster than scrolling: type the code into the search box
@@ -33,7 +33,7 @@ to read the dialog it appears in, start with
 > something you did. The detail line is deliberately withheld in that case -
 > give your administrator the correlation id shown in the dialog instead.
 
-The list runs over **3** pages. The contents below cover every area and
+The list runs over **4** pages. The contents below cover every area and
 open the right page.
 
 ## Contents
@@ -62,45 +62,49 @@ open the right page.
 - [CRM / Vouchers](#crm-vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
 - [Customer / CRM](#customer-crm) - 15 codes
+- [Data Import](#data-import) - 1 codes
 - [Data Import / Excel Upload](#data-import-excel-upload) - 16 codes
 - [Deployment / Release](#deployment-release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
-- [Expense Management](#expense-management) - 8 codes
+- [Expense Management](#expense-management) - 11 codes
 - [Extension Hooks / Customization](#extension-hooks-customization) - 4 codes
-- [Finance & Accounting](#finance-accounting) - 96 codes
-- [Fixed Assets](#fixed-assets) - 9 codes
-- [GST](#gst) - 3 codes
+- [Finance](#finance) - 7 codes
+- [Finance & Accounting](#finance-accounting) - 102 codes
+- [Fixed Assets](#fixed-assets) - 19 codes
+- [GST](#gst) - 9 codes
 - [Global](#global) - 22 codes
 - [Global / Common](#global-common) - 25 codes
-- [Goods Receipt](#goods-receipt) - 22 codes
-- [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
-- [HR & Payroll](error-code-reference-2.md#hr-payroll) - 2 codes
-- [HR / Payroll](error-code-reference-2.md#hr-payroll) - 15 codes
+- [Goods Receipt](error-code-reference-2.md#goods-receipt) - 22 codes
+- [Goods Receipt / GRN](error-code-reference-2.md#goods-receipt-grn) - 8 codes
+- [HR & Payroll](error-code-reference-2.md#hr-payroll) - 15 codes
+- [HR / Payroll](error-code-reference-2.md#hr-payroll) - 32 codes
 - [Integration / API](error-code-reference-2.md#integration-api) - 14 codes
 - [Integrations](error-code-reference-2.md#integrations) - 1 codes
 - [Inventory](error-code-reference-2.md#inventory) - 23 codes
 - [Inventory / Warehouse](error-code-reference-2.md#inventory-warehouse) - 29 codes
-- [Item Master](error-code-reference-2.md#item-master) - 2 codes
+- [Item Master](error-code-reference-2.md#item-master) - 4 codes
+- [Manufacturing](error-code-reference-2.md#manufacturing) - 7 codes
 - [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 16 codes
-- [Master Data](error-code-reference-2.md#master-data) - 43 codes
+- [Master Data](error-code-reference-2.md#master-data) - 46 codes
 - [Mobile App / Device](error-code-reference-2.md#mobile-app-device) - 7 codes
 - [Notifications](error-code-reference-2.md#notifications) - 6 codes
 - [Observability / Incident](error-code-reference-2.md#observability-incident) - 3 codes
 - [Omnichannel / OMS](error-code-reference-2.md#omnichannel-oms) - 5 codes
-- [Order Management](error-code-reference-2.md#order-management) - 10 codes
-- [PIM](error-code-reference-2.md#pim) - 27 codes
-- [PIM / Product Publishing](error-code-reference-2.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-2.md#pos-billing) - 42 codes
-- [POS / Offline & Cash Drawer](error-code-reference-2.md#pos-offline-cash-drawer) - 8 codes
-- [Patch / Bug Governance](error-code-reference-2.md#patch-bug-governance) - 3 codes
-- [Payments](error-code-reference-2.md#payments) - 7 codes
-- [Planning](error-code-reference-2.md#planning) - 1 codes
-- [Procurement](error-code-reference-2.md#procurement) - 1 codes
-- [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-3.md#purchase-order) - 73 codes
+- [Order Management](error-code-reference-2.md#order-management) - 12 codes
+- [PIM](error-code-reference-2.md#pim) - 55 codes
+- [PIM / Product Publishing](error-code-reference-3.md#pim-product-publishing) - 8 codes
+- [POS / Billing](error-code-reference-3.md#pos-billing) - 42 codes
+- [POS / Offline & Cash Drawer](error-code-reference-3.md#pos-offline-cash-drawer) - 8 codes
+- [Patch / Bug Governance](error-code-reference-3.md#patch-bug-governance) - 3 codes
+- [Payments](error-code-reference-3.md#payments) - 7 codes
+- [Planning](error-code-reference-3.md#planning) - 1 codes
+- [Procurement](error-code-reference-3.md#procurement) - 1 codes
+- [Procurement / RFQ](error-code-reference-3.md#procurement-rfq) - 6 codes
+- [Purchase Order](error-code-reference-3.md#purchase-order) - 82 codes
 - [Purchase Requisition](error-code-reference-3.md#purchase-requisition) - 6 codes
 - [Purchase Return](error-code-reference-3.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-3.md#purchase-return-rtv) - 5 codes
+- [Quality](error-code-reference-3.md#quality) - 6 codes
 - [Quality & Maintenance](error-code-reference-3.md#quality-maintenance) - 12 codes
 - [RFQ](error-code-reference-3.md#rfq) - 6 codes
 - [Reports](error-code-reference-3.md#reports) - 3 codes
@@ -108,14 +112,15 @@ open the right page.
 - [SaaS / Multi-Tenant](error-code-reference-3.md#saas-multi-tenant) - 8 codes
 - [Sales / POS](error-code-reference-3.md#sales-pos) - 40 codes
 - [Sales Return](error-code-reference-3.md#sales-return) - 9 codes
+- [Security](error-code-reference-3.md#security) - 9 codes
 - [Security / AI assistant access](error-code-reference-3.md#security-ai-assistant-access) - 10 codes
 - [Security / Rate Limit](error-code-reference-3.md#security-rate-limit) - 6 codes
 - [Stock Transfer](error-code-reference-3.md#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](error-code-reference-3.md#tax-gst-e-invoice) - 15 codes
-- [User Access & Security](error-code-reference-3.md#user-access-security) - 9 codes
-- [Vendor Invoice / AP](error-code-reference-3.md#vendor-invoice-ap) - 7 codes
-- [WMS](error-code-reference-3.md#wms) - 5 codes
-- [WMS / Logistics](error-code-reference-3.md#wms-logistics) - 3 codes
+- [User Access & Security](error-code-reference-4.md#user-access-security) - 9 codes
+- [Vendor Invoice / AP](error-code-reference-4.md#vendor-invoice-ap) - 17 codes
+- [WMS](error-code-reference-4.md#wms) - 5 codes
+- [WMS / Logistics](error-code-reference-4.md#wms-logistics) - 3 codes
 
 ## Admin / Configuration
 
@@ -313,6 +318,12 @@ open the right page.
 | `CUSTOM-0691` | Customer is blocked from loyalty points | This customer is blocked from using points. | Take the sale without points, or lift the block on the customer. | Medium | 422 |
 | `CUSTOM-0692` | Loyalty scheme or block not valid (no reason, end before start, or spend per point below 1) | Check the highlighted loyalty field. | Give a reason for the block, end the scheme after it starts, and set spend per point to 1 or more. | Low | 422 |
 
+## Data Import
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `DATAIM-1700` | Import refused: record types it points at have no rows (setting on) | Load the record types it needs first. | Import the types named in the message, then try again. | Medium | 422 |
+
 ## Data Import / Excel Upload
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -371,6 +382,9 @@ open the right page.
 | `EXP-0543` | Record already holds the most attachments allowed | This record already has the most files it can hold. | Remove a file you no longer need, or put several receipts into one PDF. | Low | 422 |
 | `EXP-0544` | Same file attached twice to one record | This exact file is already attached. | Nothing to do if it is the same receipt; attach a different file if you meant another one. | Low | 409 |
 | `EXP-0545` | Attachments changed after the record left Draft or Rejected | Files can no longer be added or removed on this record. | Receipts can be changed only while the claim is Draft or Rejected; ask a Super Admin if a wrong file must be removed. | Medium | 409 |
+| `EXP-1700` | Expense claim over the limit set on its category or the claimant's grade (refuse mode) | The claim is over the limit for its category. | Lower the amount, split it into valid claims, or ask an administrator about the category limit. | Medium | 422 |
+| `EXP-1701` | Employee advance not found, or missing its employee or amount, when paid | This advance cannot be paid. | Check the employee and an amount above zero on the advance, then pay it again. | Medium | 422 |
+| `EXP-1702` | Employee advance paid again or paid after it was settled or cancelled | This advance is already paid. | Only a Draft advance can be paid. Open the advance to see its status. | Medium | 422 |
 
 ## Extension Hooks / Customization
 
@@ -380,6 +394,18 @@ open the right page.
 | `EXT-0290` | Extension hook timeout | Custom validation service did not respond in time. Please retry or contact support. | Retry later or contact admin. | High | 503 |
 | `EXT-0291` | Extension token scope violation | Extension token is not authorized for this document type or action. | Use correct scoped token. | Critical | 401 |
 | `EXT-0292` | Hook API version not served | This hook was written for a hook version this ERP does not serve. | Register it against the current hook version named below. | Medium | 422 |
+
+## Finance
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `FIN-1700` | Part match with no book entry, no amount, or the same entry twice | Choose a book entry and an amount for each part. | Pick each entry once and give an amount above zero. | Medium | 422 |
+| `FIN-1701` | Part match amounts exceed what is still open on the statement line | That is more than the line has open. | Lower the amounts to the open amount shown on the line. | Medium | 422 |
+| `FIN-1702` | Part match book entry not found, on another account, already matched, wrong side, or amount above its open part | That book entry cannot take this amount. | Pick a bank-account entry on the right side and an amount within its open part. | Medium | 422 |
+| `FIN-1703` | Part match on a line that is already matched or explained | This line is already matched. | Unmatch the line first, then match it again. | Medium | 422 |
+| `FIN-1704` | Bank statement file empty, unreadable, in an unknown format or without a date column | This statement file cannot be read. | Upload a CSV with a header row (date, description, reference, debit, credit, balance) or an MT940 file. | Medium | 422 |
+| `FIN-1706` | Bank response for a payment proposal that is missing, not Executed, or an empty file | This response cannot be loaded. | Pick an Executed payment proposal and a file with at least one row. | Medium | 422 |
+| `FIN-1707` | Bank response file without the payment_reference or status column | The response file has no reference or status column. | Use the bank's response CSV with payment_reference, utr, status and reason columns. | Medium | 422 |
 
 ## Finance & Accounting
 
@@ -469,6 +495,12 @@ open the right page.
 | `FIN-0977` | Set-off reversal refused | This set-off cannot be reversed now. | Reverse a posted set-off once, on or after its own date. | Medium | 422 |
 | `FIN-0978` | Set-off voucher saved by hand as posted | Set-offs are posted by approval. | Submit the draft for approval. | Medium | 422 |
 | `FIN-0979` | Invoice line names an account that is not an income account | That is not an income account. | Pick a Revenue account from the chart. | Medium | 422 |
+| `FIN-1720` | Timesheet refused (hours out of range, no date, employee or project, inactive project, or an approved entry edited) | This timesheet cannot be saved. | Enter hours above 0 up to 24, the date, an employee and an Active project. An approved timesheet cannot be changed. | Medium | 422 |
+| `FIN-1721` | Timesheet sent for approval for an employee with no cost rate | The employee has no cost rate. | Set the cost rate per hour on the employee, then send the timesheet again. | Medium | 422 |
+| `FIN-1722` | Project milestone refused (no value, bad percent, unknown or inactive project, no customer to bill, or edited after completion) | This milestone cannot be saved or completed. | Give it an amount or a percent of the contract value, pick an Active project with a customer if it is billable, and do not edit a completed milestone. | Medium | 422 |
+| `FIN-1723` | Project budget refused (no lines, unknown cost type, negative or repeated line) or the report asked without a project | The project budget is not valid. | Add each cost type once (Labour, Materials, Expenses or Other) with an amount, and pick a project for the report. | Low | 422 |
+| `FIN-1724` | Project revenue run refused (setting off, bad month, or cost-to-complete project with no estimated cost) | Project revenue cannot be recognised. | Turn on project revenue recognition in Settings, enter the month like 2026-11, and set an estimated cost on cost-to-complete projects. | Medium | 422 |
+| `FIN-1725` | Service SLA setting not valid (hours text or escalation target) | That SLA setting is not valid. | Write hours like Low=24,Medium=8,High=4,Critical=1 and the target as user:<id> or role:<name>. | Low | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -495,6 +527,16 @@ open the right page.
 | `ASSET-0538` | Disposal proceeds received into an account that is not cash or a bank account | Proceeds can only be received into Cash/Bank or a bank account. | Choose 1100 Cash/Bank or one of the bank accounts listed under Received into. | Low | 422 |
 | `ASSET-0539` | Depreciation due before a disposal could not be posted | The depreciation due on this asset could not be posted, so it was not disposed. | Check System Errors for the reason (for example a missing GL account), fix it, and dispose again. | High | 422 |
 | `ASSET-0843` | Asset set to Capitalised or Disposed on the record form | An asset is capitalised or disposed with its own button. | Use Capitalise or Dispose on HRM → Fixed Assets - they post the ledger entry; the record form cannot. | High | 422 |
+| `ASSET-1720` | A lease field is missing or not usable | The lease is not complete. | Fill the field named and activate again. | Medium | 422 |
+| `ASSET-1721` | Lease step on a lease in the wrong state | This lease cannot do that now. | Open the lease and check its status. | Medium | 409 |
+| `ASSET-1722` | An account named on the lease is not in the chart | An account on the lease is not set up. | Choose an account from the chart. | Medium | 422 |
+| `ASSET-1723` | CWIP step on an asset in the wrong state, or nothing collected | This asset cannot do that now. | Check the asset status and what was charged to it. | Medium | 409 |
+| `ASSET-1724` | Bill line charged to an asset that is not in CWIP | That asset is not in CWIP. | Move the asset to CWIP first, or clear the asset on the line. | Medium | 422 |
+| `ASSET-1725` | Impairment or revaluation input not usable | The adjustment is not valid. | Fill the kind, amount or new value, date and reason. | Medium | 422 |
+| `ASSET-1726` | Impairment or revaluation on an asset that cannot take it | This asset cannot be adjusted now. | Only a Capitalised asset with depreciation up to date can be adjusted. | Medium | 409 |
+| `ASSET-1727` | Meter reading below the last one | The reading is below the last one. | Enter a reading at or above the last, or fix the earlier one. | Medium | 422 |
+| `ASSET-1728` | Maintenance cost cannot be posted (part store, quantity or stock) | The parts cannot be taken from stock. | Choose a store with enough stock for each part. | Medium | 422 |
+| `ASSET-1729` | Asset already leased out on another active lease | This asset is already leased out. | Close the other lease first. | Medium | 409 |
 
 ## GST
 
@@ -503,6 +545,12 @@ open the right page.
 | `TAXGST-1320` | E-way bill refused (not needed, missing GSTIN / PIN / state / HSN / distance / vehicle, no provider, outside the extend or cancel window, already generated) | This e-way bill can't go ahead. | Fix what the message names; until a provider is connected, make the bill on the e-way bill portal and use Record from portal. | Medium | 422 |
 | `TAXGST-1330` | HSN value bands not usable | The value bands can't be saved. | Write them as limit:rate, lowest first, with only the last one open, like 1000:5,2500:12,:18. | Medium | 422 |
 | `TAXGST-1331` | GST credit value not usable | The GST credit must be Eligible or Blocked. | Pick Eligible or Blocked. | Medium | 422 |
+| `TAXGST-1700` | GSTR-1 file asked for with a bad GSTIN or month | The GSTR-1 file can't be made. | Give the 15-character GSTIN and the month as YYYY-MM. | Medium | 422 |
+| `TAXGST-1710` | GSTR-2B file not readable or empty | This is not a GSTR-2B file. | Download the GSTR-2B JSON from the GST portal and upload it unchanged. | Medium | 422 |
+| `TAXGST-1711` | GSTR-2B month missing or not the file's month | The month does not fit this file. | Pick the month the file is for, as YYYY-MM. | Medium | 422 |
+| `TAXGST-1712` | GSTR-2B decision not allowed or line not found | This decision can't be saved. | Pick Accepted, Rejected or Query raised on a line that is still listed. | Medium | 422 |
+| `TAXGST-1720` | Export under LUT without a valid LUT on the invoice date | No valid LUT covers this invoice date. | Add the LUT in the LUT register, or set the export type to payment of IGST. | Medium | 422 |
+| `TAXGST-1721` | LUT register entry with valid-to before valid-from | The LUT dates are not right. | Set valid to on or after valid from. | Medium | 422 |
 
 ## Global
 
@@ -560,44 +608,4 @@ open the right page.
 | `GLOBAL-0296` | Invalid copied grid data | Copied data contains invalid cells. Please correct highlighted rows. | Correct highlighted grid cells. | Medium | 422 |
 | `GLOBAL-0297` | Required lookup inactive | Selected lookup value is inactive. Please choose an active value. | Select active master value. | Medium | 422 |
 | `GLOBAL-0302` | Unexpected server error | An unexpected error occurred. Please try again, or contact support with the reference ID below if it persists. | Retry the action. If it keeps happening, contact support with the correlation ID shown. | Critical | 500 |
-
-## Goods Receipt
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `ASN-0271` | ASN line names an item that is not on its purchase order | An item on this ASN is not on its purchase order. | Remove the line, or correct the item code to one the purchase order has; amend the PO first if the vendor is sending something new. | Medium | 422 |
-| `GOODSR-0096` | Damaged quantity requires a reason | Enter a damage reason for each damaged receipt line. | Record the observed damage and submit the receipt again. | High | 422 |
-| `GOODSR-0097` | Rejected and damaged quantities exceed received quantity | Rejected plus damaged quantity cannot exceed received quantity. | Check the received, rejected and damaged counts; correct the line before submitting. | High | 422 |
-| `GOODSR-0318` | One goods receipt given POs of different vendors | A goods receipt can only take purchase orders of the same vendor. | Remove the PO of the other vendor and receive it on its own goods receipt. | High | 422 |
-| `GOODSR-0319` | Invoice rate on a receipt line is negative | The invoice rate cannot be negative. | Enter the per-unit price before GST exactly as the vendor's invoice shows it, or leave it blank to use the PO price. | Medium | 422 |
-| `GOODSR-0558` | Receipt against an ASN already received or cancelled | This delivery has already been received. | Open the existing goods receipt for this ASN; a new receipt needs a new ASN or none. | Medium | 422 |
-| `GOODSR-0940` | Receipt in steps saved without the vendor invoice number, date or total | Enter the vendor invoice number, date and total. | Copy them from the vendor's invoice: the number, the date and the total including GST. | Low | 422 |
-| `GOODSR-0941` | The same vendor invoice received a second time | This vendor invoice is already received. | Open the goods receipt named in the message instead of receiving it again. If the vendor really sent two invoices with one number, ask them for the right number. | Medium | 422 |
-| `GOODSR-0942` | Invoice total does not agree with the invoice lines by more than Rs 1 | The bill's total and the items on it do not add up. | Fix the highlighted box on Receive - the total or the line it names - then click Save and verify again. | Low | 422 |
-| `GOODSR-0943` | Goods beyond the PO or not on it, with no Keep or Return chosen | Choose Keep or Return for the goods beyond the PO. | For each line named, pick Keep (sent for approval) or Return to vendor (goes back on a purchase return). | Low | 422 |
-| `GOODSR-0944` | A goods receipt step done out of order, on a posted receipt, or on a one-step receipt | This step cannot be done on this goods receipt now. | Follow the steps in order: Receive, Verify, Price check, MRP and post. After posting, use Correct. | Low | 422 |
-| `GOODSR-0945` | A line posted without an MRP | Enter the MRP for every line. | Type the MRP printed on the goods, or click Use suggested, then post again. | Low | 422 |
-| `GOODSR-0946` | Posting goods kept beyond the PO before the approval | Keeping the goods beyond the PO is waiting for approval. | Post the other children meanwhile. The approver decides it under My work > Approvals; or go back to Verify and choose Return. | Low | 422 |
-| `GOODSR-0947` | A goods receipt step done by a role not listed for it | Your role does not do this step. | Ask someone whose role does it, or an admin to add your role under Configuration > Procurement (Goods receipt: who may ...). | Medium | 403 |
-| `GOODSR-0950` | Paying the vendor from a goods receipt with a wrong amount, mode or reference, or nothing due | The payment cannot be made as entered. | Pick Cash, Bank, UPI or Cheque, enter the UTR or cheque number, and pay no more than is due. | Low | 422 |
-| `GOODSR-0951` | Post all used when the receipt does not match everywhere | Post all needs everything to match. | Go through the steps one by one: the message lists what differs. | Low | 422 |
-| `GOODSR-0952` | A negative or invalid quantity or price on a goods receipt step | Quantities and prices must be zero or more. | Correct the number on the line named. | Low | 422 |
-| `GOODSR-1305` | Item listed under the receiving store's Items not stocked here | This store does not stock this item. | Receive it at a store that stocks it, or ask an administrator to change the store's Items not stocked here. | Medium | 422 |
-| `GOODSR-1317` | One goods receipt for POs in different currencies | These purchase orders can't be received together. | Receive the POs of each currency on their own goods receipt. | Medium | 422 |
-| `GOODSR-1318` | Packing list of a package that is still open | This package is still open, so its packing list can't be printed yet. | Close the package, then print its packing list. | Low | 422 |
-| `GOODSR-1330` | Vendor bill paid while a lot of its receipt is still being inspected (148.33) | This bill is for goods still being inspected. | Pay it after the lot is released; pending lots are listed under Inspection lots. | Medium | 422 |
-| `PURCHA-5131` | Packs convert to a part-piece on an item that does not allow it (148.35) | That is not a whole number of pieces. | Receive whole packs, or allow part-pieces on the item. | Medium | 422 |
-
-## Goods Receipt / GRN
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `GOODSR-0089` | GRN accepted quantity invalid | Accepted quantity cannot be greater than received quantity. | Lower the accepted quantity to no more than was received, then save again. | High | 422 |
-| `GOODSR-0090` | Rejected quantity reason missing | Rejection reason is required for rejected quantity. | Choose a rejection reason on each line with a rejected quantity, then save again. | High | 422 |
-| `GOODSR-0091` | Barcode generation failed | Barcode could not be generated. Please try again or contact support. | Try again. If it fails again, tell support and quote the reference shown. | High | 503 |
-| `GOODSR-0095` | Invoice without GRN | Vendor invoice cannot be posted because GRN is not completed. | Finish and post the goods receipt first, then post the vendor invoice. | High | 422 |
-| `GOODSR-0180` | GRN posted | GRN posted successfully. | No action required. | Low | 200 |
-| `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel the documents made from this receipt first (its vendor invoice or stock movement), then cancel the receipt. | Critical | 409 |
-| `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Generate the barcodes for the accepted quantity, then post again. | High | 422 |
-| `GRN-0255` | QC hold pending | Stock is under QC hold and cannot be sold or transferred. | Complete QC approval/rejection. | High | 200 |
 

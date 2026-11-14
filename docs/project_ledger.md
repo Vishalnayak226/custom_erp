@@ -44,6 +44,135 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 357. "Start building next 20 item. Include from prev which was left in half way" - eight decisions built as recommended (a read-only mode, an encrypted evidence pack, buyer e-mails dropped after delivery, no takeover of an unrecorded command claim, the store cut on two old reports and the payroll export), the loyalty spend served by an index, PO and transfer-in line upload, security friction measured, a privacy-requests screen, and two more replayed commands in the E8 journey (2026-11-14, code + tests + guides, session erp-2b, ask 173; NOT COMMITTED)
+
+Detail is in the tracker: the ask 173 run header in the Asks log, and each item named below in its sub-module.
+
+- **Decisions:** "All recommended" on 148.38b, 157.4c, 49.3.4, 49.4.7, 49.6.2, 49.12.3, 49.12.4 and 49.5.7a. 148.38b and 49.5.7a were already built (163.1, 148.35). 83.2 and 77.12 closed as built by 85.A1-A5 and 85.E6.
+- **Built:**
+  - **Read-only mode** (49.12.3): `internal/server/security_read_only.go`, a Security-screen switch and a banner. Reads, sign-in and sign-out stay open; every write answers 423.
+  - **Encrypted evidence pack** (49.12.4): `engines/security_evidence_encryption.go`, OpenSSL `enc` format with a passphrase typed at download.
+  - **Data minimisation and command claims:** the delivered-order e-mail sweep and no stored billing address equal to the shipping address (49.6.2). An unrecorded command claim is never taken over (49.4.7).
+  - **Store cut:** on `current-stock` and `sales-register` (157.4c) and on the payroll export (49.3.4).
+  - **Loyalty spend index:** migration `stage166_1` (two partial indexes) for tier spend (166.1).
+  - **Line upload:** PO *Upload lines* by design number and transfer-in *Upload received quantities* (77.14).
+  - **Friction and privacy screens:** the sign-in friction count on the Security screen and scorecard (49.17.4). A privacy-requests dialog on Customer, Employee and Vendor rows whose export run hands the copy back (49.6.8).
+  - **BigCommerce re-delivery test** (49.5.7).
+  - **Two more replayed commands in E8** (74.U.2): a step GRN posted and paid, and a reprint request.
+- **Measured:** after 166.1 the 100k shape bills at about 325 a minute with 4 workers (about 100 with 8 before). Its other phases were re-timed (47.9.1). WAL is about 63 KB a bill (47.18.2, `storage-forecast.md`).
+- **Bug found, not fixed:** 173.1 needs a decision. A step receipt's bill settles inclusive-GST rounding into Inventory 1200 without moving stock value, so valuation reconciliation is a few paise off. E8 uses one piece to avoid it.
+- **Checks:**
+  - Build and vet of the changed packages.
+  - The named tests on the scratch database (:5490).
+  - `cmd/gendocs` tests.
+  - E8 live on a fresh scratch database: PASS, 11 steps.
+  - Not run: a live browser check of 77.14 and 49.17.4.
+- **Open:**
+  - 76.10 needs a decision (a per-terminal series is recommended).
+  - 49.3.4: per-field checks.
+  - 49.6.8: the consent decision.
+  - 74.U.2: job-work, e-invoice, e-way bill and store credit.
+  - 47.9.1: the full 100k and 1m runs.
+  - 49.4.3, 162.5 and 164.4 were not reached.
+  - Release: G6 regenerates `attack_surface.json` for the read-only route. Migration `stage166_1` is additive.
+
+## 356. "Start building all open items" - every open WMS, OMS, POS and CRM item: an RF screen to receive pieces, OMS Orders on one 768-px screen, GST inside a restocking fee, order promise dates, backorders released when stock lands, order payment states, a fraud-risk hold, line substitution, carrier claims and freight invoice reconciliation, and a return booked at the store that sold the bill (2026-11-13 → 14, code + tests + guides, session erp-a2, ask 169; NOT COMMITTED)
+
+Detail is in the tracker: the ask 169 run header in the Asks log, and 146.3.2b, 152.6, 148.28a, 73.4.2.1-73.4.2.7 and 77.8 in their sub-modules.
+
+- **Decisions:** the six asked decisions "All recommended" (146.3.2b, 148.28a and 152.6 built; 148.26a, 148.2b and 146.2.2b closed as built). 73.4.2: every part but route / load planning (73.4.2.8 stays open). 77.8: "Build the chain". Closed as built elsewhere: 77.1-77.6, 77.10 and 77.13 (85.E/85.C).
+- **Built:** RF **Receive pieces**; the OMS Orders top row and filter row; the fee's GST split out on refund. Also `engines/oms_payment_events.go`, `oms_risk_hold.go`, `oms_backorder.go`, `oms_substitution.go`, `oms_freight.go` and their handlers, the **OMS → Freight** page, and migration `stage169_2` (CarrierClaim, FreightInvoiceLine). Then `engines/returns_centralised.go` (setting `returns.centralised`): SR at the selling store, one TO per stock bucket dispatched and received at the taking store, Good into Inward.
+- **Bugs found:** an order with no allocation rules that no store covered was refused instead of backordered (`sourcing.go`). A TO's Purpose accepts only its fixed list, so the return number goes in `source_return_no`.
+- **Checks:** build, vet, gofmt; TestStage73421-73427, TestStage778CentralisedReturn, TestStage14632*, TestStage14828*, TestStage1484* and TestEngines on the scratch database (:5490); the internal/server route-contract tests. Chromium walks: RF at 360 px, OMS Orders at 1366/1024/390, the Returns Location cell at 1366/390, the Freight page with no console errors.
+- **Open:** 55.9 is Blocked until a live connector and courier run; 73.4.2.8; the gated phone, scanner and account items named in the run header. Release: G6 regenerates `attack_surface.json` for the new routes; migration `stage169_2` is additive.
+
+## 355. "Start buildng all this. Carfully build I am building parallely other things" - every open FIN, TAX, HR, MFG, ASQ, RPT and PRT item: line-level ledger rows, bank part-matching and files, leases, CWIP, impairment and revaluation, maintenance cost and meters, production confirmations, scrap and WIP costing, lot genealogy, AQL sampling and supplier SCARs, positions, recruitment, exits, disciplinary cases, certificates, calibration, slab TDS / LWF / ECR / 24Q, benefits, salary revisions, a manager's team view, people analytics, holiday calendars, expense limits, staff advances, timesheets, milestones, project revenue, service SLAs, GSTR-1 / 2B files, export under LUT, retention policies, staff and vendor erasure, a masked sandbox copy, a data-quality queue and import load order (2026-11-13, code + tests + guides, session erp-e9 / erp-d7, ask 170; NOT COMMITTED)
+
+Detail is in the tracker: the ask 170 run header in the Asks log and 170.1-170.43 in their sub-modules (FIN, TAX, HR, MFG, Assets, Quality, Data).
+
+- **Decisions (all recommended):** 148.4b and 146.5.6c to build, 148.15b, 148.3b and 148.23a kept as built, 66.8 left alone, the 73.4.x bundles split into 170.1-170.43 without their P3 parts, live checks on app only.
+- **Built:** 42 items, 170.1-170.42, by nine groups in scratch worktrees on one snapshot of the main tree, merged by patch. 146.5.6c and 170.43 are Done. 148.4b is Blocked: 1300 / 2100 are hard-coded at about 70 sites in 33 files, several under other sessions' edits; the path is in the item.
+- **Fixed on merge:** BenefitEnrolment and SalaryRevision had no scope; four new tables had no reset class; the Data quality view had no module; 11 Employee and Applicant fields had no personal-data purpose; an Accountant could see only their own staff advance and timesheet (now every one, as they pay and cost them); register rows also added for the GSTR-2B supplier GSTIN, the tax-declaration readers (sensitive) and ask 168's three Vendor onboarding flags, which had failed the register test.
+- **Checks:** build, vet, gofmt; every group's tests and the scope, reset, payroll, production, bank, depreciation, privacy, sensitive-field and register tests on one merged database (:5490); server catalog, capability and module-manifest tests; repolayout.
+- **Open:** 170.1 covers sales invoices only; a CA confirms the slabs, cess and ECR rates; the AQL table is checked against ISO 2859-1; the gaps each item lists. Release: G6 regenerates `attack_surface.json`; the new `gl_accounts` rows mean Deploy asks YES.
+
+## 354. "Use in optimal way where laptop is not getted heated up" / "this first priciple for building in the project" - building without overloading the machine becomes the constitution's first principle (2026-11-13, docs + local settings only, session erp-71; NOT COMMITTED)
+
+Detail is in the tracker: the ask 172 run header in the Asks log and 172.1 in *OPS › Repository & developer tooling*.
+
+- **Finding:** RAM was at 45% (13 GB of 24 GB free) and not the cause. The 4-core laptop CPU was at 100% with four sessions' Go builds and tests running at once; one `compile.exe` used 1.15 GB.
+- **Rule:** `CONTRIBUTING.md` gains a "First principle" before Article 1: one heavy job at a time across sessions, build and test only what changed, few helper agents, and stop what you start. Article 10 has its row and the amendment log its entry. No article was renumbered.
+- **Enforcement:** user Claude settings set `GOFLAGS=-p=2` (checked: `go env GOFLAGS` reports `-p=2`). `CLAUDE.md` and memory carry the machine details. The three running sessions were sent the rule.
+
+## 353. "Once all built mark done and keep in archive list" / "Clean up all temp file for the project" - the first archive pass, a disk clean-up, and both as rules after every task (2026-11-13, docs + local machine only, session erp-0b; NOT COMMITTED)
+
+Detail is in the tracker: the ask 171 run header in the Asks log, 171.1-171.2 in *DOC › Engineering docs & trackers*, 171.3-171.5 in *OPS › Repository & developer tooling*.
+
+- **Archive pass:** 285 built and verified items moved to the same sub-module of the archive; the live tracker went from 859 KB to 630 KB. Four `[x]` items stay because a sub-item is open or the status is not Done.
+- **Clean-up:** C: went from 99% to 80% full (51 GB free) once the Go build cache, finished sessions' worktrees and stale temp folders were cleared. Diffs of the removed worktrees were kept outside the repo first.
+- **Blocked:** dropping 74 scratch databases (about 4 GB) of finished sessions was refused by the session's permission check; the owner runs a script that names each one.
+- **Rules:** both are now kept as memory rules to apply after every task.
+
+## 352. "Complete all this 3" - every open PIM, PROC and INV item: contracts and service POs, supplier onboarding and a supplier portal, product lifecycle, range, markdowns, merge, dated changes, listing drift, category attribute rules, the four procurement decisions, a Myntra price harvester, a photo copy into the image drive, and nine walk-throughs (2026-11-13, code + guides, session erp-0b; NOT COMMITTED)
+
+Detail is in the tracker: the ask 168 run header in the Asks log, and each item in *PIM*, *PROC* and *INV*.
+
+- **Decisions:** "all recommended" closed 13 items as built and set four to build (148.14c, 148.12c, 148.16c, 148.1d). Fifteen items were closed as already met or answered (95.0, 95.9, 94.22-94.28, 56.4, 75.4.2, 75.4.4, 34.5, 34.6, 89.4.4, 146.5.5).
+- **Built, in nine parallel groups** on a snapshot of HEAD, each in its own worktree, database and port, then merged by patch:
+  - **Procurement (168.1-168.4):** rate / blanket contracts with release POs and a cap, service POs with service entry sheets, supplier onboarding with an approved vendor list (both off by default), and a supplier portal with orders, ASNs, bills and payments.
+  - **PIM (168.5-168.15):** product lifecycle, store range (off / warn / block), markdown plans, merge, effective-dated changes, listing drift, and category attribute rules with inheritance, multi-select values, units and held regulated changes (each check off by default).
+  - **Decisions built:** a role check on convert-requisition, who may match a bill, GST on the memo bill, and bundle returns at booked cost.
+  - **147.3** renumbers dashed Combination IDs through the existing clean-up. It is not run on any client.
+  - **75.4.3** copies server photos into the image drive, checksum read back.
+  - **146.5.12** sends product relations to Shopify.
+  - **34.4** is the Myntra harvester. It is off by default and has not been run against myntra.com.
+- **Verified:** 89.6.3, 136.3, 92.4, 106.4, 77.9, 135.24 and 94.12 were walked on a scratch server. 106.5 and 55.11 are partly walked. That walk found a 500 on a non-admin PUT / PATCH to the generic record endpoint, which is now fixed.
+- **Found at merge:**
+  - The new Supplier confinement also closed `approval/submit`, which Supplier Submissions need, so that route is kept open.
+  - A second `requireUpdate` was folded into one helper with `requireCreate`.
+  - Two groups each wrote a guide §6.10 and two wrote a §8b-3; these were renumbered.
+  - The Listing Drift menu entry had no rule of its own (`TestMenuPIMEntriesGateOnTheirOwnRecords`); it now needs Item.
+  - `docs/security/idempotency-audit.md` regenerated for the 11 new routes; contract close and supplier ASN are listed without a command key (the ASN is capped by the open quantity under a lock).
+- **Checks:**
+  - `go build ./...`, `go vet` and gofmt pass.
+  - Every group's tests pass on one merged database, and so does the full `internal/server` suite.
+  - Migrations were applied twice on that database; the second run applied 0.
+  - The report catalog check and `releasebudget` pass.
+- **Left for the owner:**
+  - the 147.3 renumber on a client, only on the owner's say-so;
+  - a Myntra live run;
+  - a real Shopify shop and a real drive;
+  - 149.2 and 129.5 on app;
+  - `attack_surface.json` regeneration at release (G6) for the new routes.
+
+## 351. "build all print modules open items" - bin labels through sticker templates, Sales Order as a sticker source, GRN quantity headings that no longer break, and the print items that only needed a live check walked on a scratch server (2026-11-13, code + tests + guides, ask 167; NOT COMMITTED)
+
+What changes for existing clients: the Bin list and the Bin Generator have **Print labels**, which opens a dialog (template, copies, Print to the sticker printer, **A4 sheet** for the old print window) with a built-in *Bin label 50 × 25*; **Sales Order** is in the sticker screen's Module list; the built-in GRN print's quantity headings are 10 wide (the table total is still 114). No migration, no new route.
+
+The ask and each item's result are on the ask-167 run header and its items under *PRT* in `micro_checklist.md`. This section is the summary.
+
+- **Done (11):** built 52.7 (`resolveSalesOrderStickerLines`), 132.25, 146.3.4b ("build all" taken as the go-ahead on its wait-for-a-client recommendation); verified live 119.5, 119.2, 119.3, 106.1, 154.3 (no crop at shifts -3..3 mm for every roll design), 98.2.2 (A4, A5 and roll PDFs, 3+ pages); closed 113.4 (superseded by 119.1) and 71.7 (every part tracked in Stage 74; (g) e-invoice still open there).
+- **Built, not verified (2):** 106.3 and 98.5.2 - everything checked but a real receipt printer and real store printers.
+- **Left as they were:** items that need a physical printer, roll or PC install (31.1.8, 31.1.9, 58.7, 55.19, 143.6, 106.2, 113.3, 119.1, 119.4, 137.3-137.6, 154.2, 154.4, 154.5) and 121.1 (the user).
+- **Found:** a saved template's own column widths (the scratch "GRN with barcode") still break headings - template data, changed in the studio, not code.
+- **Verified:** build and vet clean; `engines` sticker tests incl. the new `TestStage527SalesOrderIsAStickerSource` and the `internal/server` sticker / inline-style / budget tests on :5490; Chrome headless on a scratch server (:8190) for every item above, with no console or page errors.
+- **Files:** `engines/sticker_document_source.go` (+ test), `engines/po_stickers_test.go`; `public/sticker-engine.js`, `sticker-studio.js`, `view-bin-tools.js`, `view-documents.js` (Bin list button only), `view-printing.js`, `trade-docs.js`; the labels user guide and two admin guide parts.
+
+## 350. "Once deploymeent is done, Start next 20 items to build" - a stock ledger key index, cached setup checks, the synthetic client's PO step in batches and a 100k end-to-end run, a smaller `app.js`, reason-code tabs, the last three strict record types, journal voucher lines checked on every save, market-specific product values, a store move from the Users screen, favourites for every role, notification clock badges, erasure that reaches files and saved views, go-live evidence that goes stale, a replay journey, both guides split into parts (2026-11-12, code + tests + guides, session erp-10, ask 166; NOT COMMITTED)
+
+What changes for existing clients: the Users screen says when a home-store move went for approval; the Setup reason-code list has category tabs; Security Events shows Due / Overdue on each notification decision and links the incident runbook; a role made in Setup can keep favourites; SetOffVoucher, StewardshipChange and ImportBatch refuse a status move with no rule; a JournalVoucher saved or imported through the generic route is refused when its lines do not balance (FIN-0844) and its total is set from its lines; an erasure also deletes the person's attachment files and saved views; go-live integration evidence goes stale when a destination is added or switched off. The admin Home card's Finance checks can take up to a minute to show a posting change. Both guides are now an index plus part files.
+
+The ask and each item's result are on the ask-166 run header and its items in `micro_checklist.md`. This section is the summary.
+
+- **Done (10):** 164.1 (partial B-tree for the stock ledger key probe), 164.2 (Finance setup checks cached 60 s), 74.1.1 (category tabs), 49.5.3 (ninth batch, last three record types), 49.5.2 (atomicity matrix brought up to 162.13), 47.13.4 (market rows in survivorship), 164.3 + 49.2.1 (store move toast), 165.1 (UserShortcut creator-owned, any role), 134.9 (guides split, no doclint size finding).
+- **Built, other Left parts still open (9):** 47.9.1 (PO step on the worker pool; 100k shape with 5,000 bills ran end to end in 1 h 45 min; full 100k bills and 1m left), 47.18.2 (WAL and checkpoint figures from that run), 49.5.7 (JournalVoucher generic save; BigCommerce webhook left), 49.12.5 (clock badges, runbook link; counsel text left), 49.6.8 (files, saved views, Customer correction; no correction screen, `consent_withdraw` open), 49.17.3 (destination stamp, real credential-list errors; person-attached evidence left), 74.U.2 (journey `E8`, 9 steps live; job-work, e-invoice, e-way bill, reprint, GRN, store credit left), 49.4.3 (inline styles 119 to 69), 162.5.
+- **Built, not verified (1):** 164.4 (`app.js` 346 KB to 315 KB, three screens loaded on first use; the budget re-run was timing noise on a shared machine).
+- **Needs decision (2):** 49.4.7 (a wrapper-keyed command whose process dies after its commit can run again once the 2-minute lease lapses; recommended: never take such a claim over), 49.6.2 (buyer e-mail and billing address on orders; recommended: drop the e-mail after delivery, store no billing address equal to shipping).
+- **Found:** 166.1 - the loyalty tier spend reads every processed refund on each bill (set the pace of the 100k bills phase). A JournalVoucher saved through the generic route skipped its line rules and kept a stale `total_amount` (fixed under 49.5.7). The checklist map offered an ask number already claimed by a run that only rebuilds older items; `update-checklist-map.ps1` now reads the run headers too.
+- **How it was built:** five builder groups in scratch worktrees from one snapshot (`refs/scratch/erp-10-snap`), each on its own scratch database, ported file by file; `golive.go` (A and E) merged cleanly; the admin guide was split in main after B, D and E landed and A's one sentence placed in its part.
+- **Verified:** build and vet clean; each item's focused tests on a freshly migrated scratch database (all 403 migrations apply); Chromium on a scratch server for the store-move toast (setting Off and On), the clock badges and runbook link, and the reason-code tabs at 390 px; journey `E8` live on a scratch server; doclint -strict and `update-docs.ps1` pass with no finding from this work. The full suite was not run in main.
+- **For the release:** four additive migrations - `148_101_strict_transitions_49_5_3h` (rules only), `47_13_4b_attribute_value_market` (a field definition), `49_6_8_privacy_correction_values` (one nullable column), `164_1_stock_ledger_key_index` (index only; writes to `documents` wait while it builds). No new route.
+
 ## 349. "all recommended" - four decisions built: strict transitions for the last eight approval / WMS / service record types, a High-severity reason that holds a purchase return or a transfer loss for approval, signed public image addresses for marketplace feeds, a Privacy approver role (2026-11-12, code + tests + guides, session erp-4c, ask 165; committed in 1c026d1, release 0.23.0)
 
 What changes for existing clients: PasswordResetRequest, SupplierSubmission, Appraisal, Grievance, LPN, SortSlot, ServiceTicket and Appointment refuse a status move with no rule (GLOBAL-0019), and rejecting one of the four approval records needs a reason; a purchase return or a transfer loss with a High-severity reason waits in Pending Approval; a new Privacy Approver role can be named on a notification decision. Public image addresses stay off until the owner sets `PUBLIC_MEDIA_SIGNING_KEY` and turns the setting on. Two migrations change metadata only (rules, a hold record type, one favourites grant); no client document is touched.

@@ -125,6 +125,48 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   color: var(--text-muted);
 }
 
+/* 152.6 (user 2026-11-13): tiles and attention chips share one row; the
+   search box joins the filter row. Together they free the room the list needs
+   on a 1366x768 window. */
+.oms-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.oms-top-row > .dashboard-stats-row {
+  flex: 1 1 420px;
+  margin: 0;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+.oms-top-row .oms-tile { padding: 10px 12px; gap: 2px; }
+.oms-attention {
+  flex: 1 1 520px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.oms-attention > .oms-queue-buttons { display: contents; }
+#oms-queue-rows:empty { display: none; }
+#oms-queue-rows { margin-bottom: 16px; }
+
+.oms-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.oms-filter-row > .oms-facets { display: contents; }
+.oms-filter-row .oms-facet .form-input { min-width: 120px; }
+.oms-facet-search { flex: 1 1 300px; }
+.oms-facet-search .form-input { min-width: 0; }
+#oms-search-results:not(:empty) { margin-bottom: 12px; }
+
 .oms-hold-reason {
   margin-top: 2px;
   font-size: 11px;
@@ -182,3 +224,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* 73.4.2.1: the New Order "Promised" column shows once a promise comes back
+   (promise dates on). */
+.po-lines:not(.mo-promise-on) .mo-promise-col { display: none; }

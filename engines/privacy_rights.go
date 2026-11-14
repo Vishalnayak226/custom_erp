@@ -69,12 +69,19 @@ type DataSubjectRequest struct {
 	DecidedBy      string
 	DecisionNote   string
 	CompletedAt    *time.Time
+	Corrections    map[string]interface{} // 49.6.8: values a correction applies
 }
 
 // RequestDataSubjectAction opens a new pending request. Recording the
 // request itself - before anything executes - is what makes "who asked, and
 // when" reconstructable even if the request is later denied.
 func RequestDataSubjectAction(tenantID, subjectDoctype, subjectID, requestType, reason, requestedBy string) (string, error) {
+	return RequestDataSubjectCorrection(tenantID, subjectDoctype, subjectID, requestType, reason, requestedBy, nil)
+}
+
+// RequestDataSubjectCorrection is RequestDataSubjectAction with the corrected
+// values a correction request carries (49.6.8); other types pass nil.
+func RequestDataSubjectCorrection(tenantID, subjectDoctype, subjectID, requestType, reason, requestedBy string, corrections map[string]interface{}) (string, error) {
 	if !validPrivacyRequestTypes[requestType] {
 		return "", fmt.Errorf("unknown data subject request type %q", requestType)
 	}
@@ -84,15 +91,33 @@ func RequestDataSubjectAction(tenantID, subjectDoctype, subjectID, requestType, 
 	if requestedBy == "" {
 		return "", fmt.Errorf("requested_by is required")
 	}
+	if requestType == PrivacyRequestCorrection {
+		if subjectDoctype != "Customer" {
+			return "", fmt.Errorf("a correction is built for Customer only")
+		}
+		if err := checkCustomerCorrection(tenantID, subjectID, corrections); err != nil {
+			return "", err
+		}
+	} else if len(corrections) > 0 {
+		return "", fmt.Errorf("corrected values belong to a correction request only")
+	}
+	var correctionJSON interface{}
+	if len(corrections) > 0 {
+		b, err := json.Marshal(corrections)
+		if err != nil {
+			return "", err
+		}
+		correctionJSON = string(b)
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
 	}
 	id := NewDocID("DSR")
 	_, err = db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.data_subject_requests (id, subject_doctype, subject_id, request_type, status, reason, requested_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`, schema),
-		id, subjectDoctype, subjectID, requestType, PrivacyRequestPending, reason, requestedBy)
+		`INSERT INTO %s.data_subject_requests (id, subject_doctype, subject_id, request_type, status, reason, requested_by, corrections)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`, schema),
+		id, subjectDoctype, subjectID, requestType, PrivacyRequestPending, reason, requestedBy, correctionJSON)
 	if err != nil {
 		return "", err
 	}
@@ -147,35 +172,62 @@ func DecideDataSubjectRequest(tenantID, requestID, decidedBy string, approve boo
 // customer's SMS and WhatsApp marketing consent, so no campaign reaches them.
 // Any other subject doctype is a clear, named gap, not a silent no-op.
 func ExecuteDataSubjectRequest(tenantID, requestID, actor string) error {
+	_, err := RunDataSubjectRequest(tenantID, requestID, actor)
+	return err
+}
+
+// RunDataSubjectRequest is ExecuteDataSubjectRequest that also hands back what
+// an export or access request gathered (49.6.8), so the screen can give the
+// subject their copy; other types return nil data.
+func RunDataSubjectRequest(tenantID, requestID, actor string) (map[string]interface{}, error) {
 	req, err := getDataSubjectRequest(tenantID, requestID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if req.Status != PrivacyRequestApproved {
-		return fmt.Errorf("request %s is %s, not approved", requestID, req.Status)
+		return nil, fmt.Errorf("request %s is %s, not approved", requestID, req.Status)
+	}
+	var data map[string]interface{}
+	if req.SubjectDoctype == "Employee" || req.SubjectDoctype == "Vendor" {
+		// 170.39: employee and vendor erasure / export, refused with a reason where a hold or statutory keep applies.
+		switch req.RequestType {
+		case PrivacyRequestErasure, PrivacyRequestAnonymize:
+			if err := AnonymizeStaffOrVendor(tenantID, req.SubjectDoctype, req.SubjectID, actor, req.Reason); err != nil {
+				return nil, err
+			}
+		case PrivacyRequestExport, PrivacyRequestAccess:
+			if data, err = ExportStaffVendorData(tenantID, req.SubjectDoctype, req.SubjectID); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("a %s request supports export, access and erasure only", req.SubjectDoctype)
+		}
+		return data, markDataSubjectRequestCompleted(tenantID, requestID, actor)
 	}
 	if req.SubjectDoctype != "Customer" {
-		return fmt.Errorf("execution is not implemented for doctype %q yet - only Customer erasure/anonymize/export/access is built (Stage 49.6.8)", req.SubjectDoctype)
+		return nil, fmt.Errorf("execution is not implemented for doctype %q yet - only Customer erasure/anonymize/export/access is built (Stage 49.6.8)", req.SubjectDoctype)
 	}
 	switch req.RequestType {
 	case PrivacyRequestErasure, PrivacyRequestAnonymize:
 		if err := AnonymizeCustomer(tenantID, req.SubjectID, actor, req.Reason); err != nil {
-			return err
+			return nil, err
 		}
 	case PrivacyRequestExport, PrivacyRequestAccess:
-		if _, err := ExportCustomerData(tenantID, req.SubjectID); err != nil {
-			return err
+		if data, err = ExportCustomerData(tenantID, req.SubjectID); err != nil {
+			return nil, err
 		}
 	case PrivacyRequestConsentWithdraw:
 		if err := WithdrawMarketingConsent(tenantID, req.SubjectID, "Consent withdrawal "+requestID); err != nil {
-			return err
+			return nil, err
 		}
 	case PrivacyRequestCorrection:
-		// No automated action - see doc comment above.
+		if err := applyCustomerCorrection(tenantID, req.SubjectID, requestID, actor, req.Corrections); err != nil {
+			return nil, err
+		}
 	default:
-		return fmt.Errorf("unknown request type %q", req.RequestType)
+		return nil, fmt.Errorf("unknown request type %q", req.RequestType)
 	}
-	return markDataSubjectRequestCompleted(tenantID, requestID, actor)
+	return data, markDataSubjectRequestCompleted(tenantID, requestID, actor)
 }
 
 func markDataSubjectRequestCompleted(tenantID, requestID, actor string) error {
@@ -198,12 +250,16 @@ func getDataSubjectRequest(tenantID, requestID string) (DataSubjectRequest, erro
 		return DataSubjectRequest{}, err
 	}
 	var r DataSubjectRequest
+	var corr []byte
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT id, subject_doctype, subject_id, request_type, status, COALESCE(reason,''), requested_by, requested_at, COALESCE(decided_by,''), COALESCE(decision_note,''), completed_at
+		`SELECT id, subject_doctype, subject_id, request_type, status, COALESCE(reason,''), requested_by, requested_at, COALESCE(decided_by,''), COALESCE(decision_note,''), completed_at, corrections
 		 FROM %s.data_subject_requests WHERE id = $1`, schema), requestID).
-		Scan(&r.ID, &r.SubjectDoctype, &r.SubjectID, &r.RequestType, &r.Status, &r.Reason, &r.RequestedBy, &r.RequestedAt, &r.DecidedBy, &r.DecisionNote, &r.CompletedAt)
+		Scan(&r.ID, &r.SubjectDoctype, &r.SubjectID, &r.RequestType, &r.Status, &r.Reason, &r.RequestedBy, &r.RequestedAt, &r.DecidedBy, &r.DecisionNote, &r.CompletedAt, &corr)
 	if err != nil {
 		return DataSubjectRequest{}, fmt.Errorf("data subject request %s not found: %v", requestID, err)
+	}
+	if len(corr) > 0 {
+		_ = json.Unmarshal(corr, &r.Corrections)
 	}
 	return r, nil
 }
@@ -321,8 +377,19 @@ func AnonymizeCustomer(tenantID, customerID, actor, reason string) error {
 		patch, customerID); err != nil {
 		return err
 	}
+	// 49.6.8: files and saved views that name the person go too.
+	phone, _ := data["phone"].(string)
+	email, _ := data["email"].(string)
+	files, err := eraseCustomerAttachments(schema, customerID)
+	if err != nil {
+		return fmt.Errorf("could not remove the files of customer %s: %v", customerID, err)
+	}
+	views, err := eraseCustomerSavedViews(schema, customerID, phone, email)
+	if err != nil {
+		return fmt.Errorf("could not remove the saved views of customer %s: %v", customerID, err)
+	}
 	LogAuditEvent(tenantID, actor, "data_subject_erasure_completed", "Success",
-		fmt.Sprintf("customer %s anonymized (reason: %s)", customerID, reason))
+		fmt.Sprintf("customer %s anonymized, %d files and %d saved views removed (reason: %s)", customerID, files, views, reason))
 	return nil
 }
 

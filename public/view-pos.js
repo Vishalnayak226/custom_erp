@@ -1062,6 +1062,7 @@ async function refreshPOSQuote() {
   posQuoteVersion = data.quote_version || '';
   posLoyalty = data.loyalty || null;
   posGST = data.gst_breakdown || null;
+  (data.warnings || []).forEach(w => { if (!window._posWarned) window._posWarned = new Set(); if (!window._posWarned.has(w)) { window._posWarned.add(w); showToast(w, { variant: "warning", title: "Item lifecycle" }); } });
   { const e = document.getElementById('pos-loyalty-info'), p = posLoyalty; if (e && p) e.textContent = p.earn_blocked ? 'No points: ' + p.earn_blocked : p.earn_points ? 'Earns ' + p.earn_points + ' pts' : ''; }
   posRedeemPoints = posLoyalty ? posLoyalty.points : 0;
   (data.lines || []).forEach(ql => {

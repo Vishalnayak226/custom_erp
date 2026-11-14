@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"errors"
 	"sort"
 	"testing"
 )
@@ -117,8 +118,9 @@ func TestResolveDocumentStickerLinesTransferOrder(t *testing.T) {
 }
 
 func TestResolveDocumentStickerLinesUnsupportedDoctype(t *testing.T) {
-	if _, err := ResolveDocumentStickerLines("default", "SalesOrder", "whatever"); err == nil {
-		t.Fatal("expected an error for an unsupported source doctype")
+	// A master record is not a source (SalesOrder became one in Stage 52.7).
+	if _, err := ResolveDocumentStickerLines("default", "Item", "whatever"); !errors.Is(err, ErrUnsupportedStickerSource) {
+		t.Fatalf("expected ErrUnsupportedStickerSource for a master doctype, got %v", err)
 	}
 }
 

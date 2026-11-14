@@ -395,7 +395,7 @@ function exitRFTraceability() {
   renderView('home');
 }
 
-export { rfQueueOpen, rfQueueDo, rfQueueAsk, rfCodesOpen, rfCodesMint, renderRFTraceabilityView, exitRFTraceability, renderRFTaskMenu, openRFTask, focusFirstEmptyRFField, rfOutcomeForResponse, setRFStatus, rfTone, submitRFTask, rfSuccessMessage, requestRFSupervisor };
+export { rfQueueOpen, rfQueueDo, rfQueueAsk, rfCodesOpen, rfCodesMint, rfPiecesOpen, rfPiecesFind, rfPiecesLoad, rfPiecesLine, rfPiecesScan, rfPiecesUndo, rfPiecesMint, renderRFTraceabilityView, exitRFTraceability, renderRFTaskMenu, openRFTask, focusFirstEmptyRFField, rfOutcomeForResponse, setRFStatus, rfTone, submitRFTask, rfSuccessMessage, requestRFSupervisor };
 
 // --- Stage 146.3.3 work queue, 146.3.2 piece codes ---------------------------
 // Only offered when wms.work_queue is on (the route answers 422 when it is off).
@@ -492,5 +492,116 @@ async function rfCodesOffer() {
   const on = res && res.ok && (await res.json().catch(() => ({}))).on;
   const body = document.getElementById('rf-body');
   if (!on || !body) return;
-  body.insertAdjacentHTML('beforeend', `<button class="rf-task-btn" type="button" ${actionAttrs('rfCodesOpen', [])}><span class="rf-task-label">Piece codes</span></button>`);
+  body.insertAdjacentHTML('beforeend', `<button class="rf-task-btn" type="button" ${actionAttrs('rfPiecesOpen', [])}><span class="rf-task-label">Receive pieces</span></button>
+    <button class="rf-task-btn" type="button" ${actionAttrs('rfCodesOpen', [])}><span class="rf-task-label">Piece codes</span></button>`);
+}
+
+// Stage 146.3.2b: Receive pieces - scan or mint a code for every piece of a
+// goods receipt received in steps, line by line. Each scan is saved at once,
+// so nothing is lost if the handheld drops; posting keeps the codes.
+let rfPieces = null; // the receipt on screen: {id, code, lines: [...]}
+let rfPiecesLineNo = 0;
+const rfBack = (fn, args, label) => `<button class="rf-secondary" type="button" ${actionAttrs(fn, args)}>${label}</button>`;
+
+async function rfPiecesOpen() {
+  rfActiveTask = null; rfPieces = null;
+  document.getElementById('rf-title').textContent = 'Receive pieces';
+  document.getElementById('rf-instruction').textContent = '';
+  setRFStatus('', '');
+  const body = document.getElementById('rf-body');
+  body.innerHTML = `<form ${actionAttrs('rfPiecesFind', [], { on: 'submit', prevent: true })}>
+      <label class="rf-field"><span class="rf-label">Goods receipt</span><input id="rf-rp-grn" class="rf-input" autocomplete="off" data-rf-semantic="barcode"></label>
+      <button class="rf-primary" type="submit">Open</button>
+    </form>
+    <div id="rf-rp-list"></div>
+    ${rfBack('renderRFTaskMenu', [], 'Back to tasks')}`;
+  document.getElementById('rf-rp-grn').focus();
+  // The receipts still open at this store, newest first.
+  const w = await loadViewModule('/view-store.js?v=1').then(m => m.ensureWorkingStore()).catch(() => null);
+  const res = await apiFetch('/api/v1/grn-steps').catch(() => null);
+  const rows = res && res.ok ? ((await res.json().catch(() => ({}))).rows || []) : [];
+  const open = rows.filter(r => r.step !== 'Posted' && r.status !== 'Cancelled' && (!w || !w.code || !r.location || r.location === w.code)).slice(0, 20);
+  const list = document.getElementById('rf-rp-list');
+  if (list) list.innerHTML = open.map(r => `<button class="rf-task-btn" type="button" ${actionAttrs('rfPiecesLoad', [r.id])}>
+      <span class="rf-task-label">${cfgEsc(r.code || r.id)}</span><span class="rf-task-hint">${cfgEsc([r.vendor_name || r.vendor, r.step].filter(Boolean).join(' · '))}</span></button>`).join('');
+}
+
+function rfPiecesFind() {
+  const v = (document.getElementById('rf-rp-grn') || {}).value || '';
+  if (v.trim()) return rfPiecesLoad(v.trim());
+}
+
+async function rfPiecesCall(ref, body) {
+  const url = '/api/v1/grn-steps/' + encodeURIComponent(ref) + '/piece-codes';
+  const res = await apiFetch(url, body ? { method: 'POST', body: JSON.stringify(body) } : {}).catch(() => null);
+  if (!res) { setRFStatus('offline', 'No connection. Nothing was sent. Try again when the signal comes back.'); return null; }
+  if (!res.ok) {
+    const payload = await res.clone().json().catch(() => ({}));
+    setRFStatus(rfOutcomeForResponse(res, payload), await getErrorMessage(res, 'That could not be done.'));
+    return null;
+  }
+  return res.json().catch(() => null);
+}
+
+async function rfPiecesLoad(ref) {
+  const data = await rfPiecesCall(ref);
+  if (!data) return;
+  rfPieces = data;
+  setRFStatus('', '');
+  document.getElementById('rf-title').textContent = 'Receive pieces · ' + (data.code || data.id);
+  const lines = data.lines || [];
+  document.getElementById('rf-body').innerHTML = (lines.length ? lines.map(l => `<button class="rf-task-btn" type="button" ${actionAttrs('rfPiecesLine', [l.line_no])}>
+      <span class="rf-task-label">${cfgEsc(l.sku)} · ${(l.codes || []).length} / ${l.pieces}</span><span class="rf-task-hint">${cfgEsc([l.item_name, l.posted ? 'Posted' : ''].filter(Boolean).join(' · '))}</span></button>`).join('')
+    : '<div class="rf-task-hint">No item here takes a code per piece</div>')
+    + rfBack('rfPiecesOpen', [], 'Back');
+}
+
+function rfPiecesLine(lineNo) {
+  const l = rfPieces && (rfPieces.lines || []).find(x => x.line_no === lineNo);
+  if (!l) return;
+  rfPiecesLineNo = lineNo;
+  const codes = l.codes || [];
+  const full = codes.length >= l.pieces;
+  const open = !l.posted && !full;
+  document.getElementById('rf-body').innerHTML = `<div class="rf-task-label">${cfgEsc(l.sku)} · ${codes.length} / ${l.pieces}</div>
+    ${open ? `<form ${actionAttrs('rfPiecesScan', [], { on: 'submit', prevent: true })}>
+      <label class="rf-field"><span class="rf-label">Code</span><input id="rf-rp-code" class="rf-input" autocomplete="off" data-rf-semantic="barcode"></label>
+      <button class="rf-primary" type="submit">Add</button>
+    </form>
+    <button class="rf-secondary" type="button" ${actionAttrs('rfPiecesMint', [])}>Mint the rest</button>` : ''}
+    ${!l.posted && codes.length ? `<button class="rf-secondary" type="button" ${actionAttrs('rfPiecesUndo', [])}>Undo last</button>` : ''}
+    <div class="rf-task-hint">${cfgEsc(codes.join('  '))}</div>
+    ${rfBack('rfPiecesLoad', [rfPieces.id], 'Back')}`;
+  const input = document.getElementById('rf-rp-code');
+  if (input) input.focus();
+}
+
+async function rfPiecesSave(codes, mintRest) {
+  const l = rfPieces && (rfPieces.lines || []).find(x => x.line_no === rfPiecesLineNo);
+  if (!l) return;
+  const data = await rfPiecesCall(rfPieces.id, { line_no: l.line_no, codes, mint_rest: !!mintRest });
+  if (!data) return;
+  rfPieces = data;
+  rfPiecesLine(l.line_no);
+  const now = (data.lines || []).find(x => x.line_no === l.line_no) || {};
+  setRFStatus('ok', `Saved ${(now.codes || []).length} / ${now.pieces}`);
+}
+
+function rfPiecesScan() {
+  const input = document.getElementById('rf-rp-code');
+  const code = input ? input.value.trim() : '';
+  const l = rfPieces && (rfPieces.lines || []).find(x => x.line_no === rfPiecesLineNo);
+  if (!code || !l) return;
+  if ((l.codes || []).includes(code)) { setRFStatus('error', 'Already scanned'); input.select(); return; }
+  return rfPiecesSave([...(l.codes || []), code], false);
+}
+
+function rfPiecesUndo() {
+  const l = rfPieces && (rfPieces.lines || []).find(x => x.line_no === rfPiecesLineNo);
+  if (l) return rfPiecesSave((l.codes || []).slice(0, -1), false);
+}
+
+function rfPiecesMint() {
+  const l = rfPieces && (rfPieces.lines || []).find(x => x.line_no === rfPiecesLineNo);
+  if (l) return rfPiecesSave(l.codes || [], true);
 }

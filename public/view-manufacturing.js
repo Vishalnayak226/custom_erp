@@ -18,6 +18,7 @@ const MFG_TABS = [
   { id: 'quality', label: 'Quality Inspections' },
   { id: 'certificates', label: 'Certificates' },
   { id: 'ncr', label: 'Non-conformance' },
+  { id: 'scar', label: 'Supplier Actions' },
   { id: 'mrp', label: 'MRP Suggestions' },
   { id: 'proposals', label: 'Supply Proposals' },
   { id: 'schedule', label: 'Production Schedule' },
@@ -25,7 +26,7 @@ const MFG_TABS = [
   { id: 'maintenance', label: 'Maintenance' }
 ];
 // Stage 55.13: the quality and maintenance tabs live in view-quality.js.
-const QUALITY_TABS = ['quality', 'certificates', 'ncr', 'maintenance'];
+const QUALITY_TABS = ['quality', 'certificates', 'ncr', 'scar', 'maintenance'];
 
 function openManufacturingTab(id) {
   renderView(`manufacturing:${id}`);
@@ -164,6 +165,7 @@ async function renderManufacturingOrdersTab(container) {
           <td>${renderProductionOrderActions(o)}</td>
         </tr>
         <tr class="hidden" id="mfg-mat-${escapeHTMLText(o.id)}"><td colspan="7"></td></tr>
+        <tr class="hidden" id="mfg-conf-${escapeHTMLText(o.id)}"><td colspan="7"></td></tr>
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
@@ -268,6 +270,7 @@ function renderProductionOrderActions(order) {
       <button class="action-btn" ${actionAttrs('completeProductionOrder', [order.id])}>Complete (Receive FG)</button>
       <button class="action-btn" ${actionAttrs('reportPartialProductionCompletion', [order.id])}>Report Partial</button>
       <button class="action-btn" ${actionAttrs('confirmProductionOperation', [order.id])}>Confirm Operation</button>
+      <button class="action-btn" ${actionAttrs('toggleProductionConfirmations', [order.id])}>Confirmations</button>
       <button class="action-btn" ${actionAttrs('postProductionScrap', [order.id])}>Scrap</button>
       <button class="action-btn" ${actionAttrs('sendProductionToRework', [order.id])}>Rework</button>
     `;
@@ -342,6 +345,7 @@ export {
   addBOMLine,
   reportPartialProductionCompletion,
   confirmProductionOperation,
+  toggleProductionConfirmations,
   postProductionScrap,
   sendProductionToRework,
   recordProductionActualCost,
@@ -361,9 +365,21 @@ async function confirmProductionOperation(orderId) {
   const seqStr = await showCustomPrompt('Operation sequence number to confirm (from the order\'s Routing):', '1', 'Confirm Operation', 'number');
   if (seqStr === null || seqStr === '') return;
   const seq = parseInt(seqStr, 10);
+  // 170.10: what was made, scrapped and how long it took; all blank = the whole operation, as before.
+  const goodStr = await showCustomPrompt('Good quantity (blank to confirm the whole operation):', '', 'Confirm Operation', 'number');
+  if (goodStr === null) return;
+  let scrapStr = '', minStr = '', employee = '';
+  if (goodStr !== '') {
+    scrapStr = await showCustomPrompt('Scrap quantity:', '0', 'Confirm Operation', 'number');
+    if (scrapStr === null) return;
+    minStr = await showCustomPrompt('Minutes taken:', '0', 'Confirm Operation', 'number');
+    if (minStr === null) return;
+    employee = await showCustomPrompt('Employee code (blank = you):', '', 'Confirm Operation');
+    if (employee === null) return;
+  }
   const res = await apiFetch('/api/v1/manufacturing/confirm-operation', {
     method: 'POST',
-    body: JSON.stringify({ order_id: orderId, seq })
+    body: JSON.stringify({ order_id: orderId, seq, good_qty: parseFloat(goodStr) || 0, scrap_qty: parseFloat(scrapStr) || 0, minutes: parseFloat(minStr) || 0, employee_id: employee.trim() })
   });
   if (!res) return;
   const data = await res.json();
@@ -716,4 +732,10 @@ async function acceptBOMChange(orderId, res) {
     return 'stop';
   }
   return 'retry';
+}
+
+// 170.10: the confirmations list lives in its own file, loaded when first opened.
+async function toggleProductionConfirmations(orderId) {
+  const m = await import('./view-manufacturing-confirmations.js' + new URL(import.meta.url).search);
+  return m.showProductionConfirmations(orderId);
 }

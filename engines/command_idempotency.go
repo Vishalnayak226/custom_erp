@@ -96,6 +96,20 @@ func CommandDigest(payload interface{}) string {
 // and falls through to the inspection below - which is a SELECT ... FOR UPDATE
 // on the row the first one just wrote.
 func ClaimCommand(tenantID, command, key, requestDigest, correlationID string) (*CommandClaim, error) {
+	return claimCommand(tenantID, command, key, requestDigest, correlationID, true)
+}
+
+// ClaimCommandRecordedAfter is ClaimCommand for a command that records its key
+// after its own transaction commits (internal/server commandKeyed, 49.4.7a).
+// There a lapsed InProgress claim may hide a command that did commit, so it is
+// never taken over: a retry answers ClaimInProgress (GLOBAL-4971) until the
+// claim's retention ends (49.4.7, owner's answer). The checkout records inside
+// its own transaction and keeps the takeover.
+func ClaimCommandRecordedAfter(tenantID, command, key, requestDigest, correlationID string) (*CommandClaim, error) {
+	return claimCommand(tenantID, command, key, requestDigest, correlationID, false)
+}
+
+func claimCommand(tenantID, command, key, requestDigest, correlationID string, takeOverLapsed bool) (*CommandClaim, error) {
 	if strings.TrimSpace(key) == "" {
 		return nil, errors.New("an idempotency key is required")
 	}
@@ -170,7 +184,7 @@ func ClaimCommand(tenantID, command, key, requestDigest, correlationID string) (
 		claim.Outcome = ClaimFailedEarlier
 		return claim, tx.Commit()
 	default: // InProgress
-		if !leaseExpired {
+		if !leaseExpired || !takeOverLapsed {
 			claim.Outcome = ClaimInProgress
 			return claim, tx.Commit()
 		}
@@ -261,23 +275,25 @@ const commandClaimRetentionDays = 7
 
 // purgeSettledCommandClaims deletes Completed/Failed claims past retention.
 // Called from the reservation sweeper's tick (engines/reservation_sweeper.go).
-// InProgress rows are never purged here regardless of age - one of those is
-// either live or evidence of a crashed request, and ClaimCommand's lease
-// takeover is what deals with it.
+// An InProgress claim whose lease ended more than the retention ago goes too
+// (49.4.7): a checkout one was taken over long before, and a commandKeyed one
+// answered "still being processed" for the week, which is its whole answer.
 func purgeSettledCommandClaims(schema string) {
 	var exists bool
 	if err := db.DB.QueryRow(`SELECT to_regclass($1) IS NOT NULL`, schema+".command_idempotency").Scan(&exists); err != nil || !exists {
 		return
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(`
-		DELETE FROM %s.command_idempotency
-		WHERE status IN ('Completed', 'Failed')
-		  AND completed_at < CURRENT_TIMESTAMP - $1::interval`, schema),
-		fmt.Sprintf("%d days", commandClaimRetentionDays)); err != nil {
-		// Stage 49.3.2: on the client's own log, never the default client's.
-		if tenantID := schemaToTenantID(schema); tenantID != "" {
-			LogSystemError(tenantID, "", "WARN", "purgeSettledCommandClaims",
-				fmt.Sprintf("%s: %v", schema, err), "")
+	retention := fmt.Sprintf("%d days", commandClaimRetentionDays)
+	for _, where := range []string{
+		`status IN ('Completed', 'Failed') AND completed_at < CURRENT_TIMESTAMP - $1::interval`,
+		`status = 'InProgress' AND lease_expires_at < CURRENT_TIMESTAMP - $1::interval`, // 49.4.7
+	} {
+		if _, err := db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.command_idempotency WHERE `+where, schema), retention); err != nil {
+			// Stage 49.3.2: on the client's own log, never the default client's.
+			if tenantID := schemaToTenantID(schema); tenantID != "" {
+				LogSystemError(tenantID, "", "WARN", "purgeSettledCommandClaims",
+					fmt.Sprintf("%s: %v", schema, err), "")
+			}
 		}
 	}
 }

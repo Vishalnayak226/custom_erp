@@ -558,3 +558,51 @@ func GetCycleCountPlan(tenantID, locationCode string) ([]ABCCycleCountSuggestion
 	})
 	return suggestions, nil
 }
+
+// WithoutItemsLeftOutOfCycleCounts (146.3.16) drops the SKUs whose Item says
+// "Leave out of cycle counts" = Yes from a cycle-count plan. The two plan
+// screens call it; the plans themselves stay whole because putaway and
+// slotting read their velocity tiers. A full physical inventory and a count
+// scanned by hand still count such an item. A SKU matches its Item by code,
+// barcode or id, the same keys ResolveItemBySKU uses. If the lookup fails the
+// plan is returned unchanged: counting too much is the safe side.
+func WithoutItemsLeftOutOfCycleCounts(tenantID string, plan []ABCCycleCountSuggestion) []ABCCycleCountSuggestion {
+	if len(plan) == 0 {
+		return plan
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return plan
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT id, COALESCE(data->>'code', ''), COALESCE(data->>'barcode', '')
+		FROM %s.documents
+		WHERE doctype = 'Item' AND deleted_at IS NULL
+		  AND lower(btrim(COALESCE(data->>'skip_cycle_count', ''))) IN ('yes', 'true', '1')`, schema))
+	if err != nil {
+		return plan
+	}
+	skip := map[string]bool{}
+	for rows.Next() {
+		var id, code, barcode string
+		if rows.Scan(&id, &code, &barcode) != nil {
+			continue
+		}
+		for _, k := range []string{id, code, barcode} {
+			if k != "" {
+				skip[k] = true
+			}
+		}
+	}
+	rows.Close()
+	if rows.Err() != nil || len(skip) == 0 {
+		return plan
+	}
+	out := make([]ABCCycleCountSuggestion, 0, len(plan))
+	for _, s := range plan {
+		if !skip[s.Sku] {
+			out = append(out, s)
+		}
+	}
+	return out
+}

@@ -67,7 +67,7 @@ export async function renderMasterRecodePanel(host, doctype, label) {
       <div data-mr-touches></div>
       ${plan.warning ? `<div class="s-53cad6">${esc(plan.warning)}
         <label class="s-77cce6"><input type="checkbox" data-mr-ack> I will reprint the stickers and update the channel listings</label></div>` : ''}
-      ${backup.required || !backup.ok ? `<div class="txn-hint" style="margin: 8px 0;${backup.ok ? '' : ' padding: 10px 12px; border-radius: 6px; background: var(--danger-soft-bg); color: var(--danger-strong);'}">${esc(backup.note || '')}</div>` : ''}
+      ${backup.required || !backup.ok ? `<div class="txn-hint u-hint${backup.ok ? '' : ' u-hint-bad'}">${esc(backup.note || '')}</div>` : ''}
       <button type="button" class="btn btn-primary" data-mr-apply ${backup.ok ? '' : 'disabled'}>Renumber ${n} record${n === 1 ? '' : 's'}</button>`;
 
     const prefix = panel.querySelector('[name="mr-prefix"]');

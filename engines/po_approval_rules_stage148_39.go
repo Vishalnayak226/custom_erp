@@ -149,6 +149,11 @@ func requiredApproverRoleFor(tenantID, doctype string, data map[string]interface
 			return r.Role, nil
 		}
 	}
+	if doctype == "ExpenseClaim" { // 170.29: an over-limit claim goes to the configured approver
+		if r := expenseOverLimitApproverRole(tenantID, data); r != "" {
+			return r, nil
+		}
+	}
 	role, err := requiredApproverRole(tenantID, doctype, amount)
 	if role == "" && err == nil {
 		role = severityHoldFallbackRole(doctype, data) // 74.1.1: a High-severity reason with no rule goes to Admin

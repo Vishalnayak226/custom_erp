@@ -63,7 +63,7 @@ func TestDoctypeScopeRegistryMatchesTheSeeds(t *testing.T) {
 				t.Errorf("%s: registry LocationMandatory=%v, seed says mandatory=%v", seeded.doctype, scope.LocationMandatory, seeded.mandatory)
 			}
 		case "employee_id":
-			if scope.SelfField != "employee_id" {
+			if scope.SelfField != "employee_id" && !scope.SelfContains {
 				t.Errorf("%s declares employee_id but the registry has SelfField=%q", seeded.doctype, scope.SelfField)
 			}
 		case "owner_id":

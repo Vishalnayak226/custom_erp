@@ -85,7 +85,7 @@ async function renderRFQView(container) {
         const lines = parseList(r.lines);
         const inv = parseList(r.vendor_invitations).length ? parseList(r.vendor_invitations) : parseList(r.invited_vendors).map(v => ({ vendor: v, status: 'Invited' }));
         const responded = inv.filter(i => i.status === 'Responded').length;
-        return `<tr${r.id === selectedRFQId ? ' style="background: var(--hover-bg, rgba(0,0,0,0.03));"' : ''}>
+        return `<tr${r.id === selectedRFQId ? ' class="u-sel"' : ''}>
           <td class="s-355794">${esc(r.code || r.id)}</td>
           <td>${documentSearchLink('PurchaseRequisition', r.source_requisition_id)}</td>
           <td>${esc(r.description || '')}${lines.length ? `<div class="s-fbbffe">${lines.length} line${lines.length === 1 ? '' : 's'}</div>` : ''}</td>

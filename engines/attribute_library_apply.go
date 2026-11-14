@@ -308,6 +308,10 @@ func applyAttributeLibraryTx(tx *sql.Tx, schema, actor string, picks []Attribute
 		}
 
 		valueType := LibraryValueType(a.Type)
+		pimType := valueType
+		if strings.EqualFold(strings.TrimSpace(a.Type), "multienum") {
+			pimType = AttrTypeMultiSelect // 168.13: PIM's own copy takes several values; the ERP list has no such type
+		}
 		base := map[string]interface{}{
 			"code": a.ID, "label": a.Name, "value_type": valueType, "status": "Active",
 			"library_id": a.ID, "added_by": actor,
@@ -363,7 +367,7 @@ func applyAttributeLibraryTx(tx *sql.Tx, schema, actor string, picks []Attribute
 		}
 
 		// PIM's own copy - mapped onto the ERP attribute when it is a variant.
-		data := copyOf(map[string]interface{}{"used_for": usedFor})
+		data := copyOf(map[string]interface{}{"used_for": usedFor, "value_type": pimType})
 		if groupID != "" {
 			data["group"] = groupID
 		}

@@ -130,7 +130,7 @@ func cmdJourney(args []string) int {
 		fn func() JourneyRecord
 	}{
 		{"J1", r.JourneyFirstSale}, {"J2", r.JourneyP2P}, {"J3", r.JourneyO2C}, {"J4", r.JourneyWarehouse},
-		{"J5", r.JourneyPeriodClose}, {"J6", r.JourneyMigration}, {"J7", r.JourneyIncident},
+		{"J5", r.JourneyPeriodClose}, {"J6", r.JourneyMigration}, {"J7", r.JourneyIncident}, {"E8", r.JourneyCommandReplay},
 	}
 	var js []JourneyRecord
 	for _, o := range order {

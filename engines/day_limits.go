@@ -193,6 +193,9 @@ func runDayLimitJobs(schema string) error {
 	if err := RunVendorLinkReminders(tenantID, schema); err != nil { // Stage 148.18
 		log.Printf("[DAYLIMITS] vendor link reminders: %v", err)
 	}
+	if err := RunCertificateReminders(tenantID, schema); err != nil { // Ask 170.21 (setting 0 = off)
+		log.Printf("[DAYLIMITS] certificate reminders: %v", err)
+	}
 	if _, _, err := RunQuoteExpirySweep(tenantID, schema); err != nil { // Stage 148.29 (setting off = nothing)
 		log.Printf("[DAYLIMITS] quote expiry: %v", err)
 	}

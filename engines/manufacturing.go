@@ -249,6 +249,9 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 			return fmt.Errorf("material issue cost: %v", err)
 		}
 		data["material_cost_paise"] = issued
+		if err := wipIssueTx(tx, tenantID, schema, orderID, data, issued); err != nil { // 170.13
+			return fmt.Errorf("material issue WIP posting: %v", err)
+		}
 	}
 
 	// Stage 26.9.2: snapshot the exploded requirement as issued, so

@@ -9,14 +9,14 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **826** codes. Each row says what the user is shown, what to do about
+There are **965** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
 catalog's User Message, below), the *detail* (the specific field or value that
 failed, written by the engine that rejected it), and the *action* (the User
 Action column, below). The detail line is usually the one that tells you what to
-fix. See [USER_GUIDE](user-guide.md) §12.
+fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-logged-out-or-see-an-error).
 
 ## Contents
 
@@ -44,33 +44,36 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 - [CRM / Vouchers](#crm--vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
 - [Customer / CRM](#customer--crm) - 15 codes
+- [Data Import](#data-import) - 1 codes
 - [Data Import / Excel Upload](#data-import--excel-upload) - 16 codes
 - [Deployment / Release](#deployment--release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype--dynamic-metadata) - 8 codes
-- [Expense Management](#expense-management) - 8 codes
+- [Expense Management](#expense-management) - 11 codes
 - [Extension Hooks / Customization](#extension-hooks--customization) - 4 codes
-- [Finance & Accounting](#finance--accounting) - 96 codes
-- [Fixed Assets](#fixed-assets) - 9 codes
-- [GST](#gst) - 3 codes
+- [Finance](#finance) - 7 codes
+- [Finance & Accounting](#finance--accounting) - 102 codes
+- [Fixed Assets](#fixed-assets) - 19 codes
+- [GST](#gst) - 9 codes
 - [Global](#global) - 22 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 22 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
-- [HR & Payroll](#hr--payroll) - 2 codes
-- [HR / Payroll](#hr--payroll) - 15 codes
+- [HR & Payroll](#hr--payroll) - 15 codes
+- [HR / Payroll](#hr--payroll) - 32 codes
 - [Integration / API](#integration--api) - 14 codes
 - [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 23 codes
 - [Inventory / Warehouse](#inventory--warehouse) - 29 codes
-- [Item Master](#item-master) - 2 codes
+- [Item Master](#item-master) - 4 codes
+- [Manufacturing](#manufacturing) - 7 codes
 - [Manufacturing / Production](#manufacturing--production) - 16 codes
-- [Master Data](#master-data) - 43 codes
+- [Master Data](#master-data) - 46 codes
 - [Mobile App / Device](#mobile-app--device) - 7 codes
 - [Notifications](#notifications) - 6 codes
 - [Observability / Incident](#observability--incident) - 3 codes
 - [Omnichannel / OMS](#omnichannel--oms) - 5 codes
-- [Order Management](#order-management) - 10 codes
-- [PIM](#pim) - 27 codes
+- [Order Management](#order-management) - 12 codes
+- [PIM](#pim) - 55 codes
 - [PIM / Product Publishing](#pim--product-publishing) - 8 codes
 - [POS / Billing](#pos--billing) - 42 codes
 - [POS / Offline & Cash Drawer](#pos--offline--cash-drawer) - 8 codes
@@ -79,10 +82,11 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 - [Planning](#planning) - 1 codes
 - [Procurement](#procurement) - 1 codes
 - [Procurement / RFQ](#procurement--rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 73 codes
+- [Purchase Order](#purchase-order) - 82 codes
 - [Purchase Requisition](#purchase-requisition) - 6 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
+- [Quality](#quality) - 6 codes
 - [Quality & Maintenance](#quality--maintenance) - 12 codes
 - [RFQ](#rfq) - 6 codes
 - [Reports](#reports) - 3 codes
@@ -90,12 +94,13 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 - [SaaS / Multi-Tenant](#saas--multi-tenant) - 8 codes
 - [Sales / POS](#sales--pos) - 40 codes
 - [Sales Return](#sales-return) - 9 codes
+- [Security](#security) - 9 codes
 - [Security / AI assistant access](#security--ai-assistant-access) - 10 codes
 - [Security / Rate Limit](#security--rate-limit) - 6 codes
 - [Stock Transfer](#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](#tax--gst--e-invoice) - 15 codes
 - [User Access & Security](#user-access--security) - 9 codes
-- [Vendor Invoice / AP](#vendor-invoice--ap) - 7 codes
+- [Vendor Invoice / AP](#vendor-invoice--ap) - 17 codes
 - [WMS](#wms) - 5 codes
 - [WMS / Logistics](#wms--logistics) - 3 codes
 
@@ -297,6 +302,12 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `CUSTOM-0691` | Customer is blocked from loyalty points | This customer is blocked from using points. | Take the sale without points, or lift the block on the customer. | Medium | 422 |
 | `CUSTOM-0692` | Loyalty scheme or block not valid (no reason, end before start, or spend per point below 1) | Check the highlighted loyalty field. | Give a reason for the block, end the scheme after it starts, and set spend per point to 1 or more. | Low | 422 |
 
+## Data Import
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `DATAIM-1700` | Import refused: record types it points at have no rows (setting on) | Load the record types it needs first. | Import the types named in the message, then try again. | Medium | 422 |
+
 ## Data Import / Excel Upload
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -355,6 +366,9 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `EXP-0543` | Record already holds the most attachments allowed | This record already has the most files it can hold. | Remove a file you no longer need, or put several receipts into one PDF. | Low | 422 |
 | `EXP-0544` | Same file attached twice to one record | This exact file is already attached. | Nothing to do if it is the same receipt; attach a different file if you meant another one. | Low | 409 |
 | `EXP-0545` | Attachments changed after the record left Draft or Rejected | Files can no longer be added or removed on this record. | Receipts can be changed only while the claim is Draft or Rejected; ask a Super Admin if a wrong file must be removed. | Medium | 409 |
+| `EXP-1700` | Expense claim over the limit set on its category or the claimant's grade (refuse mode) | The claim is over the limit for its category. | Lower the amount, split it into valid claims, or ask an administrator about the category limit. | Medium | 422 |
+| `EXP-1701` | Employee advance not found, or missing its employee or amount, when paid | This advance cannot be paid. | Check the employee and an amount above zero on the advance, then pay it again. | Medium | 422 |
+| `EXP-1702` | Employee advance paid again or paid after it was settled or cancelled | This advance is already paid. | Only a Draft advance can be paid. Open the advance to see its status. | Medium | 422 |
 
 ## Extension Hooks / Customization
 
@@ -364,6 +378,18 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `EXT-0290` | Extension hook timeout | Custom validation service did not respond in time. Please retry or contact support. | Retry later or contact admin. | High | 503 |
 | `EXT-0291` | Extension token scope violation | Extension token is not authorized for this document type or action. | Use correct scoped token. | Critical | 401 |
 | `EXT-0292` | Hook API version not served | This hook was written for a hook version this ERP does not serve. | Register it against the current hook version named below. | Medium | 422 |
+
+## Finance
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `FIN-1700` | Part match with no book entry, no amount, or the same entry twice | Choose a book entry and an amount for each part. | Pick each entry once and give an amount above zero. | Medium | 422 |
+| `FIN-1701` | Part match amounts exceed what is still open on the statement line | That is more than the line has open. | Lower the amounts to the open amount shown on the line. | Medium | 422 |
+| `FIN-1702` | Part match book entry not found, on another account, already matched, wrong side, or amount above its open part | That book entry cannot take this amount. | Pick a bank-account entry on the right side and an amount within its open part. | Medium | 422 |
+| `FIN-1703` | Part match on a line that is already matched or explained | This line is already matched. | Unmatch the line first, then match it again. | Medium | 422 |
+| `FIN-1704` | Bank statement file empty, unreadable, in an unknown format or without a date column | This statement file cannot be read. | Upload a CSV with a header row (date, description, reference, debit, credit, balance) or an MT940 file. | Medium | 422 |
+| `FIN-1706` | Bank response for a payment proposal that is missing, not Executed, or an empty file | This response cannot be loaded. | Pick an Executed payment proposal and a file with at least one row. | Medium | 422 |
+| `FIN-1707` | Bank response file without the payment_reference or status column | The response file has no reference or status column. | Use the bank's response CSV with payment_reference, utr, status and reason columns. | Medium | 422 |
 
 ## Finance & Accounting
 
@@ -453,6 +479,12 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `FIN-0977` | Set-off reversal refused | This set-off cannot be reversed now. | Reverse a posted set-off once, on or after its own date. | Medium | 422 |
 | `FIN-0978` | Set-off voucher saved by hand as posted | Set-offs are posted by approval. | Submit the draft for approval. | Medium | 422 |
 | `FIN-0979` | Invoice line names an account that is not an income account | That is not an income account. | Pick a Revenue account from the chart. | Medium | 422 |
+| `FIN-1720` | Timesheet refused (hours out of range, no date, employee or project, inactive project, or an approved entry edited) | This timesheet cannot be saved. | Enter hours above 0 up to 24, the date, an employee and an Active project. An approved timesheet cannot be changed. | Medium | 422 |
+| `FIN-1721` | Timesheet sent for approval for an employee with no cost rate | The employee has no cost rate. | Set the cost rate per hour on the employee, then send the timesheet again. | Medium | 422 |
+| `FIN-1722` | Project milestone refused (no value, bad percent, unknown or inactive project, no customer to bill, or edited after completion) | This milestone cannot be saved or completed. | Give it an amount or a percent of the contract value, pick an Active project with a customer if it is billable, and do not edit a completed milestone. | Medium | 422 |
+| `FIN-1723` | Project budget refused (no lines, unknown cost type, negative or repeated line) or the report asked without a project | The project budget is not valid. | Add each cost type once (Labour, Materials, Expenses or Other) with an amount, and pick a project for the report. | Low | 422 |
+| `FIN-1724` | Project revenue run refused (setting off, bad month, or cost-to-complete project with no estimated cost) | Project revenue cannot be recognised. | Turn on project revenue recognition in Settings, enter the month like 2026-11, and set an estimated cost on cost-to-complete projects. | Medium | 422 |
+| `FIN-1725` | Service SLA setting not valid (hours text or escalation target) | That SLA setting is not valid. | Write hours like Low=24,Medium=8,High=4,Critical=1 and the target as user:<id> or role:<name>. | Low | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -479,6 +511,16 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `ASSET-0538` | Disposal proceeds received into an account that is not cash or a bank account | Proceeds can only be received into Cash/Bank or a bank account. | Choose 1100 Cash/Bank or one of the bank accounts listed under Received into. | Low | 422 |
 | `ASSET-0539` | Depreciation due before a disposal could not be posted | The depreciation due on this asset could not be posted, so it was not disposed. | Check System Errors for the reason (for example a missing GL account), fix it, and dispose again. | High | 422 |
 | `ASSET-0843` | Asset set to Capitalised or Disposed on the record form | An asset is capitalised or disposed with its own button. | Use Capitalise or Dispose on HRM → Fixed Assets - they post the ledger entry; the record form cannot. | High | 422 |
+| `ASSET-1720` | A lease field is missing or not usable | The lease is not complete. | Fill the field named and activate again. | Medium | 422 |
+| `ASSET-1721` | Lease step on a lease in the wrong state | This lease cannot do that now. | Open the lease and check its status. | Medium | 409 |
+| `ASSET-1722` | An account named on the lease is not in the chart | An account on the lease is not set up. | Choose an account from the chart. | Medium | 422 |
+| `ASSET-1723` | CWIP step on an asset in the wrong state, or nothing collected | This asset cannot do that now. | Check the asset status and what was charged to it. | Medium | 409 |
+| `ASSET-1724` | Bill line charged to an asset that is not in CWIP | That asset is not in CWIP. | Move the asset to CWIP first, or clear the asset on the line. | Medium | 422 |
+| `ASSET-1725` | Impairment or revaluation input not usable | The adjustment is not valid. | Fill the kind, amount or new value, date and reason. | Medium | 422 |
+| `ASSET-1726` | Impairment or revaluation on an asset that cannot take it | This asset cannot be adjusted now. | Only a Capitalised asset with depreciation up to date can be adjusted. | Medium | 409 |
+| `ASSET-1727` | Meter reading below the last one | The reading is below the last one. | Enter a reading at or above the last, or fix the earlier one. | Medium | 422 |
+| `ASSET-1728` | Maintenance cost cannot be posted (part store, quantity or stock) | The parts cannot be taken from stock. | Choose a store with enough stock for each part. | Medium | 422 |
+| `ASSET-1729` | Asset already leased out on another active lease | This asset is already leased out. | Close the other lease first. | Medium | 409 |
 
 ## GST
 
@@ -487,6 +529,12 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `TAXGST-1320` | E-way bill refused (not needed, missing GSTIN / PIN / state / HSN / distance / vehicle, no provider, outside the extend or cancel window, already generated) | This e-way bill can't go ahead. | Fix what the message names; until a provider is connected, make the bill on the e-way bill portal and use Record from portal. | Medium | 422 |
 | `TAXGST-1330` | HSN value bands not usable | The value bands can't be saved. | Write them as limit:rate, lowest first, with only the last one open, like 1000:5,2500:12,:18. | Medium | 422 |
 | `TAXGST-1331` | GST credit value not usable | The GST credit must be Eligible or Blocked. | Pick Eligible or Blocked. | Medium | 422 |
+| `TAXGST-1700` | GSTR-1 file asked for with a bad GSTIN or month | The GSTR-1 file can't be made. | Give the 15-character GSTIN and the month as YYYY-MM. | Medium | 422 |
+| `TAXGST-1710` | GSTR-2B file not readable or empty | This is not a GSTR-2B file. | Download the GSTR-2B JSON from the GST portal and upload it unchanged. | Medium | 422 |
+| `TAXGST-1711` | GSTR-2B month missing or not the file's month | The month does not fit this file. | Pick the month the file is for, as YYYY-MM. | Medium | 422 |
+| `TAXGST-1712` | GSTR-2B decision not allowed or line not found | This decision can't be saved. | Pick Accepted, Rejected or Query raised on a line that is still listed. | Medium | 422 |
+| `TAXGST-1720` | Export under LUT without a valid LUT on the invoice date | No valid LUT covers this invoice date. | Add the LUT in the LUT register, or set the export type to payment of IGST. | Medium | 422 |
+| `TAXGST-1721` | LUT register entry with valid-to before valid-from | The LUT dates are not right. | Set valid to on or after valid from. | Medium | 422 |
 
 ## Global
 
@@ -589,8 +637,21 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
+| `HR-1740` | Appraisal calibrated without a reason | Give the reason for the calibrated rating. | Type why the rating changes, then save. | Medium | 422 |
+| `HR-1741` | Calibration by someone who is not HR or the cycle owner, or a calibration field edited directly | Only HR or the cycle owner can calibrate a rating. | Ask HR or the cycle owner to calibrate it with the Calibrate action. | Medium | 422 |
+| `HR-1742` | Calibrated rating outside 1 to 5 | The calibrated rating must be between 1 and 5. | Enter a rating from 1 to 5. | Medium | 422 |
+| `HR-1743` | Appraisal not found, not approved, or its cycle is closed | Only an approved appraisal in an open cycle can be calibrated. | Approve the appraisal or reopen the cycle first. | Medium | 422 |
 | `HRPAYR-1322` | Payslip deductions are more than its gross pay | This payslip's deductions are more than its gross pay. | Check the salary structure, the loan EMI and the statutory rates, then run payroll for the period again. | Medium | 422 |
 | `HRPAYR-1323` | Payroll run again for a period whose payslip is already posted | This employee's payslip for the period is already posted. | Open the posted payslip; a correction is made as an adjustment in the next period. | Medium | 422 |
+| `HRPAYR-1740` | Slab tax asked for but no tax slabs exist for the regime and year | No tax slabs are set for this regime and financial year. | Add the slabs under Tax Slabs, or turn off tax by slab. | Medium | 422 |
+| `HRPAYR-1741` | Form 24Q or ECR asked for with a bad year, quarter, annexure or month | Check the financial year, quarter, annexure or month. | Use a year like 2025-26, a quarter Q1 to Q4, annexure I or II, a month like 2026-04. | Medium | 422 |
+| `HRPAYR-1742` | PF ECR asked for a month with no posted payslip carrying PF | No posted payslip with PF ends in that month. | Post the month's payslips first. | Medium | 422 |
+| `HRPAYR-1743` | Benefit enrolment ends before it starts | The end date is before the start date. | Correct the dates. | Medium | 422 |
+| `HRPAYR-1744` | Benefit plan with a negative amount or a percent above 100 | The benefit amount or percent is not valid. | Enter an amount of zero or more, and a percent up to 100. | Medium | 422 |
+| `HRPAYR-1745` | Tax slab with a bad rate or limits | The tax slab is not valid. | Rate must be 0 to 100 and the upper limit above the lower. | Medium | 422 |
+| `HRPAYR-1746` | Salary revision with no amount, a negative amount or a bad date | Enter the effective date and at least one new amount. | Fill the date and the amounts, none negative. | Medium | 422 |
+| `HRPAYR-1747` | Salary revision for an employee with no active salary structure | This employee has no active salary structure to revise. | Set up the salary structure first. | Medium | 422 |
+| `HRPAYR-1748` | Arrears asked for a salary revision that is missing or not approved | Arrears are listed only for an approved salary revision. | Approve the revision first. | Medium | 422 |
 
 ## HR / Payroll
 
@@ -603,6 +664,23 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `HR-0532` | Checklist steps are not a readable step list | This checklist's steps are not in a form the step list can read. | Open the checklist and choose "Use as steps" to turn the text into one step per line. | Low | 422 |
 | `HR-0533` | Checklist step does not exist | That step is not on this checklist. | Refresh the checklist - someone may have changed its steps - and tick the step again. | Low | 422 |
 | `HR-0600` | Incentive changed since the payslip was made | The incentive changed since this payslip was made. | Run payroll for the employee again, then post. | Medium | 422 |
+| `HR-1700` | Position reports to itself or in a loop | That reporting line goes in a circle. | Pick a different reports-to position. | Medium | 422 |
+| `HR-1701` | Employee manager is the employee or makes a reporting loop | That manager would report to this person. | Pick a different manager. | Medium | 422 |
+| `HR-1702` | Applicant stage not valid, or changed after Hired or Rejected | That stage change is not allowed. | Pick one of Applied, Screening, Interview, Offer or Rejected. A closed applicant stays as it is. | Medium | 422 |
+| `HR-1703` | Applicant set to Hired by hand | An applicant becomes Hired when the offer is accepted. | Send the offer and use Accept on it. | Medium | 422 |
+| `HR-1704` | Job offer not found or already decided | This offer cannot be accepted. | Open the offer from the list. Only a Draft or Sent offer can be accepted. | Medium | 422 |
+| `HR-1705` | Offer accepted while the applicant is not at the Offer stage | The applicant is not at the Offer stage. | Move the applicant to Offer, then accept. | Medium | 422 |
+| `HR-1706` | Offer accepted on a job opening with no place left | Every place on this opening is filled. | Raise the number of openings or pick another opening. | Medium | 422 |
+| `HR-1710` | Login made from an onboarding checklist that is not complete | Finish every onboarding step first. | Tick the remaining steps on the checklist, then create the login. | Medium | 422 |
+| `HR-1711` | Login made for an employee who already has one | This employee already has a login. | Open the user on the Users screen instead. | Medium | 422 |
+| `HR-1712` | Login made with a role the client does not have | Pick a valid role for the login. | Choose one of the roles on the Roles screen. Super Admin cannot be given. | Medium | 422 |
+| `HR-1713` | Login made for an employee with no email | The employee needs an email. | Add the email to the employee or type it in the form. | Medium | 422 |
+| `HR-1720` | Final pay posted while the exit checklist is open (exit clearance setting on) | The exit checklist is still open. | Finish every step of the offboarding checklist, then post the payslip. | Medium | 422 |
+| `HR-1730` | Manager decided the leave of someone outside their team (team scope setting on) | This leave is not from your team. | Ask the person's own manager or HR to decide it. | Medium | 403 |
+| `HR-1731` | Holiday calendar weekly off day is not a weekday name | A weekly off must be a day name, like Sunday. | Type day names separated by commas. | Medium | 422 |
+| `HR-1732` | Holiday calendar date not valid | A holiday date is not valid. | Give each holiday date as YYYY-MM-DD. | Medium | 422 |
+| `HR-1733` | Leave applied only on holidays and weekly offs | Every day of this leave is already a day off. | Pick dates that include a working day. | Medium | 422 |
+| `HR-1734` | People analytics grouped by something other than department, location or position | Group by department, location or position. | Pick one of the three groups. | Medium | 422 |
 | `HRPAYR-0149` | Employee code duplicate | Employee code already exists. Please use a unique employee code. | Correct HR details. | Medium | 409 |
 | `HRPAYR-0150` | Attendance missing | Attendance is missing for one or more days. Please regularize before payroll. | Correct HR details. | Medium | 422 |
 | `HRPAYR-0151` | Leave balance insufficient | Insufficient leave balance for this leave request. | Correct HR details. | Medium | 422 |
@@ -705,6 +783,20 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 |---|---|---|---|---|---|
 | `MASTER-1302` | Item release approval: no Item approval rule, or an item waiting for release edited to another status | This item waits for its approval. | Add an Item rule under Settings > Approval Rules if there is none; an item in Draft, Pending Approval or Blocked is released only by its approval. | Medium | 422 |
 | `MASTER-1306` | Scheduled tax change incomplete or malformed (no date, no rate or HSN, rate 0, HSN not 4/6/8 digits) | The scheduled tax change is not complete. | Give the date it applies from and the new GST rate (more than 0), the new HSN code (4, 6 or 8 digits), or both - or clear all three. | Low | 422 |
+| `MASTER-1400` | Item merge refused (same item, unit / tax / tracking differ, variants, not Active, open documents, stock not movable) | These items cannot be merged. | Read the reasons listed, fix them (for example finish the open documents) and run the merge again. | Medium | 422 |
+| `MASTER-1401` | Item merge attempted without the master-data role | Merging items needs a master-data administrator. | Ask an administrator to merge the items. | Medium | 403 |
+
+## Manufacturing
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `MFG-1740` | Operation confirmation would pass the work order quantity | That is more than the order quantity. | Confirm no more than what is left on the operation. | Medium | 422 |
+| `MFG-1741` | Operation confirmation with a negative quantity or time | Quantities and minutes cannot be negative. | Enter zero or more. | Low | 422 |
+| `MFG-1742` | Operation confirmed for an employee that does not exist | That employee was not found. | Pick an employee from the list, or leave it blank to confirm as yourself. | Low | 422 |
+| `MFG-1743` | By-product cost shares on a BOM are negative or add up to more than 100% | The by-product cost shares are over 100%. | Edit the BOM so the shares add up to 100% or less. | Medium | 422 |
+| `MFG-1744` | Rework quantity would pass the order quantity | That is more than the order quantity. | Send no more to rework than the order made. | Medium | 422 |
+| `MFG-1760` | Lot trace asked for with no lot number | Enter a lot number. | Type the lot number and run the trace again. | Medium | 422 |
+| `MFG-1761` | Lot trace direction not Forward, Backward or Both | Pick a trace direction. | Choose Forward, Backward or Both. | Medium | 422 |
 
 ## Manufacturing / Production
 
@@ -774,6 +866,9 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `MASTER-0992` | Store code typed on the Edit form is not valid, or the store was not found | This store code cannot be used. | Use 1 to 30 capital letters or digits, with - or _ between them - no spaces or /. Nothing was changed. | Low | 422 |
 | `MASTER-0993` | Store code typed on the Edit form is already another record's code | Another record already has this code. | Choose a code no other store or record uses. Nothing was changed. | Medium | 422 |
 | `MASTER-1321` | Duplicate master record, or a second Active strategy / template / rule for the same scope | A record like this already exists. | Use the existing record, change these values, or make that record inactive first. | Medium | 409 |
+| `MASTER-1700` | Data-quality problem ignored without a reason | Say why this is ignored. | Add a short reason. | Medium | 422 |
+| `MASTER-1701` | Data-quality status not Open, Fixed or Ignored | Status must be Open, Fixed or Ignored. | Pick one of the three. | Medium | 422 |
+| `MASTER-1702` | Data-quality problem not found | That problem was not found. | Refresh the list. | Medium | 404 |
 
 ## Mobile App / Device
 
@@ -828,6 +923,8 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `ORDERM-0467` | Line change request not valid | The line change could not be applied. | Check the item, quantity (at least 1), price and reason, and that the order keeps at least one line. | Low | 422 |
 | `ORDERM-0468` | Replacement or reship order not valid | The replacement or reship could not be raised. | Choose lines of a shipped order, within the quantity that shipped and was not already sent again, with a reason. | Low | 422 |
 | `ORDERM-0469` | Not enough stock for a line change | There is not enough free stock for this quantity. | Lower the quantity, or move the order to a location with stock (Switch facility) and try again. | Medium | 409 |
+| `ORDERM-0470` | Payment move not valid for the order's payment state | This payment change cannot be made on the order now. | Check the payment state and amount: a refund or chargeback needs a paid order and at most what was paid; a chargeback needs a reason. | Low | 422 |
+| `ORDERM-0471` | Carrier claim step not valid | This claim step cannot be made now. | A claim is filed with the carrier's reference, settled for at most what was claimed, and rejected with a note; only one claim can be open per booking. | Low | 422 |
 | `ORDERM-0970` | Order re-allocated to a store without enough of its owner's own stock | That store does not hold enough of this order owner's own stock. | Pick a store that holds the owner's stock, or leave the store blank so the system sources it on the owner's stock. | Medium | 422 |
 | `ORDERM-0980` | Credit hold released or replaced by hand | This order is on Credit hold, so it cannot be released or held again by hand. | Approve its release request in the approval inbox. | Low | 409 |
 
@@ -862,6 +959,34 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `PIM-9150` | Attribute stewardship request that is incomplete or names an unknown attribute, user or channel | This stewardship entry is not complete. | Fix the field named, then save the request again. | Medium | 422 |
 | `PIM-9151` | Attribute value written from a source other than the attribute's system of record | This value comes from another system. | Write it from the system of record named, or ask for the stewardship entry to change. | Medium | 422 |
 | `PIM-9152` | Image order for a channel that names an unknown channel or an image not on the item | This image order cannot be saved. | Choose a channel and only images of this item. | Medium | 422 |
+| `PIM-9200` | New purchase order line for a Phase-out or End of life item | This item is being phased out. | Buy the substitute item named in the message, or move the item back to Active on its Item screen. | Medium | 422 |
+| `PIM-9201` | Item lifecycle boxes invalid (item is its own substitute, launch date not a date) | The lifecycle details are not valid. | Pick a different substitute item, and give the launch date as YYYY-MM-DD. | Low | 422 |
+| `PIM-9202` | End of life item sold while the refuse setting is on | This item is End of life. | Sell the substitute item named in the message, or ask an administrator to turn the refuse setting off (Configuration > Product Information). | Medium | 422 |
+| `PIM-9203` | Launch item sold before its launch date while the refuse setting is on | This item has not launched yet. | Wait for the launch date, or change the item's launch date or stage on its Item screen. | Medium | 422 |
+| `PIM-9210` | Scheduled item change not allowed (field not on the list, value not valid, date missing or in the past) | That change cannot be scheduled. | Pick selling price, MRP, purchase price, a tax or HSN field or an attribute, give a valid new value, and a date that is today or later. | Low | 422 |
+| `PIM-9211` | Two scheduled changes to the same item field on the same day | That field already has a change on that day. | Cancel the other scheduled change, or pick a different date. | Low | 422 |
+| `PIM-9212` | Scheduled item change edited or cancelled after it was applied or already cancelled | This change is no longer scheduled. | Only a Scheduled change can be cancelled. Schedule a new change if needed. | Low | 422 |
+| `PIM-9240` | New purchase order carrying items outside the store range | These items are outside the store range. | Remove them from the lines, or add them to the store range. | Medium | 422 |
+| `PIM-9241` | Transfer into a store carrying items outside its range | These items are outside the store range. | Remove them from the lines, or add them to the store range. | Medium | 422 |
+| `PIM-9242` | Sale at a store of an item outside its range | This item is not sold at this store. | Add it to the store range, or sell it elsewhere. | Medium | 422 |
+| `PIM-9243` | Channel order line outside the channel range | These items are outside the channel range. | Add them to the channel range, or drop the lines. | Medium | 422 |
+| `PIM-9244` | Range row that is incomplete or inconsistent | This range row is not complete. | Name a store or a channel, one item or category, and valid dates. | Medium | 422 |
+| `PIM-9245` | Bulk range add with no target or no item or category | Choose where to add and what to add. | Pick a store or channel, and a category or items. | Medium | 422 |
+| `PIM-9250` | Markdown plan that is incomplete or inconsistent | This markdown plan is not complete. | Fix the field named, then save again. | Medium | 422 |
+| `PIM-9260` | Listing drift asked for with no channel | Choose a channel. | Pick a channel, then open the report again. | Medium | 422 |
+| `PIM-9300` | Blank value for a category-required attribute | This attribute is required for the item's category. | Enter a value, or ask an admin to change the category rule. | Medium | 422 |
+| `PIM-9301` | Item saved without its category-required attribute values | The item's category needs more attribute values. | Add the values named in the message, then save again. | Medium | 422 |
+| `PIM-9302` | Category attribute rule with an unknown rule | The rule must be Required, Optional or Hidden. | Pick one of the three. | Medium | 422 |
+| `PIM-9303` | Category attribute rule default value refused | That default value does not fit. | Use a value that fits the attribute, or leave it blank. A hidden attribute has none. | Medium | 422 |
+| `PIM-9304` | Second rule for one category and attribute | This category already has a rule for that attribute. | Edit the existing rule instead. | Medium | 422 |
+| `PIM-9305` | Number with a unit typed with text | Type the number only. | The unit is added for you. Remove the letters. | Medium | 422 |
+| `PIM-9306` | Regulated value changed where it cannot wait for approval | A regulated value changes on the item page. | Open the item and change it there; it waits for approval. | Medium | 422 |
+| `PIM-9340` | Myntra market-price collection started while the client switched it off | Collecting Myntra prices is switched off. | Ask an admin to turn it on in Settings, Platform. | Medium | 422 |
+| `PIM-9341` | Myntra run with a missing, too long or too many keywords, a bad category or a bad day | This run cannot start. | Fix the field named, then try again. | Medium | 422 |
+| `PIM-9342` | Myntra run started while another is waiting or running | A Myntra run is already going. | Wait for it to finish, then start the next one. | Medium | 409 |
+| `PIM-9343` | Re-parse of a day with no saved Myntra pages | No saved Myntra pages for that day. | Choose a day that has a run, or start a run first. | Medium | 404 |
+| `PIM-9360` | Copying photos to the image drive while the drive is not switched on | The image drive is not switched on. | Switch it on under Settings, Image drive, then copy the photos. | Medium | 422 |
+| `PIM-9361` | Starting a photo copy to the image drive while one is already running | A copy is already running. | Wait for it to finish, then start it again if photos are left. | Low | 409 |
 
 ## PIM / Product Publishing
 
@@ -1056,6 +1181,15 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `PURCHA-5130` | Pack quantity on an item with no purchase unit (148.35) | This item has no purchase unit. | Set a purchase unit on the item, or key pieces. | Medium | 422 |
 | `PURCHA-5132` | Packs convert to a part-piece on a PO (148.35) | A PO takes whole pieces. | Order whole pieces; receive the part-pack on the goods receipt. | Medium | 422 |
 | `PURCHA-5133` | Pack quantity or pack price not a valid number (148.35) | Pack quantity or price is not valid. | Enter a pack quantity above zero and a price of zero or more. | Medium | 422 |
+| `PURCHA-6100` | Purchase order names a contract that is not Active, is for another vendor or store, or is outside its dates | This contract can't be used for this order. | Pick an Active contract for the same vendor and store, and date the order inside its validity. | Medium | 422 |
+| `PURCHA-6101` | Purchase order line not on the contract, or above its rate | A line is not on the contract or is above its rate. | Use only items on the contract, at the contract rate. | Medium | 422 |
+| `PURCHA-6102` | Release would pass the contract's value or quantity cap | This release is over the contract cap. | Reduce the quantity to what is left on the contract, or ask for the cap to be raised on a new contract. | Medium | 422 |
+| `PURCHA-6103` | Contract saved with bad terms, or changed after it went Active | This contract can't be saved. | Fix the dates, cap and lines; an Active contract keeps its terms - close it and raise a new one. | Medium | 422 |
+| `PURCHA-6104` | Contract activated or closed from the wrong status or by a role that cannot approve its value | This contract can't be activated or closed. | Ask the person who approves purchase orders of this value, and check the contract's status. | Medium | 422 |
+| `PURCHA-6120` | Goods receipt against a service order, or a purchase order's type changed after approval | A service order is not received as goods. | Record the work on a service entry sheet. Raise a new order to change its type. | Medium | 422 |
+| `PURCHA-6121` | Service entry sheet with no lines, an item not on the order, or more than is still open; or an accepted sheet edited | This service entry sheet can't be saved. | Use items on the approved service order and no more than is still open. | Medium | 422 |
+| `PURCHA-6122` | Service entry sheet accepted twice, past the open quantity, or by a role that cannot approve its value | This sheet can't be accepted. | Ask the person who approves purchase orders of this value; check the sheet is Draft and within the order. | Medium | 422 |
+| `PURCHA-6123` | Bill for a service order without a service entry sheet | A service bill needs its service entry sheet. | Pick the accepted service entry sheet on the bill, then match it. | Medium | 422 |
 
 ## Purchase Requisition
 
@@ -1083,6 +1217,17 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `PURCHA-0118` | RTV without GRN | RTV must be created against a valid GRN or accepted returnable stock. | Correct RTV details. | Medium | 422 |
 | `PURCHA-0119` | RTV already created | RTV is already created for the selected rejected quantity. | Correct RTV details. | Medium | 409 |
 | `PURCHA-0120` | Credit note pending | Vendor credit note is pending for this RTV. | Correct RTV details. | Medium | 422 |
+
+## Quality
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `QUALIT-1760` | AQL not one of the table values | Pick an AQL from the list. | Choose one of the AQL values on the inspection plan. | Medium | 422 |
+| `QUALIT-1761` | Lot size missing or not a whole number for AQL sampling | Enter the lot size as a whole number. | Type the number of units in the lot. | Medium | 422 |
+| `QUALIT-1762` | Inspection against an AQL plan with no defects count | Enter the defects found. | Count the defects in the sample and enter the number. | Medium | 422 |
+| `QUALIT-1763` | SCAR missing vendor, issue or reply-by date, or its vendor or non-conformance not found | The SCAR is not complete. | Give the vendor, the issue and the reply-by date. | Medium | 422 |
+| `QUALIT-1764` | SCAR opened for a non-conformance that already has an open SCAR | That non-conformance already has an open SCAR. | Close the open SCAR first. | Medium | 422 |
+| `QUALIT-1765` | SCAR step out of order, with no text, or on an unknown SCAR | That SCAR step cannot be recorded. | Record root cause, then action, then verification. | Medium | 422 |
 
 ## Quality & Maintenance
 
@@ -1205,6 +1350,20 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `SALESR-1315` | A return raised without a reason | A return needs a reason. | Pick a reason or type one. | Low | 422 |
 | `SALESR-1316` | Credit note on stock items before the return is received | This credit note needs a received return. | Receive and check in the return first, then post the note. | Low | 422 |
 
+## Security
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `SEC-1700` | Retention rule not valid (record type, unit, action or field missing) | The retention rule is not valid. | Fill the record type, a keep period, and the field for a clear-field rule. | Medium | 422 |
+| `SEC-1701` | Retention below the statutory floor (audit address 180 days) | That record must be kept longer. | Use the minimum shown in the message or more. | Medium | 422 |
+| `SEC-1705` | Erasure of an employee or vendor refused: legal hold | This record is under legal hold. | Lift the hold first, or leave it as it is. | Medium | 422 |
+| `SEC-1706` | Erasure of an employee refused: still active | The employee is still active. | Set the exit date and status first. | Medium | 422 |
+| `SEC-1707` | Erasure of an employee refused: inside the payroll retention window | Payroll records must be kept longer. | Try again after the date in the message. | Medium | 422 |
+| `SEC-1708` | Erasure of a vendor refused: open purchase documents | The vendor has open documents. | Finish or cancel them, then try again. | Medium | 422 |
+| `SEC-1709` | Privacy request subject not found or not an employee or vendor | That record was not found. | Check the record and try again. | Medium | 422 |
+| `SEC-1710` | Masked copy target is not a sandbox, or is a production client name | A copy can only go into a sandbox client. | Create a new sandbox for the copy. | Medium | 422 |
+| `SEC-1711` | Masked copy source missing, unknown or the same as the target | Pick a different client to copy from. | Choose the client to copy. | Medium | 422 |
+
 ## Security / AI assistant access
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -1298,6 +1457,16 @@ fix. See [USER_GUIDE](user-guide.md) §12.
 | `VENDOR-0190` | Purchase order for a vendor held from new orders | This vendor is on hold for new purchase orders. | Take the hold off the vendor, or choose another vendor. | Medium | 422 |
 | `VENDOR-0191` | Payment to a vendor held from payment | This vendor is on hold for payment. | Take the hold off the vendor, then pay again. | Medium | 422 |
 | `VENDOR-0192` | Payment to a vendor with a change waiting for approval | A change to this vendor is waiting for approval. | Ask an approver to decide the change in Approvals; payments resume then. | Medium | 422 |
+| `VENDOR-0300` | Purchase order for a vendor not yet approved | This vendor is not approved yet. | Approve the vendor first, or choose another vendor. | Medium | 422 |
+| `VENDOR-0301` | Purchase order line for a vendor not on the approved vendor list | This vendor is not on the approved list for that item. | Pick one of the approved vendors, or add this vendor to the approved vendor list. | Medium | 422 |
+| `VENDOR-0302` | Vendor onboarding request that cannot be filed | This vendor cannot be sent for a decision. | Check the vendor status and that vendor onboarding is switched on. | Medium | 422 |
+| `VENDOR-0303` | Vendor approval requested with the documents checklist incomplete | The documents checklist is not complete. | Tick GSTIN, PAN and bank proof on the vendor, then ask again. | Medium | 422 |
+| `VENDOR-0304` | Vendor onboarding decision already waiting | A decision for this vendor is already waiting. | Wait for the approver, or open Approvals. | Medium | 422 |
+| `VENDOR-0305` | Approved vendor entry without exactly one of item or category | Give an item or a category, not both. | Fill one of the two fields. | Medium | 422 |
+| `VENDOR-0306` | Approved vendor entry already listed | This vendor is already listed there. | Open the existing entry instead. | Medium | 422 |
+| `VENDOR-0310` | Supplier notice for an order that is not open | A notice can only be sent for an open order. | Pick an order that is still open. | Medium | 422 |
+| `VENDOR-0311` | Supplier notice quantity above what is still open | That is more than the order still has open. | Lower the quantity to the open amount. | Medium | 422 |
+| `VENDOR-0312` | Supplier notice with a bad line or date | Check the lines and the date. | Give each line an item and a quantity, and the date as YYYY-MM-DD. | Medium | 422 |
 
 ## WMS
 

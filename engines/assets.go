@@ -30,6 +30,7 @@ type AssetRegisterEntry struct {
 	AccumulatedDepreciation float64 `json:"accumulated_depreciation"`
 	CalculatedDepreciation  float64 `json:"calculated_depreciation"`
 	NetBlock                float64 `json:"net_block"`
+	CwipCollected           float64 `json:"cwip_collected,omitempty"` // 170.6: status CWIP only
 }
 
 // GetAssetRegister lists every Asset document with its posted and calculated
@@ -51,6 +52,7 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 	defer rows.Close()
 
 	var results []AssetRegisterEntry
+	var cwipTotals map[string]int64 // 170.6: read once, only if a CWIP asset shows up
 	for rows.Next() {
 		var id, dataStr, status string
 		if err := rows.Scan(&id, &dataStr, &status); err != nil {
@@ -107,6 +109,12 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 			// not its original cost.
 			entry.AccumulatedDepreciation = entry.Cost
 			entry.CalculatedDepreciation = entry.Cost
+			entry.NetBlock = 0
+		case "CWIP":
+			if cwipTotals == nil {
+				cwipTotals, _ = cwipCollectedByAsset(schema)
+			}
+			entry.CwipCollected = PaiseToRupees(cwipTotals[id])
 			entry.NetBlock = 0
 		default: // Draft
 			entry.NetBlock = entry.Cost

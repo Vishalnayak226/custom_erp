@@ -39,7 +39,14 @@ func TestStage139ShortCodes(t *testing.T) {
 		body, _ := os.ReadFile(f)
 		seeds.Write(body)
 	}
-	guide := read("docs", "guides", "user-guide.md")
+	// The user guide is an index plus part files (user-guide-*.md); read them all.
+	var guideParts strings.Builder
+	guideFiles, _ := filepath.Glob(filepath.Join("..", "..", "docs", "guides", "user-guide*.md"))
+	for _, f := range guideFiles {
+		body, _ := os.ReadFile(f)
+		guideParts.Write(body)
+	}
+	guide := guideParts.String()
 	article := read("docs", "kb", "getting-started", "keyboard-shortcuts.md")
 
 	format := regexp.MustCompile(`^[A-Z]{2,4}$`)
@@ -73,7 +80,7 @@ func TestStage139ShortCodes(t *testing.T) {
 		if c.Next != "" && !codes[c.Next] {
 			t.Errorf("%s offers next step %s, which is not a code", c.Code, c.Next)
 		}
-		for doc, body := range map[string]string{"docs/guides/user-guide.md": guide, "docs/kb/getting-started/keyboard-shortcuts.md": article} {
+		for doc, body := range map[string]string{"docs/guides/user-guide*.md": guide, "docs/kb/getting-started/keyboard-shortcuts.md": article} {
 			if !strings.Contains(body, "| `"+c.Code+"` |") {
 				t.Errorf("%s does not list code %s", doc, c.Code)
 			}

@@ -113,7 +113,8 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 			for account, v := range taxCredits {
 				paiseCredits[account] = v
 			}
-			postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, map[string]int64{"1300": totalPaise}, paiseCredits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
+			postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, map[string]int64{"1300": totalPaise}, paiseCredits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
+				withSourceLines(schema, nil, map[string]int64{"1300": totalPaise}, paiseCredits, salesInvoiceLineShares(dataStr))...)
 			split = true
 		}
 	}
@@ -122,13 +123,14 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		rc, moved = freeMoves.apply(rc, revenueAccount, false), true
 	}
 	if !split && moved {
-		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), rc, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
+		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), rc, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
+			withSourceLines(schema, nil, PaiseMap(debits), rc, salesInvoiceLineShares(dataStr))...)
 	} else if !split {
 		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
-			postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
+			withSourceLines(schema, []PostingOptions{postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
 				"1300":         position.TransactionAmount,
 				revenueAccount: position.TransactionAmount,
-			}))
+			})}, PaiseMap(debits), PaiseMap(credits), salesInvoiceLineShares(dataStr))...)
 	}
 	if postErr != nil {
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Approved: %v", postErr)

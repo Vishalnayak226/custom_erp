@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -28,8 +29,8 @@ import (
 // that no longer exists. Employee-linked records whose fields are already
 // classified by category (Payslip, SalaryStructure, EmployeeLoan, Grievance)
 // are governed by data_classification.go, not repeated here; fields kept only
-// inside a document's JSON without a doctype_fields row are not reached by
-// this register.
+// inside a document's JSON without a doctype_fields row are listed apart, in
+// personalDataJSONOnly (49.6.2).
 //
 // Review is the minimization question a row leaves for the privacy owner -
 // a field that has a purpose today but where collecting less looks possible.
@@ -66,24 +67,25 @@ type PersonalDataField struct {
 var personalDataFieldPattern = regexp.MustCompile(`(?i)(^|_)(phone|mobile|whatsapp|sms|email|address|pincode|zip|city|dob|birth|anniversary|gender|pan|aadhaar|aadhar|gstin|bank|ifsc|passport|voter|driving|license|licence|vehicle|uan|esic|salary|father|mother|spouse|religion|caste|blood|medical|health|biometric|photo|signature|ip|latitude|longitude|username|consent)($|_)|(^|_)account_(no|number)$|(^|_)(customer|driver|party|contact|employee|recipient|consignee|nominee|guardian|first|last|full|middle|person)_name$`)
 
 // personDoctypes are the doctypes whose every field is about a person.
-var personDoctypes = map[string]bool{"Customer": true, "Employee": true, "Salesman": true}
+var personDoctypes = map[string]bool{"Customer": true, "Employee": true, "Salesman": true, "Applicant": true}
 
 // Retention answers shared by many rows.
 const (
-	retainCustomer = "privacy.personal: until consent withdrawal or account closure, then anonymised (privacy_rights.go)"
-	retainEmployee = "employment end, then the statutory HR retention [needs decision: 47.16.2]"
-	retainPayroll  = "hr.payroll: employment end, statutory payroll retention, then anonymised"
-	retainVendor   = "finance.bank / vendor relationship end [needs decision: 47.16.2]"
-	retainRecord   = "kept with the document for its statutory period (GST 72 months, Companies Act 8 years) [needs decision: 47.16.4]"
-	retainShipment = "kept with the order / shipment record for its statutory period [needs decision: 47.16.4]"
-	retainUser     = "while the schedule or request exists; removed with it"
-	retainBusiness = "life of the business record"
-	readersPOS     = "every operational role (POS and CRM look-up)"
-	readersManager = "Store Manager and Super Admin (sensitive_fields.go)"
-	readersAdmin   = "Super Admin only (sensitive_fields.go)"
-	readersHR      = "HR and Super Admin"
-	readersOps     = "warehouse, dispatch and store roles"
-	readersFinance = "finance roles and Super Admin"
+	retainCustomer  = "privacy.personal: until consent withdrawal or account closure, then anonymised (privacy_rights.go)"
+	retainEmployee  = "employment end, then the statutory HR retention [needs decision: 47.16.2]"
+	retainPayroll   = "hr.payroll: employment end, statutory payroll retention, then anonymised"
+	retainVendor    = "finance.bank / vendor relationship end [needs decision: 47.16.2]"
+	retainRecord    = "kept with the document for its statutory period (GST 72 months, Companies Act 8 years) [needs decision: 47.16.4]"
+	retainShipment  = "kept with the order / shipment record for its statutory period [needs decision: 47.16.4]"
+	retainUser      = "while the schedule or request exists; removed with it"
+	retainBusiness  = "life of the business record"
+	readersPOS      = "every operational role (POS and CRM look-up)"
+	readersManager  = "Store Manager and Super Admin (sensitive_fields.go)"
+	readersAdmin    = "Super Admin only (sensitive_fields.go)"
+	readersHR       = "HR and Super Admin"
+	retainApplicant = "the hiring decision, then the HR recruitment retention [needs decision: 47.16.2]"
+	readersOps      = "warehouse, dispatch and store roles"
+	readersFinance  = "finance roles and Super Admin"
 	// 49.6.2a (owner decisions, 2026-10-29).
 	readersSalesmanManagers = "the roles that manage salesmen - Store Manager / Store Supervisor, Setup Operator - and Super Admin / Admin (sensitive_fields.go)"
 	retainGatePassPhone     = "cleared 90 days after the gate pass is made (personalFieldClearings, the hourly retention sweep)"
@@ -113,7 +115,13 @@ func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
 		return nil, err
 	}
 	out := map[string]int64{}
-	for _, c := range personalFieldClearings {
+	clearings := append([]personalFieldClearing{}, personalFieldClearings...)
+	for i := range clearings {
+		// 170.38: the retention_policies row sets the days; no row keeps the code default.
+		clearings[i].Days = RetentionDays(tenantID, clearings[i].Doctype, clearings[i].Field, clearings[i].Days)
+	}
+	clearings = append(clearings, extraFieldClearings(tenantID)...)
+	for _, c := range clearings {
 		n, err := retentionClearField(tenantID, schema, c.Doctype, c.Field, c.Days)
 		if err != nil {
 			return out, err
@@ -124,8 +132,17 @@ func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
 				fmt.Sprintf("%s.%s cleared on %d record(s) made more than %d days ago (49.6.2a)", c.Doctype, c.Field, n, c.Days))
 		}
 	}
+	// 49.6.2: a delivered or closed web-shop order's buyer e-mail, on the same tick.
+	if n, err := clearDeliveredOrderEmails(tenantID, schema); err != nil {
+		return out, err
+	} else if n > 0 {
+		out["SalesOrder.customer_email"] = n
+		LogAuditEvent(tenantID, "system", "PERSONAL_DATA_RETENTION", "Success",
+			fmt.Sprintf("SalesOrder.customer_email cleared on %d delivered or closed order(s) (49.6.2)", n))
+	}
 	// Stage 49.11.2: a security event's address and device, on the same tick.
-	n, err := clearAuditSourceFields(tenantID, schema, auditSourceRetentionDays)
+	auditDays := RetentionDays(tenantID, "audit_logs", "source_ip", auditSourceRetentionDays)
+	n, err := clearAuditSourceFields(tenantID, schema, auditDays)
 	if err != nil {
 		return out, err
 	}
@@ -135,7 +152,7 @@ func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
 			fmt.Sprintf("audit_logs.source_ip and device cleared on %d event(s) older than %d days (49.11.2)", n, auditSourceRetentionDays))
 	}
 	// Stage 47.16.3: the address a user last signed in from, on the same tick.
-	if n, err := clearUserSignInAddress(tenantID, schema, auditSourceRetentionDays); err != nil {
+	if n, err := clearUserSignInAddress(tenantID, schema, RetentionDays(tenantID, "users", "last_sign_in_ip", auditSourceRetentionDays)); err != nil {
 		return out, err
 	} else if n > 0 {
 		out["users.last_sign_in_ip"] = n
@@ -143,6 +160,44 @@ func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
 			fmt.Sprintf("users.last_sign_in_ip cleared on %d account(s) last signed in more than %d days ago (47.16.3)", n, auditSourceRetentionDays))
 	}
 	return out, nil
+}
+
+// clearDeliveredOrderEmails (49.6.2, owner's answer) removes the buyer's e-mail
+// from a sales order once it is Delivered or Closed: it was there for order
+// updates, and the Customer record keeps the address the person is reached at.
+// Batched and held back by a legal hold like retentionClearField; the key is
+// removed, so the change log row does not copy the address back out.
+func clearDeliveredOrderEmails(tenantID, schema string) (int64, error) {
+	if held, err := tenantLegalHold(tenantID); err != nil || held {
+		return 0, err
+	}
+	stmt := fmt.Sprintf(`UPDATE %[1]s.documents SET data = data - 'customer_email', updated_at = CURRENT_TIMESTAMP, version = version + 1,
+			updated_by = 'system', edit_reason = 'personal data retention'
+		WHERE ctid IN (SELECT ctid FROM %[1]s.documents WHERE doctype = 'SalesOrder' AND data->>'customer_email' IS NOT NULL
+			AND (data->>'order_status' IN ('Delivered', 'Closed') OR status IN ('Delivered', 'Closed')) LIMIT %[2]d)`, schema, retentionBatchRows)
+	var total int64
+	for i := 0; i < retentionMaxBatches; i++ {
+		res, err := db.DB.Exec(stmt)
+		if err != nil {
+			return total, err
+		}
+		n, _ := res.RowsAffected()
+		total += n
+		if n < retentionBatchRows {
+			break
+		}
+	}
+	return total, nil
+}
+
+// billingUnlessShipping (49.6.2, owner's answer) is the billing address worth
+// keeping on an order: none when it is the shipping address the order holds.
+func billingUnlessShipping(bill, ship string) string {
+	norm := func(s string) string { return strings.Join(strings.Fields(strings.ToLower(s)), " ") }
+	if norm(bill) == norm(ship) {
+		return ""
+	}
+	return bill
 }
 
 // auditSourceRetentionDays is how long a security event keeps the address and
@@ -317,6 +372,26 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 		"date_of_exit":      pdField("record", "Service period; final settlement", BasisEmployment, retainEmployee, readersHR),
 		"bank_account_no":   pdField("financial", "Salary payment", BasisEmployment, retainPayroll, readersAdmin),
 		"bank_ifsc":         pdField("financial", "Salary payment", BasisEmployment, retainPayroll, readersAdmin),
+		// Ask 170: positions, statutory payroll, expense grade and project cost.
+		"position":                pdField("record", "Place in the organisation chart (170.17)", BasisEmployment, retainEmployee, readersHR),
+		"manager":                 pdField("record", "Direct manager: approval routing and the team view (170.17, 170.26)", BasisEmployment, retainEmployee, readersHR),
+		"work_state":              pdField("record", "State whose labour welfare fund applies (170.23)", BasisEmployment, retainEmployee, readersHR),
+		"grade":                   pdField("record", "Grade that sets expense limits (170.29)", BasisEmployment, retainEmployee, readersHR),
+		"pan":                     pdField("identity", "PAN for TDS and Form 24Q (170.23)", BasisStatutory, retainPayroll, readersHR),
+		"uan":                     pdField("identity", "UAN for the EPF ECR file (170.23)", BasisStatutory, retainPayroll, readersHR),
+		"tax_regime":              pdField("financial", "Income-tax regime for monthly TDS (170.23)", BasisStatutory, retainPayroll, readersHR),
+		"tax_declared_deductions": pdField("financial", "Declared deductions that lower TDS (170.23)", BasisStatutory, retainPayroll, readersAdmin),
+		"cost_rate":               pdField("financial", "Hourly cost charged to projects from timesheets (170.31)", BasisEmployment, retainPayroll, readersAdmin),
+	},
+	// Ask 170.18: a job applicant, read by HR only.
+	"Applicant": {
+		"code":           pdField("identity", "Key for the applicant through the hiring stages", BasisVoluntary, retainApplicant, readersHR),
+		"opening":        pdField("record", "The job opening applied for", BasisVoluntary, retainApplicant, readersHR),
+		"applicant_name": pdField("identity", "Name on the application and the offer", BasisVoluntary, retainApplicant, readersHR),
+		"email":          pdField("contact", "Reach the applicant about interviews and the offer", BasisVoluntary, retainApplicant, readersHR),
+		"phone":          pdField("contact", "Reach the applicant about interviews and the offer", BasisVoluntary, retainApplicant, readersHR),
+		"notes":          pdField("record", "Interview notes", BasisVoluntary, retainApplicant, readersHR),
+		"status":         pdField("record", "Hiring stage", BasisVoluntary, retainApplicant, readersHR),
 	},
 	"Salesman": {
 		"name":       pdField("identity", "Sales attribution and incentive", BasisEmployment, retainEmployee, readersPOS),
@@ -375,7 +450,13 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 		"gstin":               pdField("identity", "Supplier GSTIN for input-tax credit", BasisStatutory, retainVendor, readersFinance),
 		"bank_account_number": pdField("financial", "Pay the supplier", BasisVoluntary, retainVendor, readersAdmin),
 		"bank_ifsc":           pdField("financial", "Pay the supplier", BasisVoluntary, retainVendor, readersAdmin),
+		// 168.3: onboarding flags that a document was seen; the documents are not kept here.
+		"doc_gstin_checked":      businessField("Onboarding check that the GSTIN certificate was seen"),
+		"doc_pan_checked":        businessField("Onboarding check that the PAN card was seen"),
+		"doc_bank_proof_checked": businessField("Onboarding check that the bank proof was seen"),
 	},
+	// 170.36: a line of the GSTR-2B file.
+	"Gstr2bLine": {"supplier_gstin": pdField("identity", "Supplier GSTIN from GSTR-2B, matched to vendor bills", BasisStatutory, retainRecord, readersFinance)},
 
 	// --- The business's own data: listed so the decision is written down --
 	"BankAccount": {
@@ -413,6 +494,39 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 	},
 }
 
+// personalDataJSONOnly (49.6.2) holds personal values kept only inside a
+// document's JSON (documents.data): written by a connector or an edit, with no
+// doctype_fields row, so the schema-driven sweep above cannot see them.
+// TestPersonalDataJSONOnlyRowsAreComplete keeps the list honest: a field that
+// gains a doctype_fields row moves to personalDataRegister.
+var personalDataJSONOnly = map[string]map[string]PersonalDataField{
+	"SalesOrder": {
+		// 49.6.2, owner's answers: the e-mail goes once the order is delivered;
+		// a billing address equal to the shipping address is not stored.
+		"customer_email": pdField("contact", "Order updates and the e-receipt for a web-shop order (Shopify sync)", BasisVoluntary,
+			"until the order is Delivered or Closed; the hourly sweep then removes it (the Customer record keeps the address)", readersOps),
+		"billing_address": pdField("address", "Billing address of a web-shop order when it differs from the shipping address; GST place of supply", BasisStatutory, retainShipment, readersOps),
+	},
+}
+
+// PersonalDataJSONOnlyQuestions lists the minimisation questions the JSON-only
+// rows leave for the owner, as "Doctype.field: question", sorted. They are kept
+// apart from PersonalDataReviewQuestions, which TestStage4962aMinimisationAnswers
+// holds at zero. The owner answered the SalesOrder two (49.6.2), so it is empty;
+// a new JSON-only field that raises a question lists it here.
+func PersonalDataJSONOnlyQuestions() []string {
+	var out []string
+	for dt, fields := range personalDataJSONOnly {
+		for f, row := range fields {
+			if row.Review != "" {
+				out = append(out, dt+"."+f+": "+row.Review)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // personalDataKinds and personalDataBases are the allowed vocabularies.
 var (
 	personalDataKinds = map[string]bool{"identity": true, "contact": true, "address": true, "demographic": true, "preference": true,
@@ -428,7 +542,10 @@ func IsPersonalDataField(doctype, field string) bool {
 
 // LookupPersonalDataField returns the register row for doctype.field.
 func LookupPersonalDataField(doctype, field string) (PersonalDataField, bool) {
-	f, ok := personalDataRegister[doctype][field]
+	if f, ok := personalDataRegister[doctype][field]; ok {
+		return f, true
+	}
+	f, ok := personalDataJSONOnly[doctype][field]
 	return f, ok
 }
 

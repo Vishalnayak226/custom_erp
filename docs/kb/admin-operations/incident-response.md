@@ -97,6 +97,10 @@ it just needs a real destination.
 | Deployment history | The **System Status** screen shows the most recent deployment per environment |
 | Correlation id | Every error response and log row carries one — use it to jump straight from a reported error to its exact server-side detail |
 
+## A breach that may need telling someone
+
+Open **Settings > Monitoring > Security Events > Notification decisions**, choose **New incident**, and enter when it was noticed. Each who-to-tell row gets its own clock from the matrix (CERT-In 6 hours; DPDP once counsel sets its limit): the row shows hours left and turns **Due** in the last quarter of its window and **Overdue** once past it. Containment, the evidence pack and the incident timeline follow the incident runbook (the Operations incident runbook, sections 7.11 and 7.12). The matrix wording still needs counsel; the screen records the decision and its approver, it does not make the legal call.
+
 ## Rolling back
 
 **A bad promotion to a live environment:** roll back to the last recorded

@@ -266,6 +266,9 @@ func shopifyItemPrice(tenantID, priceList string, item map[string]interface{}, s
 	if price <= 0 {
 		price = mrp
 	}
+	if p, ok := MarkdownPrice(tenantID, sku, "", BusinessToday(), price); ok {
+		price = p
+	}
 	if price > 0 {
 		if ev, err := EvaluatePOSOffers(tenantID, OfferEvaluationInput{Lines: []OfferCartLine{{Sku: sku, Qty: 1, SalePrice: price}}}); err == nil && ev != nil && len(ev.LineDiscounts) > 0 && ev.LineDiscounts[0] > 0 {
 			price = price - ev.LineDiscounts[0]
@@ -517,6 +520,8 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 		in.SEOTitle, in.SEODescription, in.Tags = pc.SEOTitle, pc.SEODescription, pc.Tags
 		in.ProductType = firstNonEmpty(pc.ProductType, in.ProductType)
 		in.Metafields = pc.ProductMF
+		// 146.5.12: the typed product relations, as Shopify's recommendation metafields.
+		relations := shopifyRelationMetafields(schema, channel, append([]string{design}, skus...), in.ProductGID)
 		productKeys, variantKeys := []string{}, []string{}
 		for _, m := range pc.ProductMF {
 			productKeys = append(productKeys, m.Key)
@@ -532,6 +537,7 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 			}
 		}
 		ensureShopifyMetafieldDefs(ctx, tenantID, channel, cred, productKeys, variantKeys)
+		in.Metafields = append(in.Metafields, relations...)
 	}
 	productGID, links, err := conn.PublishShopifyProduct(ctx, cred, in)
 	if err != nil {
@@ -964,9 +970,12 @@ func ImportShopifyOrder(ctx context.Context, tenantID, channel string, o Shopify
 	extra := map[string]interface{}{
 		"shopify_order_number": o.Number, "shopify_order_gid": o.GID, "customer_email": o.Email, "shipping_charge": round2(o.Shipping),
 		"order_discount": round2(o.Discount), "payment_gateway": strings.Join(o.Gateways, ", "), "cod": o.COD(), "channel_financial_status": o.Financial,
-		"billing_address": o.Bill.Line(), "billing_state": o.Bill.Province, "place_of_supply_state": firstNonEmpty(o.Ship.Province, o.Bill.Province),
+		"billing_state": o.Bill.Province, "place_of_supply_state": firstNonEmpty(o.Ship.Province, o.Bill.Province),
 		"tax_cgst": gst["cgst"], "tax_sgst": gst["sgst"], "tax_igst": gst["igst"], "tax_other": gst["other_tax"],
 		"channel_updated_at": o.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	if bill := billingUnlessShipping(o.Bill.Line(), o.Ship.Line()); bill != "" { // 49.6.2
+		extra["billing_address"] = bill
 	}
 	if customer != "" {
 		extra["customer_id"] = customer

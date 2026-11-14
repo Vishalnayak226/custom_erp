@@ -219,6 +219,13 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 			return
 		}
 
+		// Stage 49.12.3: read-only mode refuses an API client's change too.
+		if publicAPIMutating(r.Method) && engines.GetSettingBool(tenantID, engines.SettingReadOnly) {
+			refuseReadOnly(rec, r, tenantID, "api:"+credential.KeyPrefix, r.Method+" "+r.URL.Path)
+			record("read_only")
+			return
+		}
+
 		// 38.5. Every mutating public call carries an idempotency key, so a
 		// client that retries after a timeout cannot create a second order.
 		idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))

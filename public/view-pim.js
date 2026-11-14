@@ -54,10 +54,14 @@ async function renderPIMView(container) {
     await renderPIMMyWorkTab(container);
   } else if (currentPIMTab === 'media-library') {
     await renderPIMMediaLibraryTab(container);
+  } else if (currentPIMTab === 'category-rules') {
+    await (await loadViewModule('/view-pim-category-rules.js' + new URL(import.meta.url).search)).renderCategoryRules(container);
   } else if (currentPIMTab === 'stewardship') {
     // 47.13.4: who owns each attribute, where its value comes from
     const stw = await loadViewModule('/view-pim-stewardship.js' + new URL(import.meta.url).search);
     await stw.renderStewardship(container);
+  } else if (["range", "markdown", "drift"].includes(currentPIMTab)) {
+    await (await loadViewModule("/view-pim-range.js" + new URL(import.meta.url).search)).renderPIMRangePage(container, currentPIMTab);
   } else if (['channel-templates', 'feeds', 'design-values', 'checklists'].includes(currentPIMTab)) {
     // 146.5: marketplace templates, feeds with run history, design-level values
     const data = await loadViewModule('/view-pim-data.js' + new URL(import.meta.url).search);
@@ -1014,6 +1018,7 @@ async function renderPIMReportsTab(container) {
     a.remove();
     URL.revokeObjectURL(url);
   });
+  (await loadViewModule('/view-market-harvest.js' + new URL(import.meta.url).search)).renderMarketHarvest(container);
   await run();
 }
 
@@ -1129,7 +1134,7 @@ async function renderPIMDetailPanel(container, itemCode) {
         <label class="form-label" for="pim-attr-select">Attribute</label>
         <select id="pim-attr-select" class="form-input s-0fff9b">
           <option value="">Select attribute</option>
-          ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}" data-value-type="${escapeHTMLText(a.value_type || 'Data')}" data-value-options="${escapeHTMLText(a.value_options || '')}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
+          ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}" data-value-type="${escapeHTMLText(a.value_type || 'Data')}" data-value-options="${escapeHTMLText(a.value_options || '')}" data-uom="${escapeHTMLText(a.uom || '')}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group s-50435f">
@@ -1278,6 +1283,7 @@ async function renderPIMDetailPanel(container, itemCode) {
     const o = e.target.selectedOptions[0];
     pimSwapValueControl((o && o.dataset.valueType) || 'Data', (o && o.dataset.valueOptions) || '');
   });
+  try { await (await loadViewModule('/view-pim-category-rules.js' + new URL(import.meta.url).search)).applyItemRules(panel, itemCode, attrDefs); } catch (e) { console.error('category rules', e); }
   document.getElementById('pim-attr-save-btn').addEventListener('click', () => savePIMAttributeValue(itemCode));
   document.getElementById('pim-content-assist-btn').addEventListener('click', () => runPIMContentAssist(itemCode));
   document.getElementById('pim-content-save-btn').addEventListener('click', () => savePIMContent(itemCode, 'Draft'));
@@ -1719,7 +1725,7 @@ async function previewPIMPublish(itemCode) {
   previewEl.innerHTML = `
     <h4 class="s-db5726">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload'}</h4>
     <table><thead><tr><th>Field</th><th>Previously Published</th><th>About to Publish</th></tr></thead><tbody>${
-      (preview.fields || []).map(f => `<tr style="${f.changed ? 'font-weight:600;' : ''}"><td>${escapeHTMLText(f.field)}</td><td>${escapeHTMLText(f.old || '')}</td><td>${escapeHTMLText(f.new || '')}</td></tr>`).join('')
+      (preview.fields || []).map(f => `<tr class="${f.changed ? 'u-fw6' : ''}"><td>${escapeHTMLText(f.field)}</td><td>${escapeHTMLText(f.old || '')}</td><td>${escapeHTMLText(f.new || '')}</td></tr>`).join('')
     }</tbody></table>
   `;
 }
@@ -1881,6 +1887,7 @@ async function savePIMAttributeValue(itemCode) {
     errorEl.classList.remove('hidden');
     return;
   }
+  if (data.held_fields) await showCustomAlert('Sent for approval. The old value stays until it is approved.');
   renderView('pim');
 }
 

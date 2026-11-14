@@ -8,7 +8,15 @@ package engines
 // and change every other owner's schedule. The rule here is the one the
 // Schedules tab already applies (report_schedule_view.go): the creator, or a
 // Super Admin, and nobody else - for list, open, edit and delete alike.
-var creatorOwnedDoctypes = map[string]bool{"ScheduledReport": true, "DashboardDigest": true}
+//
+// 165.1: UserShortcut (a person's favourites and saved views) is creator-owned
+// for the same reason: the screens pass ?owner=<me>, but that is the caller's
+// own filter, so the server confines every role to the rows it created. That
+// is what lets RoleMayOnDoctype give every role its own favourites.
+var creatorOwnedDoctypes = map[string]bool{"ScheduledReport": true, "DashboardDigest": true, UserShortcutDoctype: true}
+
+// UserShortcutDoctype is the favourites / saved-views record type (Stage 139).
+const UserShortcutDoctype = "UserShortcut"
 
 // CreatorOwnedDoctype reports whether doctype's records are their creator's.
 func CreatorOwnedDoctype(doctype string) bool { return creatorOwnedDoctypes[doctype] }

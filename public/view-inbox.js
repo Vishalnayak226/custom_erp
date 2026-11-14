@@ -104,6 +104,7 @@ function openInboxItem(item) {
     renderView('oms');
     return;
   }
+  if (item.view === 'dataquality') { renderView('dataquality'); return; }
   if (item.view === 'import-job') {
     // Stage 55.11: an import with failed rows opens straight on its resume.
     loadViewModule('/view-import-jobs.js' + new URL(import.meta.url).search).then(m => m.openImportResume(item.doc_id));

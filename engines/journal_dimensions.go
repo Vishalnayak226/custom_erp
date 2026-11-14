@@ -34,6 +34,12 @@ type PostingLine struct {
 	Employee   string
 	Tag        string
 	Narration  string
+	// SourceLineID (170.1) is the document line the row came from.
+	SourceLineID string
+
+	// NoProject keeps the posting's project off this line (170.31: the credit
+	// leg of a project cost carries none, so the project is not netted to zero).
+	NoProject bool
 }
 
 func (l JournalVoucherLine) hasOwnDimensions() bool {
@@ -222,8 +228,12 @@ func insertPostingLinesTx(tx *sql.Tx, schema string, opt PostingOptions, docType
 		return s
 	}
 	n := 12 + len(attrArgs)
-	query := fmt.Sprintf(`INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, entity, project, location, employee%s, tag, line_narration)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12%s, $%d, $%d)`, schema, attrCols, attrVals, n+1, n+2)
+	srcCol, srcVal := "", ""
+	if glSourceLineReady(tx, schema) {
+		srcCol, srcVal = ", source_line_id", fmt.Sprintf(", $%d", n+3)
+	}
+	query := fmt.Sprintf(`INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, entity, project, location, employee%s, tag, line_narration%s)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12%s, $%d, $%d%s)`, schema, attrCols, srcCol, attrVals, n+1, n+2, srcVal)
 	for _, l := range opt.Lines {
 		if l.Debit <= 0 && l.Credit <= 0 {
 			continue
@@ -236,11 +246,27 @@ func insertPostingLinesTx(tx *sql.Tx, schema string, opt PostingOptions, docType
 			dep = opt.Department
 		}
 		args := append([]interface{}{l.Account, l.Debit, l.Credit, docType, docID, keyArg, nullable(cc), nullable(dep),
-			nullable(opt.Entity), nullable(opt.Project), nullable(l.Store), nullable(l.Employee)}, attrArgs...)
+			nullable(opt.Entity), nullable(lineProject(opt, l)), nullable(l.Store), nullable(l.Employee)}, attrArgs...)
 		args = append(args, nullable(strings.TrimSpace(l.Tag)), nullable(strings.TrimSpace(l.Narration)))
+		if srcCol != "" {
+			sl := l.SourceLineID
+			if sl == "" {
+				sl = opt.SourceLineID
+			}
+			args = append(args, nullable(sl))
+		}
 		if _, err := tx.Exec(query, args...); err != nil {
 			return fmt.Errorf("error posting line for account %s: %v", l.Account, err)
 		}
 	}
 	return nil
+}
+
+// lineProject is the project a posting line carries: the posting's, unless the
+// line opts out (PostingLine.NoProject).
+func lineProject(opt PostingOptions, l PostingLine) string {
+	if l.NoProject {
+		return ""
+	}
+	return opt.Project
 }

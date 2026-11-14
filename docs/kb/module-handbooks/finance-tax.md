@@ -5,7 +5,7 @@ order: 70
 summary: Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.
 audience: accountant, finance manager, admin
 last_verified: 2026-09-03
-screens: [finance, module:finance, journal-vouchers, reports, configuration, einvoice]
+screens: [finance, module:finance, journal-vouchers, reports, configuration, einvoice, bank-files]
 doc_id: DOC-DDBD8E5B5F
 type: procedure
 status: draft
@@ -179,6 +179,21 @@ in one run:
 > execution work from the screen, but producing the file your bank actually
 > needs, and marking a proposal's payments as cleared with their UTR
 > reference, both need a direct API call today.
+
+## Bank files: statements and bank responses
+
+**Bank Reconciliation → Bank files** has two loaders.
+
+- **Statement.** Pick the bank account, the format (CSV or MT940) and the
+  file. Every line gets a stable id, so loading the same file twice adds
+  nothing; the result lists what was loaded and what was skipped.
+- **Bank response.** Enter an Executed payment proposal, pick the bank
+  account and the bank's CSV (payment_reference, utr, status, reason). A
+  paid row records its UTR; a rejected row raises a bank exception with the
+  bank's reason and reverses nothing. A reference the proposal does not hold
+  is listed, not fatal.
+
+Both need `finance.post`.
 
 ## Multi-currency and FX
 

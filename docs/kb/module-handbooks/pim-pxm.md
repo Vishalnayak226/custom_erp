@@ -5,7 +5,7 @@ order: 50
 summary: Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and effective-dated, approval-gated price lists that the POS, the Store app and Shopify price from.
 audience: category manager, admin
 last_verified: 2026-09-03
-screens: [pim, doctype:item, doctype:itemname, module:pim, reports, configuration]
+screens: [pim, doctype:item, doctype:itemname, module:pim, reports, configuration, dataquality]
 doc_id: DOC-12FFD46675
 type: procedure
 status: draft
@@ -159,6 +159,19 @@ nothing to score against without one. A completeness check that fails
 outright (not just scores low) is `PIM-0230`; a channel that specifically
 requires a primary image and doesn't have one gets its own dedicated code,
 `PIM-0232`, rather than folding into the generic completeness failure.
+
+## Data quality queue
+
+**Settings → Data quality** lists master-data problems across items,
+customers and vendors: duplicates (customer phone or email, vendor GSTIN or
+name, item name), items without an HSN, and an invalid GSTIN or PAN.
+
+1. Click **Scan** to refresh the list. A scan never adds the same problem
+   twice, and closes a problem you have fixed.
+2. Fix the record, then click **Fixed**, or click **Ignore** and write a
+   reason (`MASTER-1700` if the reason is missing). **Reopen** brings an
+   ignored problem back.
+3. Open problems also show in **My work**.
 
 ## Price lists
 

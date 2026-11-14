@@ -86,6 +86,36 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 	return createJournalVoucherWith(db.DB, schema, voucherDate, narration, lines, userID, opts, nil)
 }
 
+// validateJournalVoucherSave holds a generic save (and an import) of a voucher
+// to the rules the engine applies on create: balanced, one-sided, accounted
+// lines, and total_amount (which the approval slabs read) is the lines' own
+// sum, whatever the client sent. A payload without lines is left alone.
+func validateJournalVoucherSave(payload map[string]interface{}) error {
+	raw, ok := payload["lines"]
+	if !ok || raw == nil {
+		return nil
+	}
+	var b []byte
+	if s, isStr := raw.(string); isStr {
+		if strings.TrimSpace(s) == "" {
+			return nil
+		}
+		b = []byte(s)
+	} else {
+		b, _ = json.Marshal(raw)
+	}
+	var lines []JournalVoucherLine
+	if err := json.Unmarshal(b, &lines); err != nil {
+		return dimErr("FIN-0844", "The voucher lines are not readable.")
+	}
+	total, err := validateJournalVoucherLines(lines)
+	if err != nil {
+		return dimErr("FIN-0844", "%s", err.Error())
+	}
+	payload["total_amount"] = total
+	return nil
+}
+
 // createJournalVoucherWith creates the Draft on a given connection or
 // transaction; extra fields (reversed_from) are written with the row, so the
 // voucher is complete the moment it exists (Stage 162.10).

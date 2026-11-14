@@ -11,6 +11,8 @@
 // Stage 69: the register is the page; + New Asset opens the form as a page of
 // its own (txn-screen.js, the standard ERP shape).
 const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+// Ask 170: CWIP, impairment/revaluation, meter readings and leases live in their own file.
+const assetExtras = await import('./view-asset-extras.js' + new URL(import.meta.url).search);
 
 async function renderAssetsView(container) {
   const res = await apiFetch('/api/v1/assets/register');
@@ -107,8 +109,10 @@ async function renderAssetsView(container) {
     else if (button.dataset.assetAction === 'transfer') promptTransferAsset(assetID);
     else if (button.dataset.assetAction === 'dispose') promptDisposeAsset(assetID, asset);
     else if (button.dataset.assetAction === 'details') toggleAssetLifecycle(assetID);
+    else assetExtras.runAssetExtra(button.dataset.assetAction, asset, { openPanel: openAssetActionPanel, panelError: assetActionError, reload: () => renderView('assets') });
   });
 
+  await assetExtras.renderLeaseSection(container);
   document.getElementById('asset-create-btn').addEventListener('click', createAsset);
   attachLinkTypeahead(document.getElementById('asset-location'), 'Location');
   attachLinkTypeahead(document.getElementById('asset-custodian'), 'Employee');
@@ -116,15 +120,16 @@ async function renderAssetsView(container) {
 
 function renderAssetActions(asset) {
   if (asset.status === 'Draft') {
-    return `<button class="action-btn" data-asset-action="capitalize" data-asset-id="${escapeHTMLText(asset.id)}" data-asset-life="${Number(asset.useful_life_years) || 0}">Capitalise</button>`;
+    return `<button class="action-btn" data-asset-action="capitalize" data-asset-id="${escapeHTMLText(asset.id)}" data-asset-life="${Number(asset.useful_life_years) || 0}">Capitalise</button>${assetExtras.assetExtraButtons(asset)}`;
   }
   if (asset.status === 'Capitalised') {
     return `
       <button class="action-btn" data-asset-action="transfer" data-asset-id="${escapeHTMLText(asset.id)}">Transfer</button>
+      ${assetExtras.assetExtraButtons(asset)}
       <button class="action-btn action-btn-danger" data-asset-action="dispose" data-asset-id="${escapeHTMLText(asset.id)}">Dispose</button>
     `;
   }
-  return '';
+  return assetExtras.assetExtraButtons(asset);
 }
 
 async function createAsset() {
@@ -427,7 +432,7 @@ async function toggleAssetLifecycle(assetId) {
         ${acq.disposal_type ? ` &middot; disposed (${escapeHTMLText(acq.disposal_type)})` : ''}
         ${acq.disposal_proceeds != null ? ` on ${escapeHTMLText(acq.disposal_date || '')}: proceeds ${assetMoney(acq.disposal_proceeds)} into ${escapeHTMLText(acq.disposal_received_into || '')}, book value ${assetMoney(acq.disposal_book_value)}, ${escapeHTMLText(assetGainLossText(acq.disposal_gain_loss))}` : ''}</div>
       ${lc.schedule.length ? `<table><thead><tr><th>Year</th><th>From</th><th>To</th><th>Opening</th><th>Depreciation</th><th>Posted</th><th>To come</th><th>Closing</th></tr></thead><tbody>
-        ${lc.schedule.map(s => `<tr style="${s.current ? 'font-weight:700' : ''}"><td>${s.year}${s.current ? ' (now)' : ''}</td><td>${escapeHTMLText(s.from)}</td><td>${escapeHTMLText(s.to)}</td><td>${assetMoney(s.opening)}</td><td>${assetMoney(s.depreciation)}</td><td>${assetMoney(s.posted)}${s.months_posted ? ` (${s.months_posted} of ${s.months} mo)` : ''}</td><td>${assetMoney(s.to_come)}</td><td>${assetMoney(s.closing)}</td></tr>`).join('')}
+        ${lc.schedule.map(s => `<tr class="${s.current ? 'u-fw7' : ''}"><td>${s.year}${s.current ? ' (now)' : ''}</td><td>${escapeHTMLText(s.from)}</td><td>${escapeHTMLText(s.to)}</td><td>${assetMoney(s.opening)}</td><td>${assetMoney(s.depreciation)}</td><td>${assetMoney(s.posted)}${s.months_posted ? ` (${s.months_posted} of ${s.months} mo)` : ''}</td><td>${assetMoney(s.to_come)}</td><td>${assetMoney(s.closing)}</td></tr>`).join('')}
         </tbody></table>` : '<div class="s-5872de">No schedule until a useful life is set.</div>'}
       ${dep.total_months ? `<div><b>Depreciation:</b> ${assetMoney(dep.monthly_amount)} a month for ${dep.total_months} months &middot; ${dep.months_posted} month(s) posted, ${assetMoney(dep.posted)}${a.status === 'Capitalised' ? ` &middot; ${dep.months_due} month(s) ended so far, ${assetMoney(dep.due)} due` : ''}</div>` : ''}
       ${(dep.postings || []).length ? `<details><summary>Depreciation posted (${dep.postings.length} month${dep.postings.length === 1 ? '' : 's'})</summary>

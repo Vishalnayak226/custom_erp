@@ -14,6 +14,24 @@ import (
 
 // FindBestFulfillmentNode resolves the location node with the highest ATS stock for all requested items
 func FindBestFulfillmentNode(tenantID string, items []map[string]interface{}) (string, error) {
+	loc, err := coveringFulfillmentNode(tenantID, items)
+	if err != nil || loc != "" {
+		return loc, err
+	}
+	// OMNI-0247 (Stage 25.6): "No fulfillment node available" - the
+	// catalog marks this Blocking:true, but this function's own
+	// existing design deliberately never rejects an order for lack of
+	// stock (same "don't reverse an already-deliberate workflow
+	// decision" reasoning as SALESP-0123/MOBILE-0176) - it always
+	// returns a usable node (HO) for the caller to route to and let a
+	// human decide backorder/split/cancel. Log-only, not a rejection.
+	LogSystemError(tenantID, "", "Medium", "Omnichannel / OMS", "[OMNI-0247] no store/warehouse had sufficient ATS for the requested items - falling back to HO", "")
+	return "HO", nil
+}
+
+// coveringFulfillmentNode is the store with the highest ATS that covers
+// every item, or "" when none does.
+func coveringFulfillmentNode(tenantID string, items []map[string]interface{}) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -82,19 +100,6 @@ func FindBestFulfillmentNode(tenantID string, items []map[string]interface{}) (s
 			maxTotalATS = totalATS
 			bestLocation = loc
 		}
-	}
-
-	if bestLocation == "" {
-		// OMNI-0247 (Stage 25.6): "No fulfillment node available" - the
-		// catalog marks this Blocking:true, but this function's own
-		// existing design deliberately never rejects an order for lack of
-		// stock (same "don't reverse an already-deliberate workflow
-		// decision" reasoning as SALESP-0123/MOBILE-0176) - it always
-		// returns a usable node (HO) for the caller to route to and let a
-		// human decide backorder/split/cancel. Log-only, not a rejection.
-		LogSystemError(tenantID, "", "Medium", "Omnichannel / OMS", "[OMNI-0247] no store/warehouse had sufficient ATS for the requested items - falling back to HO", "")
-		// Fallback to HO default node if no specific store has enough stock
-		return "HO", nil
 	}
 
 	return bestLocation, nil
@@ -401,8 +406,8 @@ func uniformPlan(location, strategy string, n int) *AllocationPlan {
 // as the lowest-priority catch-all so richer rules get a chance first).
 //
 // Falls back to the pre-26.12.2 Highest ATS single-node behavior
-// (FindBestFulfillmentNode, which always returns a usable node) when no
-// AllocationRule row is configured at all, so a tenant that hasn't touched
+// (coveringFulfillmentNode; since 73.4.2.2 no plan, so a backorder, when no
+// store covers the order) when no AllocationRule row is configured at all, so a tenant that hasn't touched
 // the new master keeps today's exact out-of-the-box behavior - same
 // "usable before any admin config" precedent as isCancellationBlocked's own
 // fallback (engines/orders.go). Once at least one rule IS configured,
@@ -490,8 +495,11 @@ func ResolveAllocationPlan(tenantID, channel, shippingAddress string, lines []Sa
 	}
 
 	if len(strategies) == 0 {
-		loc, err := FindBestFulfillmentNode(tenantID, items)
-		if err != nil {
+		// 73.4.2.2: when no store covers the order it waits for stock
+		// (ALLOCATION_FAILED, a backorder) rather than being sent to HO and
+		// refused there at reservation.
+		loc, err := coveringFulfillmentNode(tenantID, items)
+		if err != nil || loc == "" {
 			return nil, err
 		}
 		return uniformPlan(loc, "Default", len(lines)), nil

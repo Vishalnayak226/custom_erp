@@ -124,7 +124,7 @@ async function renderControlPanelView(container) {
     </div>
     <div class="stat-card">
       <span class="stat-label">Last backup</span>
-      <span class="stat-val" style="font-size:18px; color:${bk ? (backupOK ? 'var(--success-color)' : 'var(--danger-color)') : 'var(--text-muted)'};">${bk ? escapeHTMLText(bk.outcome || '—') : 'none recorded'}</span>
+      <span class="stat-val u-fs18 ${bk ? (backupOK ? 'u-good' : 'u-bad') : 'u-muted'}">${bk ? escapeHTMLText(bk.outcome || '—') : 'none recorded'}</span>
       <div class="text-muted s-dde55e">${bk ? `${when(bk.finished_at)} &middot; ${size(bk.size_bytes)}` : ''}${!backupOK && cp.last_good_backup_at ? ` &middot; last good ${when(cp.last_good_backup_at)}` : ''}</div>
     </div>
   `;
@@ -204,7 +204,7 @@ async function renderControlPanelView(container) {
             const bad = c.expiring || !c.not_after;
             return `<tr><td>${escapeHTMLText(c.host)}${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
               <td>${day(c.not_after)}</td>
-              <td class="num">${c.not_after ? `<span style="${bad ? 'color:var(--danger-color); font-weight:600;' : ''}">${c.days_left}</span>` : '<span class="text-muted">&mdash;</span>'}</td>
+              <td class="num">${c.not_after ? `<span class="${bad ? 'u-bad u-fw6' : ''}">${c.days_left}</span>` : '<span class="text-muted">&mdash;</span>'}</td>
               <td>${escapeHTMLText(c.issuer || '')}</td><td>${when(c.checked_at)}</td></tr>`;
           }).join('')}
         </tbody>
@@ -234,7 +234,7 @@ async function renderControlPanelView(container) {
           ${sqRows.map(q => `<tr><td class="s-cf38ca">${escapeHTMLText(q.query)}</td>
             <td class="num">${q.calls}</td><td class="num">${Math.round(q.mean_ms)}</td><td class="num">${Math.round(q.max_ms)}</td><td class="num">${Math.round(q.total_ms)}</td>
             <td class="num">${q.shared_blocks ? q.shared_blocks : '<span class="text-muted">&mdash;</span>'}</td>
-            <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span style="${q.change_pct > 20 ? 'color:var(--danger-color); font-weight:600;' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
+            <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span class="${q.change_pct > 20 ? 'u-bad u-fw6' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>

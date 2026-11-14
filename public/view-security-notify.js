@@ -8,12 +8,14 @@ const when = (v) => (v ? formatDateTime(v) : '-');
 const ago = (s) => (s < 90 ? `${s} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`);
 
 // clock reads a deadline against now (the server's, not this machine's).
-function clock(at, now) {
+// 49.12.5: state is the server's check (due / overdue) shown as a badge.
+function clock(at, now, state) {
   if (!at) return '-';
   const left = Math.round((new Date(at) - now) / 60000);
   const abs = Math.abs(left);
   const span = abs >= 120 ? `${Math.round(abs / 60)} h` : `${abs} min`;
-  return left < 0 ? `<span class="s-25f4ca">${span} over</span>` : `${span} left`;
+  const badge = state === 'overdue' ? ' <span class="badge badge-danger">Overdue</span>' : state === 'due' ? ' <span class="badge badge-warning">Due</span>' : '';
+  return (left < 0 ? `<span class="s-25f4ca">${span} over</span>` : `${span} left`) + badge;
 }
 
 async function getJSON(url) {
@@ -108,15 +110,15 @@ async function renderNotify(host) {
 
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = `<div class="table-wrapper"><table>
+  list.innerHTML = `<div class="s-69ffa6"><a href="/help/incident-response" target="_blank" rel="noopener">Incident runbook</a></div><div class="table-wrapper"><table>
     <thead><tr><th>Incident</th><th>Who to tell</th><th>Version</th><th>Noticed</th><th>Assess</th><th>Target</th><th>Status</th><th>Decision</th><th></th></tr></thead>
     <tbody>${decisions.length === 0 ? '<tr><td colspan="9" class="text-muted">None yet</td></tr>' : decisions.map(x => `<tr>
       <td>${esc(x.incident_title)}</td>
       <td>${esc(x.row.name)}${x.row.needs_counsel ? ' <span class="badge badge-warning">Needs counsel review</span>' : ''}</td>
       <td>${esc(x.matrix_version)}</td>
       <td class="s-7e9fe5">${esc(when(x.discovered_at))}</td>
-      <td>${x.status === 'Closed' ? '-' : clock(x.assessment_due_at, now)}</td>
-      <td>${x.status === 'Closed' ? '-' : clock(x.target_at, now)}</td>
+      <td>${x.status === 'Closed' ? '-' : clock(x.assessment_due_at, now, x.assess_state)}</td>
+      <td>${x.status === 'Closed' ? '-' : clock(x.target_at, now, x.target_state)}</td>
       <td>${esc(x.status)}</td>
       <td>${x.decision === 'pending' ? 'Pending' : x.decision === 'notify' ? 'Notify' : 'Do not notify'}${x.reason ? `<div class="s-69ffa6">${esc(x.decided_by)} · ${esc(x.evidence_ref)}${x.approver ? ` · approver ${esc(x.approver)}` : ''}${x.approval_note ? ` · ${esc(x.approval_note)}` : ''}</div>` : ''}</td>
       <td class="s-86abda">${x.status === 'Closed' ? '' : `<button class="btn btn-outline btn-sm" data-nd-decide="${esc(x.id)}">Decide</button>`}

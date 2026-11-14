@@ -32,13 +32,13 @@ func TestStockLedgerKeyProbeUsesAnIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	// Can the index every documents table has on data - GIN, jsonb_ops -
+	// Can the partial index of migration 164.1 (the only index on the copy)
 	// answer the check? A temporary copy holding only that index and 20,000
 	// keyed entries says, without depending on which index the planner would
 	// prefer for one particular table's statistics.
 	for _, stmt := range []string{
 		`CREATE TEMP TABLE documents (LIKE tenant_default.documents INCLUDING DEFAULTS) ON COMMIT DROP`,
-		`CREATE INDEX ON pg_temp.documents USING gin (data)`,
+		`CREATE INDEX idx_documents_stock_ledger_key ON pg_temp.documents ((data->>'idempotency_key')) WHERE doctype = 'StockLedgerEntry'`,
 		`INSERT INTO pg_temp.documents (id, doctype, data, status, created_by)
 		 SELECT 'SLE-' || g, 'StockLedgerEntry', jsonb_build_object('idempotency_key', 'k-' || g, 'item_id', 'SKU-' || (g % 500), 'qty', 1), 'Active', 'system'
 		 FROM generate_series(1, 20000) g`,
@@ -66,11 +66,13 @@ func TestStockLedgerKeyProbeUsesAnIndex(t *testing.T) {
 		}
 		return plan.String()
 	}
-	if plan := explain(stockLedgerKeyProbe); !strings.Contains(plan, "Index Cond: (data @>") {
-		t.Errorf("the replay check is not index-served:\n%s", plan)
+	if plan := explain(stockLedgerKeyProbe); !strings.Contains(plan, "idx_documents_stock_ledger_key") || strings.Contains(plan, "Seq Scan") {
+		t.Errorf("the replay check is not served by the key index:\n%s", plan)
 	}
-	// The shape it replaced could only read the whole table.
-	if plan := explain(`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'StockLedgerEntry' AND data->>'idempotency_key' = $1)`); !strings.Contains(plan, "Seq Scan") {
-		t.Errorf("expected the old shape to need a full read:\n%s", plan)
+	// Migration 164.1 put the index on the real tables too.
+	var n164 int
+	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'tenant_default' AND tablename = 'documents' AND indexname = 'idx_documents_stock_ledger_key'`).Scan(&n164)
+	if n164 != 1 {
+		t.Errorf("tenant_default.documents lacks idx_documents_stock_ledger_key")
 	}
 }

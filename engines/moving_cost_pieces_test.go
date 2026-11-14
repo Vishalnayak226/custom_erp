@@ -522,9 +522,8 @@ func (m *mc1481) saleCostsOf(cart string) []saleCostLine {
 	return readSaleCosts(raw)
 }
 
-// A kit of a Rs 100 part (two of) and a Rs 50 part: the sale books Rs 250 from the
-// parts, and the record says so. A return still receives the kit's own code at no
-// value, so nothing posts and stock value stays equal to the GL: taking the Rs 250
+// parts, and the record says so. A return brings the parts back at those figures
+// (148.1d), so stock value stays equal to the GL.
 // back onto a code that holds no cost would put the GL ahead of the stock value.
 func TestStage1481BundleKeepsWhatTheSaleBooked(t *testing.T) {
 	m := newMC1481(t)
@@ -549,8 +548,8 @@ func TestStage1481BundleKeepsWhatTheSaleBooked(t *testing.T) {
 	skus := []string{a, b, kit}
 	m.wantValueEqualsGL(skus, g1, g2, cart)
 	ret := m.custReturn(cart, kit, "Sellable", ReturnItemInput{})
-	if got, stock := m.gl(ret, "5100"), m.gl(ret, "1200"); got != 0 || stock != 0 {
-		t.Errorf("return posted 5100 %d, 1200 %d: want nothing, as before", got, stock)
+	if got, stock := m.gl(ret, "5100"), m.gl(ret, "1200"); got != -25000 || stock != 25000 {
+		t.Errorf("return posted 5100 %d, 1200 %d: want the parts back at 250 (148.1d)", got, stock)
 	}
 	m.wantValueEqualsGL(skus, g1, g2, cart, ret)
 }

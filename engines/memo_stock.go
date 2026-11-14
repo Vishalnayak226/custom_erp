@@ -319,6 +319,7 @@ func memoAgreedRatePaise(tenantID, vendor, sku string, qty float64) int64 {
 
 type memoLot struct {
 	id     int64
+	grn    string
 	vendor string
 	open   float64
 	rate   int64
@@ -349,6 +350,7 @@ func settleMemoStockTx(tx *sql.Tx, tenantID, schema, docType, docID, userID stri
 	var delta int64
 	bills := map[string][]memoBillLine{}
 	salesRows := map[string][]int64{}
+	vendorGRN := map[string]string{} // the receipt that decides the supply type
 	var vendors []string
 	for _, i := range order {
 		l := &lines[i]
@@ -357,7 +359,7 @@ func settleMemoStockTx(tx *sql.Tx, tenantID, schema, docType, docID, userID stri
 			continue
 		}
 		rows, err := tx.Query(fmt.Sprintf(`
-			SELECT id, vendor_id, (qty_received - qty_sold - qty_returned - qty_lost)::float8, rate_paise FROM %s.memo_stock_lots
+			SELECT id, vendor_id, (qty_received - qty_sold - qty_returned - qty_lost)::float8, rate_paise, grn_id FROM %s.memo_stock_lots
 			WHERE sku = $1 AND qty_received - qty_sold - qty_returned - qty_lost > 0 ORDER BY received_at, id FOR UPDATE`, schema), l.SKU)
 		if err != nil {
 			return 0, err
@@ -365,7 +367,7 @@ func settleMemoStockTx(tx *sql.Tx, tenantID, schema, docType, docID, userID stri
 		var lots []memoLot
 		for rows.Next() {
 			var lot memoLot
-			if err := rows.Scan(&lot.id, &lot.vendor, &lot.open, &lot.rate); err != nil {
+			if err := rows.Scan(&lot.id, &lot.vendor, &lot.open, &lot.rate, &lot.grn); err != nil {
 				rows.Close()
 				return 0, err
 			}
@@ -395,6 +397,7 @@ func settleMemoStockTx(tx *sql.Tx, tenantID, schema, docType, docID, userID stri
 			}
 			if _, seen := bills[lot.vendor]; !seen {
 				vendors = append(vendors, lot.vendor)
+				vendorGRN[lot.vendor] = lot.grn
 			}
 			bills[lot.vendor] = append(bills[lot.vendor], memoBillLine{SKU: l.SKU, Qty: take, Rate: PaiseToRupees(rate), Value: PaiseToRupees(value), paise: value})
 			salesRows[lot.vendor] = append(salesRows[lot.vendor], saleID)
@@ -418,20 +421,36 @@ func settleMemoStockTx(tx *sql.Tx, tenantID, schema, docType, docID, userID stri
 			total += b.paise
 		}
 		billID := NewDocID("VI")
+		gst, err := memoBillGST(tenantID, vendor, vendorGRN[vendor], bills[vendor])
+		if err != nil {
+			return 0, err
+		}
+		gross := total + gst.tax
 		doc := map[string]interface{}{
-			"code": billID, "invoice_number": billID, "vendor_id": vendor, "invoice_amount": PaiseToRupees(total),
+			"code": billID, "invoice_number": billID, "vendor_id": vendor, "invoice_amount": PaiseToRupees(gross),
 			"invoice_date": BusinessToday(), "financial_year": documentFinancialYear(time.Now()),
 			"status": "Matched", "source_doctype": docType, "source_doc_id": docID,
 			"memo_sale": memoYes, "memo_lines": bills[vendor], "payment_basis_exact": true,
+		}
+		debits := map[string]int64{"5100": total}
+		if gst.tax > 0 { // 148.16d: a registered vendor's input GST, booked as on any vendor bill
+			doc["gst_amount"], doc["gst_total"] = PaiseToRupees(gst.eligible), PaiseToRupees(gst.tax)
+			doc["itc_blocked_amount"], doc["taxable_amount"] = PaiseToRupees(gst.tax-gst.eligible), PaiseToRupees(gross-gst.eligible)
+			doc["interstate"] = gst.interstate
+			doc["gst_split"] = gst.split
+			debits["5100"] = total + gst.tax - gst.eligible
+			if gst.eligible > 0 {
+				debits["1500"] = gst.eligible
+			}
 		}
 		raw, _ := json.Marshal(doc)
 		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'VendorInvoice', $2, 'Matched', $3)`, schema),
 			billID, raw, userID); err != nil {
 			return 0, fmt.Errorf("the memo vendor bill could not be made: %w", err)
 		}
-		if total > 0 {
+		if gross > 0 {
 			if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", billID,
-				map[string]int64{"5100": total}, map[string]int64{"2100": total}, "",
+				debits, map[string]int64{"2100": gross}, "",
 				fmt.Sprintf("VendorInvoice:%s:MEMO_SALE", billID)); err != nil {
 				return 0, fmt.Errorf("memo cost posting failed: %w", err)
 			}
@@ -571,4 +590,46 @@ func memoSoldSKU(q queryRower, schema, sku string) bool {
 	}
 	var n int
 	return q.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.memo_stock_sales WHERE sku = $1`, schema), sku).Scan(&n) == nil && n > 0
+}
+
+type memoGST struct {
+	tax, eligible int64
+	interstate    bool
+	split         map[string]float64
+}
+
+// memoBillGST is the input GST on a memo sale's vendor bill (148.16d). The memo
+// rate is what the vendor quotes, so like a purchase order it is exclusive of GST:
+// the tax is added on top, at each item's rate. Only a vendor with a GSTIN is
+// charged; the supply type comes from the vendor's and the receiving store's states,
+// as for any purchase. Anyone else is left as before: no GST.
+func memoBillGST(tenantID, vendor, grnID string, lines []memoBillLine) (memoGST, error) {
+	var out memoGST
+	v, _, err := fetchDocData(tenantID, "Vendor", vendor)
+	if err != nil || strings.TrimSpace(strField(v, "gstin")) == "" {
+		return out, nil
+	}
+	if grn, _, gerr := fetchDocData(tenantID, "GRN", grnID); gerr == nil {
+		pos := ResolvePlaceOfSupply(tenantID, strField(grn, "location"), vendor)
+		out.interstate = pos.Derived && pos.Interstate
+	}
+	payload := map[string]interface{}{"vendor_id": vendor}
+	var gl []GSTLineInput
+	for _, l := range lines {
+		g := GSTLineInput{Sku: l.SKU, Qty: int(l.Qty), UnitRate: l.Rate}
+		purchaseLineITCInto(tenantID, payload, POLineInput{SKU: l.SKU}, &g)
+		gl = append(gl, g)
+	}
+	bd, err := ComputeGSTForLinesMode(tenantID, gl, out.interstate, GSTModeExclusive)
+	if err != nil {
+		return out, fmt.Errorf("the memo vendor bill's GST could not be worked out: %w", err)
+	}
+	out.tax = RupeesToPaise(bd.TotalTax)
+	blocked := RupeesToPaise(bd.BlockedTax)
+	if blocked > out.tax {
+		blocked = out.tax
+	}
+	out.eligible = out.tax - blocked
+	out.split = map[string]float64{"cgst": bd.CGST, "sgst": bd.SGST, "igst": bd.IGST}
+	return out, nil
 }

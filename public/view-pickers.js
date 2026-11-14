@@ -1022,7 +1022,7 @@ const FORM_SECTIONS = {
     { title: 'Design and variant', fields: ['family', 'parent_product_code', 'variant_option_values'] },
     { title: 'Batch, serial and expiry', fields: ['tracking_mode', 'grn_batch_number', 'shelf_life_days', 'min_shelf_life_on_receipt_days', 'min_shelf_life_on_pick_days'] },
     { title: 'Barcode and label', closed: true, fields: ['barcode_generate_at', 'barcode_per_receipt_date', 'gtin', 'sticker_template'] },
-    { title: 'Handling and storage', closed: true, fields: ['weight', 'volume', 'is_catch_weight', 'temperature_class', 'hazmat_class', 'country_of_origin'] },
+    { title: 'Handling and storage', closed: true, fields: ['weight', 'volume', 'is_catch_weight', 'temperature_class', 'hazmat_class', 'country_of_origin', 'skip_cycle_count'] },
     { title: 'Selling and accounting', closed: true, fields: ['commercial_class', 'free_with', 'sellability', 'bill_mode', 'capture_method', 'consumption_method', 'stock_tracking', 'valuation', 'accounting_treatment', 'expense_account'] }
   ]
 };
@@ -1222,7 +1222,10 @@ function wireAttributeDefForm(body) {
 // the server (POST /api/v1/lines/resolve - item code, id or barcode), and the
 // rows that match nothing LISTED back, never dropped. onRows gets
 // [{ sku, name, qty }] for the rows that matched, and adds them its own way.
-function parseLineCSV(text) {
+// With design: true (the purchase order) the template is Design Number,
+// Combination, Qty: the combination is the item, and a row whose item is not
+// in the design named on it is listed too.
+function parseLineCSV(text, design = false) {
   const rows = [];
   String(text || '').split(/\r?\n/).forEach(raw => {
     const line = raw.trim();
@@ -1230,11 +1233,14 @@ function parseLineCSV(text) {
     const cells = line.split(/[,;\t]/).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
     rows.push(cells);
   });
-  if (rows.length && isNaN(parseFloat(rows[0][1]))) rows.shift(); // the header
-  return rows.map(c => ({ code: c[0] || '', qty: parseFloat(c[1]) || 0 })).filter(r => r.code);
+  const q = design ? 2 : 1;
+  if (rows.length && isNaN(parseFloat(rows[0][q]))) rows.shift(); // the header
+  return rows.map(c => design
+    ? { design: c[0] || '', code: c[1] || '', qty: parseFloat(c[2]) || 0 }
+    : { code: c[0] || '', qty: parseFloat(c[1]) || 0 }).filter(r => r.code || r.design);
 }
 
-function openLineUpload({ title = 'Upload lines', template = 'lines', onRows }) {
+function openLineUpload({ title = 'Upload lines', template = 'lines', design = false, onRows }) {
   document.getElementById('line-upload-dialog')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
@@ -1258,7 +1264,7 @@ function openLineUpload({ title = 'Upload lines', template = 'lines', onRows }) 
   overlay.querySelectorAll('[data-lu-close]').forEach(b => b.addEventListener('click', close));
   overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   overlay.querySelector('[data-lu-template]').addEventListener('click', () => {
-    const blob = new Blob(['Barcode,Qty\r\n'], { type: 'text/csv' });
+    const blob = new Blob([design ? 'Design Number,Combination,Qty\r\n' : 'Barcode,Qty\r\n'], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `${template}-template.csv`;
@@ -1273,23 +1279,30 @@ function openLineUpload({ title = 'Upload lines', template = 'lines', onRows }) 
     ready = [];
     add.disabled = true;
     if (!file) return;
-    const rows = parseLineCSV(await file.text());
-    if (!rows.length) { summary.textContent = 'No lines found in that file - the first column is the barcode, the second the quantity.'; return; }
+    const all = parseLineCSV(await file.text(), design);
+    if (!all.length) { summary.textContent = design ? 'No lines found - columns: Design Number, Combination, Qty.' : 'No lines found - columns: Barcode, Qty.'; return; }
+    const noCombo = all.filter(r => !r.code).map(r => r.design);
+    const rows = all.filter(r => r.code);
     summary.textContent = 'Checking the codes...';
-    const res = await apiFetch('/api/v1/lines/resolve', { method: 'POST', body: JSON.stringify({ codes: rows.map(r => r.code) }) });
+    const res = rows.length ? await apiFetch('/api/v1/lines/resolve', { method: 'POST', body: JSON.stringify({ codes: rows.map(r => r.code) }) }) : { ok: true, json: async () => [] };
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'The codes could not be checked.'); summary.textContent = ''; return; }
     const resolved = await res.json();
     const missing = [];
     const badQty = [];
+    const otherDesign = [];
+    const sameDesign = (want, r) => !want || [r.design_number, r.design].some(v => v && v.toLowerCase() === want.toLowerCase());
     resolved.forEach((r, i) => {
       if (!r.found) missing.push(rows[i].code);
+      else if (design && !sameDesign(rows[i].design, r)) otherDesign.push(`${rows[i].code} (${r.design_number || 'no design'})`);
       else if (!(rows[i].qty > 0)) badQty.push(rows[i].code);
       else ready.push({ sku: r.sku, name: r.name, qty: rows[i].qty });
     });
     summary.innerHTML = `<b>${ready.length} line${ready.length === 1 ? '' : 's'} ready.</b>`
       + (missing.length ? `<div class="s-25f4ca">Not an item (${missing.length}): ${escapeHTMLText(missing.slice(0, 20).join(', '))}${missing.length > 20 ? ', ...' : ''}</div>` : '')
-      + (badQty.length ? `<div class="s-25f4ca">No quantity (${badQty.length}): ${escapeHTMLText(badQty.slice(0, 20).join(', '))}</div>` : '');
+      + (otherDesign.length ? `<div class="s-25f4ca">Not in that design (${otherDesign.length}): ${escapeHTMLText(otherDesign.slice(0, 20).join(', '))}${otherDesign.length > 20 ? ', ...' : ''}</div>` : '')
+      + (noCombo.length ? `<div class="s-25f4ca">No combination (${noCombo.length}): ${escapeHTMLText(noCombo.slice(0, 20).join(', '))}${noCombo.length > 20 ? ', ...' : ''}</div>` : '')
+      + (badQty.length ? `<div class="s-25f4ca">No quantity (${badQty.length}): ${escapeHTMLText(badQty.slice(0, 20).join(', '))}${badQty.length > 20 ? ', ...' : ''}</div>` : '');
     add.disabled = !ready.length;
   });
   add.addEventListener('click', () => guardAgainstDoubleSubmit(add, 'Adding...', async () => {

@@ -24,7 +24,7 @@ function detectionHtml(details) {
 function stat(label, value, bad) {
   return `<div class="table-panel s-96a620">
     <div class="s-8cadba">${esc(label)}</div>
-    <div style="font-size:15px; font-weight:600; color:${bad ? 'var(--danger-color)' : 'inherit'};">${esc(value)}</div>
+    <div class="u-fs15 u-fw6${bad ? ' u-bad' : ''}">${esc(value)}</div>
   </div>`;
 }
 
@@ -95,6 +95,7 @@ export async function renderSecurityPane(target) {
       <p class="s-5e0faa"><strong>No sign-in for ${esc(p.dormant_days)} days${p.dormant_auto_disable ? ' (auto-disable on)' : ''}:</strong> ${(p.dormant_accounts || []).length ? p.dormant_accounts.map(a => esc(a.username)).join(', ') : 'none'}</p>
       <p class="s-5e0faa"><strong>API keys:</strong> ${p.credentials.length ? p.credentials.map(c => `${esc(c.name)} (${esc(c.why)})`).join(', ') : 'none to review'}</p>
       <p class="s-5e0faa"><strong>Jobs given up (7 days):</strong> ${esc(p.dead_lettered_jobs_7d)}</p>
+      <p class="s-5e0faa"><strong>Sign-in friction (14 days):</strong> ${((f) => `${esc(f.locked || 0)} locked · ${esc(f.password_resets || 0)} password resets · ${esc(f.lost_authenticator || 0)} lost authenticator · ${esc(f.help_not_helpful || 0)} "not helpful" on sign-in help`)(p.sign_in_friction_14d || {})}</p>
     </div>
 
     <div class="table-panel s-ef1f18">
@@ -148,6 +149,7 @@ export async function renderSecurityPane(target) {
         <button class="btn btn-outline" data-sec="signout-all">Sign out everyone</button>
         <button class="btn ${p.exports_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze">${p.exports_frozen ? 'Unfreeze exports' : 'Freeze exports'}</button>
         <button class="btn ${p.integrations_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze-int">${p.integrations_frozen ? 'Unfreeze integrations' : 'Freeze integrations'}</button>
+        <button class="btn ${p.read_only ? 'btn-primary' : 'btn-outline'}" data-sec="read-only">${p.read_only ? 'End read-only' : 'Read-only'}</button>
       </div>
     </div>`;
 
@@ -198,13 +200,20 @@ export async function renderSecurityPane(target) {
   $('pack').addEventListener('click', async () => {
     const from = $('from').value, to = $('to').value;
     if (!from || !to) { showToast('Choose both dates.'); return; }
-    const res = await apiFetch(`/api/v1/admin/audit-logs/forensic-export?from=${from}&to=${to}`);
+    // 49.12.4: the pack is encrypted with a passphrase typed here, twice.
+    const pass = await showCustomPrompt('Passphrase (12+ characters)', '', 'Evidence pack', 'password');
+    if (pass == null) return;
+    if ([...pass].length < 12) { showToast('At least 12 characters.'); return; }
+    const again = await showCustomPrompt('Type it again', '', 'Evidence pack', 'password');
+    if (again == null) return;
+    if (again !== pass) { showToast('The passphrases differ.'); return; }
+    const res = await apiFetch(`/api/v1/admin/audit-logs/forensic-export?from=${from}&to=${to}`, { headers: { 'X-Evidence-Passphrase': encodeURIComponent(pass) } });
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'Could not build the evidence pack.'); return; }
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement('a');
     a.href = url;
-    a.download = `evidence-${from}-to-${to}.zip`;
+    a.download = `evidence-${from}-to-${to}.zip.enc`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -226,6 +235,11 @@ export async function renderSecurityPane(target) {
   $('freeze-int').addEventListener('click', async () => {
     const on = !p.integrations_frozen;
     if (await runControl('/api/v1/admin/security/freeze-integrations', { on }, on ? 'Freeze integrations' : 'Unfreeze integrations')) renderSecurityPane(target);
+  });
+  $('read-only').addEventListener('click', async () => {
+    const on = !p.read_only; // 49.12.3
+    if (on && !await showCustomConfirm('Refuse every change until you end it?', 'Read-only')) return;
+    if (await runControl('/api/v1/admin/security/read-only', { on }, on ? 'Read-only' : 'End read-only')) renderSecurityPane(target);
   });
   $('freeze').addEventListener('click', async () => {
     const on = !p.exports_frozen;

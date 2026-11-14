@@ -235,6 +235,37 @@ func PromiseForLine(tenantID, sku string, qty float64, location, channel string)
 		CutoffHour:  cutoffFor(GetSettingString(tenantID, SettingPromiseCutoffs), store, channel)}), nil
 }
 
+// OrderPromise is an order's promise from its lines' promises (73.4.2.1): the
+// latest line date, and only when every line has one. A line that cannot be
+// promised leaves the order without a date and names the item. Empty while the
+// setting is off (every line promise empty).
+func OrderPromise(skus []string, lines []PromiseResult) PromiseResult {
+	latest, any := "", false
+	var short []string
+	for i, p := range lines {
+		if p.Date == "" && p.Reason == "" {
+			continue
+		}
+		any = true
+		if p.Date == "" {
+			if i < len(skus) {
+				short = append(short, skus[i])
+			}
+			continue
+		}
+		if p.Date > latest {
+			latest = p.Date
+		}
+	}
+	switch {
+	case !any:
+		return PromiseResult{}
+	case len(short) > 0:
+		return PromiseResult{Reason: "no date for " + strings.Join(short, ", ")}
+	}
+	return PromiseResult{Date: latest, Reason: "latest line"}
+}
+
 // LatePromiseLines lists open order lines whose stored promise day has passed.
 func LatePromiseLines(tenantID string) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)

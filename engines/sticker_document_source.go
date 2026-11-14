@@ -43,6 +43,8 @@ func ResolveDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 		return resolveGRNStickerLines(tenantID, sourceDocID)
 	case "TransferOrder":
 		return resolveTransferOrderStickerLines(tenantID, sourceDocID)
+	case "SalesOrder":
+		return resolveSalesOrderStickerLines(tenantID, sourceDocID)
 	default:
 		// Stage 127.5 (user, 2026-10-21: "any new taxn should load properly
 		// in print"): any other transaction whose lines carry items.
@@ -101,6 +103,72 @@ func resolveGenericStickerLines(tenantID, doctype, id string) ([]DocStickerLine,
 	lines := make([]DocStickerLine, 0, len(order))
 	for _, k := range order {
 		lines = append(lines, *byLine[k])
+	}
+	return lines, nil
+}
+
+// resolveSalesOrderStickerLines (Stage 52.7): a sales order keeps its lines
+// as SalesOrderLine records, not in its own data, so the generic reader finds
+// none. One sticker per ordered unit; cancelled and returned lines are left
+// out, and two lines of one SKU print as one.
+func resolveSalesOrderStickerLines(tenantID, orderID string) ([]DocStickerLine, error) {
+	data, status, err := fetchDocData(tenantID, "SalesOrder", orderID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("no %s is numbered %q - pick one from the list under the box", humanizeDoctype("SalesOrder"), orderID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not load SalesOrder %s: %v", orderID, err)
+	}
+	if status == "Cancelled" {
+		return nil, fmt.Errorf("%s %s is cancelled", humanizeDoctype("SalesOrder"), orderID)
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	code := strField(data, "code")
+	if code == "" {
+		code = orderID
+	}
+	// length(id), id: SO-1-L2 before SO-1-L10, the order the lines were entered.
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT data, COALESCE(status, '') FROM %s.documents
+		 WHERE doctype = 'SalesOrderLine' AND deleted_at IS NULL AND data->>'order_id' IN ($1, $2)
+		 ORDER BY length(id), id`, schema), orderID, code)
+	if err != nil {
+		return nil, fmt.Errorf("could not load the lines of SalesOrder %s: %v", orderID, err)
+	}
+	defer rows.Close()
+	byLine := map[string]*DocStickerLine{}
+	var order []string
+	for rows.Next() {
+		var raw, lineStatus string
+		if err := rows.Scan(&raw, &lineStatus); err != nil {
+			return nil, err
+		}
+		l := map[string]interface{}{}
+		if json.Unmarshal([]byte(raw), &l) != nil {
+			continue
+		}
+		if st := strField(l, "line_status"); st == "Cancelled" || st == "Returned" || lineStatus == "Cancelled" {
+			continue
+		}
+		sku, qty := strField(l, "sku"), int(numFromInterface(l["qty"]))
+		if sku == "" || qty <= 0 {
+			continue
+		}
+		if existing, ok := byLine[sku]; ok {
+			existing.Qty += qty
+			continue
+		}
+		byLine[sku] = &DocStickerLine{SKU: sku, Qty: qty}
+		order = append(order, sku)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	lines := make([]DocStickerLine, 0, len(order))
+	for _, sku := range order {
+		lines = append(lines, *byLine[sku])
 	}
 	return lines, nil
 }
@@ -415,6 +483,12 @@ func SearchStickerSourceDocs(tenantID, doctype, q string, limit int, session Ses
 			expr := "COALESCE(" + strings.Join(parts, ", ") + ", NULL)"
 			if c.Value == "" && !c.AllowMissing {
 				where += " AND FALSE"
+				continue
+			}
+			if c.NeedsMultiValue() { // 170.20 / 170.26
+				cond, cargs := c.SQLCondition(expr, len(args)+1)
+				where += " AND " + cond
+				args = append(args, cargs...)
 				continue
 			}
 			args = append(args, c.Value)

@@ -42,7 +42,7 @@ function ceRender() {
       <td><div class="s-eed0f8">${ceEsc(l.name || l.sku)}</div><div class="s-40ab95">${ceEsc(l.sku)}${l.valuated ? '' : ' &middot; non-valuated'}</div></td>
       <td>${l.book}</td>
       <td><input type="number" min="0" step="1" class="form-input s-607468" data-ce-qty="${i}" value="${ceEsc(l.qty)}"></td>
-      <td style="${bad ? 'color:var(--danger-color, #b3261e); font-weight:600;' : ''}">${c === '' ? '' : c}</td>
+      <td class="${bad ? 'u-bad u-fw6' : ''}">${c === '' ? '' : c}</td>
       <td><button class="action-btn action-btn-danger" type="button" data-ce-remove="${i}">Remove</button></td>
     </tr>`;
   }).join('');

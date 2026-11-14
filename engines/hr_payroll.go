@@ -46,6 +46,12 @@ func esiWageCeilingFor(tenantID string) float64 {
 // SalaryStructure (HRPAYR-0154 if none is configured) and computes gross
 // pay plus the PF/ESI/PT statutory deductions.
 func CalculateSalaryComponents(tenantID, employeeID string) (*SalaryComponents, error) {
+	return CalculateSalaryComponentsFor(tenantID, employeeID, "")
+}
+
+// CalculateSalaryComponentsFor is the same as of a date: an Approved SalaryRevision
+// effective by asOf (170.25) overrides the structure. asOf "" ignores revisions.
+func CalculateSalaryComponentsFor(tenantID, employeeID, asOf string) (*SalaryComponents, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -66,6 +72,7 @@ func CalculateSalaryComponents(tenantID, employeeID string) (*SalaryComponents, 
 		return nil, err
 	}
 
+	applyApprovedRevision(tenantID, employeeID, asOf, d)
 	sc := &SalaryComponents{
 		Basic:           numFromInterface(d["basic"]),
 		HRA:             numFromInterface(d["hra"]),
@@ -109,7 +116,7 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 		return "", &ValidationError{Code: "HRPAYR-0150", Message: fmt.Sprintf("no attendance is recorded for employee %s between %s and %s - regularize attendance before running payroll", employeeID, periodFrom, periodTo)}
 	}
 
-	sc, err := CalculateSalaryComponents(tenantID, employeeID)
+	sc, err := CalculateSalaryComponentsFor(tenantID, employeeID, periodTo)
 	if err != nil {
 		return "", err
 	}
@@ -137,8 +144,20 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 		sc.Gross = round2(sc.Gross + PaiseToRupees(incentivePaise))
 	}
 
+	// 170.24: enrolled benefits and LWF (empty when none are set up).
+	extras, err := payslipExtras(tenantID, employeeID, periodFrom, periodTo, sc.Basic)
+	if err != nil {
+		return "", err
+	}
+	sc.Gross = round2(sc.Gross + extras.BenefitEarnings)
+
 	tdsAmount := 0.0
-	if _, netAfterTDS, terr := CalculateTDS(tenantID, "SALARY", sc.Gross); terr == nil {
+	taxRegime := ""
+	if slabTDS, regime, used, terr := salaryTDSBySlab(tenantID, employeeID, sc.Gross, sc.PT, periodFrom, periodTo); terr != nil {
+		return "", terr // 170.23: hr.tds_by_slab is on but the slab tables are not usable
+	} else if used {
+		tdsAmount, taxRegime = slabTDS, regime
+	} else if _, netAfterTDS, terr := CalculateTDS(tenantID, "SALARY", sc.Gross); terr == nil {
 		tdsAmount = sc.Gross - netAfterTDS
 	}
 
@@ -147,7 +166,7 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 		return "", err
 	}
 
-	netPay := sc.Gross - sc.PF - sc.ESI - sc.PT - tdsAmount - loanDeduction
+	netPay := sc.Gross - sc.PF - sc.ESI - sc.PT - tdsAmount - loanDeduction - extras.Deductions()
 	if netPay < 0 {
 		netPay = 0
 	}
@@ -186,6 +205,22 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 	}
 	if incentivePaise > 0 {
 		payload["incentive_pay"], payload["incentive_paise"] = PaiseToRupees(incentivePaise), incentivePaise
+	}
+	setIfNonZero := func(k string, v float64) {
+		if v != 0 {
+			payload[k] = v
+		}
+	}
+	setIfNonZero("lwf_deduction", extras.LWFEmployee)
+	setIfNonZero("lwf_employer", extras.LWFEmployer)
+	setIfNonZero("benefit_earnings", extras.BenefitEarnings)
+	setIfNonZero("benefit_deductions", extras.BenefitDeductions)
+	setIfNonZero("benefit_employer", extras.BenefitEmployer)
+	if len(extras.Lines) > 0 {
+		payload["benefit_lines"] = extras.Lines
+	}
+	if taxRegime != "" {
+		payload["tax_regime"] = taxRegime
 	}
 	marshaled, err := json.Marshal(payload)
 	if err != nil {
@@ -237,6 +272,10 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		return err
 	}
 	employeeID, _ := d["employee_id"].(string)
+	// Ask 170.19: with hr.exit_clearance_required on, a leaver's open exit checklist holds the final pay.
+	if err := CheckExitClearance(tenantID, employeeID); err != nil {
+		return err
+	}
 
 	var bankAccount string
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'bank_account_no', '') FROM %s.documents WHERE doctype = 'Employee' AND id = $1`, schema), employeeID).Scan(&bankAccount)
@@ -261,7 +300,9 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 	pt := RupeesToPaise(numFromInterface(d["pt_deduction"]))
 	tds := RupeesToPaise(numFromInterface(d["tds_deduction"]))
 	loanDed := RupeesToPaise(numFromInterface(d["loan_deduction"]))
-	netPay := gross - pf - esi - pt - tds - loanDed
+	lwfEmp, lwfEr := RupeesToPaise(numFromInterface(d["lwf_deduction"])), RupeesToPaise(numFromInterface(d["lwf_employer"]))
+	benDed, benEr := RupeesToPaise(numFromInterface(d["benefit_deductions"])), RupeesToPaise(numFromInterface(d["benefit_employer"]))
+	netPay := gross - pf - esi - pt - tds - loanDed - lwfEmp - benDed
 	if netPay < 0 {
 		return &ValidationError{Code: "HRPAYR-1322", Message: fmt.Sprintf("payslip %s: deductions (%.2f) are more than the gross pay (%.2f)", payslipID, PaiseToRupees(gross-netPay), PaiseToRupees(gross))}
 	}
@@ -285,14 +326,22 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 	if netPay == 0 {
 		delete(credits, "2400")
 	}
-	debits := map[string]int64{"5500": gross}
+	// 170.23 / 170.24: LWF and benefit deductions are held payable; the employer's own
+	// shares are an extra salary expense, credited to the same payables.
+	if lwfEmp+lwfEr > 0 {
+		credits["2404"] = lwfEmp + lwfEr
+	}
+	if benDed+benEr > 0 {
+		credits["2405"] = benDed + benEr
+	}
+	debits := map[string]int64{"5500": gross + lwfEr + benEr}
 	if inc := int64(numFromInterface(d["incentive_paise"])); inc > 0 {
 		// 148.30: the incentive was accrued earlier; the payslip clears the accrual, not the expense again.
 		if inc > gross {
 			return &ValidationError{Code: incentivePayoutCode, Message: "The incentive on this payslip is more than its gross pay."}
 		}
 		_, accruedAcct := incentiveAccounts(tenantID)
-		debits["5500"] = gross - inc
+		debits["5500"] = gross + lwfEr + benEr - inc
 		debits[accruedAcct] += inc
 		if debits["5500"] == 0 {
 			delete(debits, "5500")

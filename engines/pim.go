@@ -144,12 +144,16 @@ func fetchMandatoryFamilyAttributes(tenantID, family string) ([]familyAttribute,
 // extends it (Stage 26.4.1) with a locale/channel suffix for a scoped
 // override row - a distinct document per combination, never colliding with
 // the global row a blank locale+channel always resolves to.
-func attributeValueID(itemCode, attributeCode, locale, channelCode string) string {
+func attributeValueID(itemCode, attributeCode, locale, channelCode string, market ...string) string {
 	id := itemCode + "::" + attributeCode
-	if locale == "" && channelCode == "" {
-		return id
+	if locale != "" || channelCode != "" {
+		id += "::" + locale + "::" + channelCode
 	}
-	return id + "::" + locale + "::" + channelCode
+	// 47.13.4: a market's own value is its own row, a "::market" suffix on the above.
+	if len(market) > 0 && market[0] != "" {
+		id += "::" + market[0]
+	}
+	return id
 }
 
 // ResolveAttributeValue (Stage 26.4.1) returns the most specific
@@ -359,6 +363,11 @@ func CalculateCompleteness(tenantID, itemCode, locale, channelID string) (*Compl
 	attrs, err := fetchMandatoryFamilyAttributes(tenantID, family)
 	if err != nil {
 		return nil, err
+	}
+	if ruleIdx, rErr := loadCategoryRuleIndex(tenantID); rErr != nil { // 168.12: the item's category adds or drops attributes
+		return nil, rErr
+	} else {
+		attrs = ruleIdx.mergeAttrs(strField(data, "category"), attrs)
 	}
 	filledAttrs := make(map[string]bool, len(attrs))
 	for _, a := range attrs {
@@ -594,6 +603,10 @@ func ListWorkbenchSKUs(tenantID, familyFilter string, skus []string) ([]Workbenc
 		profiles[r[0]] = r
 	}
 
+	ruleIdx, err := loadCategoryRuleIndex(tenantID) // 168.12: once for the whole list
+	if err != nil {
+		return nil, err
+	}
 	out := make([]WorkbenchEntry, 0, len(itemRows))
 	var changedProfiles []map[string]interface{}
 	for _, r := range itemRows {
@@ -607,6 +620,7 @@ func ListWorkbenchSKUs(tenantID, familyFilter string, skus []string) ([]Workbenc
 		if family != "" {
 			attrs = familyAttrs[family]
 		}
+		attrs = ruleIdx.mergeAttrs(strField(data, "category"), attrs)
 		passed, total, missing := scoreCoreCompleteness(data, attrs, filledAttrs[id], approved[id], locale)
 		score := completenessScore(passed, total)
 

@@ -154,7 +154,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 ### 7.2 Privileged account misused, or a disabled user still acting
 
 - **Signs:** *Many role or user changes by one person*; *A disabled user acted after being disabled* (that one is a control failure - the session should already be dead).
-- **Contain:** sign that administrator out everywhere; if more than one account is involved, **Sign out everyone** (you stay signed in). Undo unexpected role changes from Users / Roles.
+- **Contain:** sign that administrator out everywhere; if more than one account is involved, **Sign out everyone** (you stay signed in). Undo unexpected role changes from Users / Roles. If records are still being changed and you need time to check them, **Read-only** on the same tab refuses every change for the business (sign-in, reads and exports stay open; 49.12.3) until **End read-only**.
 - **Keep:** evidence pack; the USER_MANAGEMENT and ROLE_PERMISSIONS rows (who changed what).
 - **Recover:** reset the account's password and 2FA; review every role it changed.
 - **Check:** Settings → Monitoring → Security Events shows no admin without 2FA; the disabled-user detection stays quiet.
@@ -212,7 +212,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 
 ### 7.11 Eradication and recovery (49.12.6)
 
-1. **Evidence first.** Settings → Monitoring → Security Events → **Evidence pack** for the incident window: a zip of the audit rows with their signatures, system errors, checkpoints, the releases live then and every migration's checksum, with a signed manifest. Collecting it changes nothing and is itself logged. Keep a copy off the ERP host.
+1. **Evidence first.** Settings → Monitoring → Security Events → **Evidence pack** for the incident window: a zip of the audit rows with their signatures, system errors, checkpoints, the releases live then and every migration's checksum, with a signed manifest, encrypted with a passphrase you type at download (admin guide, Evidence pack, gives the openssl command that opens it). Collecting it changes nothing and is itself logged. Keep a copy off the ERP host and the passphrase apart from it.
 2. **Entry and blast radius.** From the pack and **Trace a request** (the reference in any error message): which account, key or route, which clients, which records, since when.
 3. **Remove persistence.** Revoke every credential the attacker could have held - sessions (sign out everyone), API keys, connector credentials, and server keys if the host was reached. A compromised worker or integration is not reconnected until its credential is new.
 4. **Rebuild from trusted state.** Code from a release commit on origin, deployed by the Deploy click. Data from a backup that passes `-verify-restore`, when a restore is needed.

@@ -79,6 +79,7 @@ var tenantResetKeep = map[string]string{
 	"security_export_config":       "the security-event export destination and its cursor (Stage 49.11.6)",
 	"notification_matrix_versions": "evidence: the notification matrix, every version (Stage 49.12.5)",
 	"notification_decisions":       "evidence: incident notification decisions (Stage 49.12.5)",
+	"retention_policies":           "how long each record type is kept, read by the purge jobs (170.38)",
 }
 
 // tenantResetClear are emptied.
@@ -207,6 +208,10 @@ var tenantResetClear = map[string]string{
 	"store_app_devices":      "store app devices (the stores are removed)",
 	"web_push_subscriptions": "browser alert sign-ups (asked again)",
 	"web_push_seen":          "browser alerts already sent",
+	// Ask 170.
+	"bank_match_parts":         "bank statement part-matches (170.2)",
+	"payment_bank_response":    "banks' responses to payment files (170.4)",
+	"production_confirmations": "production operation confirmations (170.10)",
 }
 
 // tenantResetSeedDoctypes are the reference records the app ships into every

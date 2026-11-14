@@ -91,6 +91,12 @@ func init() {
 		Min:         settingBound(60),
 		Description: "How long an online/channel stock reservation is held before it expires and the stock is released back to available.",
 	})
+	RegisterSetting(SettingDefinition{
+		Key: "inventory.assortment_enforce", Module: "Inventory",
+		Label: "Store range", Type: SettingTypeSelect, Default: "off",
+		Options:     []SettingOption{{Value: "off", Label: "Off"}, {Value: "warn", Label: "Warn"}, {Value: "block", Label: "Block"}},
+		Description: "A store or channel with range rows warns or refuses items outside its range on a new PO, a transfer in, a sale and a channel order. Stores with no rows are never checked.",
+	})
 	// Stage 57.7: barcode policy - see engines/barcode_policy.go.
 	RegisterSetting(SettingDefinition{
 		Key: "inventory.barcode_generate_at", Module: "Inventory",
@@ -630,6 +636,11 @@ func registerStage282Settings() {
 		Label: "Freeze integrations (emergency)", Type: SettingTypeBool, Default: "false",
 		Description: "Stage 49.12.3: while on, every outside call for this business is refused (connectors, couriers, webhooks, hooks, email) and its inbound webhooks are turned away. For a leaked key or a runaway integration; turn it off to undo. Set it from Settings → Monitoring → Security Events so a reason is recorded.",
 	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingReadOnly, Module: "Security",
+		Label: "Read-only mode (emergency)", Type: SettingTypeBool, Default: "false",
+		Description: "Stage 49.12.3: while on, people can sign in, sign out and look at everything, but every change is refused for this business and a banner says so. Scheduled jobs keep running. For an incident while records are checked; turn it off to undo. Set it from Settings → Monitoring → Security Events so a reason is recorded.",
+	})
 	// Stage 49.2.1 / 49.2.6: identity lifecycle sweeps (identity_lifecycle.go).
 	// Off by default - nothing is disabled or revoked until an admin picks a
 	// period. The shortest account period (60 days) is longer than the longest
@@ -732,6 +743,24 @@ func registerStage282Settings() {
 		Label: "Default list page size", Type: SettingTypeInt, Default: "500", Unit: "rows",
 		Min: settingBound(1), Max: settingBound(5000),
 		Description: "How many rows a list endpoint returns when the caller requests no explicit limit, so a list can never be unbounded.",
+	})
+	// 34.4: off. Only a full-access role sees or changes Platform settings.
+	RegisterSetting(SettingDefinition{
+		Key: SettingMyntraHarvest, Module: "Platform",
+		Label: "Collect Myntra market prices", Type: SettingTypeBool, Default: "false",
+		Description: "When on, an admin can start a slow, robots.txt-respecting collection of public Myntra prices from PIM > Reports. Turning it on means this client accepts Myntra's terms risk.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingMyntraHarvestMaxPages, Module: "Platform",
+		Label: "Myntra pages per run", Type: SettingTypeInt, Default: "20", Unit: "pages",
+		Min: settingBound(1), Max: settingBound(50),
+		Description: "Hard cap on pages fetched from Myntra in one run. Pages already saved for the day do not count.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingMyntraHarvestInterval, Module: "Platform",
+		Label: "Seconds between Myntra requests", Type: SettingTypeInt, Default: "5", Unit: "seconds",
+		Min: settingBound(5), Max: settingBound(60),
+		Description: "One request at a time, never closer together than this. Never below 5.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.max_list_limit", Module: "Platform",

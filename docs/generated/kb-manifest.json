@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.23.0",
+  "release": "0.24.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "a18aa22fbc7a34c216245c75e9b300b6d1921959401f0f5d39a9e04c13c513e0",
+      "sha256": "7c99f8455d4737f5969f585e41aa170a7ed9eba7792c91f76fea27a85f59d722",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -100,7 +100,16 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-3.html",
-      "sha256": "6d2aed0b088a82fbb58174943f30752879ce95bd0d97a8315604e63e95f049e8",
+      "sha256": "de732224793aad048ff9b26b98af238f4769bab5e79fb218300fa538c369eca0",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/error-code-reference-4.html",
+      "sha256": "3384ac50ae1e481ab62699ed85ac06a141796faddf26ed6785c289556b7ee77c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -109,7 +118,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "27db8f2355aab785c85972db70dfa57d2636d14e088a68e91ec53ac8a0d701af",
+      "sha256": "88d9e17789331e75829bc0ba94ccb27edceeeba7ca5e3886e052e53991c58df0",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -145,7 +154,7 @@
     },
     {
       "path": "internal/kb/content/articles/finance-tax.html",
-      "sha256": "4e066e40c3758fb5427af6a7ab5e704e8c799cade53ba7b39fcf38ceb155c9ee",
+      "sha256": "d044c7e5c4d277aae83f311c747e8a55fec6ed33eeb3a652cc5cf50804fcaf0a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -199,7 +208,7 @@
     },
     {
       "path": "internal/kb/content/articles/incident-response.html",
-      "sha256": "03ffafd71b2f3c07aaf3dfff74e9a389f6d00f3a8e47d16e89e141b1c56510af",
+      "sha256": "86ee1b79ddf901a4a18c683b0ce89b943fc385baa5e03c89ba28effc47a4f724",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -325,7 +334,7 @@
     },
     {
       "path": "internal/kb/content/articles/pim-pxm.html",
-      "sha256": "bf36887a8d846d5b3c8af4b0193085be88a53811f8d0cf6b32e3fa7a862d907d",
+      "sha256": "c040ac67bb06ae31abf5be324c9abbffbe5c5c38a28d565f11184c7251d96596",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -397,7 +406,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "6062c130ad5eb98901974a02fd74fab3c7de32eedacea4752acc00c4c24ab7b3",
+      "sha256": "d66af4119464a6a812a6d704adf3cf30cbb4fb36316a8c0e09b124c4a9bc379e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -406,7 +415,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-3.html",
-      "sha256": "3a7c182513011394467eb4c75d1a1fc9a39933c5ad629904ef43e7cda7b2af25",
+      "sha256": "ae0ea3d6bfd3405d8688e89539510d7b6929e879dc00b2f72abcb8812fbbc2a5",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -415,7 +424,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "59be20be58c7533c53dd9b39f29bb8cb055094b189386f938bc80ec80e8c520d",
+      "sha256": "4b81998c498ff678ea5a5fe6b900465fb3f56532ff5ada13c56558161e43ee06",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -424,7 +433,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-2.html",
-      "sha256": "153fd55b36509413986e6be13e5c92d833228c2e8cbcf49ed239c7fbdbfedd05",
+      "sha256": "51133a5d39fccdd03e7dc99cfa465a8227622ce5786a589c02207e72f47983b3",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -433,7 +442,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-3.html",
-      "sha256": "e2f79303e6cc7660c21ce6e05e59b95df06376b2dd135757451b076a81e25e38",
+      "sha256": "17479b7acf901248c8f6b9bd9a5bec93615a3d3db1a01f3e34e332ff8e149404",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -442,7 +451,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-4.html",
-      "sha256": "f778d5c205ceb8add0172b9dd6e37c570d7403a1fccb95d9d684389fc2bd192c",
+      "sha256": "2c7d0fd5ab94a8d1516e159f1029dec25099cbbf6905aea5148817f54c0cdb03",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -451,7 +460,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "732c5a78895d9cd6ccc41741f8a105403cf9b5253a785de34df7be2f3be5e799",
+      "sha256": "1934c93b8b744de4f271e9c50cc9dd1c32f31ad53c834f4ed673f0c7f00c11b7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -568,7 +577,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "5428b4d290cd60f8acbb638c22a2fd9bb61413751c5830c29baf8e801b75c7e2",
+      "sha256": "ea203555b8422305404748bcf2be693ec7ebb559307a2fc50bf24d3753f4807c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -577,7 +586,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "c0a602bdb67a0103496ef2c726a7a7c2f983d2201c265827e6e211a5d1ff51bc",
+      "sha256": "136ce25ba36a11203af2f8d0bf81a6d54628ae0d7ea8fa9839ad6bb8e6b658bc",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

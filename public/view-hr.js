@@ -13,21 +13,24 @@ const HR_TABS = [
   { id: 'roster', label: 'Shift Roster' },
   { id: 'payroll', label: 'Payroll' },
   { id: 'loans', label: 'Loans/Advances' },
+  { id: 'payroll-tax', label: 'Tax & Benefits' },
   { id: 'onboarding', label: 'Onboarding/Offboarding' },
   { id: 'appraisals', label: 'Appraisals' },
+  { id: 'calibration', label: 'Calibration' },
   { id: 'training', label: 'Training' },
   { id: 'grievances', label: 'Grievances' },
+  { id: 'people', label: 'People' },
   { id: 'my-requests', label: 'My Requests' }
 ];
 // Stage 55.14: the doctype each tab reads, for hiding what a role cannot open.
 const HR_TAB_DOCTYPE = {
   attendance: 'Attendance', leave: 'Leave', roster: 'ShiftAssignment', payroll: 'Payslip',
   'payroll-export': 'Payslip', loans: 'EmployeeLoan', onboarding: 'OnboardingChecklist',
-  appraisals: 'Appraisal', training: 'TrainingRecord', grievances: 'Grievance'
+  calibration: 'Appraisal', 'payroll-tax': 'Payslip', appraisals: 'Appraisal', training: 'TrainingRecord', grievances: 'Grievance', people: 'Employee'
 };
 // Payroll runs, exports and loans are the hr.payroll capability's (the server
 // refuses every one of their commands without it).
-const HR_PAYROLL_TABS = ['payroll', 'payroll-export', 'loans'];
+const HR_PAYROLL_TABS = ['payroll', 'payroll-export', 'loans', 'payroll-tax'];
 const hrCanRunPayroll = () => state.permissions.isAdmin || state.permissions.capabilities.has('hr.payroll');
 // Stage 151: each tab is its own HRM sidebar entry ("hr:<tab>"), so the tab strip is gone.
 const hrMenuId = tab => tab === 'my-requests' ? 'menu-hr' : `menu-hr-${tab}`;
@@ -78,12 +81,18 @@ async function renderHRView(container) {
     // template) is a Master, managed under Setup like every other master -
     // this tab is the per-employee Appraisal transactions against it.
     await renderAppraisalsTab(container);
+  } else if (currentHRTab === 'calibration' || currentHRTab === 'payroll-tax') {
+    // Ask 170 group F: view-hr-pay-extras.js
+    const extras = await import('./view-hr-pay-extras.js' + new URL(import.meta.url).search);
+    await (currentHRTab === 'calibration' ? extras.renderCalibrationTab(container) : extras.renderTaxBenefitsTab(container));
   } else if (currentHRTab === 'training') {
     // TrainingProgram is a Master (managed under Setup); this tab is the
     // per-employee enrolment/completion records against it.
     await renderTrainingTab(container);
   } else if (currentHRTab === 'grievances') {
     await renderGrievancesTab(container);
+  } else if (currentHRTab === 'people') {
+    await (await import('./view-hr-people.js' + new URL(import.meta.url).search)).renderHRPeopleTab(container);
   } else if (currentHRTab === 'my-requests') {
     await renderMyRequestsTab(container);
   }
@@ -984,8 +993,6 @@ async function submitMyExpenseClaimInner(employee) {
 const hrEsc = s => escapeHTMLText(String(s ?? ''));
 const hrBadge = (text, kind) => `<span class="badge badge-${kind}">${hrEsc(text)}</span>`;
 const hrStepDone = s => !!s && (s.done === true || s.done === 'true' || s.done === 'yes');
-const hrBar = 'display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px;';
-const hrMuted = 'color:var(--text-muted);font-size:13px;';
 
 async function hrGetJSON(url, fallback) {
   const res = await apiFetch(url);
@@ -1092,7 +1099,7 @@ const hrRoleName = role => (/^hr\s*\/\s*admin$/i.test(role || '') ? 'Super Admin
 function hrHistory(log, showComments) {
   if (!log || log.length === 0) return '';
   const verb = { Submitted: 'Submitted', Approved: 'Approved', Rejected: 'Returned', Modified: 'Edited after approval' };
-  return `<h3 class="s-e583f8">History</h3><ul style="margin:0 0 0 20px;padding:0;${hrMuted}">${log.map(e =>
+  return `<h3 class="s-e583f8">History</h3><ul class="hr-muted hr-hist">${log.map(e =>
     `<li>${hrEsc(verb[e.action] || e.action)} by ${hrEsc(e.actor_user_id)} (${hrEsc(hrRoleName(e.actor_role))}) · ${hrEsc(hrWhen(e.created_at))}${showComments && e.comment ? ` - ${hrEsc(e.comment)}` : ''}</li>`).join('')}</ul>`;
 }
 
@@ -1136,7 +1143,7 @@ async function renderOnboardingTab(container) {
     const empty = records.length === 0
       ? (canCreate ? 'No onboarding or offboarding checklists yet. Click <b>+ New checklist</b> to start one for an employee.' : 'No onboarding or offboarding checklist has been started for you.')
       : 'No checklist matches these filters.';
-    listPanel.innerHTML = `<div style="${hrBar}">
+    listPanel.innerHTML = `<div class="hr-bar">
         ${hrSelect('hr-onb-ftype', 'Type', [['', 'All'], ['Onboarding', 'Onboarding'], ['Offboarding', 'Offboarding']], hrOnbFilter.type, '150px')}
         ${hrSelect('hr-onb-fstatus', 'Status', [['', 'All'], ['In Progress', 'In Progress'], ['Completed', 'Completed']], hrOnbFilter.status, '150px')}
       </div>
@@ -1144,7 +1151,7 @@ async function renderOnboardingTab(container) {
       ${rows.length === 0 ? `<tr><td colspan="7" class="s-306094">${empty}</td></tr>` : rows.map(r => {
         const p = progressOf(r);
         return `<tr><td class="s-72126d">${hrEsc(r.code || r.id)}</td><td>${hrEsc(emps.name(r.employee_id))}</td>
-          <td>${hrEsc(r.checklist_type)}</td><td>${p ? hrProgress(p.done, p.total) : `<span style="${hrMuted}">steps not readable</span>`}</td>
+          <td>${hrEsc(r.checklist_type)}</td><td>${p ? hrProgress(p.done, p.total) : `<span class="hr-muted">steps not readable</span>`}</td>
           <td>${hrBadge(r.status, r.status === 'Completed' ? 'success' : 'warning')}</td><td>${hrEsc(String(r.updated_at || '').slice(0, 10))}</td>
           <td><button class="action-btn" data-hr-onb-open="${hrEsc(r.id)}">Open</button></td></tr>`;
       }).join('')}</tbody></table>`;
@@ -1191,19 +1198,19 @@ ${employeePickerField('hr-onb-employee', '220px')}
       <h2 class="s-db89ac">${hrEsc(r.checklist_type)} · ${hrEsc(emps.name(r.employee_id))}</h2>
       <div class="s-93c58b">
         <span class="s-72126d">${hrEsc(r.code || r.id)}</span>${hrBadge(r.status, r.status === 'Completed' ? 'success' : 'warning')}${p ? hrProgress(p.done, p.total) : ''}</div>
-      ${steps ? `<ol class="s-53277b">${steps.length === 0 ? `<li style="${hrMuted}">No steps yet.</li>` : steps.map((s, i) => `
+      ${steps ? `<ol class="s-53277b">${steps.length === 0 ? `<li class="hr-muted">No steps yet.</li>` : steps.map((s, i) => `
         <li class="s-fdf33f"><label class="s-c4a525">
           <input type="checkbox" data-hr-onb-tick="${i}"${hrStepDone(s) ? ' checked' : ''}${canUpdate ? '' : ' disabled'}>
           <span>${hrEsc(s && (s.task ?? s.name ?? ''))}</span></label>
-          ${hrStepDone(s) ? `<span style="${hrMuted}margin-left:8px;">${s.done_by ? `Done by ${hrEsc(s.done_by)}${s.done_at ? ` · ${hrEsc(hrWhen(s.done_at))}` : ''}` : 'Done (who and when not recorded)'}</span>` : ''}</li>`).join('')}</ol>`
-        : `<p style="${hrMuted}">These steps are not a step list:</p><pre class="s-a548ea">${hrEsc(r.items)}</pre>
+          ${hrStepDone(s) ? `<span class="hr-muted hr-ml8">${s.done_by ? `Done by ${hrEsc(s.done_by)}${s.done_at ? ` · ${hrEsc(hrWhen(s.done_at))}` : ''}` : 'Done (who and when not recorded)'}</span>` : ''}</li>`).join('')}</ol>`
+        : `<p class="hr-muted">These steps are not a step list:</p><pre class="s-a548ea">${hrEsc(r.items)}</pre>
           ${canUpdate ? '<button class="btn btn-outline btn-sm" id="hr-onb-convert">Use as steps (one per line)</button>' : ''}`}
       ${steps && canUpdate ? `<div class="s-229350">
         <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-newstep">Add a step</label>
         <input type="text" id="hr-onb-newstep" class="form-input s-83d1d8" autocomplete="off"></div>
         <button class="btn btn-outline" id="hr-onb-newstep-btn">Add step</button></div>` : ''}
       <h3 class="s-e583f8">Documents</h3>
-      ${docs.length ? `<ul class="s-b71f2e">${docs.map(d => `<li>${docLink(d)}</li>`).join('')}</ul>` : `<p style="${hrMuted}">No documents attached.</p>`}
+      ${docs.length ? `<ul class="s-b71f2e">${docs.map(d => `<li>${docLink(d)}</li>`).join('')}</ul>` : `<p class="hr-muted">No documents attached.</p>`}
       ${canUpdate ? `<div class="s-e42572">
         <div class="form-group s-ef0b7a"><label class="form-label" for="hr-onb-docname">Document</label>
         <input type="text" id="hr-onb-docname" class="form-input s-2acaf3" autocomplete="off"></div>
@@ -1367,12 +1374,12 @@ async function renderAppraisalsTab(container) {
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
   const shown = rows.filter(r => !hrAprFilter || stateOf(r) === hrAprFilter);
-  listPanel.innerHTML = `<div style="${hrBar}">
+  listPanel.innerHTML = `<div class="hr-bar">
       ${hrSelect('hr-apr-cycle', 'Appraisal cycle', cycles.length ? cycles.map(c => [c.id, cycleLabel(c)]) : [['', 'No cycles yet']], hrAprCycleId, '340px')}
       ${hrSelect('hr-apr-filter', 'Status', [['', 'All'], ...Object.keys(HR_APR_STATE).map(s => [s, HR_APR_STATE[s][0]])], hrAprFilter, '200px')}
       ${canCreateDoctype('AppraisalCycle') ? '<button type="button" class="btn btn-outline" id="hr-apr-cycles">Manage cycles</button>' : ''}
     </div>
-    ${cycle ? `<div style="padding:0 16px 12px;${hrMuted}">${mine ? '' : `KRAs: ${kras.length ? kras.map(k => `${hrEsc(k.kra)} (${hrEsc(k.weight)})`).join(', ') : 'none set on this cycle'} · `}${counts}</div>` : ''}
+    ${cycle ? `<div class="hr-muted hr-pad">${mine ? '' : `KRAs: ${kras.length ? kras.map(k => `${hrEsc(k.kra)} (${hrEsc(k.weight)})`).join(', ') : 'none set on this cycle'} · `}${counts}</div>` : ''}
     <table><thead><tr><th>Employee</th><th>Department</th><th>Status</th><th>Overall</th><th>Appraisal</th><th></th></tr></thead><tbody>
     ${!cycle ? `<tr><td colspan="6" class="s-306094">${mine ? 'No appraisal of yours has been started yet.' : canCreateDoctype('AppraisalCycle') ? 'No appraisal cycles yet. Use <b>Manage cycles</b> to set one up with its KRAs.' : 'No appraisal cycle has been set up yet.'}</td></tr>`
       : shown.length === 0 ? `<tr><td colspan="6" class="s-306094">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'No appraisal of yours in this cycle yet.') : 'No employee matches this status.'}</td></tr>`
@@ -1446,12 +1453,12 @@ async function drawAppraisalEditor(pane, ctx, a, employee) {
       <div class="form-group s-19f924"><label class="form-label" for="hr-apr-comments">Manager Comments</label>
         ${drafting || reviewing ? `<textarea id="hr-apr-comments" class="form-input" rows="2">${hrEsc(a && a.comments)}</textarea>` : `<div>${hrEsc(a && a.comments)}</div>`}</div>
     </div>
-    <div id="hr-apr-weighted" style="${hrMuted}margin-top:8px;"></div>
+    <div id="hr-apr-weighted" class="hr-muted hr-mt8"></div>
     <div class="s-72e25a">
       ${drafting ? `<button class="btn btn-outline" data-hr-apr-act="draft">Save draft</button><button class="btn btn-primary" data-hr-apr-act="submit">Submit for review</button>` : ''}
       ${reviewing && !ownSubmission ? `<button class="btn btn-outline" data-hr-apr-act="save">Save review</button><button class="btn btn-primary" data-hr-apr-act="approve">Approve review</button><button class="btn btn-outline" data-hr-apr-act="return">Return for changes</button>` : ''}
     </div>
-    ${a && status === 'Pending Approval' && (!reviewing || ownSubmission) ? `<p style="${hrMuted}margin-top:12px;">${ownSubmission ? `You submitted this appraisal, so another reviewer (${hrEsc(reviewer1)} or Super Admin) approves it.` : `Waiting for review by ${hrEsc(reviewer1)}.`}</p>` : ''}
+    ${a && status === 'Pending Approval' && (!reviewing || ownSubmission) ? `<p class="hr-muted hr-mt12">${ownSubmission ? `You submitted this appraisal, so another reviewer (${hrEsc(reviewer1)} or Super Admin) approves it.` : `Waiting for review by ${hrEsc(reviewer1)}.`}</p>` : ''}
     ${hrHistory(log, true)}
     <div id="hr-apr-error-${a ? 'open' : 'new'}" class="login-error hidden s-1b0f49"></div></div>`;
 
@@ -1575,13 +1582,13 @@ async function renderTrainingTab(container) {
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
-  listPanel.innerHTML = `<div style="${hrBar}">
+  listPanel.innerHTML = `<div class="hr-bar">
       ${hrSelect('hr-trn-program', 'Training program', programs.length ? programs.map(p => [p.id, `${p.code || p.id}${p.category ? ` · ${p.category}` : ''}${p.status === 'Inactive' ? ' · Inactive' : ''}`]) : [['', 'No programs yet']], hrTrnProgramId, '300px')}
       ${hrSelect('hr-trn-filter', 'Status', [['', 'All'], ...Object.keys(HR_TRN_STATE).map(s => [s, HR_TRN_STATE[s][0]])], hrTrnFilter, '170px')}
       ${canCreateDoctype('TrainingProgram') ? '<button type="button" class="btn btn-outline" id="hr-trn-programs">Manage programs</button>' : ''}
       ${canCreate && program ? '<button type="button" class="btn btn-outline" id="hr-trn-bulk" disabled>Enrol selected</button>' : ''}
     </div>
-    ${program ? `<div style="padding:0 16px 12px;${hrMuted}">${program.description ? `${hrEsc(program.description)} · ` : ''}${Object.keys(HR_TRN_STATE).map(s => `${HR_TRN_STATE[s][0]} ${rows.filter(r => stateOf(r) === s).length}`).join(' · ')}</div>` : ''}
+    ${program ? `<div class="hr-muted hr-pad">${program.description ? `${hrEsc(program.description)} · ` : ''}${Object.keys(HR_TRN_STATE).map(s => `${HR_TRN_STATE[s][0]} ${rows.filter(r => stateOf(r) === s).length}`).join(' · ')}</div>` : ''}
     <table><thead><tr>${canCreate ? '<th class="s-82b9d8"></th>' : ''}<th>Employee</th><th>Department</th><th>Status</th><th>Completed on</th><th>Score</th><th></th></tr></thead><tbody>
     ${!program ? `<tr><td colspan="7" class="s-306094">${mine ? 'You are not enrolled in any training yet.' : canCreateDoctype('TrainingProgram') ? 'No training programs yet. Use <b>Manage programs</b> to add one.' : 'No training program has been set up yet.'}</td></tr>`
       : shown.length === 0 ? `<tr><td colspan="7" class="s-306094">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'You are not enrolled in this program.') : 'No employee matches this status.'}</td></tr>`
@@ -1626,7 +1633,7 @@ ${employeePickerField('hr-trn-employee', '240px')}
     if (!r) return false;
     open.innerHTML = `<div class="table-panel s-ddaf9e">
       <h2 class="s-db89ac">Record result · ${hrEsc(emps.name(r.employee_id))}</h2>
-      <div style="${hrMuted}margin-bottom:16px;">${hrEsc(program.code || program.id)} · <span class="s-72126d">${hrEsc(r.code || r.id)}</span></div>
+      <div class="hr-muted hr-mb16">${hrEsc(program.code || program.id)} · <span class="s-72126d">${hrEsc(r.code || r.id)}</span></div>
       <div class="s-97380c">
         ${hrSelect('hr-trn-outcome', 'Result', [['Completed', 'Completed'], ['Failed', 'Failed']], 'Completed', '150px')}
         <div class="form-group s-ef0b7a"><label class="form-label" for="hr-trn-date">Completion Date</label>
@@ -1724,9 +1731,9 @@ async function renderGrievancesTab(container) {
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
-  listPanel.innerHTML = `<div style="${hrBar}">
+  listPanel.innerHTML = `<div class="hr-bar">
       ${hrSelect('hr-grv-filter', 'Status', [['', 'All'], ...Object.keys(HR_GRV_STATE).map(s => [s, HR_GRV_STATE[s][0]])], hrGrvFilter, '200px')}</div>
-    ${access ? `<div id="hr-grv-access" style="padding:0 16px 12px;${hrMuted}">${hrEsc(hrGrievanceAccessText(access))}<br>${hrEsc(hrGrievanceYouText(access))}</div>` : ''}
+    ${access ? `<div id="hr-grv-access" class="hr-muted hr-pad">${hrEsc(hrGrievanceAccessText(access))}<br>${hrEsc(hrGrievanceYouText(access))}</div>` : ''}
     <table><thead><tr><th>Case</th><th>Employee</th><th>Category</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>
     ${shown.length === 0 ? `<tr><td colspan="6" class="s-306094">${records.length === 0 ? (you.all_cases ? 'No grievances have been raised.' : 'You have raised no grievance. Raise one from My Requests.') : 'No case matches this status.'}</td></tr>`
       : shown.map(r => {
@@ -1744,7 +1751,7 @@ ${employeePickerField('hr-grv-employee', '220px')}
       ${hrSelect('hr-grv-category', 'Category', ['Harassment', 'Compensation', 'Workplace Safety', 'Discrimination', 'Other'].map(c => [c, c]), 'Harassment', '180px')}</div>
     <div class="form-group s-efea5f"><label class="form-label" for="hr-grv-desc">Description</label>
       <textarea id="hr-grv-desc" class="form-input" rows="4"></textarea></div>
-    ${access ? `<div style="${hrMuted}margin-top:8px;">${hrEsc(hrGrievanceAccessText(access))}</div>` : ''}
+    ${access ? `<div class="hr-muted hr-mt8">${hrEsc(hrGrievanceAccessText(access))}</div>` : ''}
     <div class="s-1b0f49"><button class="btn btn-primary" id="hr-grv-save">Raise and send to HR</button></div>
     <div id="hr-grv-error" class="login-error hidden s-1b0f49"></div>`;
 
@@ -1756,7 +1763,7 @@ ${employeePickerField('hr-grv-employee', '220px')}
     if (!r) return false;
     const [label, kind] = HR_GRV_STATE[r.status] || [r.status, 'secondary'];
     const deciding = r.status === 'Pending Approval' && you.decide;
-    const hidden = `<span style="${hrMuted}">Hidden from your role - only ${hrEsc(access ? access.content_readers.join(', ') : 'Super Admin')} can read it.</span>`;
+    const hidden = `<span class="hr-muted">Hidden from your role - only ${hrEsc(access ? access.content_readers.join(', ') : 'Super Admin')} can read it.</span>`;
     open.innerHTML = `<div class="table-panel s-ddaf9e">
       <h2 class="s-db89ac">Grievance ${hrEsc(r.code || r.id)}</h2>
       <div class="s-93c58b">${hrBadge(label, kind)}
@@ -1765,12 +1772,12 @@ ${employeePickerField('hr-grv-employee', '220px')}
         <div class="s-a548ea">${you.read_content ? hrEsc(r.description) : hidden}</div></div>
       <div class="form-group"><label class="form-label" for="hr-grv-notes">Resolution Notes</label>
         ${deciding && you.write_notes ? `<textarea id="hr-grv-notes" class="form-input" rows="4">${hrEsc(r.resolution_notes)}</textarea>`
-          : `<div class="s-a548ea">${you.read_content ? (hrEsc(r.resolution_notes) || `<span style="${hrMuted}">None yet.</span>`) : hidden}</div>`}</div>
+          : `<div class="s-a548ea">${you.read_content ? (hrEsc(r.resolution_notes) || `<span class="hr-muted">None yet.</span>`) : hidden}</div>`}</div>
       <div class="s-b32917">
         ${r.status === 'Draft' && canUpdateDoctype('Grievance') ? '<button class="btn btn-primary" data-hr-grv-act="send">Send to HR</button>' : ''}
         ${deciding ? '<button class="btn btn-primary" data-hr-grv-act="Approved">Resolve - actioned</button><button class="btn btn-outline" data-hr-grv-act="Rejected">Close - no action</button>' : ''}
       </div>
-      ${r.status === 'Pending Approval' && !you.decide ? `<p style="${hrMuted}">With HR - decided by ${hrEsc(access ? hrRoleName(access.reviewer_role) || 'Super Admin' : 'Super Admin')}.</p>` : ''}
+      ${r.status === 'Pending Approval' && !you.decide ? `<p class="hr-muted">With HR - decided by ${hrEsc(access ? hrRoleName(access.reviewer_role) || 'Super Admin' : 'Super Admin')}.</p>` : ''}
       <div id="hr-grv-history"></div>
       <div id="hr-grv-open-error" class="login-error hidden s-1b0f49"></div></div>`;
     hrGetJSON(`/api/v1/approval/log?doctype=Grievance&document_id=${encodeURIComponent(r.id)}`, []).then(log => {

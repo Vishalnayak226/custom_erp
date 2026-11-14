@@ -92,6 +92,9 @@ func validateOrderChain(tenantID string, shippingAddress, paymentStatus string, 
 		if IsFixedAssetItem(tenantID, item.Data) {
 			return "", RejectNonSellableItem(tenantID, l.SKU)
 		}
+		if _, err := lifecycleSale(tenantID, l.SKU, item.Data, BusinessToday()); err != nil { // 168.5
+			return "", err
+		}
 	}
 
 	// 2. Address: non-empty and contains a pincode-shaped token.
@@ -254,6 +257,9 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := assortmentChannelGate(tenantID, channel, brandSKUs); err != nil {
+		return "", err
+	}
 
 	// Stage 35.7: a virtual commercial SKU never becomes a stock source of its
 	// own. Expand it once, before validation/sourcing/reservation, so every
@@ -274,6 +280,7 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	fillMarkdownRates(tenantID, lines)
 
 	holdReason, err := validateOrderChain(tenantID, shippingAddress, paymentStatus, lines)
 	if err != nil {
@@ -281,6 +288,15 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	}
 	if holdReason == "" && marginHold {
 		holdReason = HoldMargin
+	}
+	// 73.4.2.4: the risk check (orders.risk_hold, off). Its reasons are kept
+	// even when another hold came first, so releasing that one stops here.
+	riskWhy, err := orderRiskReasons(tenantID, schema, in, shippingAddress, lines)
+	if err != nil {
+		return "", err
+	}
+	if holdReason == "" && len(riskWhy) > 0 {
+		holdReason = HoldFraudRisk
 	}
 
 	// Allocation runs only once the validate chain is clean - a failing
@@ -418,11 +434,31 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	if ds != nil {
 		orderDoc["dropship"] = "Yes" // Stage 148.32
 	}
+	if len(riskWhy) > 0 {
+		orderDoc["risk_reasons"] = strings.Join(riskWhy, "; ") // 73.4.2.4
+	}
 	if holdReason != "" {
 		orderDoc["hold_since"] = time.Now().UTC().Format(time.RFC3339)
 		if holdReason == HoldMargin {
 			orderDoc["hold_owner"] = marginApproverRole
 		}
+	}
+	// 73.4.2.1: each line's promise (148.27), worked out before the order is
+	// written so the order keeps its own promise date too.
+	promises := make([]PromiseResult, len(lines))
+	promiseSKUs := make([]string, len(lines))
+	for i, l := range lines {
+		loc := ""
+		if plan != nil {
+			loc = plan.LineLocations[i]
+		}
+		promiseSKUs[i] = l.SKU
+		if p, perr := PromiseForLine(tenantID, l.SKU, float64(l.Qty), loc, channel); perr == nil {
+			promises[i] = p
+		}
+	}
+	if op := OrderPromise(promiseSKUs, promises); op.Date != "" || op.Reason != "" {
+		orderDoc["promise_date"], orderDoc["promise_reason"] = op.Date, op.Reason
 	}
 	orderMarshaled, err := json.Marshal(orderDoc)
 	if err != nil {
@@ -459,7 +495,7 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		}
 		stampB2BLine(lineDoc, priceNotes, i, l)
 		// Stage 148.27: the promise, when the setting is on (reads only; nothing reserved).
-		if p, perr := PromiseForLine(tenantID, l.SKU, float64(l.Qty), lineLocation, channel); perr == nil && (p.Date != "" || p.Reason != "") {
+		if p := promises[i]; p.Date != "" || p.Reason != "" {
 			lineDoc["promise_date"], lineDoc["promise_reason"] = p.Date, p.Reason
 		}
 		ds.markLine(lineDoc, l.SKU) // Stage 148.32
@@ -595,11 +631,21 @@ func PlaceOrderHold(tenantID, orderID, reasonCode, owner string) error {
 // found either, hold_reason becomes HoldAllocationFailed instead. Either way
 // the order stays On Hold.
 func ReleaseOrderHold(tenantID, orderID string) error {
-	return releaseOrderHold(tenantID, orderID, false)
+	return releaseOrderHoldBy(tenantID, orderID, false, "")
+}
+
+// ReleaseOrderHoldAs is ReleaseOrderHold by a named person, who is recorded
+// when the release clears a risk hold (73.4.2.4).
+func ReleaseOrderHoldAs(tenantID, orderID, userID string) error {
+	return releaseOrderHoldBy(tenantID, orderID, false, userID)
 }
 
 // releaseOrderHold is the release; viaMargin is true only for ReleaseMarginHold.
 func releaseOrderHold(tenantID, orderID string, viaMargin bool) error {
+	return releaseOrderHoldBy(tenantID, orderID, viaMargin, "")
+}
+
+func releaseOrderHoldBy(tenantID, orderID string, viaMargin bool, by string) error {
 	schema, orderData, err := fetchSalesOrder(tenantID, orderID)
 	if err != nil {
 		return err
@@ -675,6 +721,26 @@ func releaseOrderHold(tenantID, orderID string, viaMargin bool) error {
 			`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesOrder' AND id = $2`, schema),
 			marshaled, orderID)
 		return err
+	}
+
+	// 73.4.2.4: a risk-flagged order is looked at by a person before it
+	// reserves. Releasing another hold first moves it to the risk hold;
+	// releasing the risk hold clears it, once.
+	if strField(orderData, "risk_reasons") != "" && strField(orderData, "risk_cleared_at") == "" {
+		if strField(orderData, "hold_reason") != HoldFraudRisk {
+			orderData["hold_reason"] = HoldFraudRisk
+			marshaled, err := json.Marshal(orderData)
+			if err != nil {
+				return err
+			}
+			_, err = db.DB.Exec(fmt.Sprintf(
+				`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesOrder' AND id = $2`, schema),
+				marshaled, orderID)
+			return err
+		}
+		orderData["risk_cleared_at"] = time.Now().UTC().Format(time.RFC3339)
+		orderData["risk_cleared_by"] = by
+		LogAuditEvent(tenantID, by, "ORDER_RISK_RELEASED", "SUCCESS", orderID+": "+strField(orderData, "risk_reasons"))
 	}
 
 	// Only lines still Pending need (re-)allocation - a line already

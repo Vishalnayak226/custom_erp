@@ -159,24 +159,41 @@ func synthJSONLines(rows ...map[string]interface{}) string {
 	return string(raw)
 }
 
+// synthPurchase is one planned purchase order: every random choice is made
+// up front, in order, so the posting below can run on a worker pool without
+// changing what the seed produces.
+type synthPurchase struct {
+	poID, grnID, priorID, vendor, wh string
+	n                                int
+	net, gross                       float64
+	poLines, rcvLines, prior         []map[string]interface{}
+}
+
 // purchasing raises Approved purchase orders to the shape's vendors and
 // receives each through the real GRN step flow (invoice number, date and total
-// checked, priced against the order, posted with its stock and GL).
+// checked, priced against the order, posted with its stock and GL). Ask 166
+// (47.9.1): the orders are planned serially from the seed, then received on
+// the loader's worker pool (each receipt is its own transaction chain, and a
+// receipt that loses a lock race with another is retried), the way the masters
+// and opening stock are.
 func (g *synthGen) purchasing() error {
 	s := g.shape
 	if s.PurchaseOrders == 0 || len(g.whs) == 0 || s.Vendors == 0 {
 		return nil
 	}
-	for p := 0; p < s.PurchaseOrders; p++ {
-		poID := fmt.Sprintf("SYN-PO-%05d", p+1)
-		grnID := fmt.Sprintf("SYN-GRN-%05d", p+1)
-		vendor := fmt.Sprintf("SYN-V%05d", 1+g.rng.IntN(s.Vendors))
-		wh := g.whs[g.rng.IntN(len(g.whs))]
+	plans := make([]synthPurchase, s.PurchaseOrders)
+	for p := range plans {
+		pl := &plans[p]
+		pl.n = p + 1
+		pl.poID = fmt.Sprintf("SYN-PO-%05d", p+1)
+		pl.grnID = fmt.Sprintf("SYN-GRN-%05d", p+1)
+		pl.priorID = fmt.Sprintf("SYN-GRN-PRIOR-%05d", p+1)
+		pl.vendor = fmt.Sprintf("SYN-V%05d", 1+g.rng.IntN(s.Vendors))
+		pl.wh = g.whs[g.rng.IntN(len(g.whs))]
 		nLines := 1 + g.rng.IntN(3)
-		var poLines, rcvLines []map[string]interface{}
 		var net float64
 		seen := map[int]bool{}
-		for len(poLines) < nLines {
+		for len(pl.poLines) < nLines {
 			at := 1 + g.rng.IntN(len(g.items)-1)
 			if seen[at] {
 				continue
@@ -186,30 +203,55 @@ func (g *synthGen) purchasing() error {
 			qty := 10 + g.rng.IntN(40)
 			rate := math.Round(float64(it.cost)) / 100
 			net += float64(qty) * rate
-			poLines = append(poLines, map[string]interface{}{"sku": it.code, "qty": qty, "rate": rate})
-			rcvLines = append(rcvLines, map[string]interface{}{"sku": it.code, "qty": qty, "invoice_rate": rate})
+			pl.poLines = append(pl.poLines, map[string]interface{}{"sku": it.code, "qty": qty, "rate": rate})
+			pl.rcvLines = append(pl.rcvLines, map[string]interface{}{"sku": it.code, "qty": qty, "invoice_rate": rate})
 		}
 		// The price last paid is what "Post all" compares against, so each item
 		// has an earlier receipt at the same rate (the books' opening purchases).
-		prior := make([]map[string]interface{}, len(rcvLines))
-		for i, l := range rcvLines {
-			prior[i] = map[string]interface{}{"sku": l["sku"], "qty": 1, "invoice_rate": l["invoice_rate"]}
+		pl.prior = make([]map[string]interface{}, len(pl.rcvLines))
+		for i, l := range pl.rcvLines {
+			pl.prior[i] = map[string]interface{}{"sku": l["sku"], "qty": 1, "invoice_rate": l["invoice_rate"]}
 		}
-		priorID := fmt.Sprintf("SYN-GRN-PRIOR-%05d", p+1)
-		if err := g.insertDoc(priorID, "GRN", "Approved", map[string]interface{}{"code": priorID, "vendor": vendor, "location": wh,
-			"received_items": synthJSONLines(prior...)}); err != nil {
-			return fmt.Errorf("%s: %w", priorID, err)
+		pl.net = math.Round(net*100) / 100
+		pl.gross = math.Round(net*105) / 100
+	}
+	return g.forEachParallel(len(plans), func(i int) error {
+		var err error
+		for try := 0; try < 4; try++ {
+			if err = g.receivePurchase(&plans[i], try > 0); err == nil || !isRetryablePGError(err) {
+				break
+			}
 		}
-		net = math.Round(net*100) / 100
-		gross := math.Round(net*105) / 100
-		if err := g.insertDoc(poID, "PurchaseOrder", "Approved", map[string]interface{}{"code": poID, "vendor": vendor,
-			"gst_mode": GSTModeExclusive, "total_amount": net, "grand_total": gross, "items": synthJSONLines(poLines...)}); err != nil {
-			return fmt.Errorf("%s: %w", poID, err)
+		return err
+	})
+}
+
+// isRetryablePGError reports a lock-order loss (deadlock 40P01) or a
+// serialization failure (40001) between two receipts that touch one item.
+func isRetryablePGError(err error) bool {
+	m := err.Error()
+	return strings.Contains(m, "40P01") || strings.Contains(m, "deadlock detected") || strings.Contains(m, "40001")
+}
+
+// receivePurchase writes one order's prior receipt, the order and its GRN and
+// posts it. A retry finds the documents of the failed try and goes on from the
+// post, so nothing is written twice.
+func (g *synthGen) receivePurchase(pl *synthPurchase, retry bool) error {
+	if !retry {
+		if err := g.insertDoc(pl.priorID, "GRN", "Approved", map[string]interface{}{"code": pl.priorID, "vendor": pl.vendor, "location": pl.wh,
+			"received_items": synthJSONLines(pl.prior...)}); err != nil {
+			return fmt.Errorf("%s: %w", pl.priorID, err)
 		}
-		payload := map[string]interface{}{"flow": "steps", "po_ids": poID, "vendor": vendor, "location": wh,
-			"vendor_invoice_no": fmt.Sprintf("SYN-INV-%05d", p+1), "vendor_invoice_date": synthBaseDate, "vendor_invoice_amount": gross,
-			"received_items": synthJSONLines(rcvLines...)}
-		err := g.measure("receipt", 1, func() error {
+		if err := g.insertDoc(pl.poID, "PurchaseOrder", "Approved", map[string]interface{}{"code": pl.poID, "vendor": pl.vendor,
+			"gst_mode": GSTModeExclusive, "total_amount": pl.net, "grand_total": pl.gross, "items": synthJSONLines(pl.poLines...)}); err != nil {
+			return fmt.Errorf("%s: %w", pl.poID, err)
+		}
+	}
+	payload := map[string]interface{}{"flow": "steps", "po_ids": pl.poID, "vendor": pl.vendor, "location": pl.wh,
+		"vendor_invoice_no": fmt.Sprintf("SYN-INV-%05d", pl.n), "vendor_invoice_date": synthBaseDate, "vendor_invoice_amount": pl.gross,
+		"received_items": synthJSONLines(pl.rcvLines...)}
+	err := g.measure("receipt", 1, func() error {
+		if !retry {
 			if err := PrepareGRNPricing(g.tenantID, true, payload); err != nil {
 				return err
 			}
@@ -222,17 +264,17 @@ func (g *synthGen) purchasing() error {
 			if err := validateGRNRules(g.tenantID, "", payload); err != nil {
 				return err
 			}
-			payload["code"] = grnID
-			if err := g.insertDoc(grnID, "GRN", strField(payload, "status"), payload); err != nil {
+			payload["code"] = pl.grnID
+			if err := g.insertDoc(pl.grnID, "GRN", strField(payload, "status"), payload); err != nil {
 				return err
 			}
-			SyncGRNLineRows(g.tenantID, grnID)
-			_, err := PostAllGRNStep(g.tenantID, synthUser, "Super Admin", "", grnID)
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("purchase order %s: %w", poID, err)
+			SyncGRNLineRows(g.tenantID, pl.grnID)
 		}
+		_, err := PostAllGRNStep(g.tenantID, synthUser, "Super Admin", "", pl.grnID)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("purchase order %s: %w", pl.poID, err)
 	}
 	return nil
 }

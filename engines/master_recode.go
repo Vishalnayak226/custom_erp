@@ -125,9 +125,11 @@ type MasterRecodePlan struct {
 	References int               `json:"references"` // other records that point at these codes
 	// 76.6: what Apply needs first, what it cannot reach, and (asked for
 	// separately - it reads every table) each column it rewrites.
-	Backup  MasterRecodeBackup  `json:"backup"`
-	Warning string              `json:"warning,omitempty"`
-	Touches []MasterRecodeTouch `json:"touches,omitempty"`
+	Backup  MasterRecodeBackup `json:"backup"`
+	Warning string             `json:"warning,omitempty"`
+	// 147.3: items in the list that a Shopify shop already knows by this code.
+	ShopifyLinked int                 `json:"shopify_linked,omitempty"`
+	Touches       []MasterRecodeTouch `json:"touches,omitempty"`
 }
 
 // MasterRecodeTouch is one column the clean-up rewrites and how many rows.
@@ -136,6 +138,11 @@ type MasterRecodeTouch struct {
 	Column string `json:"column"`
 	Rows   int    `json:"rows"`
 }
+
+// dashedCombinationMatch (147.3) picks an Item that is a combination whose
+// ID still starts with its design's code and a "-".
+const dashedCombinationMatch = `(COALESCE(NULLIF(data->>'parent_product_code', ''), NULLIF(data->>'family', '')) IS NOT NULL
+	AND strpos(id, COALESCE(NULLIF(data->>'parent_product_code', ''), NULLIF(data->>'family', '')) || '-') = 1)`
 
 // longCodeMasters are a master's live records still on a long code. A short
 // code is a prefix and digits (masterPrefixPattern), so a "/" marks the old
@@ -153,6 +160,12 @@ func longCodeMasters(schema, doctype string) ([]MasterRecodeRow, error) {
 			prefix = doctype
 		}
 		match, args = "(strpos(id, $2) = 1 OR strpos(id, $3) = 1)", append(args, doctype+"/", prefix+"/")
+		if doctype == "Item" {
+			// 147.3: a combination made before 117.1 kept its design's code
+			// plus its values (D00004-Red-Temple). Its ID is the design's code
+			// and a "-"; a typed SKU that merely holds a "-" is not one.
+			match = "(" + match + " OR " + dashedCombinationMatch + ")"
+		}
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, COALESCE(data->>'name', '') FROM %s.documents
 		WHERE doctype = $1 AND deleted_at IS NULL AND %s
@@ -230,6 +243,14 @@ func PlanMasterRecode(tenantID, doctype string, req *masterCodeFormat) (MasterRe
 				plan.Rows[i].New = code
 				break
 			}
+		}
+	}
+	if doctype == "Item" {
+		// The table exists on every client since Stage 99; a missing one reads as none.
+		var linked int
+		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(DISTINCT sku) FROM %s.shopify_links WHERE sku = ANY($1)`, schema), pq.Array(olds)).Scan(&linked); err == nil && linked > 0 {
+			plan.ShopifyLinked = linked
+			plan.Warning += fmt.Sprintf(" %d of these items are already linked to a Shopify shop: that shop keeps the old SKU until the item is published again.", linked)
 		}
 	}
 	quoted := quotedJSONStrings(olds)
@@ -540,7 +561,7 @@ func renamedMasterCode(schema, doctype, old string) string {
 // till's cache) still finds its record (76.6). Every cleaned code had a "/",
 // so anything else costs no query; no change table yet reads as no rename.
 func RenamedMasterCode(tenantID, doctype, old string) string {
-	if !strings.Contains(old, "/") {
+	if !strings.Contains(old, "/") && !strings.Contains(old, "-") { // 147.3: dashed combination IDs
 		return ""
 	}
 	schema, err := db.GetTenantSchema(tenantID)

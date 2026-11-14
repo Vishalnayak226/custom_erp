@@ -187,7 +187,8 @@ const HOLD_WORDS = {
   CREDIT: 'Over credit limit',
   MARGIN: 'Below floor rate',
   ADDR_INVALID: 'Address incomplete',
-  SKU_MAPPING_FAILED: 'An item is not mapped'
+  SKU_MAPPING_FAILED: 'An item is not mapped',
+  FRAUD_RISK: 'Risk check'
 };
 const holdWords = (code) => HOLD_WORDS[code] || (code ? String(code).replace(/_/g, ' ').toLowerCase() : 'On hold');
 
@@ -200,7 +201,7 @@ async function renderOnHold(container) {
   if (!result || rows.length === 0) return;
   const host = panel(container);
   host.innerHTML = `
-    <div class="oms-console-head"><h2>On hold · ${rows.length}</h2></div>
+    <div class="oms-console-head"><h2>On hold · ${rows.length}</h2>${rows.some(o => o.hold_reason === 'ALLOCATION_FAILED') ? '<button type="button" class="btn btn-outline btn-sm" data-backorders>Retry all waiting for stock</button>' : ''}</div>
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Why</th><th>Owner</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
       <tbody>${rows.map(o => `<tr>
@@ -208,18 +209,29 @@ async function renderOnHold(container) {
         <td>${esc(o.channel || 'Manual')}${o.channel_order_id ? `<div class="oms-channel-ref">${esc(o.channel_order_id)}</div>` : ''}</td>
         <td>${esc(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${esc(o.customer_phone)}</div>` : ''}</td>
         <td class="num">${esc(o.line_count)}</td>
-        <td><span class="badge badge-warning" title="${esc(o.hold_reason || '')}">${esc(holdWords(o.hold_reason))}</span></td>
+        <td><span class="badge badge-warning" title="${esc(o.hold_reason || '')}">${esc(holdWords(o.hold_reason))}</span>${o.risk_reasons ? `<div class="oms-channel-ref">${esc(o.risk_reasons)}</div>` : ''}</td>
         <td>${esc(o.hold_owner || '—')}</td>
         <td title="${esc(o.hold_since || o.created_at)}">${esc(ageText(o.hold_since || o.created_at))}</td>
         <td class="num">${formatMoney(o.total_amount)}</td>
         <td class="oms-step-actions">
-          ${o.hold_reason === 'CREDIT' || o.hold_reason === 'MARGIN' ? '' : `<button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>`}
+          ${o.hold_reason === 'CREDIT' || o.hold_reason === 'MARGIN' ? '' : o.hold_reason === 'FRAUD_RISK'
+            ? `<button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-risk="${esc(o.risk_reasons || '')}" data-id="${esc(o.order_id)}">Release</button>`
+            : `<button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>`}
           <button type="button" class="action-btn" data-hold-act="open" data-id="${esc(o.order_id)}">Open</button>
         </td></tr>`).join('')}</tbody>
     </table></div>`;
+  host.querySelector('[data-backorders]')?.addEventListener('click', async (e) => { // 73.4.2.2: oldest first
+    e.target.disabled = true;
+    const r = await post('/api/v1/oms/backorders/release', {});
+    e.target.disabled = false;
+    if (r.error) { await showCustomAlert(r.error, 'Retry'); return; }
+    showToast(`${r.released} reserved · ${r.waiting} still waiting`, { variant: r.released ? 'success' : 'info' });
+    if (r.released) again('pending');
+  });
   host.querySelectorAll('[data-hold-act]').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
     if (btn.dataset.holdAct === 'open') return window.openOMSOrderDetail(id);
+    if (btn.dataset.risk !== undefined && !(await showCustomConfirm(`Release this order? ${btn.dataset.risk}`, 'Risk check'))) return; // 73.4.2.4
     btn.disabled = true;
     const r = await post(`/api/v1/orders/${encodeURIComponent(id)}/release-hold`, {});
     btn.disabled = false;

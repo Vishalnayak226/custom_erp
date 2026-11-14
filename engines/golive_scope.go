@@ -315,6 +315,7 @@ func SaveGoLiveScope(tenantID string, answers ScopeAnswers, actor string) (*GoLi
 	if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.golive_records (kind, pack, line_id, data, created_by) VALUES ('Scope', 'scope', 'scope', $1::jsonb, $2)`, schema), string(raw), actor); err != nil {
 		return nil, err
 	}
+	InvalidateSetupFinanceChecks(schema) // 164.2
 	return GetGoLiveScope(tenantID)
 }
 

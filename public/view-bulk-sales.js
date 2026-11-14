@@ -193,7 +193,7 @@ function bsKind(r, applied) {
 function bsMsg(r) {
   if (!r.message) return '';
   const bad = r.action === 'error' || r.result === 'failed';
-  return `<span style="font-size:13px;${bad ? ' color:var(--danger-color);' : ''}">${bsEsc(r.message)}</span>`;
+  return `<span class="u-fs13${bad ? ' u-bad' : ''}">${bsEsc(r.message)}</span>`;
 }
 
 function bsSection(title, counts, body, open) {

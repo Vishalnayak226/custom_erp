@@ -108,6 +108,43 @@ func handleGRNStepsGet(w http.ResponseWriter, r *http.Request) {
 	writeGRNStepView(w, r, v, nil)
 }
 
+// GET /api/v1/grn-steps/{id}/piece-codes - Stage 146.3.2b: the lines that
+// give every piece a code, for the handheld's Receive pieces screen. {id} may
+// be the receipt's code, as scanned.
+func handleGRNPieceCodesGet(w http.ResponseWriter, r *http.Request) {
+	if !grnStepGate(w, r, "read", "") {
+		return
+	}
+	v, err := engines.GRNPieceLines(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// POST /api/v1/grn-steps/{id}/piece-codes {line_no, codes, mint_rest} - keep
+// the codes scanned for one line; mint_rest mints the rest.
+func handleGRNPieceCodesSave(w http.ResponseWriter, r *http.Request) {
+	if !grnStepGate(w, r, "update", "") {
+		return
+	}
+	var in struct {
+		LineNo   int      `json:"line_no"`
+		Codes    []string `json:"codes"`
+		MintRest bool     `json:"mint_rest"`
+	}
+	if !decodeGRNStepBody(w, r, &in) {
+		return
+	}
+	v, err := engines.SetGRNPieceCodes(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"), r.PathValue("id"), in.LineNo, in.Codes, in.MintRest)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(v)
+}
+
 // POST /api/v1/grn-steps/{id}/receive - Back to step 1 and change it.
 func handleGRNStepsReceive(w http.ResponseWriter, r *http.Request) {
 	if !grnStepGate(w, r, "update", "") {

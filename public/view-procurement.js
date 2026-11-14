@@ -18,7 +18,7 @@ const grnStepsModule = () => import('./grn-steps.js' + TRADE_DOCS_QUERY);
 // are published by the loader for legacy cross-view calls.
 // What the approver decides, where the record's number alone doesn't say.
 function approvalRowNote(item) {
-  if (item.doctype === 'VendorChange') return item.summary || '';
+  if (item.doctype === 'VendorChange' || item.doctype === 'VendorOnboarding') return item.summary || '';
   if (item.doctype === 'CreditHoldRelease') return `${item.party || item.order_id} · owed ₹${formatMoney(item.exposure)} · limit ₹${formatMoney(item.credit_limit)}`;
   if (item.doctype === 'GLAccountChange') return [item.action, item.account_code, item.account_name].filter(Boolean).join(' ');
   return '';
@@ -389,6 +389,7 @@ function newPODraft() {
     gst_mode: '',
     order_discount_pct: '', order_discount_amt: '', // Stage 148.7
     charges: '', // Stage 148.8
+    po_kind: '', contract: '', // 168.1 / 168.2
     retro_grn_id: '', // Stage 148.38
     lines: [],
     // Stage 65.1: the entry row at the top of the composer; Add moves it into lines.
@@ -514,7 +515,7 @@ async function renderPurchaseOrdersView(container) {
         <td><span class="badge ${statusBadge}">${escapeHTMLText(po.status || '')}</span>${sent}</td>
         <td class="po-row-actions">
           ${po.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('submitPOForApproval', [po.id])}>Submit for Approval</button>` : ''}
-          ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>` : ''}
+          ${po.status === 'Approved' ? (po.po_kind === 'Service' ? `<button class="action-btn" ${actionAttrs('startServiceEntryFromPO', [po.id])}>Service entry</button>` : `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>`) : ''}
           ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('showPOBalance', [po.id])}>Balance</button>` : ''}
           ${live ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
           ${canCreateDoctype('PurchaseOrder') ? `<button class="action-btn" title="A new PO with the same vendor, terms and lines" ${actionAttrs('copyPurchaseOrder', [po.id])}>Copy</button>` : ''}
@@ -777,6 +778,20 @@ window.stickersForPO = function(poId) {
   renderView('stickers');
 };
 
+window.startServiceEntryFromPO = function(poId) {
+  try { sessionStorage.setItem('erp-service-entry-po', String(poId)); } catch (_) { /* storage can be disabled */ }
+  renderView('service-entry');
+};
+
+// A release PO: the New page with the contract's vendor, store and contract filled.
+window.newPOFromContract = function(contract, vendor, location) {
+  poDraft = newPODraft();
+  Object.assign(poDraft, { contract, vendor: vendor || '', location: location || '' });
+  poPreview = null;
+  if (document.getElementById('po-composer')) showPOPage('new');
+  else Promise.resolve(renderView('purchase-orders')).then(() => showPOPage('new'));
+};
+
 window.startGRNFromPO = function(poId) {
   try { sessionStorage.setItem('stage55-grn-source-po', String(poId)); } catch (_) { /* storage can be disabled */ }
   renderView('grn');
@@ -860,6 +875,17 @@ function renderPOComposer(panel) {
         <input type="text" id="po-retro-grn" class="form-input" autocomplete="off" value="${escapeHTMLText(d.retro_grn_id || '')}">
       </div>
       <div class="form-group">
+        <label class="form-label" for="po-kind">Type</label>
+        <select id="po-kind" class="form-input">
+          <option value="">Goods</option>
+          <option value="Service"${d.po_kind === 'Service' ? ' selected' : ''}>Service</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="po-contract">Contract</label>
+        <input type="text" id="po-contract" class="form-input" autocomplete="off" value="${escapeHTMLText(d.contract || '')}">
+      </div>
+      <div class="form-group">
         <label class="form-label" for="po-expected">Expected delivery</label>
         <input type="date" id="po-expected" class="form-input" value="${escapeHTMLText(d.expected_delivery_date || '')}">
       </div>
@@ -909,6 +935,7 @@ function renderPOComposer(panel) {
         <input type="number" id="po-entry-mrp" class="form-input num" min="0" step="1" placeholder="&mdash;">
       </div>
       <button class="btn btn-primary btn-sm" id="po-entry-add" type="button" title="Add to the PO (Enter)">Add</button>
+      <button class="btn btn-outline btn-sm" id="po-entry-upload" type="button" title="Design Number, Combination, Qty">Upload lines</button>
     </div>
     <div id="po-entry-error" class="po-line-error hidden"></div>
     <div id="po-entry-attrs" class="po-entry-attrs hidden"></div>
@@ -990,6 +1017,12 @@ function renderPOComposer(panel) {
     document.getElementById(id)?.addEventListener('change', (e) => { d[k] = e.target.value.trim(); schedulePOPreview(); });
   });
   // Stage 130.10 (78.3 a): the date reminders and late receipts are judged by.
+  document.getElementById('po-kind')?.addEventListener('change', (e) => { d.po_kind = e.target.value; });
+  const contractEl = document.getElementById('po-contract');
+  if (contractEl) {
+    attachLinkTypeahead(contractEl, 'PurchaseContract');
+    contractEl.addEventListener('change', () => { d.contract = contractEl.value.trim(); });
+  }
   document.getElementById('po-expected')?.addEventListener('change', (e) => { d.expected_delivery_date = e.target.value; });
   bindPOTerms(d);
   mountChargeRows('po-charges', d.charges, (value) => { d.charges = value; });
@@ -1053,6 +1086,7 @@ function renderPOComposer(panel) {
     });
   });
   document.getElementById('po-entry-add').addEventListener('click', addPOEntry);
+  document.getElementById('po-entry-upload').addEventListener('click', uploadPOLines);
   bindPODesignNumber();
   document.getElementById('po-create-btn').addEventListener('click', savePurchaseOrder);
   const cancelBtn = document.getElementById('po-cancel-edit');
@@ -1153,6 +1187,15 @@ async function addPOEntry() {
 // or barcode (a scan + Enter) - a name nobody picked or created is refused.
 let poEntryAsking = false;
 
+// The rate a contract gives this item, or 0 (a blank price on a release PO takes it).
+async function poContractRate(contract, sku) {
+  if (!contract) return 0;
+  const res = await apiFetch(`/api/v1/procurement/contract/${encodeURIComponent(contract)}/summary`);
+  if (!res || !res.ok) return 0;
+  const l = ((await res.json()).lines || []).find(x => x.sku === sku);
+  return l ? Number(l.rate) || 0 : 0;
+}
+
 // The price a vendor agreement gives this line, or null. The preview saves nothing.
 async function poAgreementPrice(d, line) {
   if (!d.vendor) return null;
@@ -1164,6 +1207,31 @@ async function poAgreementPrice(d, line) {
   const out = (await res.json()).lines || [];
   const p = out[out.length - 1];
   return p && p.sku === line.sku && Number(p.rate) > 0 ? p : null;
+}
+
+// Stage 85.E8 (77.14): lines from a file - Design Number, Combination, Qty.
+// The shared Upload lines dialog lists every row it cannot use; the rest come
+// onto the PO at the vendor agreement's price where one covers them (one
+// preview for the lot), else with the price blank to fill in.
+async function uploadPOLines() {
+  const pickers = await loadViewModule('/view-pickers.js?v=1');
+  pickers.openLineUpload({ title: 'Upload PO lines', template: 'purchase-order', design: true, onRows: async (rows) => {
+    const d = poDraft;
+    const lines = rows.map(r => ({ sku: r.sku, qty: String(r.qty), rate: '', mrp: '' }));
+    if (d.vendor) {
+      const res = await apiFetch('/api/v1/procurement/purchase-order/preview', {
+        method: 'POST', body: JSON.stringify(poDraftPayload({ ...d, lines: [...d.lines, ...lines] }))
+      });
+      const out = res && res.ok ? ((await res.json()).lines || []).slice(-lines.length) : [];
+      lines.forEach((l, i) => {
+        const p = out[i];
+        if (p && p.sku === l.sku && Number(p.rate) > 0) { l.rate = String(p.rate); l.agreement_rate = p.agreement_rate || ''; }
+      });
+    }
+    d.lines.push(...lines);
+    renderPOLines();
+    schedulePOPreview();
+  } });
 }
 
 async function addPOEntryLine() {
@@ -1200,14 +1268,15 @@ async function addPOEntryLine() {
     if (poEntryAsking) return;
     poEntryAsking = true;
     const agreed = await poAgreementPrice(d, line).finally(() => { poEntryAsking = false; });
-    if (!agreed) {
+    const contractRate = agreed ? 0 : await poContractRate(d.contract, line.sku);
+    if (!agreed && !contractRate) {
       errEl.textContent = 'Enter the purchase price.';
       errEl.classList.remove('hidden');
       el('po-entry-rate').focus();
       return;
     }
-    line.rate = agreed.rate;
-    line.agreement_rate = agreed.agreement_rate || '';
+    line.rate = agreed ? agreed.rate : contractRate;
+    line.agreement_rate = agreed ? (agreed.agreement_rate || '') : '';
   }
   errEl.classList.add('hidden');
   d.lines.push(line);
@@ -2194,6 +2263,8 @@ function poDraftPayload(d) {
     ...(d.charges ? { charges: d.charges } : {}),
     gst_mode: d.gst_mode,
     expected_delivery_date: d.expected_delivery_date || '',
+    ...((d.po_kind || d.id) ? { po_kind: d.po_kind || 'Goods' } : {}),
+    ...((d.contract || d.id) ? { contract: d.contract || '' } : {}),
     ...(d.retro_grn_id ? { retro_grn_id: d.retro_grn_id } : {}), // Stage 148.38
     // Stage 130.16 (74.3.2): the commercial terms.
     // 49.5.6b: no interstate / override - the server derives the supply type.
@@ -2492,6 +2563,7 @@ window.amendPurchaseOrder = async function(poId, { copy = false } = {}) {
     location: record.location || '',
     gst_mode: record.gst_mode || '',
     expected_delivery_date: record.expected_delivery_date || '',
+    po_kind: record.po_kind || '', contract: record.contract || '',
     retro_grn_id: copy ? '' : (record.retro_grn_id || ''), // Stage 148.38
     ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, record[k] || ''])),
     lines: lines.length ? lines.map(l => ({

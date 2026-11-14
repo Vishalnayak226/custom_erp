@@ -33,6 +33,7 @@ var reviewedCaches = map[string]string{
 	"imageDriveCache":        "tenant",
 	"doctypeModuleCache":     "tenant schema + doctype; module mapping changes only in a migration (49.18.8)",
 	"tenantHostCache":        "hostname -> tenant; the tenant is the answer, re-checked by the session",
+	"setupFinanceCache":      "tenant schema; the go-live finance lines are client-wide (no user or store scope), kept 60s and dropped on a go-live, Currency or BankAccount save (164.2)",
 }
 
 func securitySourceFiles(t *testing.T) []string {

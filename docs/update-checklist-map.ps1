@@ -145,8 +145,12 @@ $lEnd = $lm.End + ($newL.Count - $L.Count)
 $newL = Set-Markers $newL '*Nothing open.*' $lEnd
 $newA = Set-Markers $A '*Nothing archived yet.*' $am.End
 
-# Next free ask number: one above the highest item id in either file.
-$next = 1 + (@($L + $A | ForEach-Object { if ($_ -match '^\s*[-*]\s*\[[ xX]\]\s*(?:~~)?\*\*(\d+)[.\s*]') { [int]$Matches[1] } }) | Measure-Object -Maximum).Maximum
+# Next free ask number: one above the highest item id in either file, or the highest
+# "(ask N" in a run header - an ask that only rebuilds older items has no N.x item of its own.
+$next = 1 + (@($L + $A | ForEach-Object {
+    if ($_ -match '^\s*[-*]\s*\[[ xX]\]\s*(?:~~)?\*\*(\d+)[.\s*]') { [int]$Matches[1] }
+    foreach ($m in [regex]::Matches($_, '\(ask (\d+)')) { [int]$m.Groups[1].Value }
+}) | Measure-Object -Maximum).Maximum
 
 $liveChanged = ($newL -join "`n") -ne ($L -join "`n")
 $archChanged = ($newA -join "`n") -ne ($A -join "`n")

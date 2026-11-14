@@ -91,6 +91,10 @@ type PostingOptions struct {
 	// line's own dimensions instead of one row per account. Nil is every other
 	// caller. Their sums must equal the debits and credits maps.
 	Lines []PostingLine
+	// Stage 170.1. SourceLineID names the document line every row of this call
+	// belongs to (a caller that posts one call per line). Empty is the whole
+	// document. Rows given through Lines name their own line on the PostingLine.
+	SourceLineID string
 }
 
 // postedAtSQL is the created_at value of a posting with PostedAt set, as SQL
@@ -311,6 +315,12 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 		}
 		attrCols, attrVals = attrCols+", created_at", attrVals+", "+expr
 		attrArgs = append(attrArgs, opt.PostedAt)
+	}
+
+	// Stage 170.1: the whole-call source line, when the column is there.
+	if opt.SourceLineID != "" && len(opt.Lines) == 0 && glSourceLineReady(tx, schema) {
+		attrCols, attrVals = attrCols+", source_line_id", fmt.Sprintf("%s, $%d", attrVals, 13+len(attrArgs))
+		attrArgs = append(attrArgs, opt.SourceLineID)
 	}
 
 	if len(opt.Lines) > 0 {

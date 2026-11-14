@@ -15,7 +15,7 @@ import (
 // from ${...} values at run time, set in documents written into their own
 // window, or toggled by JS with style.display. The ceiling only goes down:
 // a new screen uses a class, not an inline style.
-const inlineStyleCeiling = 119
+const inlineStyleCeiling = 69
 
 var inlineStyleAttr = regexp.MustCompile(`[ \t]style=["'][^"']`)
 

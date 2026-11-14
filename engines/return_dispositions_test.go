@@ -87,6 +87,31 @@ func TestStage14828RestockingFeeComesOffTheRefund(t *testing.T) {
 	}
 }
 
+// 148.28a (user 2026-11-13): the fee is GST-inclusive at its charge code's rate,
+// so 18% inside a 10.00 fee is output tax (CGST + SGST on a local sale), not income.
+func TestStage14828aRestockingFeeIncludesGST(t *testing.T) {
+	f := stage1484Setup(t)
+	if _, err := db.DB.Exec("INSERT INTO " + f.schema + ".gl_accounts (account_code, account_name, account_type) VALUES ('4170', 'Restocking fees', 'Revenue') ON CONFLICT DO NOTHING"); err != nil {
+		t.Fatal(err)
+	}
+	f.insert("TC-RESTOCKG", "TradeChargeCode", "Active", "system", map[string]interface{}{"code": "RESTOCKG", "charge_name": "Restocking fee", "used_for": "Selling", "gl_account": "4170", "gst_rate": 18.0, "status": "Active"})
+	stage14828Rule(t, f, "RDR-1G", map[string]interface{}{"disposition": "Sellable", "charge_code": "RESTOCKG", "fee_percent": 10.0})
+	stage14828Sale(t, f, "CART-14828-G")
+	_, refundID := stage14828QC(t, f, "CART-14828-G", "SHOE1484", "Sellable")
+	_, rf, _ := fetchRefundRequest(f.tenantID, refundID)
+	if numFromInterface(rf["amount"]) != 90 || numFromInterface(rf["restocking_fee_gst_paise"]) != 153 {
+		t.Fatalf("the customer still gets 90; 18%% inside a 10.00 fee is 1.53: %v", rf)
+	}
+	_ = ApproveRefundRequest(f.tenantID, refundID, "manager")
+	if err := ProcessRefundRequest(f.tenantID, refundID, "manager", "Cash"); err != nil {
+		t.Fatalf("process: %v", err)
+	}
+	got := stage1484Posted(t, f.schema, "RefundRequest", refundID)
+	if got["D:4100"] != 10000 || got["C:1100"] != 9000 || got["C:4170"] != 847 || got["C:2200"] != 76 || got["C:2201"] != 77 {
+		t.Fatalf("revenue back whole, cash 90, fee 8.47 to income and 1.53 to CGST/SGST: %v", got)
+	}
+}
+
 func TestStage14828NoRuleNoFee(t *testing.T) {
 	f := stage1484Setup(t)
 	stage14828Rule(t, f, "RDR-2", map[string]interface{}{"disposition": "Damaged", "fee_percent": 50.0})

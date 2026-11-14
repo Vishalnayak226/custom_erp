@@ -31,9 +31,18 @@ func TestStage14616UnicommerceTextIsHonest(t *testing.T) {
 	if !strings.Contains(entry, "Not connected yet") || strings.Contains(entry, "order push and inventory sync") {
 		t.Errorf("the Integrations entry must say Unicommerce is not connected yet: %s", entry)
 	}
-	guide, err := os.ReadFile(filepath.Join("..", "docs", "guides", "admin-guide.md"))
-	if err != nil {
-		t.Fatal(err)
+	// The admin guide is an index plus admin-guide-*.md part files (134.9).
+	parts, err := filepath.Glob(filepath.Join("..", "docs", "guides", "admin-guide*.md"))
+	if err != nil || len(parts) == 0 {
+		t.Fatalf("admin guide files not found: %v", err)
+	}
+	var guide []byte
+	for _, p := range parts {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		guide = append(guide, b...)
 	}
 	if !strings.Contains(string(guide), "Unicommerce is not connected yet") {
 		t.Error("ADMIN_GUIDE must say Unicommerce is not connected yet")

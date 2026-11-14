@@ -62,6 +62,7 @@ type Resp struct {
 	Body   []byte
 	JSON   map[string]interface{}
 	Arr    []interface{}
+	Header http.Header
 }
 
 // CallOpts tunes one call.
@@ -70,6 +71,7 @@ type CallOpts struct {
 	Setup     bool  // not a business write: not counted toward per-1k figures
 	Multipart *multipartBody
 	NoRecord  bool
+	Headers   map[string]string // extra request headers (an Idempotency-Key)
 }
 
 type multipartBody struct {
@@ -117,6 +119,9 @@ func (c *Client) Do(who, method, path string, body interface{}, opts CallOpts) (
 		if reqBytes != nil {
 			req.Header.Set("Content-Type", ctype)
 		}
+		for k, v := range opts.Headers {
+			req.Header.Set(k, v)
+		}
 		if sess != nil && sess.Token != "" {
 			req.Header.Set("Authorization", "Bearer "+sess.Token)
 		}
@@ -129,7 +134,7 @@ func (c *Client) Do(who, method, path string, body interface{}, opts CallOpts) (
 		}
 		b, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		r := &Resp{Status: resp.StatusCode, Body: b}
+		r := &Resp{Status: resp.StatusCode, Body: b, Header: resp.Header}
 		if len(b) > 0 && (b[0] == '{' || b[0] == '[') {
 			if b[0] == '{' {
 				_ = json.Unmarshal(b, &r.JSON)

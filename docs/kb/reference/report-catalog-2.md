@@ -21,7 +21,7 @@ screens: [reports]
 # Report catalog (part 2)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **147** reports, from
+every category and explains how to run a report. It holds **149** reports, from
 HRMS to PIM / PIMS.
 
 ## Contents
@@ -32,7 +32,7 @@ HRMS to PIM / PIMS.
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data-audit) - 11 reports
 - [OMS](#oms) - 25 reports
-- [PIM](#pim) - 6 reports
+- [PIM](#pim) - 8 reports
 - [PIM / PIMS](#pim-pims) - 16 reports
 
 ## HRMS
@@ -1692,6 +1692,18 @@ HRMS to PIM / PIMS.
 
 **Drill-down:** no.
 
+### R7969 Listing drift
+
+**Report id:** `listing-drift`
+
+**Parameters:**
+
+- **Channel** (`channel`) - text, optional
+
+**Columns:** Channel · Item · Name · Differs · Listing · Item master
+
+**Drill-down:** no.
+
 ### R7038 PIM Overdue Tasks
 
 **Report id:** `pim-task-overdue`
@@ -1733,6 +1745,18 @@ HRMS to PIM / PIMS.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Assignee · Open · In Progress · Blocked · Overdue · Due This Week
+
+**Drill-down:** no.
+
+### R7968 Range by store
+
+**Report id:** `range-by-store`
+
+**Parameters:**
+
+- **Store or channel** (`store`) - text, optional
+
+**Columns:** Store or channel · Item · Name · In range by · From · To
 
 **Drill-down:** no.
 

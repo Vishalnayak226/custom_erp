@@ -105,7 +105,7 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 	// Load every not-yet-matched gl_posting on this account.
 	postingRows, err := tx.Query(fmt.Sprintf(`
 		SELECT posting_id, debit, credit, created_at AT TIME ZONE current_setting('TimeZone') FROM %s.gl_postings
-		WHERE account_code = $1 AND matched_statement_line_id IS NULL`, schema), glAccountCode)
+		WHERE account_code = $1 AND matched_statement_line_id IS NULL AND %s`, schema, noBankParts(schema)), glAccountCode)
 	if err != nil {
 		return nil, err
 	}

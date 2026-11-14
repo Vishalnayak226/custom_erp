@@ -17,7 +17,7 @@ import (
 // scorecard as evidence, not one magic number. Each row is read from the file
 // that holds its evidence, judged against the generation date, and names that
 // file. What the repository cannot hold (live access recertification, audit
-// growth, user-reported friction) is said to be live or not measured, never
+// growth, user-reported friction) is said to be live, never
 // filled with a guess. Regenerated with the other references (gate G7).
 
 const scorecardPath = "docs/qa/generated/security-scorecard.md"
@@ -243,7 +243,7 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 
 	add("Access recertification", "admins without 2FA, API keys to review", "live only", "Settings → Monitoring → Security Events")
 	add("Audit and data growth", "audit rows, lost audit writes, verifier failures", "live only", "Settings → Monitoring → Security Events")
-	add("User-reported security friction", "-", "not measured yet", "-")
+	add("User-reported security friction", "locked accounts and PINs, password resets, lost authenticators, \"not helpful\" on the sign-in help (14 days)", "live only", "Settings → Monitoring → Security Events")
 
 	var b strings.Builder
 	b.WriteString(generatedHeader("Security Scorecard", stamp,

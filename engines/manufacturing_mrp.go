@@ -160,6 +160,8 @@ func GetActiveBOMForItem(tenantID, parentItem, asOfDate string) (string, error) 
 type byProductLine struct {
 	Sku        string  `json:"sku"`
 	QtyPerUnit float64 `json:"qty_per_unit"`
+	// 170.12: this line's share of the completion cost; none = it comes in at no cost.
+	CostSharePercent float64 `json:"cost_share_percent,omitempty"`
 }
 
 func byProducts(bomData map[string]interface{}) []byProductLine {
@@ -182,6 +184,7 @@ type scrapEntry struct {
 	Qty       float64 `json:"qty"`
 	Reason    string  `json:"reason"`
 	Timestamp string  `json:"timestamp"`
+	CostPaise int64   `json:"cost_paise,omitempty"` // 170.11: what leaving stock cost
 }
 
 // PostScrap logs a scrap write-off against a production order. Audit-only -
@@ -194,6 +197,9 @@ func PostScrap(tenantID, orderID, sku string, qty float64, reason, actorUserID s
 	}
 	if qty <= 0 {
 		return fmt.Errorf("scrap quantity must be positive")
+	}
+	if GetSettingBool(tenantID, SettingProductionScrapRework) {
+		return postCostedScrap(tenantID, orderID, sku, qty, reason, actorUserID) // 170.11
 	}
 	data, status, err := fetchProductionOrder(tenantID, orderID)
 	if err != nil {
@@ -269,74 +275,12 @@ func workCenterDailyCapacityMins(tenantID, workCenterID string) (float64, error)
 	return numFromInterface(d["capacity_hours_per_day"]) * 60, nil
 }
 
-// ConfirmOperation marks one routing operation confirmed for a production
-// order, enforcing sequence (MANUFA-0147: an operation can't be confirmed
-// before the ones ahead of it) and flagging - not blocking, matching
-// MFG-0277's own Blocking:false/HTTP-200 catalog row - a work center whose
-// capacity this single order's run alone would exceed for one day.
+// ConfirmOperation marks one routing operation confirmed with no quantity, time
+// or operator - the original call. Stage 170.10's ConfirmOperationRecorded
+// (manufacturing_costing.go) does the work; this stays for callers with nothing
+// to record.
 func ConfirmOperation(tenantID, orderID string, seq int, actorUserID string) (capacityWarning string, err error) {
-	data, status, ferr := fetchProductionOrder(tenantID, orderID)
-	if ferr != nil {
-		return "", fmt.Errorf("production order not found: %v", ferr)
-	}
-	if status != "Material Issued" && status != "In Process" {
-		return "", fmt.Errorf("operations can only be confirmed once material has been issued (current status: %s)", status)
-	}
-	routingID, _ := data["routing_id"].(string)
-	if routingID == "" {
-		return "", &ValidationError{Code: "MANUFA-0142", Message: "no routing is configured for this production order"}
-	}
-	ops, ferr := fetchRoutingOperations(tenantID, routingID)
-	if ferr != nil {
-		return "", ferr
-	}
-
-	var progress []operationProgress
-	if raw, ok := data["operations_progress"].(string); ok && raw != "" {
-		_ = json.Unmarshal([]byte(raw), &progress)
-	}
-	confirmedSeqs := map[int]bool{}
-	for _, p := range progress {
-		if p.Status == "Confirmed" {
-			confirmedSeqs[p.Seq] = true
-		}
-	}
-	if confirmedSeqs[seq] {
-		return "", fmt.Errorf("operation %d is already confirmed", seq)
-	}
-	var target *routingOperation
-	for i := range ops {
-		if ops[i].Seq == seq {
-			target = &ops[i]
-			break
-		}
-		if ops[i].Seq < seq && !confirmedSeqs[ops[i].Seq] {
-			return "", &ValidationError{Code: "MANUFA-0147", Message: fmt.Sprintf("operation %d must be confirmed before operation %d", ops[i].Seq, seq)}
-		}
-	}
-	if target == nil {
-		return "", fmt.Errorf("operation sequence %d not found on routing %s", seq, routingID)
-	}
-
-	orderQty := numFromInterface(data["quantity"])
-	if target.WorkCenterID != "" {
-		if capMinsPerDay, cerr := workCenterDailyCapacityMins(tenantID, target.WorkCenterID); cerr == nil && capMinsPerDay > 0 {
-			needed := target.SetupTimeMins + target.RunTimeMinsPerUnit*orderQty
-			if needed > capMinsPerDay {
-				capacityWarning = fmt.Sprintf("MFG-0277: operation %d needs %.0f minutes at work center %s, exceeding its %.0f minute/day capacity", seq, needed, target.WorkCenterID, capMinsPerDay)
-				LogSystemError(tenantID, "", "WARN", "ConfirmOperation", capacityWarning, "")
-			}
-		}
-	}
-
-	progress = append(progress, operationProgress{Seq: seq, Status: "Confirmed", ConfirmedAt: time.Now().Format(time.RFC3339)})
-	marshaled, _ := json.Marshal(progress)
-	data["operations_progress"] = string(marshaled)
-	if err := saveProductionOrderStatus(tenantID, orderID, "In Process", data); err != nil {
-		return capacityWarning, err
-	}
-	LogAuditEvent(tenantID, actorUserID, "PRODUCTION_OPERATION_CONFIRMED", "SUCCESS", fmt.Sprintf("Operation %d confirmed for order %s", seq, orderID))
-	return capacityWarning, nil
+	return ConfirmOperationRecorded(tenantID, orderID, seq, actorUserID, OperationConfirmation{})
 }
 
 // finishProductionQty posts a batch of finished goods (and any BOM-
@@ -436,7 +380,8 @@ func finishProductionQty(tenantID, orderID string, qty float64, output ...Output
 	// Stage 132.22: the finished good comes in at the cost of the material it
 	// used - its share of what was issued (the last completion takes what is
 	// left, so rounding never strands value) plus this completion's backflush.
-	// By-products come in at no cost, the main product carries it all.
+	// By-products come in at no cost unless their BOM line carries a cost share
+	// (170.12); the main product carries the rest.
 	backflushPaise, err := consumedValuePaiseTx(tx, schema, consumed)
 	if err != nil {
 		return fmt.Errorf("finished goods cost: %v", err)
@@ -452,17 +397,33 @@ func finishProductionQty(tenantID, orderID string, qty float64, output ...Output
 	data["material_cost_allocated_paise"] = allocated + share
 	// Stage 132.18: the stock ledger names the order (it read "StockAdjustment", no document).
 	// Stage 135.19: each completion keys its own ledger lines.
+	bpParts, mainValue, err := byProductCostSplit(byProducts(bomData), qty, share+backflushPaise) // 170.12
+	if err != nil {
+		return err
+	}
 	completion := int(numFromInterface(data["completion_count"])) + 1
 	if err := postProductionStockTx(tx, schema, location, orderID, fmt.Sprintf("FINISH:%d", completion), items); err != nil {
 		return fmt.Errorf("finished goods receipt failed: %v", err)
 	}
 	// Stage 148.1: after the stock, which the blend counts itself out of.
 	var unitPaise int64
-	if value := share + backflushPaise; value > 0 {
-		if err := blendIntoCostTx(tx, schema, parentItem, qty, value, qty, true); err != nil {
+	if mainValue > 0 {
+		if err := blendIntoCostTx(tx, schema, parentItem, qty, mainValue, qty, true); err != nil {
 			return fmt.Errorf("finished goods cost: %v", err)
 		}
-		unitPaise = sharePaise(value, 1, qty)
+		unitPaise = sharePaise(mainValue, 1, qty)
+	}
+	for _, bp := range bpParts {
+		if bp.Value > 0 {
+			if err := blendIntoCostTx(tx, schema, bp.Sku, bp.Qty, bp.Value, bp.Qty, true); err != nil {
+				return fmt.Errorf("by-product cost: %v", err)
+			}
+		}
+	}
+	// 170.13: with WIP accounting on for this order, the cost moves out of WIP, and
+	// closing the order sends what is left to the variance account.
+	if err := wipCompletionTx(tx, tenantID, schema, orderID, data, completion, backflushPaise, share+backflushPaise, willClose); err != nil {
+		return err
 	}
 
 	data["completed_qty"] = newCompleted
@@ -478,6 +439,7 @@ func finishProductionQty(tenantID, orderID string, qty float64, output ...Output
 		return err
 	}
 	named.register(tenantID, location, parentItem, qty, unitPaise, "ProductionOrder", orderID)
+	recordLotGenealogy(tenantID, orderID, parentItem, named.BatchNo, qty, completion) // 170.14
 	return nil
 }
 
@@ -492,6 +454,7 @@ type reworkEntry struct {
 	Qty       float64 `json:"qty"`
 	Reason    string  `json:"reason"`
 	Timestamp string  `json:"timestamp"`
+	OrderID   string  `json:"order_id,omitempty"` // 170.11: the rework order opened for it
 }
 
 // SendToRework (26.9.6) logs a defective quantity pulled aside for rework.
@@ -504,6 +467,9 @@ func SendToRework(tenantID, orderID string, qty float64, reason, actorUserID str
 	}
 	if qty <= 0 {
 		return fmt.Errorf("rework quantity must be positive")
+	}
+	if GetSettingBool(tenantID, SettingProductionScrapRework) {
+		return openReworkOrder(tenantID, orderID, qty, reason, actorUserID) // 170.11
 	}
 	data, status, err := fetchProductionOrder(tenantID, orderID)
 	if err != nil {

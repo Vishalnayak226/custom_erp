@@ -387,12 +387,13 @@ func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportRes
 	}
 	res.Rows = len(records)
 
+	unitSchema, _ := db.GetTenantSchema(tenantID) // 168.14: a unit shows in its column's header
 	if strings.EqualFold(strings.TrimSpace(f.Format), "xlsx") {
 		sheet := XLSXSheet{Name: "Feed"}
 		if !headerless {
 			head := make([]XLSXCell, len(cols))
 			for i, c := range cols {
-				head[i] = XLSXCell{Text: c.ColumnHeader, Header: true}
+				head[i] = XLSXCell{Text: exportHeaderWithUnit(unitSchema, c.FieldKey, c.ColumnHeader), Header: true}
 			}
 			sheet.Rows = append(sheet.Rows, head)
 			sheet.FreezeRows = 1
@@ -417,7 +418,7 @@ func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportRes
 	if !headerless {
 		headerRow := make([]string, len(cols))
 		for i, c := range cols {
-			headerRow[i] = c.ColumnHeader
+			headerRow[i] = exportHeaderWithUnit(unitSchema, c.FieldKey, c.ColumnHeader)
 		}
 		_ = writer.Write(headerRow)
 	}

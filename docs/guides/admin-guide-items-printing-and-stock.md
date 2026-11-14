@@ -1,0 +1,496 @@
+---
+doc_id: DOC-C44AC5B356-03
+title: Admin Guide: Items, printing and stock
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: transition-copy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+# Admin Guide: Items, printing and stock
+
+Part 3 of 6 of the [Admin Guide](admin-guide.md). Previous: [Settings, numbering and batches](admin-guide-settings-numbering-and-batches.md). Next: [Finance, integrations and go-live](admin-guide-finance-integrations-and-go-live.md).
+
+*Continues [Part B — Day-to-Day Operation](admin-guide-foundation-users-and-settings.md#part-b--day-to-day-operation) › [B.3 Configuring the System (no code required)](admin-guide-foundation-users-and-settings.md#b3-configuring-the-system-no-code-required).*
+
+#### B.3.4 Sticker templates, template rules and the Sticker Studio (Stages 52, 58, 70)
+
+By default every item's barcode label uses the built-in **Standard label** (name, variant, barcode, SKU, HSN, batch barcode). A tenant that wants items to print differently defines **StickerTemplates** and rules for which items use them — designed by the business itself in the full-screen **Sticker Studio** (Stage 58), no code change and no developer. The end-user steps are in [User Guide](user-guide.md) §7A.2; this subsection is what you need to know as the administrator.
+
+**Nothing has to be configured.** With no `StickerTemplate` records the resolver returns "no template" and every label prints the built-in 50 × 25 mm layout — the same content as always (name, barcode, SKU, HSN). Since Stage 58 it is drawn by the same engine as designed templates, so it now also prints correctly on a TSC (TSPL) printer, which previously received Zebra commands. No tenant is forced through a design step to keep printing.
+
+**Who can design them.** `StickerTemplate` is an ordinary Master (module key `stickers`, enabled by default for a tenant and also granted by the `pim`, `wms` and `erp_full` packages; the doctype appears under **Inventory** in the Setup flyout), so the usual permission matrix applies:
+
+| Role | Read | Create | Edit | Delete |
+| --- | --- | --- | --- | --- |
+| HR/Admin | ✓ | ✓ | ✓ | ✓ |
+| Store Manager | ✓ | ✓ | ✓ | — |
+| Cashier | ✓ | — | — | — |
+
+**How a label picks its template** (Stage 70, `engines.ResolveStickerTemplateForItem` / `pickStickerTemplate`), first rule that applies:
+
+1. **Item** — `Item.sticker_template` (a Link to StickerTemplate, on the Item form and in Item imports).
+2. **Item type** — `ItemType.sticker_template`, read through the item-type cache (30 s, dropped when an ItemType is saved).
+3. **Product type** (Stage 113) — `ProductType.sticker_template`, found from `Item.product_type` (the type's name; matched on name in any case, code or record id).
+4. **Category** — the item's **Category** against each Active template's comma-separated `categories` list: case-insensitive, surrounding spaces ignored, otherwise an exact string match.
+5. **Default** — the template flagged **Default for categories with no template of their own** (`is_default`).
+6. Otherwise the built-in **Standard label** (`DEFAULT_STICKER_TEMPLATE` in `public/sticker-engine.js`: name, variant, barcode, SKU, HSN, batch barcode).
+
+Templates are read in record-id order, so when two templates name one category, or two carry the default flag, the result is the same every time. A rule naming an Inactive or deleted template is skipped. Users manage rules 2-5 on **Sticker Printing → Template rules** (User Guide §7A.5). That screen writes only the existing records (plus, when a built-in design is picked, one new StickerTemplate saved from it by `ensureDesignTemplate` in sticker-engine.js, reused on later picks by its code or name): ItemType, ProductType, the templates' `categories`, and `is_default` on one template while clearing it on the others. Each save is a read-modify-write that sends `expected_version`, so an edit made meanwhile is refused rather than overwritten. Migration `migrations_stage70_1_sticker_template_rules.sql` adds the two Link fields; they start blank, so no existing item changes what it prints.
+
+**Chosen at print.** On a GRN / Transfer Order print each line may carry `template_id` in the `lines` array of `POST /api/v1/stickers/print` (and the QZ payload endpoint): a StickerTemplate id, or `standard` for the built-in label. It beats the rules for that print only, and `sticker_print_log.template_id` records what actually printed. A chosen template that is not Active stops the run with a 422 instead of printing another design. The manual SKU panel always follows the rules.
+
+**Printer preset (Stage 137).** A Printer record carries `sticker_template` (*Roll loaded*), `shift_right_mm`, `shift_down_mm`, `darkness` (0-15) and `print_speed`, set on **Setup → Printing → Printer** or from the sticker page's **Printer preset** (User Guide §7A.6). After the rules and any template chosen at print, `applyPrinterRoll` (`engines/sticker_printer_preset.go`) checks the label's template against the roll's: same label size (within 0.05 mm), labels across and down, direction, and roll vs A4 sheet. A template of that shape is kept; any other - the built-in 50 × 25 label included - is replaced by the roll's template, and `sticker_print_log.template_id` records the one printed. A preset naming an Inactive or deleted template is ignored (logged). The shift, darkness and speed are added in the browser by `withPrinterPreset` on every path - TSPL / ZPL, the PDF for a driver-only printer, the browser sheet and Preview - on top of each template's own offsets, in the paper's frame. **Test alignment** prints an edge box and cross at the roll's size; **Calibrate roll** sends `GAPDETECT` (TSPL) or `~JC` (ZPL) raw. Print routing (`GET /api/v1/print/qz/assignments`) returns the five fields with the printer.
+
+**PrintBridge for every computer (Stage 137.4-137.5).** The ERP serves one Windows installer at `/downloads/printbridge-setup.exe` (Download PrintBridge on the sticker page's printer setup) with its version in `printbridge-version.txt`; the panel shows *running*, *not running* or *an older one is running* from the agent's `printbridge.version` call (an agent before 0.2.0 refuses it). Build it with `..\PrintBridge\installer\build.ps1 -Universal -OutDir <a temp folder>` and copy both files into `public/downloads`; release gate G4d stops a release whose served version differs from the agent source. That installer trusts `https://wholeops.in` and every `https://*.wholeops.in` address by itself (whole-label match; lookalikes such as `wholeops.in.evil.com` are refused); any other address gets one *Allow printing?* box on the PC, and Yes is added to `erp-url.txt`. It also sets the Edge / Chrome policies `LocalNetworkAccessAllowedForUrls` (`https://[*.]wholeops.in`) and, when not already set, `AutoLaunchProtocolsFromOrigins` for the `printbridge` link. Every agent start registers that link (`HKCU\Software\Classes\printbridge`, no `%1`, so a page can only start the agent) and the logon entry; Quit from the tray removes neither, only Uninstall does. On a computer where PrintBridge has connected before, `qz-print.js` opens `printbridge://wake` in a hidden frame (CSP `frame-src 'self' printbridge:`) on the first click after a page load and when a print finds it not answering, then retries; three unanswered wakes stop the waking. A per-client installer (`build.ps1 <address>`) is still possible for an address outside wholeops.in.
+
+Three consequences worth telling your users about before they design anything:
+
+- **`Item.category` is free text.** Nothing validates it against a template's list, so a template naming `Earings` simply never matches, silently, and those items fall to the next rule. If categories matter operationally, standardise the spelling on the Item Masters, or set the template by Item type or on the Item instead (rules 1-2 are Links, so they cannot be misspelt).
+- **`Status = Inactive` is the retire switch.** An Inactive template is skipped by the resolver entirely, which is the safe way to park a layout without deleting it (and without losing the audit rows that reference it).
+- **Only one template should carry the default flag.** The studio's tick does not stop two; the resolver then takes the lowest record id. The **Template rules** screen's Default dropdown keeps it to one.
+
+**How labels are rendered (Stage 58).** Every label — designed or built-in — is drawn in the browser by `public/sticker-engine.js`, the same code the studio canvas uses, so what was designed is what prints:
+
+- **Thermal printers (TSPL or ZPL).** Each row of labels is drawn at the printer's DPI, turned into a 1-bit bitmap and sent as one TSPL `BITMAP` or ZPL `^GFA` graphic, with the page size (`SIZE`/`GAP`, `^PW`/`^LL`), darkness, speed and 180° flip from the template's **Label** settings. Fonts therefore never depend on what is installed in the printer. Barcodes (Code 128 with automatic numeric compaction, EAN-13) and QR codes are encoded by the engine and drawn with every bar a whole number of printer dots; the studio's scan check warns below 2 dots. Identical consecutive rows go as one image with a copy count, and jobs are sent in batches of 50 rows, well inside the print agent's 32 MB message cap.
+- **A label printer driven by its Windows driver** (Stage 127.2): with PrintBridge running, the labels go to this computer's **Sticker** printer as a PDF drawn at the printer's own dots - no browser dialog. Once the computer has a Sticker printer chosen, a failure says why (Retry / Print with the browser instead) instead of opening the dialog.
+- **Anything else** (no printer chosen for stickers on that PC, or the user picks the browser after a failure): the browser print dialog opens with the labels as images at 300 dpi or more — either **roll pages** (one row of labels per page, page sized to the roll, for a thermal printer driven by its Windows driver) or an **A4 sticker sheet** grid, per the template's **Office printer / PDF** setting.
+- **DPI.** Dots are computed from the **Printer record's `Printer DPI`** when it is set, else the template's own DPI, else 203. Set it on every Printer record: a 300-dpi printer treated as 203 still prints at the right size (sizes are in mm), but bars may lose their scan margin.
+- **Item data.** Each label carries every scalar field of its Item (`fields` on the `/api/v1/stickers/print` response), which is what lets the studio print weight, purity, size, MRP or any custom/industry field without code changes. Values longer than 500 characters and nested JSON are not included.
+- **Preview.** `"preview": true` on `POST /api/v1/stickers/print` returns the same labels after the same checks (printer, reprint reason, template) but writes no `sticker_print_log` row and no `PRINT_STICKERS` audit event. The sticker screen's **Preview** uses it, then sends the request again without the flag when the user presses **Print**.
+- **Document list (134.1).** `GET /api/v1/stickers/documents?source_doctype=GRN&q=<part of the number>&limit=` lists a sticker source's documents - number, date, store and status only, newest first, cancelled ones left out, within the caller's store scope (the document list's own rule) - for anyone with the sticker permission, so a Store Manager or Cashier finds the receipt to label without read access to GRNs. A source other than a GRN or Transfer Order still needs read permission on its own doctype.
+- **Reprint reason.** `reprint_reason` takes a Reprint reason code (`RPT-LOST`), a code with a note (`RPT-LOST: second roll`, kept as *code: label - note*) or, unless **Reasons must be picked from the reason codes** is on, a note alone. The starter code `RPT-MRP` (*Price (MRP) changed*) is what an MRP change's sticker hand-over picks.
+- **API clients** that still call the QZ payload endpoint with `job_type: "Sticker"` get the older server-built ZPL. It prints a template's text and barcode elements (including custom text, prefix/suffix and `{field}` tokens) and skips QR, line, box and logo elements, which only the browser engine draws.
+
+**Storage limits.** A template's layout lives in its `elements` field (one JSON array) and its settings and logos in `design` (`{v: 2, settings, assets}`). `elements` is subject to `platform.field_max_length` (10,000 characters by default): the studio stores elements compactly, warns in its status line from 90% and refuses to save over the cap with an explanation. Logos are limited to 400 KB on upload and down-scaled to 800 px; unused logos are dropped on save.
+
+**A Printer record is required on this screen**, unlike receipts and invoices: the Sticker Printing screen refuses to print with "Select a printer first" even when it is going to fall back to the browser dialog, because the print is logged against a printer. Any one Active Printer record is enough — this screen passes the chosen printer explicitly, so it does not depend on **Default For** being set.
+
+**Audit trail.** `sticker_print_log` keeps every run (SKU, barcode, printer, user, copies, reprint reason, timestamp) and, for a run started from a document, additionally which `source_doctype`/`source_doc_id` it came from and which `template_id` rendered it. The **Print** tab's own history table shows this; `print_job_log` separately records each silent thermal job sent through the print agent (status Submitted/Failed). A studio **Test print** writes neither — nothing real is being labelled.
+
+**Selecting one lot of a SKU.** A document's lines are unique by SKU *and* lot, so a SKU received on two lots is two rows, each selected, counted and printed independently; the review table shows a **Batch/Lot** column whenever that applies. Over the API, `POST /api/v1/stickers/print` and the QZ payload endpoint take this as a `lines` array of `{sku, batch_no, copies}`. The older `skus` + `copies_override` pair is still accepted and still means "every lot of this SKU", so existing callers and the manual scan flow are unaffected.
+
+**Source documents.** The **Module** list starts with GRN, Transfer Order, Purchase Order and Sales Order (`BULK_STICKER_SOURCE_DOCTYPES` in `public/view-printing.js`), then every other transaction whose lines carry items. A Sales Order's lines are separate Sales Order Line records: cancelled and returned lines, lines with no SKU and zero-quantity lines are left out, and a SKU on several lines prints once with the quantities added. A cancelled or unknown order is refused with a message. A new source that needs its own rule is one more `case` in `engines.ResolveDocumentStickerLines`.
+
+#### B.3.5 Sending events to another system (Webhook Subscriptions)
+
+A **webhook subscription** tells this system: "whenever *this kind* of thing happens, send the details to *that* address" — so another application (an accounting package, a warehouse robot, your own dashboard) hears about a sale or a stock change the moment it happens, without polling.
+
+**To set one up**: Setup → type "webhook" in the filter → **Webhook Subscription** → **New**.
+
+| Field | What to put |
+|---|---|
+| **Name** | What it is for, e.g. "Stock changes to warehouse dashboard". |
+| **Delivery URL** | The `https://` address the other system gave you. |
+| **Signing Secret** | A long random string you also give to the other system. Every delivery is signed with it so they can prove it came from you. |
+| **Event Pattern** | Which events to send: an exact name such as `pos.sale.completed`, or a prefix ending in `*` such as `inventory.*` for every inventory event. |
+
+**What the other system receives**: an HTTP `POST` whose body is `{"event": "<name>", "payload": {…}}`, with headers `X-Webhook-Event` (the event name), `X-Webhook-Delivery` (a unique id, so a repeat can be ignored) and `X-Webhook-Signature: sha256=<HMAC-SHA256 of the body, keyed with your Signing Secret>`. Events in use today include `pos.sale.completed`, `inventory.stock_changed` and `pim.publish.queued`.
+
+**Checking a delivery on the receiving side (since Stage 134)**: each delivery also carries `X-Webhook-Timestamp` (Unix seconds) and `X-Webhook-Signature-256: t=<timestamp>,v1=<hex>`, where `v1` is the HMAC-SHA256 of `<timestamp>.<body>` keyed with your Signing Secret. Check `v1` with a constant-time compare, refuse a timestamp more than 5 minutes away from your clock, and keep each `X-Webhook-Delivery` id you have handled so a repeat is ignored - together that stops a captured delivery being replayed. `X-Webhook-Signature` (body only) is still sent for systems already built on it. The signing secret is read from the subscription when each delivery is sent, so it never sits in the Background Jobs list; a subscription set Inactive or deleted before its delivery runs sends nothing.
+
+**Where deliveries may go**: the URL must be a public `https://` address. Every outbound call to an address someone typed - webhooks, extension hooks, notification webhooks, SMS / email gateway and WhatsApp senders, marketplace shops, image drives, push services - is checked when each connection is made: an address on a private network, this server itself, the cloud metadata service or a reserved range is refused, even if the name pointed somewhere public when it was saved. Redirects are not followed for webhooks; elsewhere at most three, never from https down to http. An **on-premise** install whose hooks live on its own network is the one exception: whoever runs the server sets `OUTBOUND_ALLOW_PRIVATE=1` in its environment. It is a server setting, never something a client's admin can switch on, and never set on the hosted service.
+
+**How it stays reliable**: an event is written in the same database transaction as the business change that caused it (the "outbox"), so an event is never sent for a sale that was rolled back, and none is lost if delivery fails — failed deliveries are retried by the job runner. A server running with external side effects switched off (development and training instances, see the startup log line `SIMULATED (ENV=development)`), or a client whose **Platform → Outside calls** is off (§B.3.0), records deliveries as simulated but does not actually send them.
+
+**How long the logs are kept** (since 47.18.3): sent events, the integration event log and the extension hook call log are deleted after **Settings → Configuration → Platform → Integration and hook log retention** (90 days by default), by an hourly sweep. An event not yet sent is never deleted. Set it to **0** to keep everything (a hold, for an audit or a dispute); the change is in the audit log. Async job history has its own setting (*Async job history retention*, 30 days). **Raw import files** follow **Import file retention** (0 by default - nothing is deleted until you set a number of days; 0 is also the hold for an audit, and the audit line names the key and value): the CSVs a scheduled import moved into its drop folder's `imported/` and `failed/` subfolders are deleted by age, and an import job's stored failed rows and error file are removed while its counts, totals and source lineage stay (the job then cannot be resumed; a file still waiting in the drop folder is never touched). The same sweep also clears sent CleverTap events and the PIM channel publish log on that setting, and the system error log on its own: **System error log retention** (180 days by default, 0 keeps everything). **A client under legal hold keeps every log** whatever these settings say; the sweeps resume when the hold is lifted. A large backlog is removed in batches over a few hourly runs, so a first sweep never slows the client down. **CERT-In floor (47.16.3):** the integration event log, the extension hook call log, the system error log and the public API traffic log are kept at least **180 days** whatever these settings say (CERT-In's log-keeping direction); sent events, CleverTap events and the PIM publish log still follow the setting, because they hold copies of business data rather than access records. 0 still keeps everything. Every security log, where it lives and the six-hour CERT-In reporting steps are in `docs/security/cert-in-log-inventory.md`.
+
+**Every log's size and speed is written down (Stage 49.18.2).** Each security and operational log or store states the most one row can hold and what caps it (for example a system error message at most 4 KB, a stack trace 32 KB, a job's payload 64 KB, a hook's error text 4 KB), and the index its look-ups and its retention sweep read, held to a key look-up within 10 ms and one sweep batch within 1 s. Eleven swept logs gained the index their sweep needed - async jobs, command keys, API tokens, the outbox, the integration, hook, CleverTap, PIM publish and system error logs, and CRM tokens and events - so an hourly sweep no longer reads a whole log to find nothing. The list is `engines/bounded_state.go`; a release fails when a log is added without it.
+
+**Personal values kept only in a document's JSON (49.6.2).** A few personal values sit in a document's data with no field of their own (a web-shop order's e-mail and billing address). The personal-data register lists them apart, with purpose, basis and retention. The owner's answers: the e-mail goes once the order is Delivered or Closed, and a billing address equal to the shipping address is not stored.
+
+**Personal data kept short (49.6.2a).** The same hourly sweep removes a **gate pass's driver phone** 90 days after the gate pass was made; the gate pass, the driver's name and the vehicle stay (a client under legal hold keeps it). A **salesman's phone** shows only to the roles that manage salesmen — Store Manager / Store Supervisor and Setup Operator, plus Admin; others see the salesman without it. A customer's **birthday, anniversary and gender** are marketing data, held on consent and never required; the **PAN** is asked for only on a bill over ₹2,00,000 (User Guide §4.10). An employee's **designation** is kept for HR letters.
+
+**The edit log and the audit trail's 8 years (47.16.4a, 47.16.4c).** Every client keeps an edit log (Companies Act, Rule 3(1)): each save that changes a record adds one row to its Activity Log, action `UPDATE_<record type>`, with the person who saved it, the reason given, and the old and new value of every field that changed, for example *Fields changed: {"mrp": {"new": 120, "old": 100}} for Document ID: I1 (reason: price fix)*. A save that changes no field adds nothing. Rows from before this release, on the template client only, have one row per field instead; the change reports read both. The audit trail is kept at least **8 years** (2,922 days, Rule 3(5)): nothing - no retention setting, no sweep - deletes an audit row or an audit archive younger than that (moving rows into the encrypted archive is not a deletion). The database refuses a deletion period (`audit_retention_policy.delete_after_days`) under 2,922 days; leaving it empty keeps everything for ever, which is the default.
+
+**OMS connector retry (Stage 55.9):** the order desk prevents two simultaneous manual syncs of the same channel operation in one browser session. A successful pull reports orders *processed*, which can include previously imported channel order IDs; it does not mean that many new SalesOrders were created. Check the order's source and channel order ID before retrying, and use the integration exception/mapping queue to fix rejected items. This UI guard is not a substitute for the server's channel-order idempotency key or for a real connector acceptance run.
+
+**OMS local handoff (Stage 55.9 partial, 2026-10-09):** a scratch Chromium journey created a manual SalesOrder, reserved a unit, released it to a FulfillmentTask, dispatched the task, booked a carrier from the order detail, handed over a manifest, and found a Shipped order with one Draft SalesInvoice. The booking action is suppressed once an active booking exists or the order is terminal. Both notification logs said `Skipped-NoTemplate`; no delivery is claimed. The settlement form now selects saved orders from the chosen channel instead of accepting comma-separated IDs; this is not proof of payout matching. Return/refund and connector replay remain open.
+
+**Finance work home (Stage 55.10):** **Financial Accounting → Work to review** links operators to AP, AR, payment proposals, bank reconciliation and period close. It shows no first-page status counts because the generic document API paginates; use source lists and reports for actual balances and exceptions. Do not treat the advisory close checklist as an Account Head signature or qualified CA statutory acceptance. Retain source-document, posting-identity and bank-reconciliation evidence for those separate reviews.
+
+**Posting-identity gap (2026-10-09):** the Work panel now opens the existing full GL audit export directly; Chromium verified the exact report. Its GL rows carry source doctype/id and timestamp but no posting actor, and audit logs do not have a reliable entity link for every GL write. The link is a source review aid, **not** an accountable who-posted-what register. Add explicit actor capture to the shared posting path and reconcile historical `NULL`/unknown rows before 55.10 may be claimed complete. Account Head and qualified CA signoffs remain external gates.
+
+#### Purchasing reminders and job emails (Stage 146.3.8, 146.4.6)
+
+All off until you set them in **Settings**. A reminder or alert goes out only if a **Notification Template** exists for its event name; without one it is logged as skipped.
+
+- **Remind approvers of a waiting PO after / Escalate a waiting PO after** (`procurement.po_approval_reminder_hours`, `procurement.po_approval_escalation_hours`, hours, 0 = off). A PO still *Pending Approval* after that long sends **PO Approval Reminder** / **PO Approval Escalation**, once per wait (a resubmitted PO waits afresh). Checked hourly.
+- **Tell the buyer about rejected quantity** (`procurement.notify_buyer_on_rejection`). A posted receipt with rejected quantity sends **GRN Rejected Qty** (variables `grn_id`, `rejected_qty`, `vendor`, `po_id`, `buyer`).
+- **Email when a big import or export finishes, from rows** (`notifications.job_done_min_rows`, 0 = off). A job of at least that many rows sends **Long Job Finished** and queues an email (event `notification.email`) to the person who started it, if their user has an address.
+- **Default return store per channel:** on a **Channel**, set *Default return location*. A return of an order from that channel with no store chosen goes there (a store chosen on the return still wins). Empty = as before.
+- **Gate entries with no GRN after N hours** and **Vendor invoices dated before their PO** are reports (Reports > Procurement); the second also shows a warning when such an invoice is saved.
+
+#### B.3.5a Who can delete a purchase order (Stage 65.2)
+
+**Settings → Roles → Purchase Order → Delete** decides it, per role. Super Admin and HR/Admin can always delete; any other role only when its Delete box is ticked (Store Manager, for example, ships without it). A role with it sees **Delete** on every PO row.
+
+**What the system still refuses, whatever the role:** a PO that goods have been received against — a goods receipt that is not cancelled names it, directly or as one of the POs of a multi-PO receipt (§B.3.6). The user gets `PURCHA-0320` with the receipt number(s). Cancel the receipt first, then delete. Every other status can be deleted — draft, pending approval, approved, sent to the vendor — which is wider than other transactions, where an approved record can never be deleted. The delete is a soft delete: the record is hidden everywhere and logged as `SOFT_DELETE_PurchaseOrder` in the Activity Log with who did it; its row stays in the database for audit.
+
+#### B.3.5b Item names, categories and product types (Stage 65.3)
+
+Three small master lists sit above designs, so a buyer types an item's tax details once:
+
+- **Category** (*Antique*, *Cotton*) and **Product Type** (*Necklace*, *Kurta*) — both under **Setup**: just a name. Their code is numbered by the system (`CAT/HO/26-27/000001`, `PTYPE/...`), whoever creates them, including from inside a PO.
+- **Item Name** — under **Setup** (PIM): a Category plus a Product Type, the **name** (left blank, it is built from the two in the order set under **Configuration → Inventory → Item name order**: *Antique Necklace* or *Necklace Antique* — §B.3.5c), the **HSN code** and the **GST rate**. Numbered `ITEMNAME/...`.
+
+**Designs inherit from their item name.** A design (Product Family) created with an Item Name takes that item name's HSN and GST wherever its own are blank, and every combination created from the PO (an item name picked in its add row, User Guide §6.9) carries them too — so correcting an item name's HSN is the place to change it for future designs (existing items keep what they were created with). A design also stores the **Design Number** the buyer typed (the vendor's number, say); its code stays the system's own `Design/...` id.
+
+**Who can do what.** Out of the box Super Admin and HR/Admin manage all three lists; Store Manager can read them. Creating an item name from the PO needs **create** on Item Name (and on Category / Product Type for new ones) — grant it under **Settings → Roles**. Adding a value to an attribute from the PO or the Item form needs **update** on **Item Attribute** (`ItemAttribute`, Stage 86.3); adding a new attribute needs **create** on it. Both are recorded in the Activity Log (`DESIGN_ATTRIBUTE_VALUE_ADDED`, `DESIGN_ATTRIBUTE_CREATED`). A value with a comma, or a value for a typed (non-list) attribute, is refused with `PIM-0321`.
+
+#### B.3.5c The item master, asked once — defaults, item fields, attributes per type, correcting a treatment (Stage 89)
+
+An item is meant to be set up once, at creation, mostly from your organisation's own answers (User Guide §8g). What you decide, and where:
+
+**Configuration → Inventory** (organisation defaults; each item can still change its own):
+
+| Setting | What it does |
+|---|---|
+| **Traceability for new items** | None / Batch / Serial / Batch and serial. Copied onto each new item; changing it later does not touch existing items (a tracked item's mode never shifts under its stock). |
+| **Shelf life for new items**, **Minimum shelf life left on receipt / when picked, for new items** | The standard days a new item starts with; 0 = none. |
+| **Generate barcodes at**, **New barcode for each receipt date**, **GRN batch numbers** | Already organisation-wide; an item (or its kind) follows them unless it chooses otherwise, and its form says what it is following. For jewellery where every piece has its own weight, choose **One per GRN line**. |
+| **Item name order** | *Category + Type* (Antique Necklace) or *Type + Category* (Necklace Antique). Switching renames every item name still built the old way, and the designs and items named from it; switching back renames them back. A name typed by hand, and bills already printed, are not changed. |
+| **Attributes follow the item's type** | Off (default): every item, PO line and GRN line offers every attribute. On: only the attributes (and values) mapped to the item's Product Type — or, when the type has none mapped, its Category. A type or category with nothing mapped still offers everything, so turning it on never empties a form. |
+| **A second admin approves item treatment corrections** | Off (default) / On — see *Correcting a treatment* below. |
+
+Tax treatment needs no setting: a new item is **Taxable** unless someone chooses otherwise.
+
+**Kinds of item.** The first question on New Item — *What kind of item is this?* — is the **Item Type** list (Product = *Normal product - bought and sold*, Packaging, Free gift, Service, Gift card, Consumable…; see Item Types and §B.3.8). It starts on Normal product and decides the whole *Selling and accounting* section, which each item shows as *Merchandise (from Normal product)* and so on. An Item Type's own *Client default* options read with today's organisation value, e.g. *Client default (SKU creation)*.
+
+**Configuration → Item fields** (where each field is asked): one table of every item field and attribute with **On the item**, **In the PO** (attributes), **At the GRN** (*No / Optional / Required*), **Values from** and **Hidden**.
+
+- **At the GRN**: the field appears as a column on every Goods Receipt line; *Required* refuses to post a line without it (`MASTER-0891`). The value is kept on the line and on its batch, and prints on that batch's stickers. Gross Weight, Net Weight, Stone Weight and Purity start as *Optional at the GRN, not on the item*.
+- **Values from**: a typed field (Color, Polish, Size…) can take its values from an Item Attribute, so it becomes a dropdown with **+ Add a new …** for anyone who may update Item Attributes. A field whose name matches an attribute (Color ~ Colour) is linked automatically. **Make a list** creates the attribute for a field that has none, holding every value items already carry in it — nothing on any item changes. A PO's design item that carries the value in its variants fills the linked field too.
+- **Hidden**: off every form; what items already hold in it is kept. The free-text **Type** starts hidden, since the item name's Product Type replaces it. Likewise the jewellery profile's free-text **Color / Polish / Size / Stone Type** start hidden once the attribute library has the same attribute (81.6): the attribute is then asked on its own, a sticker printing the old field shows the attribute's value, and a rule you saved for the field always wins.
+- Name, code, kind of item, item name, category, type, HSN, GST, tax treatment, prices, barcode and design are always on the item and are not in the table.
+
+**Day limits (Stage 130.10, 78.3).** All under **Configuration → Procurement & GRN** (the transit limit under **Stock Transfer**, the GST deadline under **GST & Compliance**); every one is 0 / off as shipped:
+- **Remind the vendor before the expected delivery** (days) - the *PO Delivery Reminder* notification event, once per PO; give it a Notification Template (channel + text) for it to reach anyone.
+- **Receipt is late after / early before** (days) - against the PO's Expected delivery; the goods receipt carries *Late by* / *Early by*; report *Late and early receipts*.
+- **Dates may go back / ahead at most** (days) - vendor invoice dates (goods receipt, vendor bill) and a PO's Expected delivery (back only); `PURCHA-1308`; Admin and Super Admin are not held to it.
+- **Goods receipt not billed after** (days) - report *Goods receipts not billed*.
+- **Purchase requisition expires after** (days) - an unconverted requisition becomes *Expired* (audit `PR_EXPIRED`).
+- **A vendor quote is valid for** (days) - fills a blank *Valid until*.
+- **Transfer in transit too long after** (days) - the *Transfer In Transit Overdue* notification event, once per transfer; report *Transfers in transit too long*.
+- **Transfer in transit too long after** (days) also sets when an in-transit transfer shows as *Late* on **Expected arrivals** (Stage 148.34): dispatch day plus these days; at 0 it shows *In transit* and is never late. **Requisition item lines** (Stage 148.14) add three fields (Item lines, Purchase orders on the requisition; From requisition(s) on the PO) and make the requisition header fields optional when lines are given; the migration changes field settings only, no document.
+- **Transfer fill policy** (Configuration → Stock Transfer, `inventory.transfer_fill_policy`, off as shipped; Stage 146.3.13) - on, a dispatch whose source has too little decides by policy instead of refusing: *Ship what is there* (a reason code is required, the short lines are kept on the transfer as `short_closed`) or *Complete* (nothing ships until the whole quantity is there). Order of precedence: the transfer's **Fill policy**, then the receiving Location's **Transfer fill policy**, then the transfer's **Purpose** (New store and Launch allocation = Complete, otherwise Ship what is there). **Minimum fill %** on the transfer or on the Location refuses a dispatch below it. These fields are added to the TransferOrder and Location forms by the Stage 146.3 migration; a transfer drawing from a chosen From location always stays exact.
+- **Transfers can join waves** (Configuration → Warehouse, `wms.transfer_waves`, off as shipped; Stage 146.3.5) - on, an Approved or Packed transfer can be tagged into a wave at its source location (`POST /api/v1/wms/wave/assign` with `transfer_ids`); releasing the wave reserves bins for it and emits Pick tasks sourced to the transfer. Needs *Work queue* on for the pick tasks. Dispatch consumes the reservation; cancel frees it.
+- **Allocation upload** (Stock Movement → Allocation, Stage 146.3.12) - `POST /api/v1/transfer/allocation` (multipart `file`, `run_id`, `from_warehouse`, `purpose`, `dry_run`), `GET /api/v1/transfer/allocation?run_id=`, `POST /api/v1/transfer/allocation/decide` (`submit` or `approve`). Needs create on TransferOrder to upload and update to submit or approve; approval still uses the *TransferOrder* approval rule and the self-approval setting.
+- **Mark vendor invoices past the input credit deadline** (on / off) - 30 November after the invoice's financial year (Section 16(4)); report *Input credit past its deadline*.
+
+**Item and bill rules (Stage 130.9, 72.D).**
+- **New items need approval before they are sold** (Configuration → Inventory, off as shipped). On: an item made on the Item screen saves as *Draft* and goes straight to the **Item** approval rule's approver (add one under Settings → Approval Rules first - without it a new item is refused, `MASTER-1302`); approved it becomes *Active*, rejected *Blocked*. Until then the till refuses it (`POSOFF-1303`) and an edit cannot release it. Items a PO, a goods receipt or the bulk upload makes are released with that document; items that exist today are untouched.
+- **A tax change from a date.** On the item, **New tax from (date)** with the **New GST rate** and/or **New HSN code**: from that date every sale and purchase is taxed at the new values, and within the hour the item's own GST / HSN take them, the old ones kept in its tax history and the audit log. Enter it ahead of the government's date; until then the current rate applies. Incomplete (no date, no rate or HSN, rate 0) is refused (`MASTER-1306`).
+- **Per store: Items not sold here / Items not stocked here** on the store's record (Setup → Locations) - item codes, categories or product types, comma-separated. The till refuses the first (`POSOFF-1304`), a goods receipt the second (`GOODSR-1305`). Blank changes nothing.
+- **Allow negative stock** on a **Product Type** (No as shipped): its items sell past zero; each shortfall is recorded as a negative-stock event, like an offline sale's.
+- **Free gift when the purchase is returned** (Configuration → Point of Sale): *Comes back with the whole purchase* (as shipped) or *The customer keeps it*.
+- **Cancelling a bill**: a Store Manager or administrator, today's bills only (see the User Guide, returns at the till). Recorded in the audit log as `POS_BILL_CANCELLED`.
+- **Gift cards**: a refund of a bill paid by gift card goes back onto that card (73.1.6); a balance never moves to another card - there is no transfer.
+- **Store credit (Stage 130.12, DEC-11 / DEC-12 at the BRD default).** A refund goes back to the original payment unless the customer asks for store credit (Returns → process the refund → store credit). It is a stored-value balance on the customer (profile *Store Credit*, liability **2650**, made on first use): no expiry, no transfer, never cash. A bill paid with store credit is refunded back to it. Configuration → Point of Sale: **Store credit above this needs a store manager** (rupees, 0 = anyone) and **Store credit uses a day** (0 = no limit). Reports → Finance: **Store credit by customer** (each customer's balance, with the 2650 GL balance it must equal) and **Refunds by method** (processed refunds by how they were paid back, for a period). Every processed return also carries its GST credit note number from the **CN** series, naming the original bill.
+- **Edits record who and why.** Every record edit writes one audit entry naming the editor and the fields changed; the record form has an optional **Reason for the change**, kept with it (the record's last editor and reason are on the record too).
+
+**Attributes per type** (with *Attributes follow the item's type* on): open a **Product Type** (or **Category**) under Setup. **Attributes for this type** lists every attribute: tick the ones this type has, and click values to offer only those (none clicked = all its values). **Suggest from my items** ticks what existing items of that type already use, with counts. A value added for an item of that type from the Item form, the PO or the GRN joins the map by itself. New attributes and values appear in the list as soon as they are created.
+
+**Correcting a treatment after an item has stock.** Once an item has stock movement, its *stock tracking*, *valuation* and *accounting treatment* — directly, or through a change of kind — cannot be changed by a save (`MASTER-0407`): the stock already in the books was posted under the old treatment. Anyone who is not an admin sees those boxes locked with *tell your admin* (`MASTER-0892`). An admin uses **Correct treatment…** on the item (or on an Item Type whose items have stock):
+
+1. Choose what it should be, then **Review the impact**. Nothing changes yet. The review shows old vs new, the stock on hand per store and its value at moving-average cost, **the journal that will post**, what happens from now on (till, GRN, consumption), open documents that name it, and anything that stops it (stock reserved / on hold / in QC that must be released first; a gift card, which can never become an ordinary item; a value per unit needed when stock comes into Inventory with no cost to propose — enter it and **Recalculate**).
+2. Give the reason and type the item code — the two confirmations. If the stock or cost moved since the review, you are asked to review again (`MASTER-0895`).
+3. It applies in one go: valuated stock leaving Inventory is Dr expense (or 1400 Fixed Assets) / Cr 1200 Inventory at moving-average cost; stock coming into Inventory is Dr 1200 / Cr the account it was expensed to, at the value per unit shown; an item that will keep no stock has its on-hand written off store by store. The moving-average cost is reset to match, and an **ItemTreatmentCorrection** record keeps who, why, the review as confirmed and the entries. Bills and receipts already posted are not changed.
+
+With **A second admin approves item treatment corrections** on, step 3 sends it to **Approvals** instead; another admin approves it (the one who asked cannot — maker-checker) and it is applied then, on the stock of that moment.
+
+#### B.3.6 Designs from the PO, multi-PO goods receipts and price-difference notes (Stage 62)
+
+**Design number mode.** **Configuration → Procurement → Design number when a PO adds an item name's design** (`procurement.po_design_number_mode`). It decides what happens when the buyer leaves the design number blank; a typed number that already exists always loads that design.
+
+- **Always new design number** (default) — every design added on a PO is a new design.
+- **Inherit from existing** — a design (ProductFamily) with the same name (case and surrounding spaces ignored) and exactly the same **design attributes** **from the PO's vendor** is reused, with its combinations; only combinations it lacks are created. The same design name from another vendor is a different article and is not reused (Stage 94.13, D10). A design saved with no vendor (made before POs stamped it) still matches any vendor.
+
+A pasted design number always loads that design, whichever mode is set.
+
+**What a "design" is.** A design is a **ProductFamily** record, numbered from the `ProductFamily` series (`Design/<store>/<year>/000001`, editable under Prefix Configurations, §B.3.2). One created from a PO stores `design_attributes` (e.g. `fabric:cotton`), `vendor`, `hsn_code`, `gst_rate`, `mrp`, `purchase_rate`. Each combination is an ordinary **Item** with `family` = `parent_product_code` = the design and `variant_option_values` = its axis values; its code (the Combination ID) is the next number in the **Combination ID / item** series (`I00042`; prefix and length under Prefix Configurations). Combinations created before Stage 117 keep their older design-plus-values codes. The attribute matrix shown on the PO is every Active **ProductAttributeDef** — define Colour, Size and so on there (Value Type **Select**, comma-separated options). A design created without a code (the PO path) is numbered on save, so a buyer does not need the admin-only master-code endpoint; a typed code is kept.
+
+**A PO's uploaded lines are checked against the design.** The PO's **Upload lines** file (Design Number, Combination, Qty) resolves each combination through `POST /api/v1/lines/resolve` (Item read permission; at most 2,000 rows; open while the company is read-only, since it changes nothing). A row is used only when its design number matches the item's design's `design_number`, else that design's code or id, else the reference the item holds (case ignored); a blank design number accepts any item. The upload creates no item or design — a combination that does not exist yet is listed back, and is added through the item-name path above.
+
+**Duplicate combinations are refused.** Creating an Item with the same variant values as one already under the same design is rejected with a message naming the existing combination, before a number is drawn. Before Stage 62 such a create silently overwrote the existing Item.
+
+**Multi-PO goods receipt rules.**
+
+- One GRN may list several POs (`po_ids`); every line carries its own `po_id`, and the header `po_id` is the first PO, so every older report and integration still sees a PO.
+- All POs must be the **same vendor** — otherwise **GOODSR-0318**.
+- Approval, over-receipt tolerance, unexpected-item and fully-received checks run **per PO on that PO's own lines**.
+- Received quantity is counted per line PO, so a later GRN loads only what is still open.
+- **Decision D05 (Stage 73.2.4):** only **accepted** units fulfil a PO line (`fetchGRNAcceptedQuantities`; the over-receipt tolerance and "fully received" checks use accepted quantity), so rejected / damaged units stay open for replacement. The buyer ends that with **Short-close** (`POST /api/v1/procurement/purchase-order/{id}/short-close`, reason code category *Cancellation*, audited `PURCHASE_ORDER_SHORT_CLOSED`): status **Closed**, `short_closed_lines` recorded, further receipts refused (PURCHA-0489) and amendments refused (PURCHA-0489); every rejected / damaged unit still returnable is put on a Draft **PurchaseReturn** per receipt (`short_close_claims`). `GET /api/v1/procurement/purchase-order/{id}/reconciliation` is the PO balance view (ordered / received / accepted / rejected / damaged / returned / short-closed / open / invoiced / paid, plus money totals); invoiced and paid quantities are the accepted units of receipts carrying a billed or paid vendor invoice.
+
+**PO rate vs invoice rate.**
+
+- The server stamps each line's `po_rate` and `gst_rate` from its PO's own pricing (ex-GST per unit), ignoring any value the client sends.
+- `invoice_rate` defaults to the PO rate. A negative rate is refused with **GOODSR-0319**.
+- The GRN stores `po_value`, `invoice_value`, `invoice_gst`, `invoice_total`, the typed `vendor_invoice_amount` and `invoice_amount_difference`. The difference is a control figure only — it never blocks or holds the receipt.
+
+**The accounting.** Amounts are on **accepted** quantity only; rejected and damaged units go back on a Purchase Return. The PO price is treated as the agreed price.
+
+| Event | Entry |
+|---|---|
+| GRN posts | Dr 1200 Inventory / Cr 2100 GRN Suspense **at the invoice rate** (item cost too), on the whole units stock took - a part unit received adds no value or quantity to the average (Stage 148.57) |
+| Invoice rate above PO → **Debit Note** (series `DN`) | Dr 2100 / Cr 5150 for the taxable difference, and Dr 2100 / Cr 1500 for its GST |
+| Invoice rate below PO → **Vendor Credit Note** (series `VCN`, doctype `VendorCreditNote`) | Dr 5150 / Cr 2100 for the taxable difference, and Dr 1500 / Cr 2100 for its GST |
+
+- Both notes are raised **and posted** as soon as the GRN's stock posts. They carry `grn_id`, `source_doc_id`, `note_lines`, `gst_amount` and `total_with_gst`, and are linked back on the GRN (`debit_note_id`, `vendor_credit_note_id`).
+- Raising them again is a no-op, so a retry never double-posts.
+- If a note cannot post, the receipt still stands. The user sees the reason, and the note can be posted from **Debit Notes**.
+- Net effect: payable and purchase cost both settle at accepted quantity × PO price.
+- The GST on a vendor credit note is input credit only as far as the vendor's own supplementary invoice supports it. Reconcile it with the vendor before filing.
+
+**Vendor invoice matching.**
+
+- A GRN whose lines all carry an invoice rate is matched at accepted quantity × invoice rate + GST, across all its POs.
+- The PO over-billing check is skipped for such a GRN, because the debit note has already settled billing above the PO.
+- Older GRNs keep the PO-rate basis.
+
+**Permissions.** `VendorCreditNote` mirrors `DebitNote` (HR/Admin all; Store Manager read/create), and the Payables role template operates both.
+
+#### B.3.6.1 Goods receipt in steps (Stage 94)
+
+The **New goods receipt** page saves a receipt in steps (`flow = steps`): ① Receive → ② Verify → ③ Price check → ④ MRP and post (per child) → ⑤ Pay. The user walk is User Guide §6.10. A receipt created through the API without `"flow": "steps"` (and the RF / mobile receiving screens) still posts as it is saved, exactly as before. Receipts posted before Stage 94 keep their Stage 62 basis.
+
+**Settings** (Configuration → Procurement):
+
+| Setting | Default | What it does |
+|---|---|---|
+| PO commercial terms are required for approval (`procurement.po_terms_required`, Stage 130.16) | Off | On: a PO is refused for approval (submit, or a save that approves it) without its payment term, delivery terms, expected delivery date and freight payer, or after its quote's *valid until* (`PURCHA-1316`). Drafts are never checked. The approved terms are kept on the PO (`approved_terms`); an approved PO's changed terms need the amendment reason and are logged before / after (`amendment_log`). Payment terms are a master (**Setup → Payment Terms**: code, name, net days - six ship and survive a reset). |
+| Goods receipt: same price within (`grn.steps.same_price_tolerance`) | 0 | At Price check a line within this many rupees of the item's previous purchase price is *Same price*. 0 = equal to the paisa. |
+| Goods receipt: blind count (`grn.steps.blind_count`) | Off | Receive hides the PO quantity; the clerk counts. Verify still shows it. |
+| Goods receipt: suggested MRP markup (`grn.steps.mrp_markup_pct`) | 100 % | Suggested MRP = cost × (1 + markup) × (1 + GST), rounded up to the ending below. A category's own **MRP markup %** (Setup → Category, field `mrp_markup_pct`) wins. |
+| Goods receipt: suggested MRP ending (`grn.steps.mrp_price_ending`) | ₹x99 | ₹x99, ₹x49/x99, ₹x9, round up to ₹10, or nearest rupee. Every MRP is a whole rupee (Stage 94.15): a typed or imported MRP with paise is saved rounded to the nearest rupee. |
+| Goods receipt: who may verify / price check / set MRP and post / pay the vendor / correct after posting (`grn.steps.verify_roles` … `correct_roles`) | blank | Role names, comma-separated. Blank = every role that can **update** Goods Receipts (Roles screen). Super Admin always may. A role not listed gets **GOODSR-0947**. |
+
+**MRP rules (Stage 114.6).** For a suggestion other than the markup, make rules under **Setup → MRP Rule** (codes `MRP00001`...) and pick one on each **Product Type** (field **MRP rule**). A rule works from the **purchase price incl. GST** (the GRN cost × (1 + GST)) and is rounded up to the ending above:
+
+| Method | Fill in | Suggested MRP |
+|---|---|---|
+| **Multiplier** | Multiplier, e.g. 3 | price × 3 |
+| **Purchase price bands** | Price bands, e.g. `500=3, 2000=2.5, above=2` (each band is "up to this amount = multiplier"; a price above the last amount takes **above**, or the last band when there is no above) | price × its band's multiplier |
+| **Weight + purchase price** | Rate per gram, and a multiplier (0 for none) | weight (g) × rate per gram + price × multiplier; the weight is the one typed at the GRN (**Gross Weight**), else the item's |
+
+Which rule: the item's product type's, else the Active rule ticked **Default for product types with no rule** (with two ticked, the lowest code), else the markup above (a category's own markup still wins there). The MRP step names the rule under the suggested figure. A rule that could not suggest anything - no multiplier, bands it cannot read - is refused on save (**MASTER-0896**). Rules are suggestions only: the MRP typed on the PO, or at the MRP step, is what posts.
+
+**Rights.** Receive needs the GRN **create** right; the steps after it need GRN **update** plus the step's role setting; **Pay** also needs **update** on Vendor Invoice. The vendor invoice number, date and total are mandatory (**GOODSR-0940**), and the same vendor + invoice number on another receipt that is not cancelled is refused (**GOODSR-0941**).
+
+**Goods beyond the PO (D6).** The tolerance is the vendor's existing **Receipt Validation Rule** (`over_receipt_tolerance_pct`, and `allow_unexpected_items` for items not on the PO; a rule with no vendor is the default). At Receive nothing is refused; at Verify every line beyond the tolerance needs **Keep** or **Return** (**GOODSR-0943**). *Return* adds the excess to rejected. *Keep* raises a **GRNExcessApproval** record (`excess_lines`, `excess_value`, the reason) through the approval engine — seeded rule: any amount → **Store Manager**; change it under Approval Rules. Until it is decided, that child cannot post (**GOODSR-0946**); *Approved* releases it, *Rejected* turns the excess into Return.
+
+**The invoice total check (D5).** Verify refuses when the typed invoice total differs from the invoice lines (invoice qty × invoice price + GST) by more than ₹1 (**GOODSR-0942**). It is never bypassed: the invoice total alone cannot say how much of a gap is GST, so passing it would book a GST-free round-off on the note and a wrong GST on the vendor bill. The receipt's step page carries `invoice_check` (the gap, the box most likely wrong - the total, or one line's invoice qty when the gap is whole units of it, else the largest line's price - and a plain-words message); the screen shows it in a yellow box, and a refused Verify reopens Receive with those boxes highlighted (Stage 110.3).
+
+**GST-inclusive POs (Stage 110.1).** A receipt line from a PO whose `gst_mode` is Inclusive carries `gst_inclusive`, `po_rate_incl` and the typed `invoice_rate_incl`; Receive and Verify show and take prices incl. GST. `invoice_rate`, `grn_price` and every cost, note and report stay ex-GST (incl. ÷ (1 + GST %), and an unchanged rate keeps the PO's exact ex-GST rate). A few paise of rounding fall in the existing round-off.
+
+**Previous purchase price (D4).** The last **posted** GRN price of the SKU from any vendor (`grn_line`); for SKUs last received before Stage 94, the latest posted GRN's invoice (or PO) rate.
+
+**Child GRNs (D3).** `/A` New item, `/B` Same price, `/C` Price changed — fixed letters, renamable. A SKU's lines always sit in one child. Each child posts on its own through the same receipt posting as a one-step GRN (`PostGRNReceiptPart`): stock, batches, serials and barcodes on the GRN's own voucher; the GL entry is keyed per child (`GRN:<id>:RECEIPT_COST:<child>`).
+
+**MRP on the batch (D2).** The MRP set at step 4 is stored on the line's batch (`Batch.mrp`) and becomes the item's current MRP (`Item.mrp`, the latest). Old stock is never repriced. With per-SKU-per-day batch numbering, a second receipt of a SKU the same day at a **different** MRP gets a lot of its own. Stickers print the lot's MRP. At the till, a SKU on the shelf at two or more MRPs asks the cashier which; the shelf is worked out first-in-first-out from the store's receipts of the SKU against its stock on hand. A chosen MRP is checked against the shelf (never taken on trust); with no choice the line sells at the lowest. A receipt-date barcode resolves to its own MRP. A line with a sale price or price list above the shelf MRP is charged the MRP.
+
+**The accounting (D1, D9).** Our total = accepted qty × GRN price + GST. The note is the typed invoice total − our total.
+
+| Event | Entry |
+|---|---|
+| A child posts | Dr 1200 Inventory / Cr 2100 GRN Suspense **at the GRN price** |
+| Last child posts | the vendor bill (VendorInvoice, `invoice_amount` = typed invoice total) is made and matched |
+| Vendor billed **more** → **Debit Note** (`DN`, `basis = invoice_total_vs_grn`, Posted) | no GL of its own: it is applied to the vendor bill as a *Debit note* settlement line, so the bill's open balance is our total (goods part = our value, GST part = our GST) |
+| Vendor billed **less** → **Vendor Credit Note** (`VCN`, Posted) | Dr 1500 / Cr 2100 for (our GST − the bill's GST); the taxable part is already in 2100. The extra is paid from the GRN (Pay now) |
+| Pay now | the bill through the part-payment engine (Dr 2100 / Dr 1500 / Cr 1100), then any credit-note extra Dr 2100 / Cr 1100 keyed `GRN:<id>:PAY:<reference>`. With TDS: the whole open bill, Cr 2300 for the TDS |
+
+Paying the bill clears 2100 and 1500 to exactly the received-and-verified figures. Rejected and damaged units are left off our total (the note claims them); a Purchase Return that sends them back moves the stock but raises **no second debit note** for them.
+
+**Correct after posting (D8).** Changes GRN qty, GRN price or MRP of a posted step receipt. Only the difference posts: stock ±Δ (`voucher_type GRNCorrection`, voucher `<GRN>-C<n>`), value Dr/Cr 1200 vs 2100 (`GRN:<id>:CORR:<n>`), and an adjusting note (`basis = grn_correction`) — a debit note applied to the bill, or a credit note with its GST leg. Refused: taking off stock that is sold, changing the price of stock partly sold, or a new total below what is already paid.
+
+**Data.** `grn_line` (one row per line, every step's figures, rewritten from the GRN on every save, one-step GRNs included) and `grn_line_change` (every changed field: step, was, now, who, when, why) — migration `migrations_stage94_grn_steps.sql`; `Category.mrp_markup_pct` — `migrations_stage94_2_category_mrp_markup.sql`. Reports: GRN Register - every line, every step; Invoice vs GRN Differences; Purchase Price Changes; Goods Receipts Waiting; GRN Corrections Log; PO vs GRN Price Variance; GRN Payments; Goods In Receiving.
+
+**API** (all `procurement` module): `GET /api/v1/grn-steps` (inbox), `GET /api/v1/grn-steps/open-pos?vendor=`, `GET /api/v1/grn-steps/{id}`, `POST /api/v1/grn-steps/{id}/receive | verify | price | post/{child} | post-all | pay | correct`. A receipt is created with `POST /api/v1/doc/GRN` and `"flow": "steps"`.
+
+#### B.3.7 Transaction print templates (Stages 63, 71)
+
+**What can be printed.**
+
+- Eleven transactions: Purchase Order, Vendor PO, Goods Receipt Note, **Vendor Copy** (`GRNVendorCopy`, a print of the same GRN), **Purchase Return** (`PurchaseReturn`), Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), **Credit Note (to customer)** (`CreditNote`) and **Sales Return** (`SalesReturn`, prints a `ReturnRequest`). The four in bold were added in Stage 71; migration `migrations_stage71_1_print_formats.sql` adds them to `PrintTemplate.transaction`'s options, but only where that list is still the one Stage 63 shipped.
+- **Standard layouts follow the company's print-format pack (Stage 71).** Each Standard layout has a common header (financial year, status), the pack's columns, reference lines that drop out when blank, totals, three signature lines and an audit line. The audit line reads `documents.created_by` / `created_at`, the last `approval_log` row with action `Approved`, and the printing user and time from the browser. Fields the ERP does not hold were left out: bin per line, cess, IRN / QR, e-way bill, vehicle / LR, packages, payment and delivery terms, reprint count. GRN and Transfer In standard prints are quantity-only. A tenant's own saved templates are untouched and still take precedence.
+- **The Vendor Copy cannot leak cost.** `BuildPrintDocument` removes every rate, value, tax, cost field of the item, invoice amount, money total, tax summary and amount in words from its payload, so no template can print them.
+- **Transfer In fix (Stage 71).** The receipt used to print its received quantity as "Sent", so a short line looked complete. Shipped now comes from `dispatched_items` (else `items`), and received, short and reason come from `received_items`.
+- Each prints from one server payload, `GET /api/v1/print/document/{transaction}/{id}?store=&images=1`, which also returns the templates that fit. The payload holds brand, generating store, party, ship-to, every header field, every line with all its Item fields (and picture when `images=1`), the GST split per rate, totals and amount in words.
+- The page is drawn in the browser by `public/trade-docs.js`, the same renderer the designer uses. It is printed through the browser print dialog; there is no thermal path.
+- **Print history and Reprint** (Stage 127.6). Every Print, PDF, Send and Reprint from the print window - and the till's Print Receipt - is a row in the print job log (who, when, which document and number, store, how; a reprint needs its reason). **Setup → Printing → Reprint** lists them, filtered to the modules the client has (switch a module off and its documents leave the list) and to the doctypes the person's role may read. Any transaction without a print of its own prints in the standard generic layout (Stage 127.3), so every transaction can be reprinted.
+- **Reconciliation run and the exception worklist** (Stage 130.16, 74.5). Once a day the day-limits job runs every report that has control totals (stock value ↔ 1200, receivables, payables, sales, GST, points, and now **customer advances ↔ 2640** and **store credit ↔ 2650**) plus three checks - goods *with parties* = open challan balances, every store's on-hand covers its pools, every reprint has its issued copy - and keeps each result (`reconciliation_results`). A check that does not tie shows in the **task inbox** under *Exceptions*, with e-invoices needing attention or stuck, e-way bills failed / unconfirmed / expiring / not made, challan goods and job work overdue. The inbox shows Exceptions to roles that may read sales invoices or delivery challans. New registers: **Customer advances outstanding (ageing)** (Reports → Sales), **Transfer shortages by reason** (Inventory) and **Print and reprint audit** (Admin; 3+ reprints or a reprint with no reason is flagged). The SoD catalog adds *challan and write-off*, *template and reprint approval* and *material request and approval*. Issued, sent, returned or used documents of the new kinds are never deleted - they are reversed, returned or written off.
+- **Job work** (Stage 130.16, 74.3.3) on `SubcontractOrder` (now JO-numbered, with `lines`, `due_date`, `capital_goods`): **Send** raises and dispatches a delivery challan (so a *DeliveryChallan* approval rule holds job work too); returns move consumed material out of `with_party` and `on_hand` and bring the output in at the material's value (`item_cost`), rejected output to QC hold. **Job work scrap and loss booked without approval** (`manufacturing.jobwork_loss_tolerance_pct`, default 1 %, Configuration → Manufacturing): above it a ChallanWriteOff waits for approval (needs a *ChallanWriteOff* rule). Postings: loss through `jobwork_loss` (default 5430), the processing bill through `jobwork_charge` (default Dr 5420 Job-Work Conversion Cost / Cr 2100). The day-limits job flags overdue orders and statutory dates (inputs 1 year, capital goods 3) once each and raises *Job Work Overdue* / *Job Work Statutory Return Due* - give them a Notification Template to send them. Orders made before Stage 130.16 are one-line orders; one already sent the old way receives with **Receive from Subcontractor** as before.
+- **Delivery challans** (Stage 130.16, 74.3.1). `DeliveryChallan` (DC series) and `ChallanWriteOff` ship with full rights for HR/Admin and Store Manager (Accountant reads). Returnable goods dispatched move from `available` to the new `with_party` pool of the store's stock row (still in `on_hand`, so stock value and 1200 do not move; a cycle count does not expect them). Approval: optional rule on *DeliveryChallan*; a rule on *ChallanWriteOff* is required before any write-off can be asked for (dual control). Postings: non-returnable dispatch and *Kept by party* through the `challan_nonreturnable_issue` posting profile (default Dr 5440 Samples / Non-returnable Challan Expense / Cr 1200); *Lost* through `adjustment_loss` (default 5190), or `jobwork_loss` (default 5430 Job-Work Loss) for job work. **E-way bill needed from** (`gst.ewb_threshold`, default ₹50,000, Configuration → Inventory). Reason codes: category *Delivery Challan* for damaged / rejected returns and write-offs. Prints use the Rule 55 copy set unless a Print Profile for *DeliveryChallan* names others.
+- **Print templates have versions** (Stage 130.16, 74.3.4). Every save of a template is a numbered version; the Template studio's **Versions** lists them, and **Restore** brings an old one back as a new version. **Configuration → Printing → Template changes need approval** (`print.template_approval`, off by default): on, a saved change waits as *Pending* - the template keeps printing its active version - until someone other than the person who saved it **Approve**s it (or **Reject**s it with a reason). The print history records which version printed (*template v3*). **Company branding** (Setup → Printing) opens the Legal Entities, where **Logo (image link)** - a link to the approved logo image, or a `data:image/...` value - prints left of the brand name on every standard A4 print. **Tax documents need the store's GSTIN** (`print.tax_document_needs_gstin`, off by default): on, a tax invoice, credit or debit note is refused from a store whose legal entity has no GSTIN (**GLOBAL-1319**), while a business with no GSTIN on any legal entity prints a *Bill of Supply* instead of a tax invoice. **Return policy on the till receipt** (`pos.receipt_return_policy`). Reports → Admin: **Print template coverage** (per print: templates, default, profiles, copies, prints in 30 days, changes awaiting approval), **Failed prints and fallbacks** and **Missing regulatory print data** (legal entities without GSTIN / address / state / PIN, stores without a legal entity, active items without HSN).
+- **Custom orders** (Stage 148.36, module `custom_orders`, off by default). Switch it on under Settings → Modules. It adds four Sales lists: **Metal Rate** (rate per gram per metal and purity per day; saving needs no approval and is audited), **Custom Choice** (Metal, Purity, Stone, Size, Making type; the making type carries its basis and value, the metal its HSN and GST), **Custom Order Rule** (setting and stone lines: flat, per stone, per gram or % of metal) and **Custom Order Quote** (made only by **New order**). Key today's rate for each metal and purity every day: with none, an order is refused (**SALESP-0761**). A missing customer or address (**SALESP-0766**), or missing HSN / GST on the metal (**SALESP-0765**), is refused before anything is made. Off, the lists, the screen and the three routes disappear.
+- **Issued output and reprint control** (Stage 130.16, 74.1.4). The first print of an issued document (not Draft / Pending Approval / Rejected / Cancelled) is frozen in `print_snapshots` - the whole print payload, its checksum, who and when - and every later print renders that copy marked REPRINT; a changed `amendment_reason` starts the next revision. Each log row adds the revision, original / reprint, copies and copy labels of the run, the template, the payload checksum, the approver and the outcome (*Sent to browser* or *Submitted* - never *Printed*). **Settings → Configuration → Printing**: **Control reprints** (`print.reprint_control`, off by default - off, reprints are still logged and marked), **Reprints before approval is needed** (`print.reprint_free_count`, default 1; 0 = every reprint) and **Record types whose every reprint needs approval** (`print.reprint_approval_doctypes`, e.g. `SalesInvoice, CreditNote`). With control on, a reprint needs the **Document Reprint** permission (Roles; shipped to HR/Admin and Store Manager - give it to Cashier for till receipts), a reason (checked by the server before anything prints) and, past the free count, an approved **Reprint Request**: add an approval rule for *ReprintRequest* (Settings → Approval Rules) to say who approves - the requester cannot approve their own, and each approval is spent by one reprint (**GLOBAL-1315** otherwise).
+- **Print profiles** (Stage 127.4) - **Setup → Printing → Print Profile**, one per kind of document (or blank **Document** = every document), optionally **Only for store**, and since Stage 130.16 a **Legal entity** and a **Channel** (POS, Online, B2B, ERP). The most specific **Active** profile wins - document 8, store 4, legal entity 2, channel 1, added up: so this document at this store, then this document, then every document at this store, then entity + channel, then entity, then every document. With no profile a document prints exactly as before. A profile sets:
+  - **Copy labels** - one print run prints one set, each copy labelled at the top right (or wherever a template places *Copy label*). Standard practice in India: a **tax invoice for goods** (CGST Rule 48) *Original for Recipient, Duplicate for Transporter, Triplicate for Supplier*; for **services** *Original for Recipient, Duplicate for Supplier*; a **delivery or job-work challan** (Rule 55: Transfer Out, Job Work Challan) *Original for Consignee, Duplicate for Transporter, Triplicate for Consigner*; a **credit / debit note** *Original for Recipient, Duplicate for Supplier*.
+  - **Template** - the template that kind prints with by default (the print window can still pick another); **Paper** (A4 / A5) picks a template drawn for that paper when no template is named.
+  - **Footer line** - one line at the foot of the last page (a jurisdiction, a return policy).
+  - **Document** is the print's name as the print window shows it, without spaces - *SalesInvoice*, *PurchaseOrder*, *GRN*, *TransferOut*, *CreditNote*, *POSTaxInvoice*, *JournalVoucher*, *SubcontractOrder*...
+- **The seller's identity** comes from the **Legal Entity** (Setup → Core → Legal Entity): **Trade name**, **Phone**, **Email**, **Bank name / account / IFSC** and **Terms printed on invoices** (Stage 127.4). Sales invoices, OMS bills and till tax invoices print the bank line and terms; every template can place them (*Store → Trade name / Bank details / Terms*). Still to come under 74.3.4: template versions with preview → approve, a missing GSTIN blocking a tax document, the POS receipt extras.
+
+**Brand.**
+
+- **Configuration → Printing → Brand name on prints** (`print.brand_name`) is printed on the first page, with the rest of the header.
+- Blank uses the generating store's legal entity name.
+- A template that does not place the brand gets it at the top of the first page anyway.
+
+**Multi-page documents.** With an items table, position decides the page, for the built-in layouts and every saved template alike: everything above the table prints on the first page only, everything below it (tax summary, totals, amount in words, signatures, audit line) on the last page only. Rows carry over with the column headings repeated; later pages start at the top margin, pages before the last run to the bottom margin, and the last page keeps at least one row with the totals. The page number, and anything beside the table, follow their own **Prints on**.
+
+**Generating store.**
+
+- Chosen at print time; defaults to the document's own store (PO: location; GRN: receiving location; Transfer Out: from; Transfer In: to; notes: their GRN's location).
+- Only before the first print: an issued document then prints its frozen first copy (store, prices, tax), CSV / Excel included, and the box is locked.
+- The store block shows the Location's name, address, city, PIN and phone, with the **state and GSTIN of its Legal Entity**. Make sure every Location points at a Legal Entity that has a GSTIN and state.
+
+**Templates.**
+
+- `PrintTemplate` records (module Core). Design them on **Setup → Printing → Templates** (USER_GUIDE §7B.2) - one page for every template, module by module.
+- Fields: `transaction`, `is_default`, optional `vendor`, `item_families`, `item_categories` (comma-separated), `layout` (JSON, up to 1.5 MB including logos), `status`.
+- Permissions: HR/Admin all; Store Manager and Cashier read.
+
+**Which template a document gets.**
+
+- A template mapped to a vendor, family or category is offered only when the document matches. The vendor is the PO's or GRN's vendor; families and categories come from the lines' Items.
+- The best match is pre-selected, scored vendor 8, family 4, category 2, default 1.
+- With no matching record, the built-in **Standard layout** is used.
+- Setting a template as default clears the flag on others of that transaction.
+- Retire a template with **Status = Inactive**.
+
+**Transfers and tax.**
+
+- Transfer value is quantity × the Item's `standard_cost` (else MRP).
+- Between two Locations of the same GSTIN it prints as a delivery challan with no GST.
+- Between different GSTINs, GST is computed at the Item's rate: IGST across states, CGST + SGST within one.
+
+**Vendor PO in Excel.** `GET /api/v1/procurement/purchase-order/{id}/excel` returns an .xlsx built without any library: header, parties, lines with the item's thumbnail in the Image column, GST split and grand total. Item pictures come from PIM media (the active Main Image, else the first image).
+
+**Silent printing.** A tenant with a QZ / print-agent printer mapped for job type **Purchase Order** keeps printing POs silently; the print window opens only when no such printer is mapped.
+
+#### B.3.8 Item & Material Master — profiles, packaging backflush at the till, gifts with purchase, gift cards (Stage 72)
+
+The rule behind all of this: **one list cannot answer six questions.** "Gift", "Backflush", "Asset" and "Sellable" are different kinds of answer, so every item now answers them separately, and behaviour is read from those answers — never from the name of an item or a type.
+
+**1. The eight dimensions (Setup → Item Type, and on every Item).**
+
+| Field | Values | What it controls |
+|---|---|---|
+| Commercial class | Merchandise, Accessory, Promotional / GWP, Packaging, Consumable, Service, Stored Value, Fixed Asset, Internal / MRO, Bundle / Kit | What it is - descriptive, for reports. Never drives behaviour on its own. |
+| Stock tracking | Tracked / Not tracked | Not tracked: no store stock. A GRN posts no stock (value goes to expense), the till issues none, transfers and consumption refuse it (`INVENT-0421`). |
+| Valuation | Valuated / Non-valuated / Not applicable | Non-valuated: quantity is kept but carries no value - a GRN debits the **Expense account** instead of 1200 Inventory and the item never enters the moving average, so issuing it costs nothing. |
+| Accounting treatment | Inventory asset, Expense, Fixed asset, Stored value liability, Service | Must agree with valuation (below). |
+| Sellability at POS | Normal sale / Promo only / Not sellable / Stored-value issue only | Not sellable: refused at the till (`POSOFF-0411`). Promo only: billed at 0, only up to what a Gift With Purchase offer (or the Free-With-Item parent) earns (`POSOFF-0412`). Stored-value issue only: refused as a bill line (`POSOFF-0413`) - issued through Gift Card. |
+| Customer bill | Visible line / Hidden (internal) / Separate receipt | Hidden zero-value lines are not printed. |
+| POS capture | Scan / Quick select / Auto / Manual / None | Descriptive guidance for the till. |
+| Consumption | Sale issue / Auto backflush / Manual issue / Periodic / Production / None | Auto backflush: consumed by Backflush Rules at the till, and at production completion when it is a BOM component. Periodic: counted and posted with Consumption Entry. |
+| Expense account | a GL code | Where an expensed or consumed item's cost goes. Blank: 5160 Packaging Consumption for packaging, 5170 Promotional / GWP Expense for gifts, else 5180 Consumables Expense. |
+
+**Precedence:** the Item's own value → its Item Type's → what the type's Stage 60 flags meant → the company default (an ordinary merchandise line). Leave the Item's fields at *Item type default* unless that item is the exception. *Reports → Inventory → Item Classification Register* shows every item's resolved answers and which ones the item overrides.
+
+**Rules the system enforces on save** (Item, Item Type, CSV import and API alike):
+- Valuated stock must be an Inventory asset (`MASTER-0401`); a not-tracked item is *Not applicable*, a tracked one is Valuated or Non-valuated (`MASTER-0402`).
+- Fixed asset accounting only on a Fixed Asset class (`MASTER-0403`); Stored Value class ⇔ *Stored-value issue only* + *Stored value liability* (`MASTER-0404`).
+- Auto backflush or Periodic consumption needs a stock-tracked item (`MASTER-0405`); the expense account must exist in the chart (`MASTER-0406`).
+- **Once an item has stock history** (or, for an Item Type, once any of its items does), stock tracking, valuation and accounting treatment **cannot change** (`MASTER-0407`) - the quantities and values already posted were posted under the old treatment. Create a successor item / type.
+
+**Shipped profiles.** Product, Accessory, Non-Asset (normal sale), **Gift** and **Free With Item** (Promotional / GWP, *Promo only*, cost to 5170), Backflush (Auto backflush), Fixed Asset (not tracked, fixed asset, not sellable), and new: **Packaging** (tracked, valuated, not sellable, hidden, auto backflush, 5160), **Consumable - Periodic** (tracked, **non-valuated**, expense, not sellable, periodic, 5180), **Service** (not tracked, sold), **Non-Stock Expense** (not tracked, not sold, 5180), **Gift Card** (stored value) and **Virtual Kit** (not tracked; the Product Bundle's components leave stock). The migration filled these values only on types whose dimensions were blank, so a type you had already customised keeps yours.
+
+> **Behaviour change to tell the stores:** a **Gift** item now needs a *Gift With Purchase* offer to be billed (step 3). Before Stage 72 the till refused every zero-priced line anyway, so no store was able to bill gifts; now they can, under an offer.
+
+**2. Packaging consumed with every sale — Backflush Rules (Setup → Inventory → Backflush Rule).** One row per *"this sells → this is used up"*:
+
+- **Applies to:** *Item* (an item code), *Attribute* (`Size:Large`, matched against the item's variant options), *Category* (code or name), *Item Type*, or *All items*.
+- **Store:** blank = every store; a store's own rule beats the all-stores one. Store managers see the rules of their own stores and the all-stores ones.
+- **Consumed item** (must be stock tracked), **Qty per unit sold** (whole number, default 1), **Group** (*Box*, *Butter paper*…).
+- **Which rule wins:** within a group the most specific wins - Item, then Attribute, then Category, then Item Type, then All items; a store's rule before the all-stores one at the same level; then the higher **Priority**. Rules in different groups add up (a box *and* a butter paper).
+- **Cashier may change it** (default Yes): the till's **Packaging** button offers every consumed item of the same group set up for that store, plus **None** if **"None" allowed** (default Yes). **Reason needed when changed** makes the cashier type one (`POSOFF-0414`).
+- **When the store is short:** *Allow and report* (default - the sale always goes ahead, stock may go negative, and an Item Exception opens), *Warn* (the till shows it, the sale goes ahead) or *Block* (the sale is refused until another option is chosen - `POSOFF-0416`).
+- **Effective from / to** dates; **Status** Inactive stops a rule.
+- Only lines **sold normally** trigger packaging - gifts, free items and gift cards never do. The consumption is worked out from the server's own priced lines, posted **in the sale's transaction** (stock out under voucher `POSConsumption` with the bill number; valuated packaging Dr expense / Cr 1200 at moving-average cost; non-valuated quantity only) and stored on the bill with each rule's id **and version**, so editing a rule later never changes a past bill. A retried sale never consumes twice.
+- **Returns do not put packaging back** (the box usually stays with the customer); a box that physically comes back is received like any stock. *Reports → Inventory → Backflush Consumption* lists every bill's consumption, what was changed and why.
+
+**3. Gift With Purchase (Setup → Offer).** Offer type **Gift With Purchase**: the usual scope (bill / item / category / product group / SKU list), minimum bill or quantity, coupon, customer tier and validity, plus **Gift item** and **Gift qty** (per bill; or per **Buy Qty** qualifying units when Buy Qty is set - e.g. Buy Qty 1, Gift qty 1 = one plant per necklace). It is judged on the **paid** lines only, never uses up a discount slot, and makes the gift item eligible: the till prompts *"Gift eligible … scan it"*, and the scanned gift is billed at 0 with the offer recorded on the line. The gift's cost goes to its profile's expense account (5170). Tax is computed by the normal engine on the line's value; Finance should confirm the treatment of free supplies. *Reports → Sales → Gift With Purchase Register* lists every gift handed over.
+
+**4. Gift cards (stored value).** A gift card is a liability to the holder, not merchandise.
+- **Setup → Sales → Stored Value Profile.** The shipped *Standard Gift Card*: 16-digit numeric, any amount 100-50,000, valid 12 months, part use allowed, no add-value, liability account 2610. Fixed denominations: Amounts = *Fixed* and list them (`500,1000,2000`).
+- **Register cards** (store manager): POS → **Gift Card → Register new cards** - paste pre-printed numbers, or generate N (numeric ones end in a check digit). Generated numbers are shown once for printing. A number already known is refused (`POSOFF-0432`).
+- **Issue** happens only after payment: the card is funded, its first ledger event written and Dr payment clearing / Cr 2610 posted together, or not at all. **Redemption** is a tender at checkout, inside the sale's transaction: Dr 2610 / Cr the payment clearing account, capped at what the customer owes. Never on an offline-queued sale.
+- Every balance change is an **append-only ledger event** (ACTIVATE, RELOAD, REDEEM, BLOCK, UNBLOCK, CANCEL) with the balance after it; the database refuses edits to the ledger, and the Data Console shows these tables read-only with card numbers masked. Screens and reports show only the last four digits.
+- **Block / release** need a reason; **Cancel an unused issue** refunds by the original payment mode while the whole balance is unused.
+- **Reports → Finance → Gift Card Liability** (outstanding by card, with each card's **Card ID**; reconciles to account 2610) and **Gift Card Ledger** (every event).
+- **Card numbers are stored sealed (Stage 130.8).** The database holds a keyed hash of each number (to find the card when it is scanned), the number encrypted, and its last four - never the number as typed, so read access to the database no longer means spending a balance. Cards registered before this were sealed the first time the server started. The key is `STORED_VALUE_KEY` (server environment; keep it with the backups - without it no card can be found). If the server started without it, it made its own key file (`.config/custom_erp/stored_value_key.local` in the service user's home) and the cards are sealed under that: keep the file with the backups, and to hold a key in the environment from then on add `STORED_VALUE_KEY_1` - never plain `STORED_VALUE_KEY`, which replaces the file's key so no sealed card can be found. **A lost card's number** can be shown again to an Admin or Super Admin only: POS → **Gift Card → Show a lost card's full number**, with the Card ID from the Gift Card Liability report; every look-up is written to the audit log.
+
+**5. Consumption Entry (Inventory → Consumption Entry, store manager / admin).** *Periodic count* posts book − counted closing stock; *Manual issue* posts the quantity used. Refused: counted above book, used above stock (`INVENT-0422`), items that keep no stock (`INVENT-0421`). Valuated items: Dr expense / Cr 1200; non-valuated: quantity only. The entry keeps its count reference and who posted it; a retried post never consumes twice.
+
+**6. Exceptions and reports.** **Setup → Inventory → Item Exception** (also *Reports → Exceptions → Item Exceptions*): every packaging shortfall (*Open* - fix it, then set Status = Resolved with a comment), and every refused non-sellable or unearned gift line at a till (*Logged*, one per bill and item). Other Stage 72 reports: **Item Classification Register**, **Item Master Completeness** (what each item still lacks for how it is classified), **Non-Valuated Stock**, **Inactive Items With Stock**.
+
+**Not built yet - each needs your decision first** (checklist 72.D): item release maker-checker and a Draft / Blocked lifecycle; effective-dated item and tax versions; cancelling a posted bill (today: a return); per-store item policy overrides; the audit trail recording the editor and a reason; negative-stock policy per profile; gift return policy; gift card refund-to-card and transfer.
+
+#### B.3.9 Stock transfers — approval, reason codes and tracked stock (Stage 73.1.7)
+
+**Approval is maker-checker by default (decision D04).** The release adds one approval rule for `TransferOrder` — any value, approver role **Store Manager** — to every client that had none (Settings → Approval Rules; edit or add slabs there like any other rule). The person who created a transfer may approve it only while **Settings → Configuration → Security → Who can approve their own documents** allows it (ADMIN_SOP §B.10; it does in an existing client as shipped - a new client starts at *Nobody*). The rule routes by the transfer's **value at item cost** (moving-average cost, else the item's Standard Cost), written onto the transfer as `total_amount` when it is sent for approval.
+
+**Direct approval below a limit.** **Settings → Configuration → Inventory → Transfer direct-approval limit** (`inventory.transfer_direct_approval_limit`, ₹, default **0 = off**). Above 0, a Store Manager of the sending or receiving store (or an administrator) may approve a transfer worth *less* than the limit alone, with **Approve now**. A transfer containing an item with no cost on record is never approved directly. Each direct approval is written to the approval log as "Direct approval: ₹X is below the ₹Y limit".
+
+**Access.** The release grants **Store Manager** read / create / update (not delete) on `TransferOrder`, unless the client had already set that role's permission. Change it under Settings → Roles.
+
+**Reason codes.** Damaged, lost and extra units at receipt, and a return to source, need a **Reason Code** (Masters → Reason Codes) of the new category **Transfer Discrepancy**; cancelling a transfer needs one of category **Cancellation**. Create a few before go-live (for example *Damaged in transit*, *Short shipped*, *Over shipped*, *Refused at delivery*). The receive and return dialogs link to the master when none exist.
+
+**What moves where.**
+- **Dispatch** takes stock off the sending store (`on_hand`, `available`) into its `in_transit`. A batch-tracked item leaves as named lots, picked earliest-expiry-first from the bins (or named at dispatch); its bins' lot quantities go down at the same moment. A serial-tracked item needs one serial number per unit; the units become *Allocated* to the transfer.
+- **Receipt** moves each unit out of `in_transit` once: good units into the receiving store's `on_hand` and `available`; damaged units into `on_hand` and the `damaged` bucket (not sellable); lost units nowhere (they already left the sender's books at dispatch); extra units into `on_hand` and `available`. Serial units become *InStock* at the receiving store (lost ones *Scrapped*). Each receipt is stored as an event with who and when; a repeated receipt key is ignored.
+- **Return to source** moves in-transit units back into the sending store's stock; serial units become *InStock* there again.
+- Every movement writes stock-ledger lines, one per lot or serial number for tracked items.
+- No GL is posted: a transfer moves stock between stores of the same business.
+
+**Statuses** now include **Pending Approval**, **Partially Received**, **Returned** and **Cancelled** (added to the TransferOrder status list by the release migration).
+
+**High-severity reason codes need approval (74.1.1).** A reason code with Severity = High sends a purchase return, or a transfer loss or shortfall, to Pending Approval instead of posting; no stock or ledger entry is made until it is approved. An approval rule for the document picks the approver; with none, an **Admin** approves. A transfer receipt waits as its own document, **Transfer Loss Hold** (HR/Admin all; Store Manager read and create; Accountant read), and the whole receipt is held, good units included. An approved hold that can no longer post (the transfer moved on) stays Approved with the error shown. Lower or blank severities post as before.
+
+**Items left out of cycle counts (146.3.16).** The Item field **Leave out of cycle counts** (`skip_cycle_count`, No / Yes, under *Handling and storage*) takes an item off both cycle-count plans (**Get Plan**, `GET /api/v1/wms/cycle-count/abc-plan` and `/plan`). It is matched by item code, barcode or id. The item keeps its velocity tier for putaway and slotting, a physical inventory still counts it, and a count someone scans by hand still records it. Use it for low-value items such as packaging or display props; there is no setting to switch on.
+
+#### B.3.10 Cycle count recount triggers (Stage 73.1.8)
+
+**Settings → Configuration → Warehouse** has three triggers, each **0 = off** (the default, which keeps the old behaviour):
+- **Recount when a count is off by** (`wms.recount_trigger_qty`, units)
+- **… (percent)** (`wms.recount_trigger_pct`; a count against zero on the books counts as 100%)
+- **… (value)** (`wms.recount_trigger_value`, ₹ at item cost — moving average, else Standard Cost; an item with no cost never trips this one)
+
+When **Reconcile Session** meets a first count whose difference reaches any switched-on trigger, it does not send that line for approval: the line becomes **Recount Requested** (with `recount_trigger` saying why) and a blind recount line is created in the same session. Only the recount's difference is approved, and the recount line carries `first_count_qty` / `first_count_variance` for the approver. A recount is never itself re-triggered.
+
+**Posting is one transaction.** An Approved line's difference and its **Posted** status are written together under the line's row lock, and only an **Approved** line posts (the retry button on the Cycle Count screen cannot post a line that was never approved). The variance root-cause reason (category *Cycle Count Variance*) is still required before it posts. The stock-ledger line carries the key `CYCLECOUNT:<line>`, so it is written once. Counts still adjust the location's stock, not individual bins.
+
+**Stock holds (Stage 146).** Three Warehouse settings, all off or inert until you turn them on: **Hold short-picked pieces until counted** (`wms.short_pick_hold`; a short pick holds the missing pieces under the NOT-FOUND hold code and raises a Count task, released by the count result), **Approved transfers hold their stock** (`inventory.transfer_reserve_on_approval`; approval reserves the stock at the sending store, dispatch consumes it, cancel or a lower quantity releases it) and **Days before a transfer hold shows as stale** (`inventory.transfer_hold_stale_days`, default 3; older holds list on the Warehouse Cockpit). Reorder suggestions now count stock already on order, in transit and inward, less back orders, with no setting.
+**Buy in packs, stock in pieces (Stage 148.35).** **Settings → Configuration → Inventory → Buy in packs, stock in pieces** (`inventory.pack_units`, off as shipped). Off, none of the fields below appear and the PO and goods receipt are unchanged. On, the Item form shows **Stock unit**, **Purchase unit**, **Units per purchase unit** and **Allow part pieces**, set per item (never globally). A PO or receipt line keyed in packs is converted once, when saved: the line stores the pieces, the price per piece and the factor it used, so posting, three-way match, landed cost, the moving average and a purchase return all read pieces, and a later change of the factor never rewrites a past document. A stock unit cannot be changed after the item's first stock movement, whether or not the setting is on. A PO takes whole pieces only; a part-piece can be received on the goods receipt for items that allow it. A pack price that does not divide evenly (1,000 for 144) keeps the exact pack value on the line, so the invoice check and the vendor bill use the full amount. Stock is costed in whole paise a piece, so the receipt can go in a few rupees off; the vendor bill settles the difference in the journal, and 1200 and 2100 come out right.
+
+
+#### B.3.11 Warehouses for several 3PL owners (Stage 59)
+
+**The setting.** **Settings → Configuration → Warehouse → Stock ownership model** (`wms.stock_ownership_mode`):
+- **One owner per warehouse** (default) — a location's first owner claims it (`warehouse_owner`) and any other owner's stock, bin or order there is refused (INVENT-0491).
+- **Several owners per warehouse (stock kept apart per owner)** — supported since Stage 59. The pre-59 value `mixed_unsupported` is still read as this mode.
+
+**Whose is a unit?** Per bin, item and condition: explicit owner slices (`bin_stock_owner`) if there are any (an unsplit remainder then belongs to nobody); else the bin's own **Owner** field; else the warehouse's dedicated owner; else nobody. When another owner's units join a bin whose stock is owned by implication, the existing units are first written down as their owner's slice, so they never lose their owner.
+
+**What enforces it.**
+- **Orders:** `SalesOrder.owner_id` (intake field `owner_id` on `POST /api/v1/orders`, or `POST /api/v1/wms/order-owner` before release, audited `ORDER_OWNER_SET`). At release each pick task gets the order's owner, else the warehouse's owner, else the only owner holding stock there; with several owners and no order owner, release is refused (INVENT-0492). After release the owner is fixed (INVENT-0493).
+- **Sourcing:** a new owner's order is only planned at a location where that owner's own stock covers it (otherwise it is re-sourced on the owner's stock, or held for allocation). `GET /api/v1/wms/owner-availability?sku=&location=&owner_id=` reads one owner's available-to-sell. Re-allocating an order that was held does not yet re-check the owner — allocation and picking still do.
+- **Allocation / picking:** reservations (`bin_allocation.owner_id`) and picks take only the task owner's units, FIFO / FEFO / nearest-bin order unchanged; scans and dispatch take them off that owner's slice.
+- **Putaway / moves / condition changes:** carry the owner (fields on the screens, `owner_id` on the APIs; putaway also takes `grn_id` and uses the GRN's **Owner**). Refusals: a bin owned by someone else (INVENT-0495); several owners in the bin and no owner named (INVENT-0496).
+- **Bin owner field:** cannot change while the bin holds stock it attributes (INVENT-0494); move the stock out or record whose it is first.
+- **Counts** carry `CycleCountLine.owner_id` onto the stock ledger. Counts still adjust the location, not owner slices — reconcile slices with the exception queue.
+
+**Exception queue.** **Reports → WMS → Owner Stock Exceptions** (`owner-stock-exceptions`). Fix a slice after counting the bin with `POST /api/v1/wms/owner-stock/correct` `{bin_code, sku, condition, owner_id, qty, reason}` (Store Manager or administrator; never more than the bin holds; audited `WMS_OWNER_STOCK_CORRECTED`).
+
+**Banner.** The page-wide "Conditionally supported" banner no longer carries the 3PL caveat (47.5 is closed); the RF device certification and legacy audit coverage lines remain.

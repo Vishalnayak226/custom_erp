@@ -1,0 +1,8 @@
+/* 34.4: Myntra market prices on the PIM Reports page. */
+.mh-panel { padding: 4px 16px 16px; margin-top: 16px; min-height: 0; }
+.mh-bar { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px; }
+.mh-bar label { display: grid; gap: 4px; font-size: 13px; min-width: 0; }
+.mh-bar .form-input { max-width: 100%; }
+.mh-pages { width: 90px; }
+.mh-sub { margin: 14px 0 8px; font-size: 14px; }
+.mh-msg { min-height: 18px; }

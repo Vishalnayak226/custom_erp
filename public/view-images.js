@@ -429,6 +429,7 @@ export async function renderImageDriveSection(host) {
         <button type="button" class="btn btn-primary" id="imgdrive-save">Save image drive</button>
         <span class="img-none" id="imgdrive-result" aria-live="polite"></span>
       </div>
+      <div class="img-copy" id="imgdrive-copy"></div>
       <details>
         <summary>Endpoint and region for common providers</summary>
         <ul>
@@ -463,4 +464,40 @@ export async function renderImageDriveSection(host) {
   host.querySelector('#imgdrive-save').addEventListener('click', async e => {
     if (await run(e.currentTarget, '/api/v1/admin/image-drive', 'Image drive saved.')) renderImageDriveSection(host);
   });
+  renderDriveCopy(host.querySelector('#imgdrive-copy'));
+}
+
+// Copy the photos still on the server disk to the drive (75.4.3).
+function mb(n) { return n <= 0 ? '0 KB' : n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+
+async function renderDriveCopy(box) {
+  if (!box || !box.isConnected) return;
+  const res = await apiFetch('/api/v1/admin/image-drive/copy');
+  if (!res || !res.ok || !box.isConnected) return;
+  const c = await res.json();
+  const fails = (c.failures || []).map(f => `<li>${esc(f.item || f.media_id)}: ${esc(f.reason)}</li>`).join('');
+  const last = c.last_status && !c.running
+    ? `<div class="img-none">Last copy: ${esc(c.copied)} copied, ${esc(c.failed)} kept on the server${c.skipped ? ', ' + esc(c.skipped) + ' skipped' : ''}.</div>` : '';
+  box.innerHTML = `
+    <h4>Copy photos to the drive</h4>
+    <div class="img-drive-state">${esc(c.on_disk)} on the server (${mb(c.disk_bytes)}) · ${esc(c.on_drive)} already on the drive</div>
+    ${c.running ? `<div class="img-drive-state is-on">Copying… ${esc(c.last_percent)}%</div>` : ''}
+    <div class="img-drive-actions">
+      <button type="button" class="btn btn-primary" id="imgdrive-copy-go" ${c.running || !c.on_disk ? 'disabled' : ''}>Copy photos to the drive</button>
+    </div>
+    ${last}
+    ${fails ? `<details open class="img-copy-fails"><summary>Kept on the server</summary><ul>${fails}</ul></details>` : ''}`;
+  const go = box.querySelector('#imgdrive-copy-go');
+  go.addEventListener('click', async e => {
+    e.currentTarget.disabled = true;
+    const r = await apiFetch('/api/v1/admin/image-drive/copy', { method: 'POST' });
+    if (!r || !r.ok) {
+      if (r) await showApiError(r, 'The copy did not start.', 'Image drive');
+      renderDriveCopy(box);
+      return;
+    }
+    showToast('Copy started.', { variant: 'success' });
+    renderDriveCopy(box);
+  });
+  if (c.running) setTimeout(() => renderDriveCopy(box), 3000);
 }

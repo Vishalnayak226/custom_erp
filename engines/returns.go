@@ -71,6 +71,16 @@ type returnItemRecord struct {
 	RoundOffPaise int64 `json:"round_off_paise,omitempty"`
 	// NextAction (Stage 148.28) is what the disposition rule drafts for this line.
 	NextAction string `json:"next_action,omitempty"`
+	// Parts (Stage 148.1d): a bundle line comes back as its components, each at the
+	// cost the sale booked for it, this return's share by quantity.
+	Parts []returnPart `json:"parts,omitempty"`
+}
+
+// returnPart is one component of a returned bundle line.
+type returnPart struct {
+	SKU        string `json:"sku"`
+	Qty        int    `json:"qty"`
+	ValuePaise int64  `json:"value_paise"`
 }
 
 // originalLinePrice is what resolveOriginalSaleLinePrices/
@@ -83,6 +93,8 @@ type originalLinePrice struct {
 	Pieces  []soldPiece
 	BatchNo string
 	SoldQty int
+	// Parts is a bundle line's components as the sale booked them (148.1d).
+	Parts []saleCostLine
 }
 
 // returnDispositionRule maps each of the checklist's six QC disposition
@@ -474,6 +486,7 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 		p := priceBySku[it.SKU]
 		cost, serials := p.returnedPieces(it)
 		out.records[i] = returnItemRecord{SKU: it.SKU, Qty: it.Qty, OriginalUnitPrice: p.SalePrice, OriginalCostPrice: cost, SerialNos: serials, BatchNo: p.BatchNo}
+		out.records[i].Parts = p.returnedParts(it.Qty)
 	}
 	return out, nil
 }
@@ -644,6 +657,34 @@ func ReceiveReturnRequest(tenantID, returnRequestID, receivedBy string) error {
 	return saveReturnRequest(schema, returnRequestID, data, "Received")
 }
 
+// receiveBundleParts puts a returned bundle line back as its components (148.1d):
+// each into the bucket the QC chose, on the stock ledger under its own key, and
+// - for a Sellable return - to where Sales Return says. It returns the components'
+// booked value, the figure the COGS reversal gives back to inventory.
+func receiveBundleParts(tx *sql.Tx, schema, tenantID, returnRequestID, location, userID string, line int, it returnItemRecord, bucket, stockTo string) (int64, error) {
+	var total int64
+	for _, part := range it.Parts {
+		if err := applyReturnedStockToBucket(tx, schema, part.SKU, location, part.Qty, bucket); err != nil {
+			return 0, err
+		}
+		if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+			ItemID: part.SKU, WarehouseID: location, Qty: float64(part.Qty),
+			VoucherType: "SalesReturn", VoucherID: returnRequestID,
+			IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:L%d:%s:PART:QC", returnRequestID, line, part.SKU),
+			ToStatus:       bucket, UserID: userID,
+		}); err != nil {
+			return 0, err
+		}
+		if bucket == "available" {
+			if err := applyReceiptDefaultTx(tx, schema, "Sales Return", location, []PostedStockLine{{SKU: part.SKU, Qty: part.Qty}}, stockTo); err != nil {
+				return 0, err
+			}
+		}
+		total += part.ValuePaise
+	}
+	return total, nil
+}
+
 // applyReturnedStockToBucket increments on_hand plus exactly one of
 // available/damaged/qc_hold, per returnDispositionRule - the same
 // ON CONFLICT upsert shape ProcessReturnAnywhere already uses, extended to
@@ -707,6 +748,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	}
 	if data["status"] != "Received" {
 		return 0, "", fmt.Errorf("return request %s is not Received (currently %v)", returnRequestID, data["status"])
+	}
+	if err := refuseCentralisedExchange(data, exchangeFor); err != nil { // 77.8
+		return 0, "", err
 	}
 	returnLocation, _ := data["return_location"].(string)
 
@@ -781,7 +825,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	// Stage 148.28: what each disposition drafts and charges; no rule = as before.
 	dispRules := loadReturnDispositionRules(tx, schema)
 	var creditLines []returnItemRecord
-	var creditPaise, feeTotal int64
+	var creditPaise, feeTotal, feeGST int64
 	feeByGL := map[string]int64{}
 	for i := range items {
 		disposition := dispositions[items[i].SKU]
@@ -795,39 +839,48 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			rule.Bucket = "qc_hold"
 		}
 		if rule.ReceivesStock {
-			if err := applyReturnedStockToBucket(tx, schema, items[i].SKU, returnLocation, items[i].Qty, rule.Bucket); err != nil {
-				return 0, "", err
-			}
-			// Stage 132.13 (p): the unit is back on hand, so the stock ledger records it -
-			// without this the Stock Ledger report's running balance fell one behind on hand
-			// with every customer return (found by Guide on app). Same transaction, keyed so
-			// a retried QC cannot count it twice.
-			if !ledgered[items[i].SKU] {
-				ledgered[items[i].SKU] = true
-				if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
-					ItemID: items[i].SKU, WarehouseID: returnLocation, Qty: float64(returnedBySKU[items[i].SKU]),
-					VoucherType: "SalesReturn", VoucherID: returnRequestID,
-					IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
-					ToStatus:       rule.Bucket, UserID: qcBy, BatchNo: items[i].BatchNo,
-				}); err != nil {
+			if len(items[i].Parts) > 0 {
+				// 148.1d: a bundle comes back as its components, at what the sale booked.
+				partsValue, err := receiveBundleParts(tx, schema, tenantID, returnRequestID, returnLocation, qcBy, i, items[i], rule.Bucket, docStockField(tx, schema, returnRequestID, "stock_to"))
+				if err != nil {
 					return 0, "", err
 				}
-			}
-			// Stage 106.4: a Good (Sellable) return lands where Sales Return's
-			// "To" says; Main means it stays where it just went.
-			if rule.Bucket == "available" {
-				if err := applyReceiptDefaultTx(tx, schema, "Sales Return", returnLocation, []PostedStockLine{{SKU: items[i].SKU, Qty: items[i].Qty}}, docStockField(tx, schema, returnRequestID, "stock_to")); err != nil {
-					return 0, "", err
-				}
-				if bin, _, errS := SuggestPutawayBin(tenantID, items[i].SKU, returnLocation, items[i].Qty, ""); errS == nil && bin != "" {
-					items[i].PutawayBin = bin
-				}
-			}
-			// Stage 148.45: a gift's cost goes back where the sale charged it.
-			if acct := giftReturnAccount(tx, schema, tenantID, originalOrderID, items[i].SKU); acct != "" {
-				giftCostByAccount[acct] += items[i].OriginalCostPrice * float64(items[i].Qty)
+				costReceivedTotal += PaiseToRupees(partsValue)
 			} else {
-				costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
+				if err := applyReturnedStockToBucket(tx, schema, items[i].SKU, returnLocation, items[i].Qty, rule.Bucket); err != nil {
+					return 0, "", err
+				}
+				// Stage 132.13 (p): the unit is back on hand, so the stock ledger records it -
+				// without this the Stock Ledger report's running balance fell one behind on hand
+				// with every customer return (found by Guide on app). Same transaction, keyed so
+				// a retried QC cannot count it twice.
+				if !ledgered[items[i].SKU] {
+					ledgered[items[i].SKU] = true
+					if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+						ItemID: items[i].SKU, WarehouseID: returnLocation, Qty: float64(returnedBySKU[items[i].SKU]),
+						VoucherType: "SalesReturn", VoucherID: returnRequestID,
+						IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
+						ToStatus:       rule.Bucket, UserID: qcBy, BatchNo: items[i].BatchNo,
+					}); err != nil {
+						return 0, "", err
+					}
+				}
+				// Stage 106.4: a Good (Sellable) return lands where Sales Return's
+				// "To" says; Main means it stays where it just went.
+				if rule.Bucket == "available" {
+					if err := applyReceiptDefaultTx(tx, schema, "Sales Return", returnLocation, []PostedStockLine{{SKU: items[i].SKU, Qty: items[i].Qty}}, docStockField(tx, schema, returnRequestID, "stock_to")); err != nil {
+						return 0, "", err
+					}
+					if bin, _, errS := SuggestPutawayBin(tenantID, items[i].SKU, returnLocation, items[i].Qty, ""); errS == nil && bin != "" {
+						items[i].PutawayBin = bin
+					}
+				}
+				// Stage 148.45: a gift's cost goes back where the sale charged it.
+				if acct := giftReturnAccount(tx, schema, tenantID, originalOrderID, items[i].SKU); acct != "" {
+					giftCostByAccount[acct] += items[i].OriginalCostPrice * float64(items[i].Qty)
+				} else {
+					costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
+				}
 			}
 		}
 
@@ -868,6 +921,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			if fee, gl := dispRules.fee(disposition, items[i].moneyPaise()); fee > 0 {
 				feeByGL[gl] += fee
 				feeTotal += fee
+				feeGST += dispRules.feeGST(disposition, fee) // 148.28a
 			}
 			moneyPaise += items[i].moneyPaise()
 			if items[i].Allocated {
@@ -937,6 +991,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			refundDoc["restocking_fee"] = PaiseToRupees(feeTotal)
 			refundDoc["restocking_fee_paise"] = feeTotal
 			refundDoc["restocking_fee_gl"] = feeByGL
+			if feeGST > 0 {
+				refundDoc["restocking_fee_gst_paise"] = feeGST
+			}
 		}
 		returnLocation, _ := data["return_location"].(string)
 		issueNumberInto(refundDoc, tenantID, "RefundRequest", refundRequestID, "", returnLocation) // Stage 76.11
@@ -985,6 +1042,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	if _, derr := DraftReturnNextDocuments(tenantID, returnRequestID, qcBy); derr != nil {
 		log.Printf("return %s: next documents not drafted: %v", returnRequestID, derr)
 	}
+	// 77.8: a return booked at the store that sold it sends its goods on to
+	// the store that took them; a failure stays on the return and its transfer.
+	_, _ = TransferCentralisedReturn(tenantID, returnRequestID, qcBy)
 
 	return refundTotal, refundRequestID, nil
 }
@@ -1201,7 +1261,20 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	revenueDebits := map[string]int64{"4100": moneyPaise + pointsPaise + feePaise}
 	revenueCredits := map[string]int64{}
 	if feePaise > 0 {
-		for gl, v := range feeByGLFromDoc(data["restocking_fee_gl"]) {
+		byGL := feeByGLFromDoc(data["restocking_fee_gl"])
+		// 148.28a: the fee includes GST at its charge code's rate. That share is
+		// output tax - CGST + SGST, or IGST when the sale was interstate - and only
+		// the rest is income. The split is spread over the fee accounts by size.
+		if tax := int64(numFromInterface(data["restocking_fee_gst_paise"])); tax > 0 && tax < feePaise {
+			takeFeeOffTenders(byGL, tax)
+			if originalSaleWasInterstate(tenantID, strField(data, "original_order_id")) {
+				revenueCredits["2202"] += tax
+			} else {
+				revenueCredits["2200"] += tax / 2
+				revenueCredits["2201"] += tax - tax/2
+			}
+		}
+		for gl, v := range byGL {
 			revenueCredits[gl] += v
 		}
 	}
@@ -1324,13 +1397,14 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		data["refund_method"] = refundMethod
 	}
 	// Stage 73.2.7: cash paid back comes out of the till open at the store
-	// the goods came back to, so that session's expected cash allows for it.
+	// the goods came back to, so that session's expected cash allows for it -
+	// for a centralised return (77.8), the store that took it.
 	if revenueCredits["1100"] > 0 && returnRequestID != "" {
 		var sessionID string
 		_ = tx.QueryRow(fmt.Sprintf(`
 			SELECT s.id FROM %s.documents s, %s.documents rr
 			WHERE rr.doctype = 'ReturnRequest' AND rr.id = $1 AND s.doctype = 'POSSession' AND s.status = 'Open'
-			  AND s.data->>'location' = rr.data->>'return_location' LIMIT 1`, schema, schema), returnRequestID).Scan(&sessionID)
+			  AND s.data->>'location' = COALESCE(NULLIF(rr.data->>'collected_at', ''), rr.data->>'return_location') LIMIT 1`, schema, schema), returnRequestID).Scan(&sessionID)
 		if sessionID != "" {
 			data["pos_session"] = sessionID
 		}

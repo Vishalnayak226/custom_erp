@@ -287,3 +287,31 @@ func handleImageFile(w http.ResponseWriter, r *http.Request) {
 	}
 	writeMediaBytes(w, fileType, b)
 }
+
+// Copy the photos still on the server disk to the client's image drive.
+func handleImageDriveCopyPreview(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	v, err := engines.PreviewImageDriveCopy(r.Header.Get("Resolved-Tenant-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func handleImageDriveCopyStart(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	jobID, err := engines.StartImageDriveCopy(tenantID, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-Username"), "IMAGE_DRIVE", "COPY_STARTED", "Copy of server photos to the image drive started")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]string{"job_id": jobID})
+}

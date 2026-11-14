@@ -355,7 +355,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '78';
+const VIEW_MODULE_VERSION = '79';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -378,6 +378,7 @@ function loadViewModule(src) {
 }
 
 const LAZY_VIEW_MODULES = {
+  'supplier-portal': ['view-supplier-portal.js', 'renderSupplierPortalView', 'Supplier portal'],
   pos: ['view-pos.js', 'renderPOSView', 'POS', 'txn-screen.css'],
   'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability', 'rf.css'],
   returns: ['view-returns.js', 'renderReturnsView', 'Returns', 'txn-screen.css'],
@@ -387,6 +388,7 @@ const LAZY_VIEW_MODULES = {
   'vendor-invoices': ['view-finance.js', 'renderVendorInvoicesView', 'Vendor Invoices', 'txn-screen.css'],
   'payment-proposals': ['view-finance.js', 'renderPaymentProposalsView', 'Payment Proposals'],
   'bank-reconciliation': ['view-finance.js', 'renderBankReconciliationView', 'Bank Reconciliation'],
+  'bank-files': ['view-bank-files.js', 'renderBankFilesView', 'Bank Files'],
   'finance-notes': ['view-finance.js', 'renderFinanceNotesView', 'Finance Notes', 'txn-screen.css'],
   'sales-invoices': ['view-finance.js', 'renderSalesInvoicesView', 'Sales Invoices', 'txn-screen.css'],
   einvoice: ['view-einvoice.js', 'renderEInvoiceView', 'E-Invoice (IRN)', 'txn-screen.css'],
@@ -414,9 +416,12 @@ const LAZY_VIEW_MODULES = {
   'mobile-picking': ['view-warehouse.js', 'renderMobilePickingView', 'Mobile Picking'],
   oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS', 'oms.css'],
   approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
+  dataquality: ['view-data-quality.js', 'renderDataQualityView', 'Data quality'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
   'gate-entry': ['view-gate-entry.js', 'renderGateEntryView', 'Gate entries', 'txn-screen.css'],
+  'purchase-contracts': ['view-purchase-contracts.js', 'renderPurchaseContractsView', 'Contracts', 'txn-screen.css'],
+  'service-entry': ['view-service-entry.js', 'renderServiceEntryView', 'Service entries', 'txn-screen.css'],
   'purchase-returns': ['view-procurement.js', 'renderPurchaseReturnsView', 'Purchase Return', 'txn-screen.css'],
   reports: ['view-reports.js', 'renderReportsView', 'Reports'],
   inventory: ['view-reports.js', 'renderInventoryView', 'Inventory'],
@@ -446,6 +451,7 @@ const LAZY_VIEW_MODULES = {
   'tenant-usage': ['view-admin.js', 'renderTenantUsageView', 'Tenant Usage'],
   'platform-console': ['view-admin.js', 'renderPlatformConsoleView', 'Data Console'],
   'control-panel': ['view-control-panel.js', 'renderControlPanelView', 'Control Panel'],
+  profile: ['view-profile.js', 'renderProfileView', 'Profile'],
   help: ['view-help.js', 'renderHelpView', 'Help', 'kb.css'],
 };
 
@@ -1047,6 +1053,19 @@ function commandKeyFor(scope, url, body) {
   return key;
 }
 
+// 49.12.3: a strip while an administrator has the business read-only. It
+// never takes a click (pointer-events: none), so it cannot cover a button.
+function setReadOnlyBanner(on) {
+  let strip = document.getElementById('read-only-banner');
+  if (!on) { if (strip) strip.remove(); return; }
+  if (strip) return;
+  strip = document.createElement('div');
+  strip.id = 'read-only-banner';
+  strip.setAttribute('role', 'status');
+  strip.textContent = 'Read-only · changes paused';
+  document.body.appendChild(strip);
+}
+
 async function apiFetchOnce(url, options = {}, retried = false) {
   const token = localStorage.getItem('erp_token');
   const isRead = !options.method || options.method === 'GET';
@@ -1118,6 +1137,10 @@ async function apiFetchOnce(url, options = {}, retried = false) {
     return null;
   }
   if (!response.ok && isRead) lastLoadFailure = { status: response.status, at: Date.now() };
+  // 49.12.3: read-only mode - the server says on every answer; the banner follows.
+  const readOnly = response.headers.get('X-Read-Only');
+  if (readOnly) setReadOnlyBanner(readOnly === '1');
+  else if (response.headers.get('X-Refused') === 'READ_ONLY') setReadOnlyBanner(true);
   // Stage 139: a saved write, for shortcuts.js's after-save bar.
   if (!isRead && response.ok) dispatchEvent(new CustomEvent('erp:write', { detail: { url, method: options.method, response } }));
 
@@ -3908,11 +3931,14 @@ const MENU_PERMISSION_MAP = {
   'menu-hr-roster': { doctypes: ['ShiftAssignment'] },
   'menu-hr-payroll': { capability: 'hr.payroll' },
   'menu-hr-payroll-export': { capability: 'hr.payroll' },
+  'menu-hr-payroll-tax': { capability: 'hr.payroll' },
   'menu-hr-loans': { capability: 'hr.payroll' },
   'menu-hr-onboarding': { doctypes: ['OnboardingChecklist'] },
   'menu-hr-appraisals': { doctypes: ['Appraisal'] },
+  'menu-hr-calibration': { doctypes: ['Appraisal'] },
   'menu-hr-training': { doctypes: ['TrainingRecord'] },
   'menu-hr-grievances': { doctypes: ['Grievance'] },
+  'menu-hr-people': { doctypes: ['Employee'] },
   'menu-assets': { doctypes: ['Asset'] },
   'menu-expenses': { doctypes: ['ExpenseClaim'] },
 
@@ -3924,6 +3950,10 @@ const MENU_PERMISSION_MAP = {
   'menu-pim-feeds': { doctypes: ['PIMFeed'] },
   'menu-pim-design-values': { doctypes: ['ProductAttributeValue'] },
   'menu-pim-stewardship': { doctypes: ['AttributeStewardship'] },
+  'menu-pim-range': { doctypes: ['Assortment'] },
+  'menu-pim-markdown': { doctypes: ['MarkdownPlan'] },
+  'menu-pim-drift': { doctypes: ['Item'] },
+  'menu-pim-category-rules': { doctypes: ['CategoryAttributeRule'] },
   // 163.3: the reports read content, media and attribute values; any one of them shows the page.
   'menu-pim-reports': { doctypes: ['ProductContent', 'ProductMedia', 'ProductAttributeValue'] },
 
@@ -3972,7 +4002,8 @@ const MENU_MODULE_MAP = {
   "menu-home": {
     "module": "core",
     "views": [
-      "home"
+      "home",
+      "supplier-portal"
     ]
   },
   "menu-reprint": {
@@ -4073,7 +4104,9 @@ const MENU_MODULE_MAP = {
   "menu-purchase-orders": {
     "module": "procurement",
     "views": [
-      "purchase-orders"
+      "purchase-orders",
+      "purchase-contracts",
+      "service-entry"
     ]
   },
   "menu-grn": {
@@ -4266,6 +4299,12 @@ const MENU_MODULE_MAP = {
       "privacy-approvals"
     ]
   },
+  "menu-dataquality": {
+    "module": "core",
+    "views": [
+      "dataquality"
+    ]
+  },
   "@system-status": {
     "module": "core",
     "views": [
@@ -4365,7 +4404,8 @@ const MENU_MODULE_MAP = {
   "menu-bank-reconciliation": {
     "module": "finance",
     "views": [
-      "bank-reconciliation"
+      "bank-reconciliation",
+      "bank-files"
     ]
   },
   "menu-finance-notes": {
@@ -5807,6 +5847,7 @@ const STATIC_VIEW_MENU_IDS = {
   'vendor-invoices': 'menu-vendor-invoices',
   'payment-proposals': 'menu-payment-proposals',
   'bank-reconciliation': 'menu-bank-reconciliation',
+  'bank-files': 'menu-bank-reconciliation',
   'finance-notes': 'menu-finance-notes',
   'sales-invoices': 'menu-sales-invoices',
   'journal-vouchers': 'menu-journal-vouchers'
@@ -5883,7 +5924,7 @@ async function restoreLastView() {
   const link = parseDeepLink();
   if (link && await navigateToDeepLink(link)) return;
 
-  let view = land || DEFAULT_VIEW;
+  let view = land || (localStorage.getItem('erp_role') === 'Supplier' ? 'supplier-portal' : DEFAULT_VIEW);
   let doctype = '';
   let searchQuery = '';
   let page = 1;
@@ -6026,8 +6067,6 @@ async function renderViewContent(view, root) {
     await renderHomeView(root);
   } else if (LAZY_VIEW_MODULES[view]) {
     await renderLazyView(view, root, LAZY_VIEW_MODULES[view]);
-  } else if (view === 'profile') {
-    await renderProfileView(root);
   } else {
     renderMockModuleView(root, view);
   }
@@ -6119,390 +6158,7 @@ function describeDocumentStatusOutcome(doctypeLabel, status) {
   }
 }
 
-// My Profile (Stage 21): self-service account view - read-only account
-// info (including a best-effort linked Employee lookup), change own
-// password, and set the personal idle-timeout preference that drives
-// setupIdleTimeout() (see logout()/armIdleTimer() above). Reached from
-// the sidebar account-menu popover, not a sidebar list item of its own.
-const IDLE_TIMEOUT_OPTIONS = [
-  { value: 0, label: 'Never' },
-  { value: 15, label: '15 minutes' },
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
-  { value: 120, label: '2 hours' },
-  { value: 720, label: '12 hours' }
-];
-
-async function renderProfileView(container) {
-  const res = await apiFetch('/api/v1/me');
-  if (!res) return;
-  if (!res.ok) {
-    renderErrorPanel(container, 'Failed to load your profile.', () => renderView('profile'));
-    return;
-  }
-  const data = await res.json();
-
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">My Profile</h1>
-    </div>
-  `;
-  container.appendChild(header);
-
-  const infoPanel = document.createElement('div');
-  infoPanel.className = 'table-panel';
-  infoPanel.style.padding = '24px';
-  const employeeText = data.employee_id
-    ? `${data.employee_name || data.employee_id} (${data.employee_id})`
-    : 'Not linked';
-  infoPanel.innerHTML = `
-    <h3 class="card-title s-29b798">Account Info</h3>
-    <div class="s-1e0e35">
-      <div><span class="stat-label">Username</span><div class="s-f20693">${escapeHTMLText(data.username)}</div></div>
-      <div><span class="stat-label">Role</span><div class="s-f20693">${escapeHTMLText(data.role)}</div></div>
-      <div><span class="stat-label">Status</span><div class="s-96ad60"><span class="badge ${data.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(data.status)}</span></div></div>
-      <div><span class="stat-label">Employee</span><div class="s-f20693">${escapeHTMLText(employeeText)}</div></div>
-      <div><span class="stat-label">Two-Factor Authentication</span><div class="s-96ad60"><span class="badge ${data.mfa_enabled ? 'badge-success' : 'badge-secondary'}">${data.mfa_enabled ? 'Enabled' : 'Not enabled'}</span></div></div>
-    </div>
-  `;
-  container.appendChild(infoPanel);
-
-  const settingsPanel = document.createElement('div');
-  settingsPanel.className = 'table-panel';
-  settingsPanel.style.padding = '24px';
-  settingsPanel.innerHTML = `
-    <h3 class="card-title s-29b798">Contact &amp; Session</h3>
-    <form id="profile-settings-form">
-      <div class="s-e1e267">
-        <div class="form-group s-50435f">
-          <label class="form-label" for="profile-email">Email</label>
-          <input type="email" id="profile-email" class="form-input" value="${escapeHTMLText(data.email || '')}">
-        </div>
-        <div class="form-group s-50435f">
-          <label class="form-label" for="profile-idle-timeout">Auto Logout (inactivity)</label>
-          <select id="profile-idle-timeout" class="form-select">
-            ${IDLE_TIMEOUT_OPTIONS.map(o => `<option value="${o.value}" ${o.value === data.idle_timeout_minutes ? 'selected' : ''}>${o.label}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-group s-50435f">
-          <label class="form-label" for="profile-settings-current-password">Current Password (only needed if changing Email)</label>
-          <input type="password" id="profile-settings-current-password" class="form-input" autocomplete="current-password">
-        </div>
-      </div>
-      <button type="submit" class="btn btn-primary s-4c0544">Save Changes</button>
-    </form>
-  `;
-  container.appendChild(settingsPanel);
-
-  const passwordPanel = document.createElement('div');
-  passwordPanel.className = 'table-panel';
-  passwordPanel.style.padding = '24px';
-  passwordPanel.innerHTML = `
-    <h3 class="card-title s-29b798">Change Password</h3>
-    <form id="profile-password-form">
-      <div class="s-e1e267">
-        <div class="form-group s-50435f">
-          <label class="form-label" for="profile-current-password">Current Password</label>
-          <input type="password" id="profile-current-password" class="form-input" autocomplete="current-password" required>
-        </div>
-        <div class="form-group s-50435f">
-          <label class="form-label" for="profile-new-password">New Password</label>
-          <input type="password" id="profile-new-password" class="form-input" autocomplete="new-password" minlength="12" required>
-        </div>
-        <div class="form-group s-50435f">
-          <label class="form-label" for="profile-confirm-password">Confirm New Password</label>
-          <input type="password" id="profile-confirm-password" class="form-input" autocomplete="new-password" minlength="12" required>
-        </div>
-      </div>
-      <button type="submit" class="btn btn-primary s-4c0544">Update Password</button>
-    </form>
-  `;
-  container.appendChild(passwordPanel);
-
-  // 32.5: two-factor recovery, only for accounts with MFA enrolled (nothing
-  // to manage otherwise).
-  if (data.mfa_enabled) {
-    const mfaPanel = document.createElement('div');
-    mfaPanel.className = 'table-panel';
-    mfaPanel.style.padding = '24px';
-    mfaPanel.id = 'profile-mfa-panel';
-    container.appendChild(mfaPanel);
-    await renderMFARecoveryPanel(mfaPanel);
-  }
-
-  document.getElementById('profile-settings-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('profile-email').value.trim();
-    const idleTimeoutMinutesVal = parseInt(document.getElementById('profile-idle-timeout').value, 10);
-    // 49.2.4: only required by the server when the email is actually
-    // changing - left blank here is fine for an idle-timeout-only save.
-    const currentPassword = document.getElementById('profile-settings-current-password').value;
-    const saveRes = await apiFetch('/api/v1/me', {
-      method: 'PUT',
-      body: JSON.stringify({ email, current_password: currentPassword, idle_timeout_minutes: idleTimeoutMinutesVal })
-    });
-    if (!saveRes) return;
-    if (!saveRes.ok) {
-      await showApiError(saveRes, 'Failed to save changes.');
-      return;
-    }
-    document.getElementById('profile-settings-current-password').value = '';
-    setupIdleTimeout(idleTimeoutMinutesVal);
-    if (state.profile) {
-      state.profile.email = email;
-      state.profile.idle_timeout_minutes = idleTimeoutMinutesVal;
-    }
-    const emailEl = document.getElementById('account-popover-email');
-    if (emailEl) emailEl.textContent = email;
-    await showCustomAlert('Your profile has been updated.', 'Saved');
-  });
-
-  document.getElementById('profile-password-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const currentPassword = document.getElementById('profile-current-password').value;
-    const newPassword = document.getElementById('profile-new-password').value;
-    const confirmPassword = document.getElementById('profile-confirm-password').value;
-    if (newPassword !== confirmPassword) {
-      await showCustomAlert('New password and confirmation do not match.', 'Error');
-      return;
-    }
-    const changeRes = await apiFetch('/api/v1/me/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
-    });
-    if (!changeRes) return;
-    if (!changeRes.ok) {
-      await showApiError(changeRes, 'Failed to change password.');
-      return;
-    }
-    document.getElementById('profile-password-form').reset();
-    await showCustomAlert('Your password has been updated.', 'Saved');
-  });
-}
-
-// --- 32.5: profile-side two-factor recovery ------------------------------
-//
-// The counterpart to the login-screen recovery flow. Between them these close
-// the lockout hole: a recovery code gets you in without your phone, and this
-// panel is where you get a fresh set and move the authenticator to a new
-// device. Before Stage 32.5 neither existed, and a replaced phone meant SSH
-// to the server plus a hand-written UPDATE against the users table.
-
-// buildRecoveryCodesNode renders codes for showCustomAlert, which already
-// accepts a DOM node - so this reuses the existing dialog rather than adding
-// a third dialog system. Copy/Download match the login screen's buttons so
-// the two places these codes appear behave identically.
-function buildRecoveryCodesNode(codes) {
-  const wrap = document.createElement('div');
-
-  const warning = document.createElement('p');
-  warning.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
-  warning.textContent = 'Shown only once - save them. Old codes no longer work.';
-  wrap.appendChild(warning);
-
-  const list = document.createElement('pre');
-  list.className = 'recovery-code-list';
-  list.textContent = codes.join('\n');
-  wrap.appendChild(list);
-
-  const row = document.createElement('div');
-  row.style.cssText = 'display: flex; gap: 8px;';
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'btn btn-secondary';
-  copyBtn.style.flex = '1';
-  copyBtn.textContent = 'Copy';
-  copyBtn.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(codes.join('\n'));
-      showToast('Recovery codes copied to the clipboard', { variant: 'success' });
-    } catch (err) {
-      showToast('Could not copy - please select the codes and copy them manually', { variant: 'warning' });
-    }
-  });
-  const dlBtn = document.createElement('button');
-  dlBtn.type = 'button';
-  dlBtn.className = 'btn btn-secondary';
-  dlBtn.style.flex = '1';
-  dlBtn.textContent = 'Download';
-  dlBtn.addEventListener('click', () => {
-    const blob = new Blob(
-      ['CustomERP two-factor recovery codes\n' +
-       'Each code can be used once, in place of your authenticator code.\n\n' +
-       codes.join('\n') + '\n'],
-      { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'custom-erp-recovery-codes.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
-  row.appendChild(copyBtn);
-  row.appendChild(dlBtn);
-  wrap.appendChild(row);
-  return wrap;
-}
-
-// buildAuthenticatorSecretNode shows the manual-entry secret for a new
-// device, laid out the same way the login screen's enrollment step does it.
-function buildAuthenticatorSecretNode(secret) {
-  const wrap = document.createElement('div');
-
-  const intro = document.createElement('p');
-  intro.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
-  intro.textContent = 'Add this code to your authenticator app.';
-  wrap.appendChild(intro);
-
-  const code = document.createElement('code');
-  code.style.cssText = 'display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; user-select: all;';
-  code.textContent = secret;
-  wrap.appendChild(code);
-
-  return wrap;
-}
-
-async function renderMFARecoveryPanel(panel) {
-  const res = await apiFetch('/api/v1/me/mfa/recovery-codes');
-  if (!res || !res.ok) {
-    panel.innerHTML = `
-      <h3 class="card-title s-16949d">Two-Factor Recovery</h3>
-      <p class="s-17d019">Could not load your recovery-code status.</p>`;
-    return;
-  }
-  const info = await res.json();
-  const remaining = Number(info.remaining || 0);
-  const perSet = Number(info.issued_per_set || 10);
-
-  // "N ways back in if your phone dies"; zero is shown in danger colours.
-  let statusBadge, statusNote;
-  if (remaining === 0) {
-    statusBadge = '<span class="badge badge-danger">No recovery codes</span>';
-    statusNote = 'Lose your phone and you are locked out. Generate a set now.';
-  } else if (remaining <= 2) {
-    statusBadge = `<span class="badge badge-warning">${remaining} of ${perSet} left</span>`;
-    statusNote = 'Nearly out. Generate a fresh set.';
-  } else {
-    statusBadge = `<span class="badge badge-success">${remaining} of ${perSet} left</span>`;
-    statusNote = 'Each code works once.';
-  }
-
-  const pendingNote = info.reenroll_in_progress
-    ? `<p class="s-02213e">
-         Device change part-finished. Resume or cancel it.</p>`
-    : '';
-
-  panel.innerHTML = `
-    <h3 class="card-title s-5beb8f">Two-Factor Recovery</h3>
-    <div class="s-16949d">${statusBadge}</div>
-    <p class="s-c80544">${statusNote}</p>
-    ${pendingNote}
-    <div class="s-192902">
-      <button type="button" class="btn btn-secondary" id="mfa-regen-btn">Generate new recovery codes</button>
-      <button type="button" class="btn btn-secondary" id="mfa-newdevice-btn">Set up a new authenticator device</button>
-      ${info.reenroll_in_progress ? '<button type="button" class="btn btn-secondary" id="mfa-cancel-reenroll-btn">Cancel device change</button>' : ''}
-      ${info.remembered_devices ? `<button type="button" class="btn btn-secondary" id="mfa-forget-devices-btn">Forget remembered devices (${info.remembered_devices})</button>` : ''}
-    </div>
-  `;
-
-  document.getElementById('mfa-forget-devices-btn')?.addEventListener('click', async () => {
-    const r = await apiFetch('/api/v1/me/mfa/devices/forget', { method: 'POST', body: '{}' });
-    if (r && !r.ok) return showApiError(r, 'Failed to forget your devices.');
-    localStorage.removeItem('erp_mfa_device:' + localStorage.getItem('erp_username'));
-    await renderMFARecoveryPanel(panel);
-  });
-  document.getElementById('mfa-regen-btn').addEventListener('click', async () => {
-    const password = await showCustomPrompt(
-      'Confirm your password to generate a new set. This immediately invalidates any codes you already hold.',
-      '', 'Generate Recovery Codes', 'password');
-    if (password === null) return;
-    const genRes = await apiFetch('/api/v1/me/mfa/recovery-codes/regenerate', {
-      method: 'POST',
-      body: JSON.stringify({ password })
-    });
-    if (!genRes) return;
-    if (!genRes.ok) {
-      await showApiError(genRes, 'Failed to generate recovery codes.');
-      return;
-    }
-    const out = await genRes.json();
-    await showCustomAlert(buildRecoveryCodesNode(out.recovery_codes || []), 'Your New Recovery Codes');
-    await renderMFARecoveryPanel(panel);
-  });
-
-  document.getElementById('mfa-newdevice-btn').addEventListener('click', () => startMFADeviceChange(panel));
-
-  const cancelBtn = document.getElementById('mfa-cancel-reenroll-btn');
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', async () => {
-      const cancelRes = await apiFetch('/api/v1/me/mfa/reenroll/cancel', { method: 'POST' });
-      if (!cancelRes) return;
-      if (!cancelRes.ok) {
-        await showApiError(cancelRes, 'Failed to cancel the device change.');
-        return;
-      }
-      await renderMFARecoveryPanel(panel);
-    });
-  }
-}
-
-// startMFADeviceChange walks the "my phone was replaced" flow. The new secret
-// is parked server-side and the existing authenticator keeps working until a
-// code from the new device is accepted - so abandoning this halfway cannot
-// itself cause a lockout.
-async function startMFADeviceChange(panel) {
-  const password = await showCustomPrompt(
-    'Confirm your password to set up a new authenticator device. Your current device keeps working until the new one is confirmed.',
-    '', 'New Authenticator Device', 'password');
-  if (password === null) return;
-
-  const startRes = await apiFetch('/api/v1/me/mfa/reenroll', {
-    method: 'POST',
-    body: JSON.stringify({ password })
-  });
-  if (!startRes) return;
-  if (!startRes.ok) {
-    await showApiError(startRes, 'Failed to start the device change.');
-    return;
-  }
-  const { secret } = await startRes.json();
-
-  // The secret goes in its own dialog rather than inline in the prompt text:
-  // showCustomPrompt sets its message with textContent, so a newline there
-  // would collapse and leave a 32-character base32 string running into the
-  // sentence around it - unreadable for something that gets typed by hand.
-  await showCustomAlert(buildAuthenticatorSecretNode(secret), 'New Authenticator Device');
-
-  const code = await showCustomPrompt(
-    'Enter the 6-digit code your authenticator app now shows for this account.',
-    '', 'New Authenticator Device');
-  if (code === null) {
-    await renderMFARecoveryPanel(panel);
-    return;
-  }
-
-  const confirmRes = await apiFetch('/api/v1/me/mfa/reenroll/confirm', {
-    method: 'POST',
-    body: JSON.stringify({ code: (code || '').trim() })
-  });
-  if (!confirmRes) return;
-  if (!confirmRes.ok) {
-    await showApiError(confirmRes, 'That code did not match. Your previous device is still active.');
-    await renderMFARecoveryPanel(panel);
-    return;
-  }
-  const out = await confirmRes.json();
-  if (Array.isArray(out.recovery_codes) && out.recovery_codes.length) {
-    await showCustomAlert(buildRecoveryCodesNode(out.recovery_codes), 'New Device Active - Save These Codes');
-  } else {
-    await showCustomAlert('Your new authenticator device is active.', 'Done');
-  }
-  await renderMFARecoveryPanel(panel);
-}
+// My Profile and its two-factor recovery panel: view-profile.js (LAZY_VIEW_MODULES, 164.4).
 
 // Users: view-users.js (Stage 85.A2, with its Stores section).
 
@@ -6873,6 +6529,11 @@ async function trySyncOfflineQueue() {
         logout('Session expired while syncing offline sales. Log in again to finish syncing.');
         break;
       }
+      // 49.12.3: read-only mode (423) is temporary - keep the sale for later.
+      if (response.status === 423) {
+        stoppedForReconnect = true;
+        break;
+      }
       const msg = await getErrorMessage(response, 'Offline sale failed to sync.');
       await showCustomAlert(`Sale ${entry.cartNumber} could not be synced and was removed from the offline queue - it needs manual attention: ${msg}`, 'Offline Sync Failed');
       // Dropped: the loop continues to i+1 without adding this entry back.
@@ -6971,191 +6632,12 @@ function formatDateTime(v, dateOnly) {
 
 let qzLastError = '';
 
-async function qzTryConnect(silent = true) {
-  if (!window.QZPrint) return false;
-  try {
-    await window.QZPrint.connect();
-    qzLastError = '';
-    return true;
-  } catch (err) {
-    qzLastError = err.message || String(err);
-    if (!silent) await showCustomAlert(qzLastError, 'QZ Tray Not Available');
-    return false;
-  }
-}
-
-// Records what actually reached the printer. Best-effort: a failed log write
-// must never surface as a failed print, because the label is already out.
-async function qzLogJob(entry) {
-  try {
-    await apiFetch('/api/v1/print/qz/log', { method: 'POST', body: JSON.stringify(entry) });
-  } catch (err) {
-    console.debug('[QZ] print log write failed', err);
-  }
-}
-
-/**
- * One-click print. Asks the server what to print (and on which printer),
- * hands it to QZ Tray, and records the outcome.
- *
- * @param jobType 'Shipping Label' | 'Sticker' | 'Receipt' | 'Invoice' | 'Purchase Order' | 'Document'
- * @param opts    { documentRef, printerCode, copies, skus, reprintReason,
- *                  dataBase64, docFormat, quiet }
- *
- * `quiet` (31.1.9) suppresses the dialog when the server cannot prepare the
- * job, for the call sites that resolve a printer by *role* rather than by an
- * explicit pick. "No Printer record is Default For Receipt" is the normal
- * state of a tenant that has not set QZ up at all - it must fall through to
- * the browser print sheet silently, not put an error in front of the cashier
- * on every sale. A failure at the tray itself is still shown either way:
- * that one means printing was really attempted and really failed.
- *
- * @returns true if it printed, false if the caller should fall back.
- */
-async function qzTryPrint(jobType, opts = {}) {
-  // Stage 127.2: opts.why, when given, is told why nothing printed.
-  const fail = (reason, setup) => { if (opts.why) Object.assign(opts.why, { reason, setup }); return false; };
-  if (!await qzTryConnect()) return fail(qzLastError ? `PrintBridge is not reachable (${qzLastError}).` : 'PrintBridge is not reachable.');
-  // Stage 98.4: this computer's own printer per kind of print (print-routing.js).
-  const routing = await loadViewModule('./print-routing.js');
-
-  const res = await apiFetch('/api/v1/print/qz/payload', {
-    method: 'POST',
-    body: JSON.stringify({
-      job_type: jobType,
-      document_ref: opts.documentRef || '',
-      printer_code: opts.printerCode || '',
-      copies: opts.copies || 1,
-      skus: opts.skus || [],
-      reprint_reason: opts.reprintReason || '',
-      data_base64: opts.dataBase64 || '',
-      doc_format: opts.docFormat || '',
-      // Stage 52: bulk print from a GRN/Transfer Order - source_doctype +
-      // source_doc_id tell the server to resolve the document's own lines
-      // (engines.PrintStickersForDocument) instead of requiring skus.
-      source_doctype: opts.sourceDoctype || '',
-      source_doc_id: opts.sourceDocId || '',
-      copies_override: opts.copiesOverride || undefined,
-      // Stage 52.8: per-line selection (sku + batch_no + copies). A SKU
-      // received on two lots is two lines, which skus/copies_override
-      // cannot tell apart; the server accepts either shape.
-      lines: opts.lines || undefined,
-      computer: await routing.printComputer(),
-      location: opts.location || (window.erpWorkingStore || {}).code || '',
-      print_kind: opts.printKind || ''
-    })
-  });
-  if (!res) return fail('The server could not be reached. Check this computer is online, then Retry.', 1);
-  if (!res.ok) {
-    if (!opts.printerCode && await routing.needsChoice(res)) return routing.chooseAndPrint(jobType, opts);
-    if (opts.quiet) return fail(await getErrorMessage(res, 'no print payload'), 1);
-    await showApiError(res, 'Could not prepare the print job.', 'Print Failed');
-    return false;
-  }
-
-  const payload = await res.json();
-
-  // A non-thermal sticker printer has no raw command form; the server says
-  // so and the existing browser sheet renders it instead.
-  if (payload.fallback === 'browser') {
-    renderPrintSheet(payload.labels, opts.copies || 1);
-    return true;
-  }
-
-  const printerName = (payload.printer && payload.printer.qz_printer_name) || '';
-  if (!printerName) {
-    const why = routing.notMapped((payload.printer && payload.printer.name) || opts.printerCode);
-    if (opts.quiet) return fail(why + ' Then Retry.', 1);
-    await showCustomAlert(why, 'Printer Not Mapped');
-    return false;
-  }
-
-  try {
-    await window.QZPrint.printItems(printerName, payload.items, payload.copies);
-  } catch (err) {
-    await qzLogJob({
-      job_type: jobType, document_ref: opts.documentRef || '', printer_code: payload.printer.code,
-      qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
-      status: 'Failed', error_detail: err.message || String(err)
-    });
-    if (opts.quiet) return fail(`The printer refused the job: ${err.message || String(err)}.`);
-    await showCustomAlert(err.message || String(err), 'Print Failed');
-    return false;
-  }
-
-  await qzLogJob({
-    job_type: jobType, document_ref: opts.documentRef || '', printer_code: payload.printer.code,
-    qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
-    status: 'Submitted', error_detail: ''
-  });
-  showToast(`Sent to ${printerName}.`, { variant: 'success' });
-  return true;
-}
-
-/**
- * Prints a marketplace-issued label or invoice exactly as the channel
- * produced it. Myntra, and every other channel that hands back a finished
- * PDF, goes through here - the file is passed to the printer untouched,
- * because re-rendering a courier's label risks altering a barcode they scan.
- */
-async function qzPrintMarketplaceDocument(file, opts = {}) {
-  if (!file) return false;
-  const base64 = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-    reader.onerror = () => reject(new Error('Could not read the file.'));
-    reader.readAsDataURL(file);
-  });
-  const isPDF = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-  return qzTryPrint('Document', {
-    documentRef: opts.documentRef || file.name,
-    printerCode: opts.printerCode || '',
-    copies: opts.copies || 1,
-    dataBase64: base64,
-    docFormat: opts.docFormat || (isPDF ? 'pdf' : 'command')
-  });
-}
-
-// Print Setup panel. Lives on the Sticker Printing screen because that is
-// already where Printer records are managed. Its job is the one thing the
-// generic Master form cannot do: ask the local machine what its printers are
-// actually called, since "OS Printer Name" has to match verbatim (a Zebra
-// commonly reports as e.g. "ZDesigner ZD220-203dpi ZPL").
-function renderPrintSheet(labels, copies) {
-  const area = document.getElementById('sticker-print-area');
-  let html = '';
-  labels.forEach((label, idx) => {
-    const labelCopies = label.qty > 0 ? label.qty : copies;
-    const nextCategory = idx < labels.length - 1 ? (labels[idx + 1].category || '') : null;
-    const isLastOfCategoryGroup = nextCategory === null || nextCategory !== (label.category || '');
-    let elements = [];
-    if (label.template_elements) {
-      try { elements = JSON.parse(label.template_elements); } catch (e) { elements = []; }
-    }
-    for (let i = 0; i < labelCopies; i++) {
-      const breakClass = (i === labelCopies - 1 && isLastOfCategoryGroup) ? ' sticker-label-group-end' : '';
-      if (elements.length > 0 && label.label_width_mm && label.label_height_mm) {
-        html += `
-          <div class="sticker-label sticker-label-templated${breakClass}" style="width:${label.label_width_mm}mm; height:${label.label_height_mm}mm;">
-            ${elements.map(el => renderStickerElementHTML(el, label)).join('')}
-          </div>
-        `;
-      } else {
-        html += `
-          <div class="sticker-label${breakClass}">
-            <div class="sticker-name">${escapeHTMLText(label.name || label.sku)}</div>
-            <div class="sticker-barcode">${label.barcode_svg || escapeHTMLText(label.barcode || '')}</div>
-            <div class="sticker-meta">SKU: ${escapeHTMLText(label.sku)}${label.hsn_code ? ' &nbsp;|&nbsp; HSN: ' + escapeHTMLText(label.hsn_code) : ''}</div>
-          </div>
-        `;
-      }
-    }
-  });
-  area.innerHTML = html;
-  area.classList.add('printing');
-  window.print();
-  setTimeout(() => area.classList.remove('printing'), 500);
-}
+// 164.4: PrintBridge flow is qz-print-flow.js, loaded on the first print; it replaces these stubs.
+const lazyQZ = name => (...args) => loadViewModule('./qz-print-flow.js').then(m => m[name](...args));
+function qzTryConnect(...a) { return lazyQZ('qzTryConnect')(...a); }
+function qzLogJob(...a) { return lazyQZ('qzLogJob')(...a); }
+function qzTryPrint(...a) { return lazyQZ('qzTryPrint')(...a); }
+function qzPrintMarketplaceDocument(...a) { return lazyQZ('qzPrintMarketplaceDocument')(...a); }
 
 // Stage 58: the sticker template designer is public/sticker-studio.js (its
 // state lives there); stickerFieldText/renderStickerElementHTML used by
@@ -7189,6 +6671,7 @@ const PIM_TABS = [
   // since it needs thumbnails, filters and a bulk zip action the generic
   // doctype table doesn't have.
   { id: 'media-library', label: 'Media Library' },
+  { id: 'category-rules', label: 'Category Rules' },
   { id: 'task-templates', label: 'Task Templates', doctype: 'PIMTaskTemplate' },
   { id: 'workflows', label: 'Workflows', doctype: 'PIMWorkflowDefinition' },
   { id: 'families', label: 'Product Families', doctype: 'ProductFamily' },
@@ -7243,6 +6726,8 @@ function docTableListParams(page, search) {
   // they never read.
   const params = new URLSearchParams({ limit: String(itemsPerPage), offset: String(offset), count: 'true' });
   if (search) params.set('q', search);
+  const tf = window.docTableFilter; // 74.1.1: category tab
+  if (tf && tf.doctype === currentDoctype) params.set(tf.field, tf.value);
   return params;
 }
 
@@ -7313,198 +6798,13 @@ function renderMockModuleView(container, view) {
   container.appendChild(panel);
 }
 
-window.openImportModal = function() {
-  const modal = document.getElementById('import-modal');
-  if (modal) {
-    modal.inert = false;
-    modal.classList.add('open');
-    document.getElementById('import-result-summary').style.display = 'none';
-    // Stage 51.10: the SKU-from-Design template only exists for Item.
-    const familyBtn = document.getElementById('import-family-template-btn');
-    if (familyBtn) familyBtn.style.display = currentDoctype === 'Item' ? '' : 'none';
-  }
-};
-
-window.closeImportModal = function() {
-  const modal = document.getElementById('import-modal');
-  if (modal) {
-    modal.classList.remove('open');
-    modal.inert = true;
-    document.getElementById('import-modal-form').reset();
-  }
-};
-
-// The template endpoint is behind apiMiddleware, so it needs the bearer
-// token. A plain anchor href sends no Authorization header, and the browser
-// answers the resulting 401 with its own credential prompt - hence fetch it
-// through apiFetch and hand the browser a blob it can save locally, the same
-// object-URL approach the recovery-code and report exports already take.
-window.downloadImportTemplate = async function(variant) {
-  const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
-  const variantParam = typeof variant === 'string' && variant ? `&variant=${encodeURIComponent(variant)}` : '';
-  const url = `/api/v1/import/${currentDoctype}/template?tenant_id=${tenantID}${variantParam}`;
-
-  let blob;
-  try {
-    const response = await apiFetch(url);
-    if (!response.ok) {
-      await showApiError(response, 'Could not download the import template.');
-      return;
-    }
-    blob = await response.blob();
-  } catch (err) {
-    showToast('Could not download the import template. Check your connection and try again.',
-      { variant: 'error', title: 'Download failed' });
-    return;
-  }
-
-  const objectURL = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = objectURL;
-  link.download = variantParam ? `${currentDoctype}_${variant}_template.csv` : `${currentDoctype}_template.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(objectURL);
-};
-
-window.handleBulkImportSubmit = async function(e) {
-  e.preventDefault();
-  const fileInput = document.getElementById('import-file-input');
-  if (!fileInput.files.length) return;
-
-  const formData = new FormData();
-  formData.append('file', fileInput.files[0]);
-
-  const token = localStorage.getItem('erp_token');
-  const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
-
-  const headers = {
-    'X-Tenant-ID': tenantID
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const summary = document.getElementById('import-result-summary');
-  let res;
-  try {
-    res = await fetch(`/api/v1/import/${currentDoctype}`, {
-      method: 'POST',
-      headers,
-      body: formData
-    });
-  } catch (err) {
-    summary.style.display = 'block';
-    summary.style.backgroundColor = 'rgba(255, 71, 87, 0.1)';
-    summary.style.border = '1px solid rgba(255, 71, 87, 0.3)';
-    summary.style.color = '#ff4757';
-    summary.innerHTML = `<strong>Import Failed:</strong> Unable to reach the server. Please check your connection and try again.`;
-    return;
-  }
-
-  if (res.ok) {
-    const result = await res.json();
-    summary.style.display = 'block';
-    summary.style.backgroundColor = 'rgba(46, 213, 115, 0.1)';
-    summary.style.border = '1px solid rgba(46, 213, 115, 0.3)';
-    summary.style.color = '#2ed573';
-
-    let html = `
-      <div class="s-6928c9">Import Processed Successfully:</div>
-      <div>Total Rows Parsed: ${result.total_rows}</div>
-      <div>Created: ${(result.created_ids || []).length}</div>
-      <div>Updated: ${(result.updated_ids || []).length}</div>
-      <div>Failed Rows: ${result.failed_rows}</div>
-      ${importTotalsHTML(result)}
-    `;
-
-    if (result.errors && result.errors.length > 0) {
-      html += `<div class="s-d55493">Validation Errors:</div><ul class="s-7ac255">`;
-      result.errors.forEach(err => {
-        html += `<li>Row ${escapeHTMLText(err.row_number)}: ${escapeHTMLText(err.message)}</li>`;
-      });
-      html += `</ul>`;
-      if (result.import_job_id) {
-        html += `<button type="button" class="btn btn-primary btn-sm s-8a77e5" id="import-fix-resume">Fix and resume the failed rows</button>`;
-      }
-    }
-
-    summary.innerHTML = html;
-    // Stage 55.11: a run with failed rows stays open on its resume step.
-    const resumeBtn = document.getElementById('import-fix-resume');
-    if (resumeBtn) {
-      resumeBtn.onclick = () => { closeImportModal(); loadViewModule('/view-import-jobs.js?v=1').then(m => m.openImportResume(result.import_job_id)); };
-      return;
-    }
-
-    setTimeout(() => {
-      closeImportModal();
-      renderView('doctype-table');
-    }, 3000);
-  } else {
-    summary.style.display = 'block';
-    summary.style.backgroundColor = 'rgba(255, 71, 87, 0.1)';
-    summary.style.border = '1px solid rgba(255, 71, 87, 0.3)';
-    summary.style.color = '#ff4757';
-    summary.innerHTML = `<strong>Import Failed:</strong> Server returned an error processing the CSV request.`;
-  }
-};
-
-// Stage 47.13.3: each Number column's total, accepted of the file's
-// ("Qty 5 of 10"), and a rerun that added nothing new.
-function importTotalsHTML(result) {
-  const c = result && result.control_totals;
-  if (!c) return '';
-  const cols = (c.columns || []).map(col => `${escapeHTMLText(col.label || col.field)} ${escapeHTMLText(formatNumber(col.accepted))} of ${escapeHTMLText(formatNumber(col.read))}`);
-  return `${cols.length ? `<div>Totals: ${cols.join(' · ')}</div>` : ''}${c.rerun ? '<div>Rerun: nothing new</div>' : ''}`;
-}
-
-// Preview (Stage 15.2): dry-run of the same file - nothing is written,
-// shows the create/update/reject breakdown before the user commits.
-window.handleBulkImportPreview = async function() {
-  const fileInput = document.getElementById('import-file-input');
-  if (!fileInput.files.length) {
-    await showCustomAlert('Select a CSV file first.', 'No File Selected');
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('file', fileInput.files[0]);
-
-  const summary = document.getElementById('import-result-summary');
-  const res = await apiUpload(`/api/v1/pim/import/${currentDoctype}/preview`, formData);
-  if (!res) return;
-
-  summary.style.display = 'block';
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    summary.style.backgroundColor = 'rgba(255, 71, 87, 0.1)';
-    summary.style.border = '1px solid rgba(255, 71, 87, 0.3)';
-    summary.style.color = '#ff4757';
-    summary.innerHTML = `<strong>Preview Failed:</strong> ${escapeHTMLText(data.error || 'Server returned an error processing the CSV request.')}`;
-    return;
-  }
-
-  const result = await res.json();
-  summary.style.backgroundColor = 'rgba(255, 165, 2, 0.1)';
-  summary.style.border = '1px solid rgba(255, 165, 2, 0.3)';
-  summary.style.color = '#ffa502';
-  let html = `
-    <div class="s-6928c9">Preview (nothing written yet):</div>
-    <div>Total Rows: ${escapeHTMLText(result.total_rows)}</div>
-    <div>Would Create: ${(result.created_ids || []).length}</div>
-    <div>Would Update: ${(result.updated_ids || []).length}</div>
-    <div>Would Reject: ${escapeHTMLText(result.failed_rows)}</div>
-    ${importTotalsHTML(result)}
-  `;
-  if (result.errors && result.errors.length > 0) {
-    html += `<div class="s-ef59b6">Row Errors:</div><ul class="s-7ac255">`;
-    result.errors.forEach(err => { html += `<li>Row ${escapeHTMLText(err.row_number)}: ${escapeHTMLText(err.message)}</li>`; });
-    html += `</ul>`;
-  }
-  summary.innerHTML = html;
-};
+// 164.4: bulk-import dialog code is view-import-modal.js, loaded on first use; it replaces these stubs.
+const lazyImportModal = name => (...args) => loadViewModule('./view-import-modal.js').then(() => window[name](...args));
+window.openImportModal = lazyImportModal('openImportModal');
+window.closeImportModal = lazyImportModal('closeImportModal');
+window.downloadImportTemplate = lazyImportModal('downloadImportTemplate');
+window.handleBulkImportSubmit = e => { e.preventDefault(); return lazyImportModal('handleBulkImportSubmit')(e); };
+window.handleBulkImportPreview = lazyImportModal('handleBulkImportPreview');
 
 // ---------------------------------------------------------------------------
 // Knowledge Center (Stage 39.3-39.5)

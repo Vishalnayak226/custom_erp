@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // leaveDaysInside (Stage 132.20) is how many of a leave's days fall in
@@ -161,4 +163,42 @@ func GetPayrollExport(tenantID, from, to string) ([]PayrollExportEntry, error) {
 		results = append(results, *byEmployee[id])
 	}
 	return results, nil
+}
+
+// GetPayrollExportForStores is the payroll export cut, when cut is set, to the
+// employees whose location is one of these stores (49.3.4: a store-limited
+// role holding hr.payroll sees its own stores' staff only). An employee with
+// no location, or no Employee record, is left out of a cut export.
+func GetPayrollExportForStores(tenantID, from, to string, stores []string, cut bool) ([]PayrollExportEntry, error) {
+	all, err := GetPayrollExport(tenantID, from, to)
+	if err != nil || !cut {
+		return all, err
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'Employee' AND data->>'location' = ANY($1)`, schema), pq.Array(stores))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	inStore := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		inStore[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]PayrollExportEntry, 0, len(all))
+	for _, e := range all {
+		if inStore[e.EmployeeID] {
+			out = append(out, e)
+		}
+	}
+	return out, nil
 }

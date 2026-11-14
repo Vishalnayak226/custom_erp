@@ -1124,7 +1124,7 @@ function renderRFReceivingBody(status) {
   const doneLines = totalLines - remaining.length;
 
   const rows = rfReceivingExpected.map(l => `
-    <tr style="${l.receivedQty >= l.expectedQty ? 'opacity:0.5;' : ''}">
+    <tr class="${l.receivedQty >= l.expectedQty ? 'u-half' : ''}">
       <td>${escapeHTMLText(l.sku)}</td>
       <td>${l.receivedQty} / ${l.expectedQty}</td>
     </tr>`).join('');
@@ -2935,7 +2935,7 @@ async function fetchABCCycleCountPlan() {
   if (!res.ok) { await showApiError(res, 'Failed to fetch the ABC cycle-count plan.', 'Fetch Failed'); return; }
   const plan = await res.json();
   if (plan.length === 0) {
-    resultEl.innerHTML = `<p class="s-d59bb5">No SKUs on hand at ${escapeHTMLText(location)}.</p>`;
+    resultEl.innerHTML = `<p class="s-d59bb5">Nothing to count at ${escapeHTMLText(location)}.</p>`;
     return;
   }
   resultEl.innerHTML = `

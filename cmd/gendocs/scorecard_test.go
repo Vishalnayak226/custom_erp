@@ -32,7 +32,7 @@ func TestSecurityScorecardJudgesEvidenceAgainstTheStamp(t *testing.T) {
 		"attention: past review_by - old.md",
 		"| Attack surface | manifest not found | attention |",
 		"| Detections |",
-		"| User-reported security friction | - | not measured yet |",
+		"| User-reported security friction | locked accounts and PINs, password resets, lost authenticators, \"not helpful\" on the sign-in help (14 days) | live only |",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("scorecard misses %q:\n%s", want, body)

@@ -55,6 +55,8 @@ type BankStatementLineView struct {
 	ExceptionAge    int               `json:"exception_age_days"`
 	ResolutionNote  string            `json:"resolution_note"`
 	MatchedPostings []BankBookPosting `json:"matched_postings"`
+	MatchedAmount   float64           `json:"matched_amount,omitempty"` // 170.2 part match
+	OpenAmount      float64           `json:"open_amount,omitempty"`
 }
 
 type BankBookPosting struct {
@@ -67,6 +69,7 @@ type BankBookPosting struct {
 	PostedBy     string  `json:"posted_by"`
 	AmountDiff   float64 `json:"amount_difference,omitempty"`
 	DaysApart    int     `json:"days_apart,omitempty"`
+	PartMatched  float64 `json:"part_matched,omitempty"` // 170.2: already taken by part matches
 }
 
 type MarketplacePayoutSuggestion struct {
@@ -191,7 +194,7 @@ func MatchBankLine(tenantID, lineID string, postingIDs []string, note, actor str
 	if err != nil {
 		return err
 	}
-	if line.status == "Matched" || line.status == "Explained" {
+	if line.status == "Matched" || line.status == "Explained" || line.status == "Part Matched" {
 		return &ValidationError{Code: "FIN-0512", Message: fmt.Sprintf("this line is already %s - unmatch it first", line.status)}
 	}
 	var total int64
@@ -208,6 +211,9 @@ func MatchBankLine(tenantID, lineID string, postingIDs []string, note, actor str
 		}
 		if matched.Valid && matched.String != "" {
 			return &ValidationError{Code: "FIN-0512", Message: fmt.Sprintf("book entry %s is already matched to statement line %s", pid, matched.String)}
+		}
+		if used, _ := postingPartsPaise(tx, schema, pid); used > 0 {
+			return &ValidationError{Code: "FIN-0512", Message: fmt.Sprintf("book entry %s is partly matched - finish it with a part match", pid)}
 		}
 		side := bookSidePaise(line.drCr, debit, credit)
 		if side == 0 {
@@ -258,14 +264,18 @@ func UnmatchBankLine(tenantID, lineID, reason, actor string) error {
 	if err != nil {
 		return err
 	}
-	if line.status != "Matched" && line.status != "Explained" {
+	if line.status != "Matched" && line.status != "Explained" && line.status != "Part Matched" {
 		return &ValidationError{Code: "FIN-0512", Message: "this line is not matched"}
+	}
+	if err := releaseBankParts(tx, schema, lineID); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET matched_statement_line_id = NULL WHERE matched_statement_line_id = $1`, schema), lineID); err != nil {
 		return err
 	}
 	if err := patchBankLine(tx, schema, lineID, map[string]interface{}{
 		"match_status": "Unmatched", "match_method": "", "matched_by": "", "matched_at": "", "match_difference": 0,
+		"matched_amount": 0, "open_amount": 0,
 		"resolution_note": "unmatched by " + actor + ": " + reason,
 	}); err != nil {
 		return err
@@ -356,7 +366,7 @@ func RuleMatchBankStatement(tenantID, bankAccountID string, rule BankMatchRule, 
 	}
 	postRows, err := tx.Query(fmt.Sprintf(`
 		SELECT posting_id, document_id, debit, credit, created_at FROM %s.gl_postings
-		WHERE account_code = $1 AND matched_statement_line_id IS NULL FOR UPDATE`, schema), glAccount)
+		WHERE account_code = $1 AND matched_statement_line_id IS NULL AND %s FOR UPDATE`, schema, noBankParts(schema)), glAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -765,9 +775,10 @@ func BankLineCandidates(tenantID, lineID string) ([]BankBookPosting, error) {
 
 func unmatchedBookPostings(schema, glAccount string, limit int) ([]BankBookPosting, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT posting_id, created_at::text, document_type, document_id, debit, credit, COALESCE(posted_by, '')
-		FROM %s.gl_postings WHERE account_code = $1 AND matched_statement_line_id IS NULL
-		ORDER BY created_at DESC LIMIT $2`, schema), glAccount, limit)
+		SELECT p.posting_id, p.created_at::text, p.document_type, p.document_id, p.debit, p.credit, COALESCE(p.posted_by, ''),
+		       COALESCE((SELECT SUM(bp.amount_paise) FROM %s.bank_match_parts bp WHERE bp.posting_id = p.posting_id), 0)
+		FROM %s.gl_postings p WHERE p.account_code = $1 AND p.matched_statement_line_id IS NULL
+		ORDER BY p.created_at DESC LIMIT $2`, schema, schema), glAccount, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -775,9 +786,18 @@ func unmatchedBookPostings(schema, glAccount string, limit int) ([]BankBookPosti
 	var out []BankBookPosting
 	for rows.Next() {
 		var b BankBookPosting
-		var debit, credit int64
-		if err := rows.Scan(&b.PostingID, &b.Date, &b.DocumentType, &b.DocumentID, &debit, &credit, &b.PostedBy); err != nil {
+		var debit, credit, used int64
+		if err := rows.Scan(&b.PostingID, &b.Date, &b.DocumentType, &b.DocumentID, &debit, &credit, &b.PostedBy, &used); err != nil {
 			return nil, err
+		}
+		// 170.2: what part-matches already took is not open any more.
+		if used > 0 {
+			if debit > 0 {
+				debit -= used
+			} else {
+				credit -= used
+			}
+			b.PartMatched = PaiseToRupees(used)
 		}
 		b.Debit, b.Credit = PaiseToRupees(debit), PaiseToRupees(credit)
 		out = append(out, b)
@@ -808,7 +828,7 @@ func GetBankReconciliationWorkbench(tenantID, bankAccountID, from, to string) (*
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data FROM %s.documents
 		WHERE doctype = 'BankStatementLine' AND data->>'bank_account' = $1
-		  AND (data->>'txn_date' BETWEEN $2 AND $3 OR COALESCE(data->>'match_status', 'Unmatched') IN ('Unmatched', 'Exception'))
+		  AND (data->>'txn_date' BETWEEN $2 AND $3 OR COALESCE(data->>'match_status', 'Unmatched') IN ('Unmatched', 'Exception', 'Part Matched'))
 		ORDER BY data->>'txn_date' DESC, id`, schema), bankAccountID, from, to)
 	if err != nil {
 		return nil, err
@@ -839,6 +859,9 @@ func GetBankReconciliationWorkbench(tenantID, bankAccountID, from, to string) (*
 		}
 		if l.MatchStatus == "" {
 			l.MatchStatus = "Unmatched"
+		}
+		if l.MatchStatus == "Part Matched" {
+			l.MatchedAmount, l.OpenAmount = numFromInterface(d["matched_amount"]), numFromInterface(d["open_amount"])
 		}
 		if raised := str("exception_raised_at"); raised != "" && l.MatchStatus == "Exception" {
 			if t, err := time.ParseInLocation("2006-01-02", raised, time.Local); err == nil {

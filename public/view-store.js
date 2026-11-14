@@ -314,14 +314,17 @@ export async function openStoreAccessEditor({ kind, id, title, onSaved }) {
   save.addEventListener('click', () => guardAgainstDoubleSubmit(save, 'Saving...', async () => {
     const m = mode();
     const picked = m === 'All' || m === 'Home' ? [] : [...overlay.querySelectorAll('.sa-store input:checked')].map(c => c.value);
+    let homeSent = false; // 164.3: the home store change waits for a second admin
     if (user) {
       const home = (overlay.querySelector('#sa-home') || {}).value || '';
       if (home && home !== s.home) {
         const r = await apiFetch('/api/v1/admin/users/location', { method: 'POST', body: JSON.stringify({ id, location_code: home }) });
         if (!r || !r.ok) { await showApiError(r, 'Could not change the home store.'); return; }
+        homeSent = ((await r.json().catch(() => ({}))).status === 'pending_approval');
       }
     }
-    if (admin) { close(); showToast('Home store saved.', { variant: 'success' }); if (onSaved) onSaved(); return; }
+    const homeMsg = homeSent ? 'Home store sent for approval.' : 'Home store saved.';
+    if (admin) { close(); showToast(homeMsg, { variant: 'success' }); if (onSaved) onSaved(); return; }
     const url = user ? '/api/v1/admin/users/stores' : '/api/v1/admin/roles/stores';
     const body = user ? { id, access: m, stores: picked } : { role: id, access: m, stores: picked };
     // 49.3.6: a wider reach asks for a reason; it goes into the audit log.
@@ -335,7 +338,7 @@ export async function openStoreAccessEditor({ kind, id, title, onSaved }) {
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'Could not save the stores.'); return; }
     close();
-    showToast('Stores saved.', { variant: 'success' });
+    showToast(homeSent ? 'Stores saved. Home store sent for approval.' : 'Stores saved.', { variant: 'success' });
     if (onSaved) onSaved();
   }));
   (overlay.querySelector('input[name="sa-mode"]:checked') || overlay.querySelector('select, input'))?.focus();

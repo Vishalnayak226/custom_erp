@@ -47,19 +47,23 @@ type documentNumberSeries struct {
 // PO's* number, not the ASN's own, and overwriting it would silently detach
 // every ASN from its purchase order.
 var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
-	"PurchaseOrder":   {SeriesKey: "PO", NumberFields: []string{"po_number", "code"}, StoreFields: []string{"location", "target_warehouse"}},
-	"GRN":             {SeriesKey: "GRN", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
-	"ASN":             {SeriesKey: "ASN", NumberFields: []string{"asn_number"}, StoreFields: []string{"location"}},
-	"RFQ":             {SeriesKey: "RFQ", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
-	"VendorQuote":     {SeriesKey: "QTN", NumberFields: []string{"code"}},
-	"TransferOrder":   {SeriesKey: "TO", NumberFields: []string{"transfer_number"}, StoreFields: []string{"from_warehouse"}},
-	"ExpenseClaim":    {SeriesKey: "EXP", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
-	"Leave":           {SeriesKey: "LV", NumberFields: []string{"code"}},
-	"EmployeeLoan":    {SeriesKey: "LOAN", NumberFields: []string{"code"}},
-	"Grievance":       {SeriesKey: "GRV", NumberFields: []string{"code"}},
-	"ProductionOrder": {SeriesKey: "PRO", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
-	"Attendance":      {SeriesKey: "ATT", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
-	"PurchaseReturn":  {SeriesKey: "PRT", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"PurchaseOrder":    {SeriesKey: "PO", NumberFields: []string{"po_number", "code"}, StoreFields: []string{"location", "target_warehouse"}},
+	"GRN":              {SeriesKey: "GRN", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"ASN":              {SeriesKey: "ASN", NumberFields: []string{"asn_number"}, StoreFields: []string{"location"}},
+	"RFQ":              {SeriesKey: "RFQ", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"VendorQuote":      {SeriesKey: "QTN", NumberFields: []string{"code"}},
+	"TransferOrder":    {SeriesKey: "TO", NumberFields: []string{"transfer_number"}, StoreFields: []string{"from_warehouse"}},
+	"ExpenseClaim":     {SeriesKey: "EXP", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"Leave":            {SeriesKey: "LV", NumberFields: []string{"code"}},
+	"EmployeeLoan":     {SeriesKey: "LOAN", NumberFields: []string{"code"}},
+	"Grievance":        {SeriesKey: "GRV", NumberFields: []string{"code"}},
+	"DisciplinaryCase": {SeriesKey: "DSC", NumberFields: []string{"code"}}, // 170.20
+	"JobOpening":       {SeriesKey: "JOB", NumberFields: []string{"code"}}, // 170.18
+	"Applicant":        {SeriesKey: "APL", NumberFields: []string{"code"}}, // 170.18
+	"JobOffer":         {SeriesKey: "OFR", NumberFields: []string{"code"}}, // 170.18
+	"ProductionOrder":  {SeriesKey: "PRO", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"Attendance":       {SeriesKey: "ATT", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"PurchaseReturn":   {SeriesKey: "PRT", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
 	// Stage 76.9: tax documents. A manual note or invoice on the record form
 	// is issued its number, not typed; the ones engines create keep their
 	// internal id and take the number through IssueDocumentNumber.
@@ -90,6 +94,9 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"MaterialReturn": {SeriesKey: "MR", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 	// Stage 130.16 (74.3.1): on 76.12's planned DC series.
 	"DeliveryChallan": {SeriesKey: "DC", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	// Stage 168: blanket / rate contracts and service entry sheets.
+	"PurchaseContract":  {SeriesKey: "PC", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"ServiceEntrySheet": {SeriesKey: "SES", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
 	// Stage 130.16 (74.3.3): job work orders on the planned JO series.
 	"SubcontractOrder": {SeriesKey: "JO", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 	// Stage 148.23: the number is the id, so the statement and the ledger read it.

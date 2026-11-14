@@ -132,7 +132,7 @@ func handleReleaseOrderHold(w http.ResponseWriter, r *http.Request) {
 	}
 	orderID := r.PathValue("id")
 
-	if err := engines.ReleaseOrderHold(tenantID, orderID); err != nil {
+	if err := engines.ReleaseOrderHoldAs(tenantID, orderID, r.Header.Get("Resolved-User-ID")); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}

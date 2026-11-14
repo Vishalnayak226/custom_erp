@@ -46,6 +46,8 @@ type TaskInboxScope struct {
 	OMS, PIM, CRM                    bool
 	// Exceptions (Stage 130.16, R-TX-16): the transaction exception worklist.
 	Exceptions bool
+	// DataQuality (170.41): the master-data problem queue.
+	DataQuality bool
 }
 
 // TaskInbox is the whole inbox plus per-source counts and any source that
@@ -213,6 +215,17 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 			inbox.Items = append(inbox.Items, items...)
 			for _, it := range items {
 				inbox.Counts["exceptions"] += it.Count
+			}
+		}
+	}
+
+	if scope.DataQuality {
+		if items, err := DataQualityInboxItems(tenantID); err != nil {
+			inbox.Errors["data_quality"] = err.Error()
+		} else {
+			inbox.Items = append(inbox.Items, items...)
+			for _, it := range items {
+				inbox.Counts["data_quality"] += it.Count
 			}
 		}
 	}

@@ -331,6 +331,7 @@ func handleABCCycleCountPlan(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	plan = engines.WithoutItemsLeftOutOfCycleCounts(tenantID, plan) // 146.3.16
 	if plan == nil {
 		plan = []engines.ABCCycleCountSuggestion{}
 	}

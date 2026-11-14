@@ -1536,6 +1536,19 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		defer engines.BindPostingActor(engines.RequestPostingActor(userID, username, purpose, command))()
 
+		// Stage 49.12.3: read-only mode - every change refused here, once
+		// (security_read_only.go); X-Read-Only drives the app's banner.
+		if tenantID != "" {
+			readOnly := engines.GetSettingBool(tenantID, engines.SettingReadOnly)
+			if userID != "" {
+				w.Header().Set("X-Read-Only", map[bool]string{true: "1", false: "0"}[readOnly])
+			}
+			if readOnly && readOnlyRefuses(r, matchedRoutePattern(r)) {
+				refuseReadOnly(w, r, tenantID, username, command)
+				return
+			}
+		}
+
 		// Stage 49.11.1 / 49.12.3: a bulk export is a security event, and the
 		// client's emergency export freeze stops every one here, once.
 		if isBulkExport(r) {

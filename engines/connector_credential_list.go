@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/lib/pq"
 	"sort"
 	"strings"
 )
@@ -76,14 +77,18 @@ func ListConnectorCredentials(tenantID string) ([]ConnectorCredentialRow, error)
 	} {
 		rows, err := db.DB.Query(fmt.Sprintf(`SELECT %s, active, COALESCE(saved_by, ''), last_used_at, expires_at, updated_at FROM %s.%s ORDER BY updated_at DESC NULLS LAST`, s.key, schema, s.table))
 		if err != nil {
-			continue
+			if isUndefinedTable(err) {
+				continue
+			}
+			return nil, fmt.Errorf("list %s credentials: %w", s.kind, err)
 		}
 		for rows.Next() {
 			var code, owner string
 			var active bool
 			var lastUsed, expires, changed sql.NullTime
-			if rows.Scan(&code, &active, &owner, &lastUsed, &expires, &changed) != nil {
-				continue
+			if err := rows.Scan(&code, &active, &owner, &lastUsed, &expires, &changed); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("list %s credentials: %w", s.kind, err)
 			}
 			kind, name := s.kind, code
 			if s.kind == "channel" && strings.HasPrefix(code, "courier:") {
@@ -94,9 +99,19 @@ func ListConnectorCredentials(tenantID string) ([]ConnectorCredentialRow, error)
 				Owner: owner, LastUsedAt: credentialTimeString(lastUsed), ExpiresAt: credentialTimeString(expires), ChangedAt: credentialTimeString(changed),
 				SecretFields: credentialSecretFields(tenantID, kind, code)})
 		}
+		err = rows.Err()
 		rows.Close()
+		if err != nil {
+			return nil, fmt.Errorf("list %s credentials: %w", s.kind, err)
+		}
 	}
 	return out, nil
+}
+
+// isUndefinedTable is Postgres 42P01: the table is not in this tenant's schema.
+func isUndefinedTable(err error) bool {
+	var pe *pq.Error
+	return errors.As(err, &pe) && pe.Code == "42P01"
 }
 
 // credentialKey is the stored key for a kind and the code the screen shows.

@@ -700,6 +700,11 @@ func ValidateImportBatch(ctx context.Context, tenantID, batchID, userID, role st
 		eligible = append(eligible, i)
 	}
 	var warnings []string
+	loadWarnings, loadErr := CheckImportLoadOrder(tenantID, b.DoctypeName)
+	if loadErr != nil {
+		return nil, loadErr
+	}
+	warnings = append(warnings, loadWarnings...)
 	for start := 0; start < len(eligible); start += importStageChunk {
 		if err := ctx.Err(); err != nil {
 			return nil, err

@@ -103,6 +103,37 @@ func SetExportFreeze(tenantID string, on bool, actor, reason string) error {
 	return nil
 }
 
+// exportsPausedRunStatus is a schedule's last result when the export freeze
+// stopped its run (146.5.6c, 170.43).
+const exportsPausedRunStatus = "Refused: exports are paused for this business"
+
+// scheduledExportFrozen is the check a scheduled export makes before it runs:
+// true (and the refusal audited) while the export freeze is on. The caller
+// skips the delivery but still moves the schedule on, so nothing piles up
+// for when the freeze lifts. runBy is "" for the worker.
+func scheduledExportFrozen(tenantID, runBy, what string) bool {
+	if !GetSettingBool(tenantID, SettingFreezeExports) {
+		return false
+	}
+	actor := runBy
+	if actor == "" {
+		actor = "system"
+	}
+	LogAuditEvent(tenantID, actor, "DATA_EXPORT", "REFUSED_FROZEN", what)
+	return true
+}
+
+// isExportDeliveryEvent names the outbox events that carry an export's data
+// to an outside recipient. While the export freeze is on none of them leaves
+// by webhook, even one queued before the freeze (170.43).
+func isExportDeliveryEvent(eventName string) bool {
+	switch eventName {
+	case "report.scheduled_delivery", "dashboard.digest_delivery", "pim.export.scheduled_delivery":
+		return true
+	}
+	return false
+}
+
 // SettingFreezeIntegrations is the per-client integration freeze (49.12.3a).
 const SettingFreezeIntegrations = "security.freeze_integrations"
 
@@ -121,6 +152,32 @@ func SetIntegrationFreeze(tenantID string, on bool, actor, reason string) error 
 	status := "INTEGRATIONS_FROZEN"
 	if !on {
 		status = "INTEGRATIONS_UNFROZEN"
+	}
+	LogAuditEvent(tenantID, actor, "SECURITY_CONTROL", status, "Reason: "+reason)
+	return nil
+}
+
+// SettingReadOnly is the per-client read-only mode (49.12.3, owner's answer
+// 2026-11-14: sign-in, sign-out and reads stay open; every other change is
+// refused, with a banner).
+const SettingReadOnly = "security.read_only"
+
+// SetReadOnlyMode turns read-only mode on or off, with a reason. While on, the
+// one middleware gate (internal/server readOnlyRefuses) turns away every
+// change this client's people, API clients and webhook senders send. Jobs the
+// server runs on its own keep running: the integration freeze stops outside
+// calls, and suspending the client stops everything.
+func SetReadOnlyMode(tenantID string, on bool, actor, reason string) error {
+	reason, err := emergencyReason(reason)
+	if err != nil {
+		return err
+	}
+	if err := SetSetting(tenantID, SettingReadOnly, fmt.Sprintf("%t", on), actor); err != nil {
+		return err
+	}
+	status := "READ_ONLY_ON"
+	if !on {
+		status = "READ_ONLY_OFF"
 	}
 	LogAuditEvent(tenantID, actor, "SECURITY_CONTROL", status, "Reason: "+reason)
 	return nil

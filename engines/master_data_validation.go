@@ -31,6 +31,8 @@ var bankAccountPattern = regexp.MustCompile(`^[0-9]{9,18}$`)
 // ComputePurchaseOrderGST) for the same doctype.
 func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string]interface{}) error {
 	switch doctype {
+	case "DataQualityIssue":
+		return validateDataQualityIssueRules(payload)
 	case "Item":
 		return validateItemMasterRules(tenantID, docID, payload)
 	case "Vendor":

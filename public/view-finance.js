@@ -100,8 +100,8 @@ async function renderFinanceView(container) {
     <div class="stat-card">
       <span class="stat-label">Ledger Status</span>
       <div class="s-0afcb6">
-        <span class="pulse-dot" style="background: ${data.balanced ? '#10b981' : '#ef4444'};"></span>
-        <span style="font-size: 16px; font-weight: 700; color: ${data.balanced ? '#10b981' : '#ef4444'};">${escapeHTMLText(data.status || '')}</span>
+        <span class="pulse-dot ${data.balanced ? 'u-bg-green' : 'u-bg-red'}"></span>
+        <span class="u-fs16 u-fw7 ${data.balanced ? 'u-green' : 'u-red2'}">${escapeHTMLText(data.status || '')}</span>
       </div>
     </div>
     <div class="stat-card">
@@ -886,10 +886,11 @@ async function renderBankReconciliationView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `<div class="page-title-section"><h1 class="page-title">Bank Reconciliation</h1></div>
-    <div>${financeCanPost() ? `<button type="button" class="btn btn-outline" data-acq="file">Settlement file</button> <button type="button" class="btn btn-outline" data-acq="match">Match card / UPI</button>` : ''}</div>`;
+    <div>${financeCanPost() ? `<button type="button" class="btn btn-outline" data-acq="file">Settlement file</button> <button type="button" class="btn btn-outline" data-acq="match">Match card / UPI</button> <button type="button" class="btn btn-outline" data-bank-files>Bank files</button>` : ''}</div>`;
   container.appendChild(header);
   // 140.12.12: the acquirer's daily card / UPI settlement file (imported on
   // its own list) matched to bank credits; only the exceptions come back.
+  header.querySelector('[data-bank-files]')?.addEventListener('click', () => renderView('bank-files'));
   const acqFile = header.querySelector('[data-acq="file"]');
   if (acqFile) acqFile.addEventListener('click', () => { currentDoctype = 'AcquirerSettlement'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
   const acqMatch = header.querySelector('[data-acq="match"]');
@@ -1079,15 +1080,20 @@ async function renderBankWorkbench(host) {
         </tbody></table>
         <div class="s-c052f6"><span data-cand-sum>Selected 0.00 of ${money(amount)}</span>
           <input class="form-input s-2f3f7d" data-cand-note placeholder="Note (optional)" aria-label="Match note">
-          <button class="btn btn-primary btn-sm" data-cand-match disabled>Match selected</button></div>`);
+          <button class="btn btn-primary btn-sm" data-cand-match disabled>Match selected</button> <button class="btn btn-outline btn-sm" data-cand-part disabled>Part match</button></div>`);
       const boxes = cell.querySelectorAll('[data-cand]');
       const sumEl = cell.querySelector('[data-cand-sum]');
       const btn = cell.querySelector('[data-cand-match]');
+      const partBtn = cell.querySelector('[data-cand-part]');
       boxes.forEach(b => b.addEventListener('change', () => {
         const sum = [...boxes].filter(x => x.checked).reduce((s, x) => s + Number(x.getAttribute('data-cand-amount')), 0);
         sumEl.textContent = `Selected ${money(sum)} of ${money(amount)}${Math.abs(sum - amount) >= 0.005 && sum > 0 ? ` - difference ${money(amount - sum)}` : ''}`;
         btn.disabled = Math.abs(sum - amount) >= 0.005;
+        partBtn.disabled = !(sum > 0 && sum < amount - 0.005);
       }));
+      partBtn?.addEventListener('click', () => lineAction(lineId, 'part-match', {
+        parts: [...boxes].filter(x => x.checked).map(x => ({ posting_id: x.getAttribute('data-cand'), amount: Number(x.getAttribute('data-cand-amount')) })),
+        note: cell.querySelector('[data-cand-note]').value }, 'Part matched.'));
       btn?.addEventListener('click', () => lineAction(lineId, 'match', {
         posting_ids: [...boxes].filter(x => x.checked).map(x => x.getAttribute('data-cand')),
         note: cell.querySelector('[data-cand-note]').value }, 'Line matched.'));

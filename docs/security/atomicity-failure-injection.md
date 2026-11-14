@@ -43,7 +43,7 @@ For every step of a command the runner (`engines/atomicity_fi_harness_test.go`, 
 | Transfer dispatch | availability, document Dispatched | as above; race | passes |
 | Transfer receipt (by receipt key) | availability, document Received, stock ledger | as above; race | passes |
 | Journal voucher post (approved) | GL, document Posted | as above; race | passes |
-| GRN receipt (`PostGRNReceiptWithQC`) | availability, stock ledger | as above; race | bug found and fixed: see below |
+| GRN receipt (`PostGRNReceiptWithQC`) | availability, stock ledger | as above; race; a replayed post returns the first result with no second stock move and no error (162.13, a decision: keep the silent no-op) | bug found and fixed: see below |
 | Credit note post | GL, document Posted | as above; race | bug found and fixed: see below |
 | Vendor invoice payment | GL, document Paid | as above; race | bug found and fixed: see below |
 | Prepaid schedule start; amortization recognition (162.9) | GL, document stamp | as above; the GL now posts in the stamping transaction | passes after fix |
@@ -65,14 +65,12 @@ For every step of a command the runner (`engines/atomicity_fi_harness_test.go`, 
 
 ## Not proven, and why
 
-- **Other `PostDoubleEntry` (own-transaction) call sites (162.9 moved the ones named here into the caller's transaction; what remains is below)** still follow the "GL first, status after" shape and are not yet covered by a scenario: deferred revenue / prepaid schedules (`deferred_prepaid.go`), debit note via GRN pricing (`grn_pricing.go`), GRN GST credit note and GRN correction (`grn_steps_post.go`), marketplace cart (`marketplace.go`), POS cash movement (`pos_cash_movements.go`), vendor early-payment discount (`vendor_master.go`). Each should be moved to `PostDoubleEntryTx` the same way and given a scenario. (Debit note post and the two payment paths above are done.)
-- **Not yet in the matrix:** sales return and refund (HTTP; the 47.4 tests prove exactly-once, not failure at each write), purchase return, period close, payroll run, order cancellation and its credit notes, vendor credit note, reverse journal voucher, stock count posting. The harness takes each as a new scenario of about 20 lines.
-- **GRN handler** (`handlers_core_doc_engine.go`): saves the GRN document, posts stock in a separate transaction and compensates by marking the GRN Cancelled on failure; the `inventory.stock_changed` event is published in a third transaction with errors ignored, so a crash between the stock commit and the event loses the event. Not changed here (it needs an outbox write inside the receipt transaction); suggested item below.
+- **Own-transaction `PostDoubleEntry` call sites:** none remain on a command path (162.9). The ones left in non-test code are `SeedReceivableBalance` (a test seed in `marketplace.go`) and the synthetic-tenant generators (`synthetic_tenant*.go`, seed data, no status to keep in step).
+- **Not yet in the matrix:** sales return over HTTP (the 47.4 tests prove exactly-once, not failure at each write; refund processing is in the matrix), order cancellation with its credit notes, and the payroll run's own write (`RunPayroll` is one write; the payslip post is in the matrix).
+- **GRN handler** (`handlers_core_doc_engine.go`): saves the GRN document, posts stock in a separate transaction and compensates by marking the GRN Cancelled on failure. The `inventory.stock_changed` event is now written inside the receipt transaction (162.11, `TestAtomicityGRNStockChangedEvent`), so a crash cannot lose it.
 - **Not injectable:** external calls with no compensation (payment terminal, WhatsApp, e-invoice, marketplace pushes), post-commit best-effort effects (loyalty earn, CRM events, incentives, audit rows), and document-number gaps (a number is taken before the transaction by design; a failed command can leave a gap).
 - **`RetryPostApprovedJournalVoucher`** replaces every failure with "posting is still blocked", hiding the cause; the scenario therefore runs the same transaction body (`fiPostVoucher`) so the failing step can be identified.
 
 ## Suggested items
 
-- Move every remaining `PostDoubleEntry` caller that holds its own transaction to `PostDoubleEntryTx` (list above) and add a scenario for each.
-- Write the `inventory.stock_changed` outbox row inside the GRN receipt transaction.
-- Extend the matrix to sales return/refund over HTTP, period close, payroll, cancellation and purchase return.
+- Add scenarios for sales return over HTTP and order cancellation with its credit notes.

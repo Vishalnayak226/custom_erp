@@ -139,6 +139,7 @@ export async function renderImportBatchPanel(container) {
         <div class="form-group s-ef0b7a"><label class="form-label" for="ib-totals">Stated totals</label>
           <input id="ib-totals" class="form-input s-0fac91" placeholder="amount=125000.50" autocomplete="off"></div>
       </div>
+      <p class="text-muted" id="ib-order"></p>
       <button class="btn btn-primary" id="ib-stage">Stage</button>`;
 
     const list = document.createElement('div');
@@ -158,6 +159,20 @@ export async function renderImportBatchPanel(container) {
     txnRestorePane('import-batches');
 
     list.querySelectorAll('[data-ib-open]').forEach(btn => btn.addEventListener('click', () => openBatch(btn.dataset.ibOpen, refresh)));
+    // Stage 170.42: what to load first for the chosen record type.
+    const showOrder = async () => {
+      const box = form.querySelector('#ib-order');
+      const t = form.querySelector('#ib-type').value;
+      box.textContent = '';
+      try {
+        const r = await apiFetch('/api/v1/import/' + encodeURIComponent(t) + '/load-order');
+        if (!r || !r.ok) return;
+        const steps = ((await r.json()).steps) || [];
+        if (steps.length) box.textContent = 'Load first: ' + steps.map(x => x.doctype + (x.loaded ? '' : ' (empty)')).join(', ');
+      } catch (_) { /* the order is a hint only */ }
+    };
+    form.querySelector('#ib-type').addEventListener('change', showOrder);
+    showOrder();
     form.querySelector('#ib-stage').addEventListener('click', event => {
       const file = form.querySelector('#ib-file').files[0];
       const doctype = form.querySelector('#ib-type').value;

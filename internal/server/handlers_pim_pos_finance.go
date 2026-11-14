@@ -2174,7 +2174,9 @@ func handleCurrentStockReport(w http.ResponseWriter, r *http.Request) {
 		limit = max
 	}
 	offset, _ := strconv.Atoi(q.Get("offset"))
-	results, total, err := engines.GetCurrentStockPage(tenantID, engines.CurrentStockFilter{Q: q.Get("q"), Location: q.Get("location"), Limit: limit, Offset: offset})
+	// 157.4c: a store-limited user sees only their stores, as on the report page.
+	stores, cut := engines.ReportStoreCut(tenantID, r.Header.Get("Resolved-Role"), r.Header.Get("Resolved-User-ID"))
+	results, total, err := engines.GetCurrentStockPage(tenantID, engines.CurrentStockFilter{Q: q.Get("q"), Location: q.Get("location"), Limit: limit, Offset: offset, Stores: stores, StoreCut: cut})
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -2189,7 +2191,8 @@ func handleSalesRegisterReport(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	results, err := engines.GetSalesRegisterReport(tenantID)
+	stores, cut := engines.ReportStoreCut(tenantID, r.Header.Get("Resolved-Role"), r.Header.Get("Resolved-User-ID"))
+	results, err := engines.GetSalesRegisterReportForStores(tenantID, stores, cut)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return

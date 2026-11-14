@@ -261,18 +261,30 @@ func recomputeLoyaltyTier(tenantID, customerID string, dropOnly bool) (string, b
 // (loyalty.tier_window_days, 0 = all time), less what was refunded on them.
 func customerTierSpend(tenantID, schema, customerID string) (float64, error) {
 	window := GetSettingInt(tenantID, "loyalty.tier_window_days")
-	carts := fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'customer_id' = $1
-		AND ($2::int = 0 OR created_at >= NOW() - make_interval(days => $2::int))`, schema)
 	var spend, refunded float64
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(%s), 0) FROM %s.documents WHERE id IN (%s)`, posCartSpendSQL, schema, carts),
-		customerID, window).Scan(&spend); err != nil {
+	if err := db.DB.QueryRow(fmt.Sprintf(tierSpendPaidSQL, schema), customerID, window).Scan(&spend); err != nil {
 		return 0, err
 	}
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(COALESCE((data->>'net_amount')::numeric, (data->>'amount')::numeric, 0)), 0)
-		FROM %s.documents WHERE doctype = 'RefundRequest' AND data->>'status' = 'Processed' AND data->>'original_order_id' IN (%s)`, schema, carts),
-		customerID, window).Scan(&refunded)
+	_ = db.DB.QueryRow(fmt.Sprintf(tierSpendRefundedSQL, schema, schema), customerID, window).Scan(&refunded)
 	return spend - refunded, nil
 }
+
+// tierSpendCartsSQL picks a customer's paid bills inside the tier window
+// ($1 customer, $2 window days, 0 = all time). Stage 166.1: it and the refund
+// lookup below are served by the two partial indexes of migration 166_1
+// (idx_documents_poscart_paid_customer, idx_documents_refund_original_order);
+// before them each bill's tier check read every refund the client had.
+const tierSpendCartsSQL = `FROM %s.documents WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'customer_id' = $1
+	AND ($2::int = 0 OR created_at >= NOW() - make_interval(days => $2::int))`
+
+// tierSpendPaidSQL sums what those bills took (format: schema).
+const tierSpendPaidSQL = `SELECT COALESCE(SUM(` + posCartSpendSQL + `), 0) ` + tierSpendCartsSQL
+
+// tierSpendRefundedSQL sums the processed refunds against those bills
+// (format: schema, schema).
+const tierSpendRefundedSQL = `SELECT COALESCE(SUM(COALESCE((data->>'net_amount')::numeric, (data->>'amount')::numeric, 0)), 0)
+	FROM %s.documents WHERE doctype = 'RefundRequest' AND data->>'status' = 'Processed'
+	AND data->>'original_order_id' IN (SELECT id ` + tierSpendCartsSQL + `)`
 
 // tierMinSpend is a tier's threshold, -1 for none.
 func tierMinSpend(rules []LoyaltyTierRule, tier string) float64 {

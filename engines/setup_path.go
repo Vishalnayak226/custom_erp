@@ -100,7 +100,7 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 		AND COALESCE(status, 'Active') = 'Active' AND COALESCE(data->>'gstin', '') = ''`, schema)).Scan(&noGSTIN)
 
 	readiness := &setupReadiness{tenantID: tenantID, schema: schema, country: TenantPhoneCountry(tenantID)}
-	finance, err := newGoLiveCtx(tenantID)
+	finance, err := cachedSetupFinanceChecks(tenantID) // 164.2: kept 60 s per client
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 		default:
 			step.Checks = countChecks(step, active)
 		}
-		step.Checks = append(step.Checks, setupFinanceChecks(finance, step.ID)...)
+		step.Checks = append(step.Checks, finance[step.ID]...)
 		step.ValidatorVersion = SetupValidatorVersion
 		step.State, step.Severity = setupStepState(step, readiness.pending(step.Doctypes))
 		done[step.ID] = step.Done

@@ -384,9 +384,14 @@ func getGLAccountBook(tenantID, accountCode string) ([]map[string]interface{}, e
 	if err != nil {
 		return nil, err
 	}
+	// 170.1: the document line a row came from, once the column exists.
+	lineCol := "''"
+	if glSourceLineReady(db.DB, schema) {
+		lineCol = "COALESCE(source_line_id, '')"
+	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT document_type, document_id, debit, credit, created_at FROM %s.gl_postings
-		WHERE account_code = $1 ORDER BY created_at ASC`, schema), accountCode)
+		SELECT document_type, document_id, debit, credit, created_at, %s FROM %s.gl_postings
+		WHERE account_code = $1 ORDER BY created_at ASC`, lineCol, schema), accountCode)
 	if err != nil {
 		return nil, err
 	}
@@ -394,15 +399,15 @@ func getGLAccountBook(tenantID, accountCode string) ([]map[string]interface{}, e
 	var results []map[string]interface{}
 	balancePaise := int64(0)
 	for rows.Next() {
-		var docType, docID string
+		var docType, docID, sourceLine string
 		var debitPaise, creditPaise int64
 		var createdAt time.Time
-		if err := rows.Scan(&docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
+		if err := rows.Scan(&docType, &docID, &debitPaise, &creditPaise, &createdAt, &sourceLine); err != nil {
 			return nil, err
 		}
 		balancePaise += debitPaise - creditPaise
 		results = append(results, map[string]interface{}{
-			"document_type": docType, "document_id": docID, "debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise),
+			"document_type": docType, "document_id": docID, "source_line_id": sourceLine, "debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise),
 			"balance": PaiseToRupees(balancePaise), "created_at": createdAt,
 		})
 	}

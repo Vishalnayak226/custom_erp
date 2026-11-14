@@ -665,7 +665,8 @@ async function receiveTransferOrder(id) {
   }).join('');
   openTransferDialog({
     title: `Receive ${row.transfer_number || row.id}`, wide: true, submitLabel: 'Record Receipt', stockStore: row.to_warehouse,
-    body: `<div class="table-panel s-987eb2"><table>
+    body: `<div><button type="button" class="btn btn-outline btn-sm" id="trcv-upload" title="Barcode, Qty">Upload received quantities</button></div>
+      <div class="table-panel s-987eb2"><table>
         <thead><tr><th>Item</th><th>Good</th><th>Damaged</th><th>Lost</th><th>Extra</th><th>Lot</th></tr></thead>
         <tbody>${lineRows}</tbody></table></div>
       ${txnStockFromTo('Transfer In')}
@@ -673,6 +674,29 @@ async function receiveTransferOrder(id) {
       <label class="s-0da5f4"><input type="checkbox" id="trcv-keep-open" checked>
         Units not entered here stay in transit for a later delivery</label>
       <small class="s-d59bb5">Unticked: anything not entered is recorded as lost.</small>`,
+    // Stage 85.E8 (77.14): a counted file (Barcode, Qty) is what arrived - it
+    // fills Good (above the quantity in transit, Extra), every other line
+    // goes to 0, and an item not on this transfer is listed back.
+    onOpen: overlay => overlay.querySelector('#trcv-upload').addEventListener('click', async () => {
+      const pickers = await loadViewModule('/view-pickers.js?v=1');
+      pickers.openLineUpload({ title: 'Upload received quantities', template: 'transfer-in', onRows: async (rows) => {
+        const counted = {};
+        rows.forEach(r => { counted[r.sku] = (counted[r.sku] || 0) + Math.round(r.qty); });
+        const notHere = [];
+        Object.keys(counted).forEach(sku => {
+          const i = balance.findIndex(b => b.sku === sku);
+          if (i < 0 || inTransitSerials(balance[i]).length) notHere.push(sku);
+        });
+        balance.forEach((b, i) => {
+          const tr = overlay.querySelector(`tbody tr[data-row="${i}"]:not([data-serial])`);
+          if (!tr) return;
+          const got = counted[b.sku] || 0;
+          tr.querySelector('.trcv-good').value = Math.min(got, openQty(b));
+          tr.querySelector('.trcv-excess').value = Math.max(0, got - openQty(b));
+        });
+        if (notHere.length) await showCustomAlert(`Not on this transfer (or scanned by serial number): ${notHere.join(', ')}`, 'Upload received quantities');
+      } });
+    }),
     onSubmit: async form => {
       const key = form.dataset.key || (form.dataset.key = newKey());
       const reason = form.querySelector('#trcv-reason')?.value || '';

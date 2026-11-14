@@ -155,7 +155,7 @@ async function loadCustomer(panel) {
   panel.querySelector('#loy-ledger').innerHTML = entries.length ? entries.map(e => {
     const [what, sign] = loyEntry(e);
     return `<tr><td>${loyEsc(String(e.created_at || '').slice(0, 16).replace('T', ' '))}</td><td>${loyEsc(what)}</td>
-      <td style="font-weight:600; color:${sign > 0 ? 'var(--success-color, #1a7f37)' : 'var(--danger-color, #b3261e)'};">${sign > 0 ? '+' : '-'}${e.points}</td>
+      <td class="u-fw6 ${sign > 0 ? 'u-good' : 'u-bad'}">${sign > 0 ? '+' : '-'}${e.points}</td>
       <td>${loyEsc(e.reference_id || '')}</td><td>${loyEsc(e.location || '')}</td><td>${loyEsc(e.created_by || '')}</td><td>${loyEsc(e.expires_at ? String(e.expires_at).slice(0, 10) : '')}</td></tr>`;
   }).join('') : '<tr><td colspan="7" class="txn-hint">No points yet.</td></tr>';
   loadCustomerContext(panel, id);
@@ -310,7 +310,7 @@ async function runMovement(panel) {
   if (!body) { out.innerHTML = '<tr><td colspan="3">The report could not be run.</td></tr>'; return; }
   out.innerHTML = (body.rows || []).map(r => {
     const strong = /balance|books/i.test(r.movement) || /DIFFERENCE/.test(r.movement);
-    return `<tr${strong ? ' style="font-weight:600;"' : ''}><td>${loyEsc(r.movement)}</td><td>${r.points == null ? '' : r.points}</td>
+    return `<tr${strong ? ' class="u-fw6"' : ''}><td>${loyEsc(r.movement)}</td><td>${r.points == null ? '' : r.points}</td>
       <td>${r.value == null ? '' : (typeof r.value === 'number' ? r.value.toFixed(2) : loyEsc(r.value))}</td></tr>`;
   }).join('');
 }
@@ -354,7 +354,7 @@ async function loadOffers(panel) {
   panel.querySelector('#loy-vouchers').innerHTML = !v ? '<tr><td colspan="8" class="txn-hint">The vouchers could not be looked up.</td></tr>'
     : vouchers.length ? vouchers.map(x => `<tr><td class="s-eed0f8">${loyEsc(x.code)}</td><td>${loyEsc(x.gives)}</td><td>${loyEsc(x.for)}</td><td>${loyEsc(x.where)}</td>
         <td>${loyEsc(x.valid_from || 'now')} to ${loyEsc(x.expiry_date || 'no end')}</td><td>${x.used_count}${x.max_uses ? ` of ${x.max_uses}` : ''}</td>
-        <td style="color:${x.usable ? 'var(--success-color, #1a7f37)' : 'var(--text-muted, #6b7280)'};">${loyEsc(x.state)}</td><td>${money(x.discount_given)}</td></tr>`).join('')
+        <td class="${x.usable ? 'u-good' : 'u-muted'}">${loyEsc(x.state)}</td><td>${money(x.discount_given)}</td></tr>`).join('')
     : '<tr><td colspan="8" class="txn-hint">No vouchers yet. Add one with the button below.</td></tr>';
   const campaigns = (c && c.campaigns) || [];
   panel.querySelector('#loy-campaigns').innerHTML = !c ? '<tr><td colspan="11" class="txn-hint">The campaigns could not be looked up.</td></tr>'

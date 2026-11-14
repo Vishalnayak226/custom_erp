@@ -114,6 +114,7 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     <div class="table-panel s-ef113b">
       <div class="s-e20428">
         <span data-al-count></span>
+        <button type="button" class="btn btn-outline" data-al-rules>Category rules</button>
         <button type="button" class="btn btn-primary" data-al-apply>Add to ${escapeHTMLText(name)}</button>
       </div>
     </div>`;
@@ -156,6 +157,27 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     await showCustomAlert(`Added ${(out.added || []).length} attribute(s) to ${name}.${(out.skipped || []).length ? ` ${(out.skipped || []).length} were already there and were left as they are.` : ''}`, 'Attributes added');
     container.innerHTML = '';
     renderAttributeLibrary(container, client, lib.industry);
+  });
+  // 168.12: the workbook's category rules - preview the counts, then add on a yes.
+  root.querySelector('[data-al-rules]').addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const call = apply => apiFetch(`${url}/rules`, { method: 'POST', body: JSON.stringify({ apply, industry: lib.industry }) });
+    const pv = await call(false);
+    if (!pv) { btn.disabled = false; return; }
+    if (!pv.ok) { await showApiError(pv, `Could not read the category rules for ${name}.`); btn.disabled = false; return; }
+    const c = await pv.json();
+    const msg = `${c.to_add} rule(s) to add, ${c.already_there} already there, ${c.no_category} for categories ${name} does not have, ${c.no_attribute} for attributes it does not have, ${c.left_out} conditional or regulatory rows left out.`;
+    if (c.to_add === 0) { await showCustomAlert(msg, 'Category rules'); btn.disabled = false; return; }
+    if (!await showCustomConfirm(msg + '
+
+Nothing already set is changed.', 'Add category rules')) { btn.disabled = false; return; }
+    const r = await call(true);
+    btn.disabled = false;
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'Could not add the category rules.'); return; }
+    const out = await r.json();
+    await showCustomAlert(`Added ${out.added} category rule(s).`, 'Category rules');
   });
   count();
 }

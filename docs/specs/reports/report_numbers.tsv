@@ -489,3 +489,10 @@ R9061	stock-age-inspections-due	Inspections due by stock age	Inventory
 R3090	summary-invoice-groups	Summary invoice groups	Sales
 R3091	dropship-open-lines	Drop-ship lines open	Procurement
 R3095	sales-incentives	Sales incentives	Sales
+R7968	range-by-store	Range by store	PIM / PIMS
+R7969	listing-drift	Listing drift	PIM / PIMS
+R5170	gstr2b-reconciliation	GSTR-2B reconciliation	Finance
+R5171	employee-advance-balance	Employee advance balance	Expenses
+R5172	project-budget-vs-actual	Project budget vs actual	Finance
+R7970	aql-sample-plan	AQL Sample Plan	Quality
+R4050	lot-trace	Lot Trace (Both Ways)	WMS

@@ -27,6 +27,9 @@ import (
 type payrollSlip struct {
 	id, employee, status, periodTo     string
 	gross, pf, esi, pt, tds, loan, net float64
+	// 170.23 / 170.24: LWF and benefit deductions (credits 2404 / 2405) and the
+	// employer-paid shares (extra debit on 5500). Zero on a payslip without them.
+	otherDeduct, employerExtra float64
 }
 
 var payrollComponentAccounts = []struct{ key, label, field, account string }{
@@ -64,6 +67,8 @@ func loadPayrollSlips(schema, start, end string) ([]payrollSlip, error) {
 		s.gross, s.pf, s.esi = numFromInterface(d["gross_pay"]), numFromInterface(d["pf_deduction"]), numFromInterface(d["esi_deduction"])
 		s.pt, s.tds, s.loan = numFromInterface(d["pt_deduction"]), numFromInterface(d["tds_deduction"]), numFromInterface(d["loan_deduction"])
 		s.net = numFromInterface(d["net_pay"])
+		s.otherDeduct = numFromInterface(d["lwf_deduction"]) + numFromInterface(d["benefit_deductions"])
+		s.employerExtra = numFromInterface(d["lwf_employer"]) + numFromInterface(d["benefit_employer"])
 		out = append(out, s)
 	}
 	return out, rows.Err()
@@ -72,7 +77,7 @@ func loadPayrollSlips(schema, start, end string) ([]payrollSlip, error) {
 func (s payrollSlip) component(field string) float64 {
 	switch field {
 	case "gross":
-		return s.gross
+		return s.gross + s.employerExtra // the 5500 debit carries the employer-paid shares too
 	case "pf":
 		return s.pf
 	case "esi":
@@ -165,7 +170,7 @@ func GetPayrollReconciliation(tenantID, start, end string) ([]map[string]interfa
 	for _, s := range slips {
 		if s.status == "Posted" {
 			g += s.gross
-			d += s.pf + s.esi + s.pt + s.tds + s.loan
+			d += s.pf + s.esi + s.pt + s.tds + s.loan + s.otherDeduct
 			n += s.net
 		}
 	}

@@ -111,13 +111,9 @@ func VerifyExpenseClaim(tenantID, claimID string) error {
 
 // PayExpenseClaim implements "Payment -> Accounting": posts a balanced GL
 // entry (Debit Employee Expense + GST Input Credit if eligible, Credit
-// Cash/Bank) and marks the claim Paid. advance_adjusted is returned as
-// informational context (matching MB 16.2's "payable amount" field) but is
-// NOT netted into the GL entry - this codebase has no advance-issuance
-// ledger tracking a prior debit to net it against, and fabricating a credit
-// with no matching earlier entry would be accounting-incorrect. Advance
-// issue/usage/balance tracking (MB 16.2's "Advance" requirement) is
-// explicitly out of scope for this pass.
+// Cash/Bank) and marks the claim Paid. advance_adjusted is netted: cash pays
+// the claim less the advance, and the advance is cleared from 1600 Staff
+// Loans & Advances, where a paid StaffAdvance is booked (170.30).
 func PayExpenseClaim(tenantID, claimID string) (payableAmount float64, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -176,6 +172,24 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount float64, err error
 	if advanceAdjusted > 0 {
 		credits["1600"] = advanceAdjusted
 	}
+	// Ask 170.30: behind expense.net_employee_advance, the claimant's open
+	// advance is cleared too (Cr 1600 instead of bank cash).
+	var advanceNetted int64
+	if GetSettingBool(tenantID, SettingExpenseNetAdvance) {
+		n, nerr := netEmployeeAdvancesTx(tx, schema, strField(data, "employee_id"), amount+gstAmount-advanceAdjusted)
+		if nerr != nil {
+			return 0, nerr
+		}
+		if n > 0 {
+			advanceNetted = n
+			credits["1600"] += n
+			credits["1100"] -= n
+			if credits["1100"] <= 0 {
+				delete(credits, "1100")
+			}
+			data["advance_netted"] = PaiseToRupees(n)
+		}
+	}
 	// Stage 37.7.3: a real, adjacent gap found while wiring Project onto
 	// this same call - ExpenseClaim.department (a field this doctype has
 	// had since Stage 1) was never actually passed as PostingOptions, so it
@@ -207,5 +221,5 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount float64, err error
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
-	return PaiseToRupees(amount + gstAmount - advanceAdjusted), nil
+	return PaiseToRupees(amount + gstAmount - advanceAdjusted - advanceNetted), nil
 }

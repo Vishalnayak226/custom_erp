@@ -183,7 +183,7 @@ function swChangesHtml(r) {
   const lines = (r.changes || []).map(c => c.from
     ? `${swEsc(c.field)}: <span class="text-muted">${swEsc(c.from)}</span> → ${swEsc(c.to)}`
     : `${swEsc(c.field)}: ${swEsc(c.to)}`);
-  if (r.message) lines.push(`<span${r.action === 'error' || r.result === 'failed' ? ' style="color:var(--danger-color);"' : ''}>${swEsc(r.message)}</span>`);
+  if (r.message) lines.push(`<span${r.action === 'error' || r.result === 'failed' ? ' class="u-bad"' : ''}>${swEsc(r.message)}</span>`);
   return lines.join('<br>');
 }
 

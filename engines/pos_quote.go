@@ -248,6 +248,10 @@ type QuoteResult struct {
 
 	GSTBreakdown GSTBreakdown `json:"gst_breakdown"`
 
+	// Warnings (168.5): things to tell the cashier that do not stop the sale.
+	// Not part of the signed version.
+	Warnings []string `json:"warnings,omitempty"`
+
 	// Total is what the customer owes before loyalty redemption, which is
 	// applied at finalization because it burns a real balance. Stage 94.15: to
 	// the whole rupee; RoundOff is the round-off line that got it there.
@@ -341,6 +345,13 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 			if err := posSellabilityGate(tenantID, req.CartNumber, req.Location, sku, itemData, policy); err != nil {
 				return nil, err
 			}
+			warn, err := lifecycleSale(tenantID, sku, itemData, BusinessToday()) // 168.5
+			if err != nil {
+				return nil, err
+			}
+			if warn != "" {
+				result.Warnings = append(result.Warnings, warn)
+			}
 		}
 		promoOnly := known && policy.Sellability == SellPromoOnly
 
@@ -378,6 +389,12 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 				} else if reference > shelfMRP {
 					reference = shelfMRP
 				}
+			}
+		}
+
+		if reference > 0 { // 168.7: a running markdown plan lowers the reference, never the item master
+			if p, ok := MarkdownPrice(tenantID, sku, req.Location, asOfDate, reference); ok {
+				reference = p
 			}
 		}
 

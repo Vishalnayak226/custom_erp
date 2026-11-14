@@ -60,6 +60,8 @@ func validateVendorMoneyDocument(doctype string) error {
 		return &ValidationError{Code: "PURCHA-5025", Message: "Rebate claims are made by Calculate."}
 	case InspectionLotDoctype, StockAgeInspectionDoctype:
 		return &ValidationError{Code: inspectionTypedCode, Message: "Inspections are made by a receipt or the daily check."}
+	case "CarrierClaim": // 73.4.2.6: one open claim per booking, settled within the claim
+		return &ValidationError{Code: "ORDERM-0471", Message: "Carrier claims are made by Raise claim on OMS ▸ Freight."}
 	}
 	return nil
 }

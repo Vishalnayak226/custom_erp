@@ -227,7 +227,7 @@ async function renderExecDashboardBody(panel) {
     card.title = results[i].contract ? `Click to open in Report Catalog · ${contractSummary(results[i].contract)}` : 'Click to open in Report Catalog';
     card.innerHTML = `
       <span class="stat-label">${escapeHTMLText(t.title || t.report_id)}</span>
-      <span class="stat-val" style="color:${value > 0 ? '#dc2626' : '#10b981'};">${value}</span>
+      <span class="stat-val ${value > 0 ? 'u-red' : 'u-green'}">${value}</span>
       <span data-remove-tile="${i}" title="Remove tile" class="s-596941">&times;</span>
     `;
     makeClickable(card, (e) => {
@@ -607,6 +607,7 @@ async function renderGSTReturnSummaryReport(panel) {
         <input type="date" id="gst-end-date" class="form-input" value="${today}">
       </div>
       <button class="btn btn-primary" id="gst-summary-btn">Run</button>
+      <button class="btn btn-outline" id="gst-files-btn">GSTR-1 / 2B files</button>
     </div>
     <div id="gst-summary-result" class="s-644e5e"></div>
   `;
@@ -649,6 +650,7 @@ async function renderGSTReturnSummaryReport(panel) {
     `;
   };
   document.getElementById('gst-summary-btn').addEventListener('click', runReport);
+  document.getElementById('gst-files-btn').addEventListener('click', async () => { await loadViewModule('/view-gstr-files.js?v=1'); window.openGstrFiles?.(); });
   await runReport();
 }
 
@@ -832,22 +834,21 @@ function renderReportColumnsPanel() {
   if (!panel) return;
   const role = localStorage.getItem('erp_role') || '';
   const canUniversal = role === 'Super Admin' || role === 'HR/Admin' || role === 'Admin' || role === 'Store Manager';
-  const smallBtn = 'padding:2px 8px; font-size:12px;';
   const rows = reportCatalogColumnState.map((c, i) => `
     <div class="s-8eb9c7">
       <input type="checkbox" data-col-key="${cfgEsc(c.key)}" ${c.visible ? 'checked' : ''}>
       <span class="s-97445a">${cfgEsc(c.label)}</span>
-      <button class="btn btn-outline rc-col-up" data-idx="${i}" style="${smallBtn}" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
-      <button class="btn btn-outline rc-col-down" data-idx="${i}" style="${smallBtn}" ${i === reportCatalogColumnState.length - 1 ? 'disabled' : ''}>&darr;</button>
+      <button class="btn btn-outline rc-col-up rc-sm" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
+      <button class="btn btn-outline rc-col-down rc-sm" data-idx="${i}" ${i === reportCatalogColumnState.length - 1 ? 'disabled' : ''}>&darr;</button>
     </div>`).join('');
   panel.innerHTML = `
     <div class="s-d2d902">
       <div class="s-a618cb">Show, hide, and reorder columns</div>
       ${rows || '<p class="page-subtitle s-116966">This report has no columns.</p>'}
       <div class="s-132391">
-        <button class="btn btn-primary" id="rc-col-apply" style="${smallBtn}">Apply</button>
-        <button class="btn btn-outline" id="rc-col-save" style="${smallBtn}">Save as Profile&hellip;</button>
-        <button class="btn btn-outline" id="rc-col-reset" style="${smallBtn}">Reset to default</button>
+        <button class="btn btn-primary rc-sm" id="rc-col-apply">Apply</button>
+        <button class="btn btn-outline rc-sm" id="rc-col-save">Save as Profile&hellip;</button>
+        <button class="btn btn-outline rc-sm" id="rc-col-reset">Reset to default</button>
       </div>
     </div>`;
   panel.querySelectorAll('[data-col-key]').forEach(cb => {

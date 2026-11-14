@@ -186,7 +186,8 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 		       COALESCE(d.data->'channel_push'->>'status', ''),
 		       COALESCE(d.data->'channel_push'->>'error', ''),
 		       COALESCE(d.data->>'hold_owner', ''),
-		       COALESCE(NULLIF(d.data->>'hold_since', ''), d.updated_at::text)
+		       COALESCE(NULLIF(d.data->>'hold_since', ''), d.updated_at::text),
+		       COALESCE(d.data->>'risk_reasons', '')
 		FROM %s.documents d
 		WHERE %s
 		ORDER BY (COALESCE(d.data->>'priority', '') = 'Expedite') DESC, d.created_at DESC
@@ -199,13 +200,13 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 
 	for rows.Next() {
 		var id, orderNumber, channel, channelOrderID, customerName, customerPhone, status, holdReason, paymentStatus, priority, locations string
-		var acceptance, pushDecision, pushStatus, pushError, holdOwner, holdSince string
+		var acceptance, pushDecision, pushStatus, pushError, holdOwner, holdSince, riskReasons string
 		var totalAmount float64
 		var lineCount, ageMinutes int
 		var createdAt time.Time
 		if err := rows.Scan(&id, &orderNumber, &channel, &channelOrderID, &customerName, &customerPhone, &status, &holdReason,
 			&paymentStatus, &totalAmount, &priority, &createdAt, &ageMinutes, &locations, &lineCount,
-			&acceptance, &pushDecision, &pushStatus, &pushError, &holdOwner, &holdSince); err != nil {
+			&acceptance, &pushDecision, &pushStatus, &pushError, &holdOwner, &holdSince, &riskReasons); err != nil {
 			return nil, err
 		}
 		terminal := false
@@ -220,6 +221,7 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 			"customer_name": customerName, "customer_phone": customerPhone,
 			"status": status, "hold_reason": holdReason, "payment_status": paymentStatus,
 			"hold_owner": holdOwner, "hold_since": holdSince,
+			"risk_reasons": riskReasons, // 73.4.2.4
 			"total_amount": totalAmount, "priority": priority, "created_at": createdAt,
 			"locations": locations, "line_count": lineCount,
 			"age_minutes": ageMinutes,
@@ -328,14 +330,17 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 		       COALESCE((d.data->>'unit_price')::numeric, 0), COALESCE(d.data->>'location_code', ''),
 		       COALESCE(d.data->>'line_status', ''), COALESCE(d.data->>'hold_reason', ''),
 		       COALESCE(d.data->>'promise_date', ''), COALESCE(d.data->>'promise_reason', ''),
-		       COALESCE(d.data->>'price_reason', ''), COALESCE(d.data->>'floor_reason', '')
+		       COALESCE(d.data->>'price_reason', ''), COALESCE(d.data->>'floor_reason', ''),
+		       -- 73.4.2.5: the item's set substitute, offered on the line.
+		       COALESCE((SELECT NULLIF(i.data->>'substitute_item', '') FROM `+schema+`.documents i
+		                 WHERE i.doctype = 'Item' AND i.deleted_at IS NULL AND (i.data->>'code' = d.data->>'sku' OR i.id = d.data->>'sku') LIMIT 1), '')
 		FROM `+schema+`.documents d
 		WHERE d.doctype = 'SalesOrderLine' AND d.data->>'order_id' = $1 AND d.deleted_at IS NULL
 		ORDER BY d.id`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
-		var id, status, sku, location, lineStatus, holdReason, promiseDate, promiseReason, priceReason, floorReason string
+		var id, status, sku, location, lineStatus, holdReason, promiseDate, promiseReason, priceReason, floorReason, substitute string
 		var qty int
 		var unitPrice float64
-		if err := scan(&id, &status, &sku, &qty, &unitPrice, &location, &lineStatus, &holdReason, &promiseDate, &promiseReason, &priceReason, &floorReason); err != nil {
+		if err := scan(&id, &status, &sku, &qty, &unitPrice, &location, &lineStatus, &holdReason, &promiseDate, &promiseReason, &priceReason, &floorReason, &substitute); err != nil {
 			return nil, err
 		}
 		return map[string]interface{}{
@@ -343,6 +348,7 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 			"location_code": location, "line_status": lineStatus, "hold_reason": holdReason,
 			"promise_date": promiseDate, "promise_reason": promiseReason,
 			"price_reason": priceReason, "floor_reason": floorReason,
+			"substitute": substitute,
 			"line_total": unitPrice * float64(qty),
 		}, nil
 	})
@@ -613,7 +619,7 @@ func BulkOrderAction(tenantID, action string, orderIDs []string, reasonCode, use
 		case "hold":
 			err = PlaceOrderHold(tenantID, orderID, reasonCode, userID)
 		case "release":
-			err = ReleaseOrderHold(tenantID, orderID)
+			err = ReleaseOrderHoldAs(tenantID, orderID, userID)
 		case "cancel":
 			err = CancelOrder(tenantID, orderID, reasonCode)
 		// Stage 88.3.1: the Pending gate's answers, one or many.

@@ -231,16 +231,19 @@ func createReturnRequestLocked(tenantID, requestType, returnLocation, originalOr
 		// than it living only in an infrastructure table.
 		"idempotency_key": claimKey,
 	}
-	issueNumberInto(doc, tenantID, "ReturnRequest", returnID, "", prepared.returnLocation) // Stage 76.11
-	doc["rma_no"] = doc["code"]                                                            // Stage 148.28: the RMA no. is the return's number
 	// Stage 85.E4 (77.8): a bill returned at another store says where it was
 	// sold - the return is booked here (stock comes back where the goods
 	// are), and store-wise reports can still put it against the selling store.
+	// With returns.centralised on it is booked at the selling store instead,
+	// and the goods follow on a transfer after inspection (returns_centralised.go).
 	var soldAt string
 	_ = tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'location', '') FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, schema), prepared.originalOrderID).Scan(&soldAt)
 	if soldAt != "" {
 		doc["original_store"] = soldAt
 	}
+	centraliseReturnDoc(tenantID, doc, soldAt)
+	issueNumberInto(doc, tenantID, "ReturnRequest", returnID, "", strField(doc, "return_location")) // Stage 76.11
+	doc["rma_no"] = doc["code"]                                                                     // Stage 148.28: the RMA no. is the return's number
 	// 47.4.5: an exception is recorded ON the return, not implied by its
 	// absence of a bill - so a later reviewer sees "No Receipt, authorised by
 	// X because Y", never an anomalous-looking return with no explanation.
@@ -391,6 +394,9 @@ type ReturnEligibility struct {
 	// table. A refusal a clerk cannot explain to the customer standing in
 	// front of them is not a usable refusal.
 	Explanation string `json:"explanation"`
+
+	// Centralised (77.8): a bill from another store is booked at that store.
+	Centralised bool `json:"centralised,omitempty"`
 }
 
 // ResolveReturnEligibility answers "what can still be returned against this
@@ -402,7 +408,8 @@ type ReturnEligibility struct {
 // time. Showing a number that a concurrent clerk then takes is a UI race worth
 // having; blocking a screen render on a row lock is not.
 func ResolveReturnEligibility(tenantID, originalOrderID string) (*ReturnEligibility, error) {
-	out := &ReturnEligibility{OriginalOrderID: originalOrderID, WindowDays: salesReturnWindowDaysFor(tenantID)}
+	out := &ReturnEligibility{OriginalOrderID: originalOrderID, WindowDays: salesReturnWindowDaysFor(tenantID),
+		Centralised: GetSettingBool(tenantID, SettingCentralisedReturn)}
 	// 140.12.16: an online order is checked against the invoice its shipment
 	// made, exactly as creating the return takes it.
 	originalOrderID = salesInvoiceForOrder(tenantID, originalOrderID)

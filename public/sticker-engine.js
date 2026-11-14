@@ -103,6 +103,16 @@ const scaleElements = (els, sx, sy) => els.map(e => {
 });
 const SEZNIK_ELEMENTS = scaleElements(RING_ELEMENTS, 100 / 97.6, 14.3 / 11.9);
 
+// Stage 146.3.4b: a bin label - the bin code large, its Code 128, then the
+// store and zone - for Print labels on the Bin list and the Bin Generator.
+// use: 'bin' keeps it off the item sticker pickers (unsavedDesigns).
+const BIN_ELEMENTS = [
+  { kind: 'text', field: 'bin_code', x_mm: 2, y_mm: 1.2, w_mm: 46, h_mm: 7, font_size_mm: 6, bold: true, align: 'center', fit: 'shrink' },
+  { kind: 'barcode', field: 'barcode', x_mm: 4, y_mm: 8.8, w_mm: 42, h_mm: 10.5, symbology: 'code128', show_text: false, quiet_zone: false },
+  { kind: 'text', field: 'location', x_mm: 2, y_mm: 20.6, w_mm: 22, h_mm: 3.2, font_size_mm: 2.6, fit: 'shrink' },
+  { kind: 'text', field: 'zone', x_mm: 26, y_mm: 20.6, w_mm: 22, h_mm: 3.2, font_size_mm: 2.6, align: 'right', fit: 'shrink' }
+];
+
 // Stage 119.1: the Seznik tag four ways, named by how the tag lies on the
 // roll. Vertical prints the same design turned a quarter (direction), so
 // three standing tags sit side by side; three lying tags stack down the roll
@@ -114,7 +124,8 @@ export const READY_DESIGNS = [
   { id: 'jd-seznik-h1', code: 'SEZNIK-TAG-100X14-3', label: 'Seznik horizontal × 1', w: 100, h: 14.3, per_row: 1, gap_v: 3, elements: SEZNIK_ELEMENTS },
   { id: 'jd-seznik-h3', code: 'SEZNIK-H3', label: 'Seznik horizontal × 3', w: 100, h: 14.3, per_row: 1, per_col: 3, gap_v: 3, elements: SEZNIK_ELEMENTS },
   { id: 'jd-seznik-v1', code: 'SEZNIK-V1', label: 'Seznik vertical × 1', w: 100, h: 14.3, direction: 'vertical', per_row: 1, gap_v: 3, elements: SEZNIK_ELEMENTS },
-  { id: 'jd-seznik-v3', code: 'SEZNIK-V3', label: 'Seznik vertical × 3', w: 100, h: 14.3, direction: 'vertical', per_row: 3, gap_h: 2, gap_v: 3, elements: SEZNIK_ELEMENTS }
+  { id: 'jd-seznik-v3', code: 'SEZNIK-V3', label: 'Seznik vertical × 3', w: 100, h: 14.3, direction: 'vertical', per_row: 3, gap_h: 2, gap_v: 3, elements: SEZNIK_ELEMENTS },
+  { id: 'jd-bin-50x25', code: 'BIN-LABEL-50X25', label: 'Bin label 50 × 25', group: 'Bin labels', use: 'bin', dpi: 203, w: 50, h: 25, per_row: 1, gap_v: 3, elements: BIN_ELEMENTS }
 ].map(d => Object.assign({ group: 'Ready designs', dpi: 300 }, d));
 
 // Common Indian retail / jewellery roll sizes. per_row > 1 is a multi-up roll
@@ -205,6 +216,27 @@ export function variantText(raw) {
     .map(p => p.slice(p.indexOf(':') + 1).trim())
     .filter(Boolean)
     .join(' / ');
+}
+
+// Stage 146.3.4b: what a bin label can print, read off label.fields (the
+// Bin record); its barcode is the bin code.
+export const BIN_FIELDS = [
+  { key: 'bin_code', label: 'Bin code', sample: 'A-01-1-1' },
+  { key: 'location', label: 'Store / warehouse', sample: 'HO' },
+  { key: 'zone', label: 'Zone', sample: 'Z1' },
+  { key: 'aisle', label: 'Aisle', sample: 'A' },
+  { key: 'rack', label: 'Rack', sample: '01' },
+  { key: 'level', label: 'Shelf', sample: '1' },
+  { key: 'position', label: 'Position', sample: '1' }
+];
+
+// A Bin record as a label: the built-in fields carry the code (so a template
+// made for items still prints something), label.fields the bin's own.
+export function binLabel(b) {
+  const code = String((b && (b.bin_code || b.code)) || '');
+  const fields = { bin_code: code };
+  for (const f of BIN_FIELDS.slice(1)) fields[f.key] = b && b[f.key] != null ? String(b[f.key]) : '';
+  return { sku: code, name: code, barcode: code, category: fields.zone, qty: 1, source_doc_id: fields.location, fields };
 }
 
 export const SAMPLE_LABEL = {
@@ -355,9 +387,11 @@ const isSavedDesign = (doc, d) => new RegExp(`^${d.code}(-\\d+)?$`).test(String(
   String(doc.name || '').trim().toLowerCase() === d.label.toLowerCase();
 const isActiveDoc = doc => (doc.status || 'Active') === 'Active';
 
-export function unsavedDesigns(docs) {
-  return READY_DESIGNS.filter(d => !docs.some(x => isActiveDoc(x) && isSavedDesign(x, d)));
+// use 'item' (item stickers) or 'bin' (Stage 146.3.4b bin labels).
+export function unsavedDesigns(docs, use = 'item') {
+  return READY_DESIGNS.filter(d => (d.use || 'item') === use && !docs.some(x => isActiveDoc(x) && isSavedDesign(x, d)));
 }
+export const isBinDesign = (doc) => READY_DESIGNS.some(d => d.use === 'bin' && isSavedDesign(doc, d));
 
 // The record id of the design's saved template, saving it first if needed;
 // '' when it could not be saved (the error is already shown).
@@ -1757,6 +1791,21 @@ export async function printTestLabel(t, label, printer, title = 'Test print') {
   const segments = [{ t, items: Array(t.settings.per_row * t.settings.per_col).fill(label) }];
   if (!await previewSegments(tuned(segments, printer), printer, title)) return false;
   await printStickersNoDialog(segments, printer, 'Test print');
+  return true;
+}
+
+// Stage 146.3.4b: labels that are not item stickers (bin labels) through one
+// template - shown first like every print, then sent the way stickers are
+// (this computer's sticker printer, else the browser sheet). Nothing goes to
+// the sticker print log: no item is being labelled. Resolves true when sent.
+export async function printLabelsWithTemplate(t, labels, printer, { title = 'Print labels', jobRef = '', copies = 1 } = {}) {
+  if (!labels || !labels.length) return false;
+  await ensureTemplateAssets(t);
+  const items = [];
+  for (const l of labels) for (let i = 0; i < Math.max(1, copies); i++) items.push(l);
+  const segments = [{ t, items }];
+  if (!await previewSegments(tuned(segments, printer), printer, title)) return false;
+  await printStickersNoDialog(segments, printer, jobRef);
   return true;
 }
 

@@ -478,7 +478,7 @@ async function openTreatmentCorrection({ target, ref, label, form, preset = {} }
     out.innerHTML = `
       <h4 class="s-ad7f18">What changes</h4>
       <table class="item-fields-table"><thead><tr><th></th><th>Now</th><th>After</th></tr></thead><tbody>
-        ${rows.map(([k, t]) => `<tr${changed(k) ? ' style="font-weight:600;"' : ''}><td>${t}</td><td>${escapeHTMLText(pv.before[k] || '—')}</td><td>${escapeHTMLText(pv.after[k] || '—')}</td></tr>`).join('')}
+        ${rows.map(([k, t]) => `<tr${changed(k) ? ' class="u-fw6"' : ''}><td>${t}</td><td>${escapeHTMLText(pv.before[k] || '—')}</td><td>${escapeHTMLText(pv.after[k] || '—')}</td></tr>`).join('')}
       </tbody></table>
       <h4 class="s-cafd28">Stock it affects</h4>
       ${stockRows.length ? `<div class="s-0ddf06"><table class="item-fields-table"><thead><tr><th>Item</th><th>Stores (on hand)</th><th>Qty</th><th>Value per unit</th><th>Value</th></tr></thead><tbody>

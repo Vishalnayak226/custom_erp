@@ -538,6 +538,10 @@ func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'requisition_id', 'target', 'store_code', and 'financial_year' are required")
 		return
 	}
+	// 148.14c: the role must be allowed to create what the conversion makes.
+	if (req.Target == "RFQ" || req.Target == "PurchaseOrder") && !requireCreate(w, r, req.Target) {
+		return
+	}
 	newID, err := engines.ConvertRequisitionToOrder(tenantID, req.RequisitionID, req.Target, req.StoreCode, req.FinancialYear, userID)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
@@ -580,11 +584,17 @@ func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	// 148.12c: finance.post roles, or anyone who may update a vendor bill.
+	role := r.Header.Get("Resolved-Role")
+	if !engines.HasFullAccess(role) && !engines.RoleHasCapability(role, "finance.post") {
+		if !requireUpdate(w, r, "VendorInvoice") {
+			return
+		}
+	}
 	var req struct {
-		InvoiceID        string  `json:"invoice_id"`
-		POID             string  `json:"po_id"`
-		GRNID            string  `json:"grn_id"`
-		TolerancePercent float64 `json:"tolerance_percent"`
+		InvoiceID string `json:"invoice_id"`
+		POID      string `json:"po_id"`
+		GRNID     string `json:"grn_id"`
 	}
 	// po_id/grn_id are optional (FA-20261005-01/06): the invoice already
 	// carries both, and asking the user to type them again was the second
@@ -593,7 +603,7 @@ func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
 		return
 	}
-	m, err := engines.MatchVendorInvoiceAs(tenantID, r.Header.Get("Resolved-User-ID"), req.InvoiceID, req.POID, req.GRNID, req.TolerancePercent)
+	m, err := engines.MatchVendorInvoiceAs(tenantID, r.Header.Get("Resolved-User-ID"), req.InvoiceID, req.POID, req.GRNID, 0) // 0: the client's configured tolerance, never the caller's
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return

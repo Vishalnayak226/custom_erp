@@ -48,6 +48,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       ${field('si-pos', 'Place of supply (state code)', 120, 'maxlength="2" placeholder="e.g. 29"')}
       ${field('si-due', 'Due date', 150, 'type="date"')}${field('si-ref', 'Customer reference', 150, 'placeholder="their PO no"')}
       ${field('si-challan', 'Delivery challan', 150, 'placeholder="if already sent"')}
+<div class="form-group s-116966"><label class="form-label" for="si-exptype">Export</label><select class="form-input" id="si-exptype"><option value="">No</option><option>Export under LUT</option><option>Export with payment of IGST</option></select></div>      ${field('si-sbno', 'Shipping bill no', 130)}${field('si-sbdate', 'Shipping bill date', 150, 'type="date"')}${field('si-port', 'Port code', 90)}${field('si-country', 'Destination country', 150)}
     </div>
     <div class="txn-hint s-761d3a" data-si="supply"></div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate (before GST)</th><th class="num">Discount (₹)</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th><th></th></tr></thead><tbody data-si="lines"></tbody></table></div>
@@ -177,6 +178,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     const res = await apiFetch('/api/v1/doc/SalesInvoice', { method: 'POST', body: JSON.stringify({
       customer: v('#si-customer'), customer_id: (S.customer && (S.customer.code || S.customer.id) && v('#si-customer') === (S.customer.code || S.customer.id) ? (S.customer.id || S.customer.code) : ''), payment_term: (S.customer && S.customer.payment_term) || '', customer_gstin: g.toUpperCase(), location: v('#si-store'), invoice_date: v('#si-date'), place_of_supply: v('#si-pos'),
       due_date: v('#si-due'), customer_reference: v('#si-ref'), delivery_challan: v('#si-challan'), interstate: interstate(),
+      export_type: v('#si-exptype'), shipping_bill_no: v('#si-sbno'), shipping_bill_date: v('#si-sbdate'), port_code: v('#si-port'), destination_country: v('#si-country'),
       items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), discount: num(l.discount), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax), serial_nos: l.serial_nos || '', batch_no: l.batch_no || '', income_account: (l.income_account || '').trim(), floor_reason: l.floor_reason || '' }))),
       taxable_amount: S.totals.taxable, cgst: S.totals.cgst, sgst: S.totals.sgst, igst: S.totals.igst, total_tax: S.totals.tax, total_amount: S.totals.total, status: 'Draft' }) });
     btn.disabled = false;

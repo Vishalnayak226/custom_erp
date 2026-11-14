@@ -78,6 +78,8 @@ Sandbox (Stage 47.12.6) - a client flagged a sandbox: synthetic data, nothing le
                                             Refuses any client that is not a sandbox
   sandbox-effects -tenant <id> [-limit N]   what the sandbox's outside calls would have sent
   sandbox-copy   -from <id> -tenant <id>    always refused: no client's data goes into a sandbox
+  sandbox-masked-copy -from <id> [-ttl-days N] -actor <who> -yes
+                                            new sandbox with this client copied, personal fields masked
 
 Key rotation (Stage 49.6.5)
   reencrypt-channel-credentials -tenant <id> -reason <text> -actor <who> -yes
@@ -146,6 +148,8 @@ func main() {
 		err = cmdSandboxEffects(args)
 	case "sandbox-copy":
 		err = cmdSandboxCopy(args)
+	case "sandbox-masked-copy":
+		err = cmdSandboxMaskedCopy(args)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", command, usage)
 		os.Exit(2)
@@ -910,4 +914,37 @@ func cmdSandboxCopy(args []string) error {
 		return err
 	}
 	return engines.CopyTenantDataIntoSandbox(*from, *tenant)
+}
+
+// cmdSandboxMaskedCopy (170.40) makes a new sandbox client and fills it with a
+// copy of -from whose personal and protected fields are masked. The source is
+// only read; no password is copied.
+func cmdSandboxMaskedCopy(args []string) error {
+	fs := flag.NewFlagSet("sandbox-masked-copy", flag.ExitOnError)
+	from := fs.String("from", "", "Client to copy from (read only).")
+	ttl := fs.Int("ttl-days", 0, "Days until the sandbox expires (default 30).")
+	appVersion := fs.String("app-version", "", "Application version to stamp on the registry row.")
+	confirm := fs.Bool("yes", false, "Actually create it.")
+	actor := fs.String("actor", defaultActor(), "Who is performing this.")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *from == "" {
+		return fmt.Errorf("-from is required")
+	}
+	if !*confirm {
+		fmt.Printf("DRY RUN - would create a sandbox client holding a masked copy of %q (personal and protected fields masked; %q is only read).\nRe-run with -yes.\n", *from, *from)
+		return nil
+	}
+	sandboxQuiet()
+	id, password, res, err := engines.CreateMaskedCopySandbox(*from, *appVersion, *ttl, *actor)
+	if err != nil {
+		if id != "" {
+			fmt.Fprintf(os.Stderr, "created %s (one-time admin password %s) but: ", id, password)
+		}
+		return err
+	}
+	_ = engines.RecordTenantLifecycleEvent(id, "sandbox_created", *actor, fmt.Sprintf("masked copy of %s", *from))
+	fmt.Printf("Sandbox %s created: %d documents copied, %d values masked, %d skipped.\n\n  username                : admin\n  one-time admin password : %s\n", id, res.Copied, res.FieldsMasked, res.Skipped, password)
+	return nil
 }

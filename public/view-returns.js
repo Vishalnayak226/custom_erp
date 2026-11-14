@@ -118,6 +118,11 @@ async function loadReturnsView() {
       drafts: (Array.isArray(data.drafts) ? data.drafts : []).filter(x => x.id).length,
       originalOrderID: data.original_order_id || '',
       returnLocation: data.return_location || '',
+      // Stage 77.8: a return booked at the selling store but taken here, and
+      // the transfers that bring its goods here.
+      collectedAt: data.collected_at || '',
+      transfers: (Array.isArray(data.transfer_orders) ? data.transfer_orders : []).map(x => x.number || x.id).filter(Boolean),
+      transferState: [data.transfer_state, data.transfer_note].filter(Boolean).join(' · '),
       status: data.status || d.status || '',
       items: Array.isArray(data.items) ? data.items : [],
       refundEligible: Number(data.total_refund_eligible) || 0,
@@ -163,7 +168,7 @@ function renderReturnsTable() {
       <td class="s-eed0f8">${cfgEsc(r.number)}</td>
       <td title="${cfgEsc(r.reason)}">${cfgEsc(r.requestType)}</td>
       <td>${cfgEsc(r.originalOrderID)}</td>
-      <td>${cfgEsc(r.returnLocation)}</td>
+      <td>${cfgEsc(r.returnLocation)}${r.collectedAt ? `<span class="s-5872de" title="${cfgEsc([r.transfers.join(', '), r.transferState].filter(Boolean).join(' · '))}"> · taken at ${cfgEsc(r.collectedAt)}${r.transfers.length ? ` · ${cfgEsc(r.transfers.join(', '))}` : ''}${r.transferState.startsWith('Open') ? ' · transfer open' : ''}</span>` : ''}</td>
       <td>${qtySummary} unit(s) across ${r.items.length} line(s)</td>
       <td>${r.refundEligible ? r.refundEligible.toFixed(2) : (r.expectedRefund ? `<span title="Expected - the money this bill's lines were paid. Fixed at inspection.">${r.expectedRefund.toFixed(2)} expected</span>` : '-')}</td>
       <td>${cfgEsc(r.status)}${r.drafts ? ` · ${r.drafts} draft${r.drafts === 1 ? "" : "s"}` : ""}</td>

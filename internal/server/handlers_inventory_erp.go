@@ -74,7 +74,16 @@ func handleInventoryStock(w http.ResponseWriter, r *http.Request) {
 
 // requireCreate answers GLOBAL-0011 unless the role may create the doctype.
 func requireCreate(w http.ResponseWriter, r *http.Request, doctype string) bool {
-	allowed, err := checkPermission(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Role"), doctype, "create")
+	return requireDoctypeAction(w, r, doctype, "create")
+}
+
+// requireUpdate answers GLOBAL-0011 unless the role may update the doctype.
+func requireUpdate(w http.ResponseWriter, r *http.Request, doctype string) bool {
+	return requireDoctypeAction(w, r, doctype, "update")
+}
+
+func requireDoctypeAction(w http.ResponseWriter, r *http.Request, doctype, action string) bool {
+	allowed, err := checkPermission(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Role"), doctype, action)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check permissions")
 		return false

@@ -139,7 +139,13 @@ type SalesRegisterEntry struct {
 // qty*sale_price from the items array actually saved, the same figures the
 // checkout response itself was computed from.
 func GetSalesRegisterReport(tenantID string) ([]SalesRegisterEntry, error) {
-	entries, _, err := salesRegisterPage(tenantID, ReportPage{Limit: reportSQLLimit(tenantID)})
+	return GetSalesRegisterReportForStores(tenantID, nil, false)
+}
+
+// GetSalesRegisterReportForStores is the register cut to these stores when cut
+// is set (157.4c: the old endpoint takes a store-limited user's stores).
+func GetSalesRegisterReportForStores(tenantID string, stores []string, cut bool) ([]SalesRegisterEntry, error) {
+	entries, _, err := salesRegisterPage(tenantID, ReportPage{Limit: reportSQLLimit(tenantID), Stores: stores, StoreCut: cut})
 	return entries, err
 }
 

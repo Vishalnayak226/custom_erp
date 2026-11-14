@@ -192,6 +192,9 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		}
 	case PrintTxnPurchaseOrder, PrintTxnVendorPO:
 		add(&out.Header, "Document", "fields.gst_mode", "GST treatment of prices")
+	case PrintTxnSalesInvoice, PrintTxnOMSBill: // 170.37
+		add(&out.Header, "Document", "fields.export_declaration", "Export declaration")
+		add(&out.Header, "Document", "fields.export_details", "Shipping bill, port, destination")
 	case PrintTxnPOSTaxInvoice:
 		for _, f := range [][2]string{{"buyer_gstin", "Buyer GSTIN"}, {"place_of_supply", "Place of supply"}, {"supply_type", "Supply type (B2B / B2C)"},
 			{"reverse_charge", "Reverse charge"}, {"payment_mode", "Payment mode"}, {"cart_number", "Till cart number"},

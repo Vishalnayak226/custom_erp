@@ -199,7 +199,7 @@ async function showExpenseHistory(claimId, claims) {
   const log = res && res.ok ? await res.json() : [];
   const entries = Array.isArray(log) ? log : (log.entries || []);
   const reached = claim.status === 'Rejected' ? ['Draft', 'Pending Approval'] : EXPENSE_STEPS.slice(0, EXPENSE_STEPS.indexOf(claim.status) + 1);
-  const path = EXPENSE_STEPS.map(s => `<span class="badge ${reached.includes(s) ? (s === claim.status ? 'badge-success' : 'badge-secondary') : ''}" style="${reached.includes(s) ? '' : 'opacity:.45'}">${s}</span>`).join(' &rarr; ')
+  const path = EXPENSE_STEPS.map(s => `<span class="badge ${reached.includes(s) ? (s === claim.status ? 'badge-success' : 'badge-secondary') : 'u-dim'}">${s}</span>`).join(' &rarr; ')
     + (claim.status === 'Rejected' ? ' &rarr; <span class="badge badge-danger">Rejected</span>' : '');
   row.querySelector('td').innerHTML = `<div class="s-d8c022">${path}</div>
     ${entries.length === 0 ? '<div class="s-5872de">No approval decisions yet.</div>' : `<table><thead><tr><th>When</th><th>Action</th><th>By</th><th>Comment</th></tr></thead><tbody>

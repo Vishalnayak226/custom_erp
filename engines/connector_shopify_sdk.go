@@ -922,6 +922,11 @@ type ShopifyVariantInput struct {
 type ShopifyMetafield struct {
 	Key   string
 	Value string
+	// Namespace and Type default to custom and single_line_text_field. The
+	// product relations (146.5.12) are Shopify's own recommendation
+	// metafields: a list of product references.
+	Namespace string
+	Type      string
 }
 
 // ShopifyProductInput is one ERP design (or a single item) as a product.
@@ -951,10 +956,11 @@ func shopifyMetafieldInputs(hsn string, extra []ShopifyMetafield) []map[string]i
 		out = append(out, map[string]interface{}{"namespace": "custom", "key": "hsn_code", "type": "single_line_text_field", "value": hsn})
 	}
 	for _, m := range extra {
-		if m.Key == "" || m.Key == "hsn_code" || strings.TrimSpace(m.Value) == "" {
+		if m.Key == "" || (m.Key == "hsn_code" && m.Namespace == "") || strings.TrimSpace(m.Value) == "" {
 			continue
 		}
-		out = append(out, map[string]interface{}{"namespace": "custom", "key": m.Key, "type": "single_line_text_field", "value": m.Value})
+		out = append(out, map[string]interface{}{"namespace": firstNonEmpty(m.Namespace, "custom"), "key": m.Key,
+			"type": firstNonEmpty(m.Type, "single_line_text_field"), "value": m.Value})
 	}
 	return out
 }

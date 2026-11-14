@@ -132,7 +132,7 @@ func storeAppLookup(tenantID string, access StoreAccess, workingStore, code stri
 		}
 	}
 
-	out.Price, out.PriceSource = storeAppReferencePrice(tenantID, item.Data, itemCode)
+	out.Price, out.PriceSource = storeAppReferencePrice(tenantID, workingStore, item.Data, itemCode)
 	out.MRP, _ = parityNumber(item.Data["mrp"])
 	out.Currency = FunctionalCurrency(tenantID)
 	out.Image = itemThumbnailDataURL(tenantID, itemCode)
@@ -148,7 +148,15 @@ func storeAppLookup(tenantID string, access StoreAccess, workingStore, code stri
 // storeAppReferencePrice is ResolvePOSQuote's reference price for a walk-in
 // customer: the default price list, then the item's sale price, then its MRP.
 // Offers and a customer's contract list are the till's business, at billing.
-func storeAppReferencePrice(tenantID string, data map[string]interface{}, itemCode string) (float64, string) {
+func storeAppReferencePrice(tenantID, store string, data map[string]interface{}, itemCode string) (float64, string) {
+	p, src := storeAppListPrice(tenantID, data, itemCode)
+	if m, ok := MarkdownPrice(tenantID, itemCode, store, BusinessToday(), p); ok {
+		return m, src
+	}
+	return p, src
+}
+
+func storeAppListPrice(tenantID string, data map[string]interface{}, itemCode string) (float64, string) {
 	if list := strings.TrimSpace(GetSettingString(tenantID, "pos.default_price_list")); list != "" {
 		if p, found, _ := ResolvePriceForSKU(tenantID, list, itemCode, BusinessToday()); found && p > 0 {
 			return p, PriceSourceDefaultList

@@ -99,7 +99,7 @@ func StoreAppCreateOrder(tenantID, userID, username, store string, in StoreAppOr
 		if err != nil {
 			return nil, err
 		}
-		price, _ := storeAppReferencePrice(tenantID, item.Data, scan.SKU)
+		price, _ := storeAppReferencePrice(tenantID, store, item.Data, scan.SKU)
 		lines = append(lines, SalesOrderLineInput{SKU: scan.SKU, Qty: l.Qty, UnitPrice: price})
 	}
 	if len(lines) == 0 {

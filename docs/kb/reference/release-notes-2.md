@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-08-04 to 2026-10-16, continued from the release notes.
+summary: Earlier releases, 2026-08-11 to 2026-10-17, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,31 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **105** earlier entries, 2026-08-04 to 2026-10-16.
+This page continues the [release notes](release-notes.md) with **99** earlier entries, 2026-08-11 to 2026-10-17.
 
 Older still: [part 3](release-notes-3.md).
+
+## 2026-10-17
+
+**Stage 71 — Transaction prints follow the company's standard print-format pack** *(code + docs; committed `0845470`, deployed 2026-10-17)*
+
+From the user's `ERP_Standard_Transaction_Print_Formats.docx`: the Standard layouts of every transaction print now follow the pack. Each has a common header with financial year and status, the pack's columns, reference lines that drop out when blank, totals, three signature lines and an audit line (created / approved / printed by and when). GRN and Transfer In print quantities only. Four documents that existed without a print gained one: the GRN's Vendor Copy (values stripped from the payload), Purchase Return, Credit Note to a customer and Sales Return (`migrations_stage71_1_print_formats.sql` adds them to the template transaction list). Found and fixed: Transfer In printed its received qty as "Sent". Fields the ERP does not hold were left out, and the eleven modules the pack implies but the ERP lacks (delivery challan, customer advance, material issue, inventory adjustment, job work, store credit, e-invoice / e-way bill, document print log, reason codes, PO / GRN fields, print profiles) are listed for the user's decision. Full detail: checklist Stage 71.
+
+**Stage 70 — Sticker templates: variant on the standard label, duplicate it, template rules, template chosen at print** *(code + docs; committed `0845470`, deployed 2026-10-17)*
+
+The built-in standard label now prints the variant's values ("Silver / 7") under the name, and appears as the first card on the Sticker templates gallery with a **Duplicate** that copies it into an editable template. Which template a label uses is now a rule: Item → Item type → category → default → standard (`pickStickerTemplate`), with `Item.sticker_template` / `ItemType.sticker_template` added by `migrations_stage70_1_sticker_template_rules.sql` and a **Template rules** tab to set them. A GRN / Transfer Order print can choose a template per line or for the whole run, for that print only (`StickerLineSelection.TemplateID`). Found and fixed on the way: a soft-deleted template still printed, and two templates on one category or two defaults resolved in scan order. Full detail: checklist Stage 70.
+
+**Stage 68 (with 65.7, 65.8) — Every transaction screen one frozen screen** *(code + docs, NOT COMMITTED)*
+
+From the user's POS / PO screenshots and their Gofrugal RetailEasy reference: POS, Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Returns, Vendor / Sales Invoice, Debit / Credit Notes and Journal Vouchers now share one layout (`public/txn-screen.css` + `txn-screen.js`, loaded with those screens via a stylesheet entry in `LAZY_VIEW_MODULES`) - a bar with the totals and tax, a user · store chip and the main action; a compact header; the entry row; the items as the only scroller; New / History (Sale / Return) tabs that keep half-typed work. Also: PO **Billing / Shipping address** with the store's address and **Edit store** (fixes the store master and comes back), **Edit** = the full PO page with the same number, a Gmail-style menu toggle, readable **+ Create "<typed>"** in every picker, and the environment banner no longer cutting off the bottom of every screen. Cold core 184,127 / 184,320 for this change alone (net −119 vs HEAD). Full detail: `micro_checklist.md` 65.7, 65.8, Stage 68.
+
+**Stage 67 — Stay signed in for a 12-hour shift; grouped Setup and Settings menus** *(code + docs, NOT COMMITTED)*
+
+Users were being signed out after 30 minutes. That was the idle auto-logout every user was seeded with; the server token itself lasts 24 h. An ERP tab left idle in the background also signed out the tab being worked in, because each tab ran its own timer against one shared token. The timer now reads the last activity from any tab, and scrolling inside tables counts. There is a new 12-hour choice, and it is the default for new users and for a new client's first admin. A one-time migration moves everyone still on the old 30-minute seed to 12 hours; anyone who chose otherwise, and any client whose admin set their own default, is left alone. The Settings flyout is grouped under four headings. The Setup flyout's module headings, built since 30.5.4 but hidden by a Stage 57 selector that named a non-existent id, show again. Screen titles no longer have a descriptive line under them, on any screen; the help docs cover that. A CSS rule stops one coming back (67.4). Detail: `micro_checklist.md` Stage 67.
+
+**Stage 66 — Smart HSN and GST rate suggestions; no number spinners** *(code + docs, NOT COMMITTED)*
+
+The HSN box now suggests codes instead of waiting for a number. A shipped master list (`engines/hsn_master.json`, 290 codes over the ten industries, GST 2.0 rates) is read against the item's name: the material words decide, so silver goes to 7113 and zircon, AD or gold-plated go to 7117; it also tells cloth from fabric from garment. Codes the client's own similar items already carry rank first, and the client's industry breaks ties. Choosing an industry loads its codes into the HSN Code list. The GST rate follows the code: auto-filled for single-rate codes, offered as price-banded choices for garments and footwear, and the client's own list rate always wins. Quick-create now asks Tax Treatment when the rate is 0. Number boxes lost their spinners, and wheel and arrow-key stepping, everywhere. Picker logic is in the lazy `view-pickers.js`, so the cold core shrank by 225 bytes. Detail: `micro_checklist.md` Stage 66.
 
 ## 2026-10-16
 
@@ -488,60 +510,4 @@ User request: review the WMS module of SAP EWM and Infor WMS thoroughly, prepare
 **Tracker reconciliation — 23.11 and 26.1.3** *(docs only)*
 
 Two checklist entries mixed completed engineering decisions with nonexistent or externally gated work. **23.11 is now closed as not applicable, not implemented**: the catalog's one-row inline-grid style has no paste-into-grid product surface or roadmap item, so leaving it unchecked permanently misreported an already-settled scope decision as unfinished work. Stage 23 is fully closed and moved to the closed-stage archive.
-
-## 2026-08-10
-
-**Stage 41 — user-reported batch: schema editing, sticky headers, country-aware phone data, setup guidance, POS location** *(code + schema + docs)*
-
-Five gaps reported directly by the user. **Numbered Stage 41, not 34.4** — 34.4 is the gated JSON-endpoint harvester in Stage 34, blocked behind 34.6's legal/ToS decision, so reusing that number would have read as the gate being crossed. Same reasoning §88 gives for Stage 40 not being 35. Full item detail in `micro_checklist.md` Stage 41.
-
-**Stage 40 — user-reported batch: PO line items, field formats, the Super Admin rename, speed and motion** *(code + schema + docs)*
-
-Six gaps reported directly by the user in one pass, built in the priority order they chose. **Numbered Stage 40, not 35** — Stages 35-39 are already allocated to the Parity Master Plan (§86), and 35.1/35.5/35.6 there mean entirely different things.
-
-## 2026-08-09
-
-**Stage 26.6.11 — tax-exempt / nil-rated / zero-rated goods** *(code + schema + docs)*
-
-The last substantively-buildable item in the live checklist, and the only one still gated on a product decision. Stage 30.1.2 had made `hsn_code` **and a positive `gst_rate`** mandatory on Item — correctly, since checkout and PO creation both rejected an item lacking them, so "saveable at 0%" only ever meant "unusable later". The side effect was that genuinely untaxed goods (unbranded grain, fresh produce, salt, books, exports) became unsaveable, so a tenant selling ordinary exempt stock could not create the Item at all.
-
-**Parity Master Plan — Stages 35-39 scoped against Unicommerce, Unbxd, SAP and Dynamics 365** *(docs, planning only)*
-
-The user named four external benchmarks and asked for one consolidated plan to reach that level, plus a knowledge center at the end. All four were read directly — the Unicommerce OMS product page and the Uniware documentation portal (sale-order model, WMS API index, client-integration structure), the Unbxd PIM help centre's full 49-section information architecture, SAP Help/S-4HANA Cloud's line-of-business scope, and the Dynamics 365 product surface incl. Business Central — then reconciled item-by-item against real code rather than against the trackers' own claims.
-
-## 2026-08-07
-
-**Stage 34.1-34.3 built, the first production DR drill, and nightly backups finally switched on** *(code + schema + ops + docs)*
-
-The user asked to clear everything actionable. That was two things: Stage 34's buildable half (34.1-34.3), and 26.11.3's restore drill. Both landed; both turned up something the checklist did not know. The drill's finding — that production had no nightly backup — was then signed off and fixed the same day (26.11.7). Item detail in `micro_checklist.md` (34.1-34.3, 26.11.3, 26.11.7).
-
-## 2026-08-06
-
-**Production formalisation, content assist, and go-live readiness docs** *(code + schema + ops + docs)*
-
-The user asked to start building the whole blocked backlog, decisions first. Four decisions were taken up front (hosting: formalise the droplet; content assist: local/offline only; P2 bundles: two greenlit; credentials: all parked) and three more in a second round (no domain yet, deploy 33.2 + commit the loose docs, draft all three go-live docs). Item detail in `micro_checklist.md` (26.1.1, 26.1.3, 26.4.11, 26.10.6, 26.11.1/3/5/6, 33.2).
-
-**Archive reconciliation + Stage 34 market-intelligence plan** *(docs)*
-
-A planning pass, no code. Cross-referenced `docs/archive/micro_checklist_closed_stages.md` against the live tracker and turned §81's retained knowledge into a buildable Stage. Item detail in `micro_checklist.md`'s new header block, 26.6.11 and Stage 34.
-
-## 2026-08-05
-
-**Clearing the decision-gated backlog: MFA recovery, backups, supplier portal, smoothness** *(code + schema + docs)*
-
-Review of open item 32.4 concluded it was a real bug already fixed by `0bee663` and already deployed — so the only genuinely unblocked item was closed before this session started. The user then approved, in one pass, every remaining item that was gated purely on a *decision* rather than on something only they could supply (credentials, hosting choice, a pen-test engagement, real UAT users, a physical printer). Five items, built and verified in sequence. Full per-item mechanics in `micro_checklist.md` (32.2, 32.3, 32.5, 26.1.6, 26.4.10).
-
-**Retiring the OmniCore/"Buying Catalog" project, keeping its market-intelligence knowledge** *(docs)*
-
-A standalone Python microservices stack (`Antigravity Projects/Buying Catalog/OmniCore` — FastAPI + Streamlit + SQLAlchemy/SQLite + Redis/RQ + docker-compose, services `crawler`/`pims`/`oms`/`erp`/`pos`, last touched 2025-12-27) was read in full, its knowledge extracted to `docs/product/research/market-intelligence.md`, and the folder deleted. Same disposition and the same reasoning as the standalone WMS project in §(1c1c050)/`docs/product/research/wms-benchmark.md`.
-
-**Stage 31.1.9 — One-click print wired into the last three screens** *(code)*
-
-Stage 31.1 built the QZ Tray bridge and wired stickers plus the marketplace-document file picker; 31.1.9 was the open remainder — a Print Label button on the logistics booking, the POS receipt over ESC-POS, and invoice printing. Item-by-item mechanics in micro_checklist.md 31.1.9.
-
-## 2026-08-04
-
-**Stage 33 — Dialog viewport fit & responsive form layout** *(code)*
-
-User report with a screenshot of the New Location dialog, its header cut off at the top of the frame and no Save button anywhere: *"Nothing is visible here. So, set up. Make it more 2 column or 3 if required so it will be visible. All screen and config it should auto adjust with 100% to any percent 40% or whatever. If 120% also it should get auto adjusted."* Item-by-item mechanics in micro_checklist.md Stage 33.
 

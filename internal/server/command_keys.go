@@ -23,7 +23,10 @@ import (
 // runs and its answer is kept for 7 days; a retry with the same key and the
 // same request answers that first result and creates nothing; the same key
 // with a different request is refused (GLOBAL-4972); one still running
-// answers GLOBAL-4971; a different key is a new command. A request with no
+// answers GLOBAL-4971, and so does one whose server died before recording its
+// answer, until the claim's 7-day retention (49.4.7: it may have committed, so
+// the caller checks the register and, if it is not there, retries with a new
+// key); a different key is a new command. A request with no
 // key runs as before, so API clients that never sent one are unaffected.
 //
 // Registered in routes.go as commandKeyed("<command>", handler), which is also
@@ -114,7 +117,9 @@ func commandKeyed(command string, next http.HandlerFunc) http.HandlerFunc {
 		digest := engines.CommandDigest(map[string]interface{}{"method": r.Method, "path": r.URL.Path, "body": payload})
 
 		// Keys are per user, as the checkout's are: two people cannot collide.
-		claim, err := engines.ClaimCommand(tenantID, command, userID+":"+key, digest, correlationID)
+		// It records the key after the handler commits, so a lapsed claim is never
+		// taken over (49.4.7): it may hide a command that did commit.
+		claim, err := engines.ClaimCommandRecordedAfter(tenantID, command, userID+":"+key, digest, correlationID)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to claim this command")
 			return
@@ -152,8 +157,8 @@ func commandKeyed(command string, next http.HandlerFunc) http.HandlerFunc {
 			}
 			if err := engines.CompleteCommand(tenantID, claim.Key, commandDocumentID(parsed), stored); err != nil {
 				// The command committed; only its record did not. The key
-				// stays "still being processed" until its lease ends rather
-				// than letting an immediate retry run it a second time.
+				// stays "still being processed" until the claim's 7-day
+				// retention ends rather than letting a retry run it again (49.4.7).
 				engines.LogSystemError(tenantID, correlationID, "ERROR", "commandKeyed",
 					fmt.Sprintf("command %s completed but its key %s was not recorded: %v", command, claim.Key, err), "")
 			}

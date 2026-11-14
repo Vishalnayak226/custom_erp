@@ -99,6 +99,10 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			screens print; the boot backfill seals pre-130.8 rows. RevealStoredValueCard returns the full
 			number to HasFullAccess roles only and writes REVEAL_GIFT_CARD_NUMBER to the audit log.
 			Approved by the user 2026-10-23 (release after 0.12.0).`},
+		"cmd/journeylab/journey_command_replay.go": {1, `74.U.2 (E2E-08): the journey test registers one
+			gift card through POST /api/v1/stored-value/cards on its own scratch tenant, then sends that
+			freshly generated gift card number to POST /api/v1/pos/gift-card/issue. A test client of the
+			gift card API above, never a payment card, and it never runs against production.`},
 		"internal/server/handlers_item_master.go": {8, `The gift card balance / action / issue request
 			bodies carry the gift card number the cashier scanned; the handlers pass it to
 			engines/stored_value.go and return its masked view.`},

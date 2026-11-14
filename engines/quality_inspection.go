@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -69,6 +70,7 @@ type InspectionInput struct {
 	InspectionPlan string              `json:"inspection_plan"`
 	Readings       []InspectionReading `json:"readings"`
 	Remarks        string              `json:"remarks"`
+	Defects        *float64            `json:"defects_found"` // 170.15: defects in the AQL sample
 }
 
 func qualityErr(code, format string, args ...interface{}) error {
@@ -202,7 +204,7 @@ func RecordQualityInspection(tenantID string, in InspectionInput, userID string)
 			delete(byName, strings.ToLower(strings.TrimSpace(r.Parameter)))
 		}
 	}
-	if len(readings) == 0 {
+	if len(readings) == 0 && inspectionPlanAQL(tenantID, in.InspectionPlan) == "" { // 170.15: an AQL plan is judged on the defects count
 		return "", "", qualityErr("QUALIT-0562", "record at least one reading")
 	}
 	result = "Pass"
@@ -226,6 +228,17 @@ func RecordQualityInspection(tenantID string, in InspectionInput, userID string)
 	}
 	if in.SourceType == InspectProduction {
 		data["production_order_id"] = in.SourceID
+	}
+	// 170.15: a plan with an AQL sets the sample, accept / reject numbers and the lot result.
+	lotQty := in.Qty
+	if lotQty <= 0 {
+		lotQty = numFromInterface(src["quantity"])
+	}
+	if lot, errA := applyAQLToInspection(tenantID, in, lotQty, data); errA != nil {
+		return "", "", errA
+	} else if lot == "Reject" {
+		result = "Fail"
+		data["result"] = result
 	}
 	b, _ := json.Marshal(data)
 	if _, err := db.DB.Exec(fmt.Sprintf(
@@ -418,8 +431,9 @@ type MaintenanceTask struct {
 
 // MaintenancePart is a part used.
 type MaintenancePart struct {
-	Sku string  `json:"sku"`
-	Qty float64 `json:"qty"`
+	Sku      string  `json:"sku"`
+	Qty      float64 `json:"qty"`
+	Location string  `json:"location,omitempty"` // 170.8: the store it is taken from
 }
 
 // MaintenanceCompletion is what the technician records at completion.
@@ -428,6 +442,8 @@ type MaintenanceCompletion struct {
 	Checklist []MaintenanceTask `json:"checklist"`
 	Parts     []MaintenancePart `json:"parts_used"`
 	Hours     float64           `json:"labour_hours"`
+	Rate      float64           `json:"labour_rate"`    // 170.8: per hour
+	Downtime  float64           `json:"downtime_hours"` // 170.8
 }
 
 // checklistFromText turns "one task per line" into checklist JSON.
@@ -447,6 +463,14 @@ func checklistFromText(v interface{}) string {
 }
 
 func maintenanceStep(tenantID, orderID, from, to string, apply func(data map[string]interface{}) error) error {
+	return maintenanceStepTx(tenantID, orderID, from, to, func(_ *sql.Tx, _ string, data map[string]interface{}) error {
+		return apply(data)
+	})
+}
+
+// maintenanceStepTx is maintenanceStep with the transaction and schema handed
+// to apply, so a step can post stock and the ledger with the status change.
+func maintenanceStepTx(tenantID, orderID, from, to string, apply func(tx *sql.Tx, schema string, data map[string]interface{}) error) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -463,7 +487,7 @@ func maintenanceStep(tenantID, orderID, from, to string, apply func(data map[str
 	if status != from {
 		return qualityErr("QUALIT-0566", "%s is %s - this step needs it to be %s", orderID, status, from)
 	}
-	if err := apply(data); err != nil {
+	if err := apply(tx, schema, data); err != nil {
 		return err
 	}
 	if err := writeDocTx(tx, schema, "MaintenanceOrder", orderID, data, to); err != nil {
@@ -498,8 +522,8 @@ func CompleteMaintenanceOrderWith(tenantID, orderID string, c MaintenanceComplet
 	if strings.TrimSpace(c.Notes) == "" {
 		return qualityErr("QUALIT-0566", "write what was done before completing")
 	}
-	if c.Hours < 0 {
-		return qualityErr("QUALIT-0566", "hours cannot be negative")
+	if c.Hours < 0 || c.Rate < 0 || c.Downtime < 0 {
+		return qualityErr("QUALIT-0566", "hours, rate and downtime cannot be negative")
 	}
 	var parts []MaintenancePart
 	for _, p := range c.Parts {
@@ -516,7 +540,12 @@ func CompleteMaintenanceOrderWith(tenantID, orderID string, c MaintenanceComplet
 		}
 		parts = append(parts, p)
 	}
-	return maintenanceStep(tenantID, orderID, "InProgress", "Completed", func(d map[string]interface{}) error {
+	if GetSettingBool(tenantID, SettingMaintenanceCosting) { // 170.8: refused before anything posts
+		if err := checkMaintenancePartsForCosting(tenantID, parts); err != nil {
+			return err
+		}
+	}
+	return maintenanceStepTx(tenantID, orderID, "InProgress", "Completed", func(tx *sql.Tx, schema string, d map[string]interface{}) error {
 		var tasks []MaintenanceTask
 		if s, _ := d["checklist"].(string); s != "" {
 			_ = json.Unmarshal([]byte(s), &tasks)
@@ -540,10 +569,12 @@ func CompleteMaintenanceOrderWith(tenantID, orderID string, c MaintenanceComplet
 		pb, _ := json.Marshal(parts)
 		d["parts_used"] = string(pb)
 		d["labour_hours"] = c.Hours
+		d["labour_rate"] = c.Rate
+		d["downtime_hours"] = c.Downtime
 		d["completion_notes"] = strings.TrimSpace(c.Notes)
 		d["completed_by"] = userID
 		d["completed_at"] = time.Now().UTC().Format(time.RFC3339)
-		return nil
+		return postMaintenanceCostTx(tx, tenantID, schema, orderID, d, parts, c.Hours, c.Rate)
 	})
 }
 

@@ -128,7 +128,7 @@ function renderSale(s) {
     </div>
     <div id="ofs-error" class="hidden s-b9cceb" role="alert"></div>
     ${s.status === 'Pending' ? `<div class="s-b9b7b5">
-      <button type="button" class="btn btn-primary" data-ofs-do="validate"${allMatch ? '' : ' disabled style="opacity: .5; cursor: not-allowed;" title="Every line must be scanned with its own barcode"'}>Validate</button>
+      <button type="button" class="btn btn-primary${allMatch ? '' : ' u-off'}" data-ofs-do="validate"${allMatch ? '' : ' disabled title="Every line must be scanned with its own barcode"'}>Validate</button>
       <button type="button" class="btn btn-outline" data-ofs-do="reject">Reject</button>
     </div>` : ''}`;
 }

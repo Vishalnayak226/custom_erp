@@ -39,6 +39,8 @@ type returnDispRule struct {
 	Action     string
 	FeePercent float64
 	FeeGL      string // "" = no fee: no charge code, or one that is not on file or is inactive
+	// FeeGSTRate (148.28a) is the charge code's GST rate: the fee includes GST at it.
+	FeeGSTRate float64
 }
 
 type returnRuleSet map[string]returnDispRule
@@ -73,6 +75,7 @@ func loadReturnDispositionRules(q queryRower, schema string) returnRuleSet {
 		r := returnDispRule{Action: strField(d, "action"), FeePercent: numFromInterface(d["fee_percent"])}
 		if c := codes[strField(d, "charge_code")]; c != nil && c.Active && r.FeePercent > 0 {
 			r.FeeGL = firstNonEmpty(c.GL, "4100")
+			r.FeeGSTRate = c.GSTRate
 		}
 		out[disp] = r
 	}
@@ -93,10 +96,21 @@ func (rs returnRuleSet) fee(disposition string, moneyPaise int64) (int64, string
 	return fee, r.FeeGL
 }
 
+// feeGST is the GST inside a restocking fee (148.28a, user 2026-11-13: the fee
+// is GST-inclusive at its charge code's rate); 0 when the code has no rate.
+func (rs returnRuleSet) feeGST(disposition string, fee int64) int64 {
+	rate := rs[disposition].FeeGSTRate
+	if fee <= 0 || rate <= 0 {
+		return 0
+	}
+	return int64(math.Round(float64(fee) * rate / (100 + rate)))
+}
+
 func (rs returnRuleSet) action(disposition string) string { return rs[disposition].Action }
 
 // takeFeeOffTenders lowers the money tenders by the fee, spread by size, so the
-// refund's credit legs still add up to what is paid back.
+// refund's credit legs still add up to what is paid back. 148.28a uses it the
+// same way to take the fee's GST off the fee accounts.
 func takeFeeOffTenders(tenders map[string]int64, fee int64) {
 	keys := make([]string, 0, len(tenders))
 	for k, v := range tenders {

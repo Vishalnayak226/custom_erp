@@ -68,6 +68,22 @@ $localOnly = [int](Invoke-Git @('rev-list', '--count', 'origin/main..main'))[0]
 if ($localOnly -gt 0) { Stop-Deploy "main has $localOnly commit(s) that are not on origin - run Release.cmd first (never deploy what GitHub does not have)" }
 $lastPath = Join-Path $reportDir 'last-release.json'
 $last = if (Test-Path $lastPath) { Get-Content $lastPath -Raw | ConvertFrom-Json } else { $null }
+# D0a: while a deploy waits for the owner, the release session may commit the
+# three working records on top of the release (0.23.0, 2026-11-12). The server
+# never reads them, so Deploy ships the release commit under them - exactly the
+# commit that passed the gates, and on origin. Any other file after it still stops.
+$recordFiles = @('docs/micro_checklist.md', 'docs/project_ledger.md', 'docs/ai_handover.md')
+if ($last -and $last.commit -and $last.commit -ne $target -and $last.status -in @('passed', 'committed')) {
+    & git -C $repo merge-base --is-ancestor $last.commit $target 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $since = @((Invoke-Git @('diff', '--name-only', "$($last.commit)..$target")) | Where-Object { $_ })
+        if ($since.Count -and -not @($since | Where-Object { $_ -notin $recordFiles }).Count) {
+            Note "origin/main $short adds only the working records ($($since -join ', ')) to release $($last.commit.Substring(0, 7)) - deploying the release commit"
+            $target = $last.commit
+            $short = $target.Substring(0, 7)
+        }
+    }
+}
 # 'committed' is a -NoPush run that passed every gate and was pushed by hand
 # afterwards (0.20.0, 2026-10-30): $target is origin/main, so it is on GitHub.
 if (-not $last -or $last.commit -ne $target -or $last.status -notin @('passed', 'committed')) {

@@ -465,6 +465,10 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	if status != "Pending Approval" {
 		return fmt.Errorf("document is not awaiting approval (current status: %s)", status)
 	}
+	// 170.26: with the team scope on, a manager decides their team's leave only.
+	if err := ApprovalTeamRefusal(tenantID, doctype, data, actorUserID, actorRole); err != nil {
+		return err
+	}
 	selfDecision := actorUserID == createdBy
 	// Stage 49.3.5: where the submitter may not decide, neither may whoever
 	// last changed it or sent this round for approval - not only its creator.

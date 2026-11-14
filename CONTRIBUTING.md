@@ -34,6 +34,21 @@ rules, and GitHub shows it to anyone who opens a pull request.
 
 When two documents disagree, the lower one is wrong: fix it so it matches the higher one.
 
+## First principle - Build without overloading the machine
+
+The project is built on one laptop that several sessions share. Building, testing and checking
+must never overload it. This comes before every article below.
+
+- **One heavy job at a time, across all sessions.** Heavy jobs are Go builds, tests and vet runs
+  over many packages, the release, browser test runs, dev servers and the doc and code-map
+  generators. Before you start one, check whether another session's build is running. If it is,
+  do light work first and start yours when it ends.
+- **Build and test only what changed:** `go build ./engines/` or
+  `go test -p 1 -run <Test> ./engines/`, not `./...`. The full suite runs at release.
+- **Few helper agents.** An AI session uses no subagent by default and never more than one at a
+  time. It runs a multi-agent workflow only when the owner asks for one.
+- **Stop what you start.** Dev servers, browsers and background jobs end with the task.
+
 ## Article 1 - Lightweight, future-proof, solid
 
 Every change keeps the server lightweight, the codebase future-proof and the implementation solid.
@@ -242,6 +257,7 @@ These are the product owner's rules for every screen, dialog and panel:
 | Every file filed in the code map | `pwsh docs/brain/update-brain.ps1 -Check` | release G7 |
 | Shipped migrations unchanged | checksum check in [db/migrate.go](db/migrate.go) | every server start with `-migrate` |
 | Data-changing releases confirmed | Deploy click (explicit YES) | every deploy |
+| Build without overloading the machine (first principle) | `GOFLAGS=-p=2` in the AI sessions' settings caps Go build parallelism; the rest is checked in review | every AI session's Go command |
 
 Some rules cannot be checked by a machine, such as reusing a pattern or keeping text short.
 Those are checked in review against this file.
@@ -260,3 +276,4 @@ Those are checked in review against this file.
 |---|---|
 | 2026-11-10 | Adopted. Articles 1 and 2 moved here from `CLAUDE.md`. `docs/engineering/contributing.md` was merged in and removed. The layout guard (`internal/repolayout`) was added. What changed and why is recorded in [the restructure record](docs/engineering/repository-restructure-2026-11-10.md). |
 | 2026-11-11 | Article 3 and Article 5: every migration now sits in `db/migrations/`, and the layout guard rejects a `.sql` file in the `db/` root. Stage-named Go files, docs and scripts were renamed to Article 4 names; the old-to-new list is in [the rename record](docs/archive/renamed-files-2026-11-11.md). Approved by the owner ("Implement all", items 103.3 and 160.1). |
+| 2026-11-13 | First principle added before Article 1: build without overloading the shared machine (one heavy job at a time, build and test only what changed, few helper agents, stop what you start). Article 10 gained its row. Approved by the owner ("this first priciple for building in the project", item 172.1). |

@@ -181,6 +181,11 @@ func ImportProductSheet(ctx context.Context, tenantID string, r io.Reader, userI
 					}
 					op.value = norm
 				}
+				// 168.15: a regulated value changes on the item page, where it waits for approval.
+				if rErr := RegulatedHoldRefusal(tenantID, itemID, c.name, "", "", op.value); rErr != nil {
+					addErr(rowNo, rErr.Error())
+					continue
+				}
 				// 47.13.4: the sheet answers to the stewardship register like every
 				// other door. Refused here, before the transaction opens, so preview
 				// and commit name the same rows.

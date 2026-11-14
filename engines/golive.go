@@ -2,10 +2,13 @@ package engines
 
 import (
 	"context"
+	"crypto/sha256"
 	"custom_erp/db"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -85,6 +88,9 @@ type goLiveLineDef struct {
 	Manual   bool   // a person can attach evidence
 	Fix      string // a view for renderView, or doctype:<Name>
 	check    func(*goLiveCtx) lineResult
+	// stamp, when set, fingerprints what the evidence is about; evidence
+	// attached under a different stamp is stale (49.17.3).
+	stamp func(*goLiveCtx) (string, error)
 }
 
 // GoLiveEvidence is what a person attached to a line.
@@ -93,6 +99,7 @@ type GoLiveEvidence struct {
 	Reference string `json:"reference"`
 	By        string `json:"by"`
 	At        string `json:"at"`
+	Stale     bool   `json:"stale,omitempty"` // what it covered has changed since
 }
 
 // GoLiveWaiver is a line's waiver: why, until when, and who.
@@ -205,6 +212,7 @@ func insertGoLiveRecord(schema, kind, pack, lineID, note, ref, expires string, d
 	if expires != "" {
 		exp = expires
 	}
+	defer InvalidateSetupFinanceChecks(schema) // 164.2
 	_, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.golive_records (kind, pack, line_id, note, reference, expires_on, data, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6::date, $7::jsonb, $8)`, schema), kind, pack, lineID, note, ref, exp, string(raw), actor)
 	return err
@@ -265,9 +273,14 @@ func (c *goLiveCtx) resolve(d goLiveLineDef) GoLiveLine {
 	l := GoLiveLine{ID: d.ID, Label: d.Label, Severity: d.Severity, State: raw.State, Detail: raw.Detail, Source: raw.Source, Fix: d.Fix, Manual: d.Manual, Raw: raw.State}
 	if ev := c.latest(d.ID, "Evidence"); ev != nil && d.Manual {
 		l.Evidence = &GoLiveEvidence{Note: ev.Note, Reference: ev.Reference, By: ev.By, At: ev.At}
+		l.Evidence.Stale = c.evidenceStale(d, ev)
 		if raw.State == LineNotEvidenced {
-			l.State, l.Source = LinePass, "attached by "+ev.By
-			l.Detail = strings.TrimSpace(ev.Reference + " " + ev.Note)
+			if l.Evidence.Stale {
+				l.Detail = strings.TrimSpace(l.Detail + " The evidence from " + ev.At + " is stale: the destinations changed since. Attach it again.")
+			} else {
+				l.State, l.Source = LinePass, "attached by "+ev.By
+				l.Detail = strings.TrimSpace(ev.Reference + " " + ev.Note)
+			}
 		}
 	}
 	if w := c.latest(d.ID, "Waiver", "WaiverEnd"); w != nil && w.Kind == "Waiver" {
@@ -346,7 +359,32 @@ func AttachGoLiveEvidence(tenantID, lineID, note, reference, actor string) error
 			return goLiveErr("GLOBAL-9117", "The books do not tie yet: "+r.Detail)
 		}
 	}
-	return insertGoLiveRecord(c.schema, "Evidence", firstPack(d), lineID, note, reference, "", nil, actor)
+	var data interface{}
+	if d.stamp != nil {
+		st, err := d.stamp(c)
+		if err != nil {
+			return err
+		}
+		data = map[string]string{"stamp": st}
+	}
+	return insertGoLiveRecord(c.schema, "Evidence", firstPack(d), lineID, note, reference, "", data, actor)
+}
+
+// evidenceStale is true when the line fingerprints what its evidence covers and
+// that has changed since the evidence was attached. Evidence recorded before
+// the stamp existed carries none and is honoured.
+func (c *goLiveCtx) evidenceStale(d goLiveLineDef, ev *goLiveRecord) bool {
+	if d.stamp == nil {
+		return false
+	}
+	var rec struct {
+		Stamp string `json:"stamp"`
+	}
+	if json.Unmarshal([]byte(ev.Data), &rec) != nil || rec.Stamp == "" {
+		return false
+	}
+	now, err := d.stamp(c)
+	return err != nil || now != rec.Stamp
 }
 
 func firstPack(d goLiveLineDef) string { return d.Packs[0] }
@@ -452,6 +490,7 @@ func SignOffGoLivePack(tenantID, pack, note, actor string) (*GoLivePack, error) 
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	InvalidateSetupFinanceChecks(schema) // 164.2
 	return GetGoLivePack(tenantID, pack)
 }
 
@@ -580,14 +619,14 @@ func init() {
 		{ID: "cut-exceptions", Label: "No open exceptions", Packs: []string{cut}, Severity: LineBlocking, Fix: "configuration", check: checkCutExceptions},
 		{ID: "backup-restore", Label: "Backup and restore drill proven by the host", Packs: []string{cut, live}, Severity: LineCritical, Fix: "system-status", check: checkBackupRestore},
 		{ID: "sod-review", Label: "Roles and separation of duties reviewed", Packs: []string{cut, live}, Severity: LineBlocking, Fix: "roles", check: checkSoD},
-		{ID: "integration-proof", Label: "Connectors proven in use", Packs: []string{cut, live}, Severity: LineBlocking, Manual: true, Fix: "configuration:credentials", check: checkIntegrationProof},
+		{ID: "integration-proof", Label: "Connectors proven in use", Packs: []string{cut, live}, Severity: LineBlocking, Manual: true, Fix: "configuration:credentials", check: checkIntegrationProof, stamp: destinationStamp},
 		{ID: "device-proof", Label: "Devices proven on site", Packs: []string{cut, live}, Severity: LineBlocking, Manual: true, check: checkDeviceProof},
 		// ---- 49.17.3 go-live gate -------------------------------------
 		{ID: "scope-saved", Label: "Scope answered", Packs: []string{live}, Severity: LineBlocking, Fix: "configuration:Go-live scope", check: checkScopeSaved},
 		{ID: "capability-level", Label: "Every chosen capability is supported", Packs: []string{live}, Severity: LineBlocking, Fix: "configuration:Go-live scope", check: checkCapabilityLevel},
 		{ID: "hardened-deploy", Label: "Hardened deployment and drift result", Packs: []string{live}, Severity: LineCritical, Manual: true, check: manualLine("host", "The host's deployment check result is not recorded here")},
 		{ID: "credential-ownership", Label: "Credential owner, expiry and rotation", Packs: []string{live}, Severity: LineBlocking, Fix: "configuration:credentials", check: checkCredentialOwnership},
-		{ID: "external-destinations", Label: "External destinations confirmed", Packs: []string{live}, Severity: LineBlocking, Manual: true, Fix: "configuration:credentials", check: checkExternalDestinations},
+		{ID: "external-destinations", Label: "External destinations confirmed", Packs: []string{live}, Severity: LineBlocking, Manual: true, Fix: "configuration:credentials", check: checkExternalDestinations, stamp: destinationStamp},
 		{ID: "rto-rpo", Label: "Recovery time and point targets stated", Packs: []string{live}, Severity: LineBlocking, Manual: true, check: manualLine("person", "No recovery time or point target is recorded")},
 		{ID: "incident-contacts", Label: "Incident contacts named", Packs: []string{live}, Severity: LineBlocking, Manual: true, check: manualLine("person", "No incident contact is recorded")},
 		{ID: "retention-legal", Label: "Data, retention and legal basis agreed", Packs: []string{live}, Severity: LineBlocking, Manual: true, check: manualLine("person", "No retention or legal basis decision is recorded")},
@@ -917,9 +956,22 @@ func checkCredentialOwnership(c *goLiveCtx) lineResult {
 
 func checkExternalDestinations(c *goLiveCtx) lineResult {
 	const src = "Credentials and webhook subscriptions"
-	creds, err := ListConnectorCredentials(c.tenantID)
+	dest, err := externalDestinations(c)
 	if err != nil {
 		return errLine(src, err)
+	}
+	if len(dest) == 0 {
+		return notApplicable(src, "No external destination is set up.")
+	}
+	return notEvidenced(src, "%d destination(s): %s. Confirm them.", len(dest), setupNamed(dest))
+}
+
+// externalDestinations is every active connector credential and webhook
+// subscription, sorted.
+func externalDestinations(c *goLiveCtx) ([]string, error) {
+	creds, err := ListConnectorCredentials(c.tenantID)
+	if err != nil {
+		return nil, err
 	}
 	var dest []string
 	for _, cr := range creds {
@@ -929,11 +981,20 @@ func checkExternalDestinations(c *goLiveCtx) lineResult {
 	}
 	hooks, err := c.strings(`SELECT COALESCE(NULLIF(data->>'url', ''), id) FROM %s.documents WHERE doctype = 'WebhookSubscription' AND deleted_at IS NULL AND COALESCE(status, 'Active') = 'Active'`)
 	if err != nil {
-		return errLine(src, err)
+		return nil, err
 	}
 	dest = append(dest, hooks...)
-	if len(dest) == 0 {
-		return notApplicable(src, "No external destination is set up.")
+	sort.Strings(dest)
+	return dest, nil
+}
+
+// destinationStamp fingerprints the set of destinations (49.17.3): evidence that
+// they are proven or confirmed goes stale when the set changes.
+func destinationStamp(c *goLiveCtx) (string, error) {
+	dest, err := externalDestinations(c)
+	if err != nil {
+		return "", err
 	}
-	return notEvidenced(src, "%d destination(s): %s. Confirm them.", len(dest), setupNamed(dest))
+	sum := sha256.Sum256([]byte(strings.Join(dest, "|")))
+	return hex.EncodeToString(sum[:]), nil
 }

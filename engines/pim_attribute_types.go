@@ -148,6 +148,11 @@ func CheckAttributeValue(tenantID, attribute, value string) (string, error) {
 		return value, nil
 	}
 	norm, cerr := checkAttributeValueType(vt, opts, value, GetSettingBool(tenantID, SettingCheckLegacyAttributeValues), ClientDateOrder(tenantID))
+	if cerr == nil { // 168.14: a Number with a unit takes the number only
+		if uerr := checkUnitValue(tenantID, schema, attribute, vt, value); uerr != nil {
+			return value, &ValidationError{Code: "PIM-9305", SubFor: "Value", Message: fmt.Sprintf("Value for %s: %v", attribute, uerr)}
+		}
+	}
 	if cerr != nil {
 		return value, &ValidationError{Code: "PIM-0980", SubFor: "Value", Message: fmt.Sprintf("Value for %s (%s): %v", attribute, vt, cerr)}
 	}
@@ -166,7 +171,7 @@ func ValidateProductAttributeValueDocument(tenantID string, payload map[string]i
 		return err
 	}
 	if value == "" {
-		return nil
+		return validateBlankedRequiredValue(tenantID, payload) // 168.12: only when the setting is on
 	}
 	norm, err := CheckAttributeValue(tenantID, attribute, value)
 	if err != nil {

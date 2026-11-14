@@ -616,6 +616,204 @@
           "status": "measured"
         }
       }
+    },
+    {
+      "id": "release-0.24.0",
+      "label": "release 0.24.0",
+      "recorded_at": "2026-11-14T08:10:56Z",
+      "commit": "b458023b6497ab812595a133f584623506113b70",
+      "root": ".",
+      "metrics": {
+        "backup.seconds_to_verified_restore": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "backup.size_bytes": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "browser.boot_bytes_and_cpu": {
+          "value": 0,
+          "unit": "bytes",
+          "source": "",
+          "status": "not_measured",
+          "note": "needs a real browser; comes from the browser suite (47.9.4), not from this tool"
+        },
+        "budget.application_log_files_bytes": {
+          "value": 0,
+          "unit": "bytes",
+          "source": "",
+          "status": "not_measured",
+          "note": "directory does not exist in this environment"
+        },
+        "budget.backup_artifacts_bytes": {
+          "value": 0,
+          "unit": "bytes",
+          "source": "",
+          "status": "not_measured",
+          "note": "directory does not exist in this environment"
+        },
+        "budget.binary_stripped_bytes": {
+          "value": 0,
+          "unit": "bytes",
+          "source": "",
+          "status": "not_measured",
+          "note": "pass -binary with the stripped release artifact"
+        },
+        "budget.cold_core_gzip_bytes": {
+          "value": 175963,
+          "unit": "bytes",
+          "source": "release budget report",
+          "status": "measured"
+        },
+        "budget.embedded_kb_raw_bytes": {
+          "value": 1793759,
+          "unit": "bytes",
+          "source": "release budget report",
+          "status": "measured"
+        },
+        "budget.initial_js_gzip_bytes": {
+          "value": 109496,
+          "unit": "bytes",
+          "source": "release budget report",
+          "status": "measured"
+        },
+        "budget.initial_js_plus_first_screen_gzip_bytes": {
+          "value": 137631,
+          "unit": "bytes",
+          "source": "release budget report",
+          "status": "measured"
+        },
+        "budget.kb_largest_topic_raw_bytes": {
+          "value": 105443,
+          "unit": "bytes",
+          "source": "release budget report",
+          "status": "measured"
+        },
+        "budget.kb_search_index_raw_bytes": {
+          "value": 236708,
+          "unit": "bytes",
+          "source": "release budget report",
+          "status": "measured"
+        },
+        "budget.postgres_database_bytes": {
+          "value": 0,
+          "unit": "bytes",
+          "source": "",
+          "status": "not_measured",
+          "note": "DATABASE_URL not supplied"
+        },
+        "db.audit_rows_per_1k_tx": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "db.heap_bytes_per_1k_tx": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "db.index_bytes_per_1k_tx": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "db.wal_bytes_per_1k_tx": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "deps.go_modules": {
+          "value": 2,
+          "unit": "modules",
+          "source": "require lines in go.mod, direct and indirect",
+          "status": "measured"
+        },
+        "jobs.outbox_rows_per_1k_tx": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "memory.server_rss_after_journeys_kb": {
+          "value": 0,
+          "unit": "",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -journeys evidence given"
+        },
+        "static.public_bytes": {
+          "value": 7457135,
+          "unit": "bytes",
+          "source": "files under public/",
+          "status": "measured"
+        },
+        "static.public_files": {
+          "value": 198,
+          "unit": "files",
+          "source": "files under public/",
+          "status": "measured"
+        },
+        "static.public_gzip_bytes": {
+          "value": 4181764,
+          "unit": "bytes",
+          "source": "each file gzipped on its own, summed (what a browser downloads)",
+          "status": "measured"
+        },
+        "static.server_binary_bytes": {
+          "value": 0,
+          "unit": "bytes",
+          "source": "",
+          "status": "not_measured",
+          "note": "no -binary given"
+        },
+        "support.cmd_tools": {
+          "value": 27,
+          "unit": "tools",
+          "source": "folders under cmd/",
+          "status": "measured"
+        },
+        "support.guide_and_kb_pages": {
+          "value": 88,
+          "unit": "pages",
+          "source": "markdown files under docs/guides and docs/kb",
+          "status": "measured"
+        },
+        "support.queue_categories": {
+          "value": 0,
+          "unit": "categories",
+          "source": "",
+          "status": "not_measured",
+          "note": "the product has no support queue, so there is nothing to count"
+        },
+        "support.routes_with_permission": {
+          "value": 1003,
+          "unit": "routes",
+          "source": "method-and-path entries in the route capability registry",
+          "status": "measured"
+        },
+        "support.runbooks": {
+          "value": 14,
+          "unit": "files",
+          "source": "markdown files under docs/operations",
+          "status": "measured"
+        }
+      }
     }
   ]
 }

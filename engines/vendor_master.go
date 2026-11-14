@@ -70,7 +70,10 @@ func checkPOVendorHold(tenantID string, po map[string]interface{}) error {
 	if st := strings.TrimSpace(strField(po, "status")); st != "" && st != "Draft" {
 		return nil
 	}
-	return checkVendorNoNewPO(tenantID, firstNonEmpty(strField(po, "vendor"), strField(po, "vendor_id")))
+	if err := checkVendorNoNewPO(tenantID, firstNonEmpty(strField(po, "vendor"), strField(po, "vendor_id"))); err != nil {
+		return err
+	}
+	return checkPOVendorSourcing(tenantID, po) // 168.3: onboarding status and the approved vendor list
 }
 
 // checkVendorNoNewPO is the hold test alone, for a caller that has only the vendor.

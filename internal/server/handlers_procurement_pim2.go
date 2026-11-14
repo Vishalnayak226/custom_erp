@@ -193,7 +193,9 @@ func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'from' and 'to' are required (YYYY-MM-DD)")
 		return
 	}
-	results, err := engines.GetPayrollExport(tenantID, from, to)
+	// 49.3.4: a store-limited role holding hr.payroll gets its stores' staff only.
+	stores, cut := engines.ReportStoreCut(tenantID, r.Header.Get("Resolved-Role"), r.Header.Get("Resolved-User-ID"))
+	results, err := engines.GetPayrollExportForStores(tenantID, from, to, stores, cut)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return

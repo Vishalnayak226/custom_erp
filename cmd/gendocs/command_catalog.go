@@ -316,6 +316,8 @@ var commandNotes = map[string]commandNote{
 		Inputs: "payment numbers, GL postings", Preconditions: "an Approved proposal; approver is not the preparer", Invariants: "every bill in the proposal is paid once, for its proposed amount"},
 	"POST /api/v1/finance/payment-proposal/{id}/record-utr": {
 		Inputs: "UTR stamp", Preconditions: "an executed proposal", Invariants: "one UTR per payment"},
+	"POST /api/v1/finance/payment-proposal/{id}/bank-response": {
+		Inputs: "the bank's response CSV (payment reference, UTR, status, reason), the bank account for exceptions", Preconditions: "an Executed proposal; a known bank account", Invariants: "a paid row records its UTR once; a rejected row raises a bank exception and reverses nothing; the same response loaded twice is skipped"},
 	"POST /api/v1/finance/vendor-credit-note/{id}/post": {
 		Inputs: "GL posting, posting stamp", Preconditions: "a Draft vendor credit note against a bill", Invariants: "the note never exceeds the bill's open amount; posts once; posted money is frozen after"},
 
@@ -358,6 +360,8 @@ var commandNotes = map[string]commandNote{
 		Inputs: "survivor id, re-pointed documents, merge record", Preconditions: "two customers; the survivor named", Invariants: "every document of the merged customer points at the survivor; balances and points are added, not lost"},
 	"POST /api/v1/crm/merges": {
 		Inputs: "merge request record", Preconditions: "two customers", Invariants: "a merge is applied once per request"},
+	"POST /api/v1/pim/items/merge": {
+		Inputs: "the item that stays, the duplicate", Preconditions: "an admin or master-data role; same tax, unit and tracking on both; no open document blocks it", Invariants: "the duplicate's stock and average cost move in one transaction with no GL entry; its codes resolve to the item that stays; the duplicate is kept Inactive, never deleted; a replay changes nothing"},
 
 	// --- Staged import (47.13.1) -------------------------------------------
 	"POST /api/v1/import-batches": {
@@ -406,6 +410,9 @@ var commandNotes = map[string]commandNote{
 	"POST /api/v1/admin/security/freeze-integrations": {
 		Inputs: "on / off, a reason and the admin's own password; the setting and its stamp", Preconditions: "an administrator",
 		Invariants: "while frozen every outside call of this client is refused at the one outside-calls gate and inbound webhooks answer 423; other clients are untouched"},
+	"POST /api/v1/admin/security/read-only": {
+		Inputs: "on / off, a reason and the admin's own password; the setting and its stamp", Preconditions: "an administrator",
+		Invariants: "while on every change of this client is refused at the middleware with 423 READ_ONLY; reads, sign-in, sign-out and the emergency controls stay open; other clients are untouched"},
 	"POST /api/v1/admin/security/sessions/end": {
 		Inputs: "the session id, a reason and the admin's own password; who ended it and when", Preconditions: "an administrator; a stored privileged session",
 		Invariants: "that one token is refused at its next request; the user's other sessions carry on"},

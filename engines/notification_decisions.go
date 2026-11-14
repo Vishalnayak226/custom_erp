@@ -223,6 +223,8 @@ type NotifyDecision struct {
 	Row             NotifyMatrixRow `json:"row"`
 	AssessmentDueAt *time.Time      `json:"assessment_due_at"`
 	TargetAt        *time.Time      `json:"target_at"`
+	AssessState     string          `json:"assess_state"` // NotifyClock*: where the assessment deadline stands, set when listed
+	TargetState     string          `json:"target_state"` // NotifyClock*: where the tell-by deadline stands, set when listed
 	Status          string          `json:"status"`
 	Decision        string          `json:"decision"`
 	Reason          string          `json:"reason"`
@@ -337,11 +339,15 @@ func ListNotifyDecisions(tenantID string) ([]NotifyDecision, error) {
 	}
 	defer rows.Close()
 	out := []NotifyDecision{}
+	now := time.Now().UTC()
 	for rows.Next() {
 		d, err := scanNotifyDecision(rows)
 		if err != nil {
 			return nil, err
 		}
+		closed := d.Status == "Closed"
+		d.AssessState = NotifyClockState(d.DiscoveredAt, d.AssessmentDueAt, now, closed)
+		d.TargetState = NotifyClockState(d.DiscoveredAt, d.TargetAt, now, closed)
 		out = append(out, d)
 	}
 	return out, rows.Err()

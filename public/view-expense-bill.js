@@ -26,7 +26,7 @@ async function renderExpenseBillsView() {
       <div class="form-group"><label class="form-label" for="eb-po">PO</label><input id="eb-po" class="form-input" autocomplete="off"></div>
     </div>
     <div class="table-panel"><table>
-      <thead><tr><th>Account</th><th>Note</th><th class="num">Amount</th><th class="num">GST %</th><th>GST credit</th><th>Cost centre</th><th></th></tr></thead>
+      <thead><tr><th>Account</th><th>Note</th><th class="num">Amount</th><th class="num">GST %</th><th>GST credit</th><th>Cost centre</th><th>CWIP asset</th><th></th></tr></thead>
       <tbody id="eb-lines"></tbody>
     </table></div>
     <div class="s-8a77e5"><button class="btn" id="eb-add">Add line</button></div>
@@ -65,16 +65,18 @@ async function renderExpenseBillsView() {
       <td><input type="number" step="0.01" min="0" class="form-input s-8573ba" data-f="gst_rate"></td>
       <td><select class="form-input" data-f="itc"><option value="">Default</option><option>Eligible</option><option>Blocked</option></select></td>
       <td><input class="form-input" data-f="cost_center" autocomplete="off"></td>
+      <td><input class="form-input" data-f="cwip_asset" autocomplete="off"></td>
       <td><button class="action-btn" data-eb-del>Remove</button></td>`;
     body.appendChild(tr);
     if (typeof attachLinkTypeahead === 'function') attachLinkTypeahead(tr.querySelector('[data-f="cost_center"]'), 'CostCenter');
+    if (typeof attachLinkTypeahead === 'function') attachLinkTypeahead(tr.querySelector('[data-f="cwip_asset"]'), 'Asset');
     tr.querySelector('[data-eb-del]').addEventListener('click', () => { if (body.children.length > 1) { tr.remove(); total(); } });
     tr.querySelectorAll('input').forEach(i => i.addEventListener('input', total));
   };
   const lines = () => Array.from(body.children).map(tr => {
     const v = f => tr.querySelector(`[data-f="${f}"]`).value;
     return { account: v('account'), description: v('description').trim(), amount: parseFloat(v('amount')) || 0,
-      gst_rate: parseFloat(v('gst_rate')) || 0, itc: v('itc'), cost_center: v('cost_center').trim() };
+      gst_rate: parseFloat(v('gst_rate')) || 0, itc: v('itc'), cost_center: v('cost_center').trim(), cwip_asset: v('cwip_asset').trim() };
   });
   const total = () => {
     const ls = lines();

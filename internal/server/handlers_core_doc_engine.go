@@ -79,7 +79,7 @@ func scopeValueExpr(fields []string) string {
 // madeOnOwnScreen names the doctypes handleGenericDoc refuses to write - each
 // is made by its own screen. GET /api/v1/me/permissions sends it so no list or
 // picker offers New for them (132.10 h).
-var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim", "CustomOrderQuote"}
+var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim", "CustomOrderQuote", "CarrierClaim"}
 
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -107,6 +107,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	// changed here would carry a tax number no package backs.
 	if doctype == "OMSBill" && r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "An OMS bill is made by OMS ▸ Pack and cannot be created or changed here.")
+		return
+	}
+	// 73.4.2.6: a claim typed here would skip the one-open-claim-per-booking
+	// check and could be set Settled for any amount.
+	if doctype == "CarrierClaim" && r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "A carrier claim is raised and moved on OMS ▸ Freight.")
 		return
 	}
 	// Stage 88.5: an MRP change or stock adjustment written here would never
@@ -218,6 +224,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		case http.MethodDelete:
 			action = "delete"
+		case http.MethodPut, http.MethodPatch:
+			// Not offered here (saves are POST), but checked as an update so a
+			// role that may edit reaches 162.3's locked-record answer or the
+			// 405 below, and one that may not gets a 403 - never a 500.
+			action = "update"
+		default:
+			// Any other method: there is no action for the permission check
+			// to look up, so say so before it.
+			writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
+			return
 		}
 		allowed, permErr := checkPermission(tenantID, role, doctype, action)
 		if permErr != nil {
@@ -363,6 +379,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 						// owner) sees no row of this doctype rather than
 						// every row of it.
 						whereClause += " AND FALSE"
+						continue
+					}
+					if c.NeedsMultiValue() { // 170.20 / 170.26: a list of readers or of a manager's team
+						cond, cargs := c.SQLCondition(expr, argIndex)
+						whereClause += " AND " + cond
+						args = append(args, cargs...)
+						argIndex += len(cargs)
 						continue
 					}
 					if c.AllowMissing {
@@ -1146,6 +1169,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Stage 148.10: a change to a listed vendor field waits for approval; the live value stays.
+		if doctype == "Vendor" {
+			engines.StampVendorOnboarding(tenantID, priorData, payload) // 168.3
+		}
 		var vendorFieldsHeld []string
 		if doctype == "Vendor" && priorData != nil {
 			held, err := engines.HoldVendorChanges(tenantID, docID, priorData, payload, userID, role)
@@ -1154,6 +1180,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			vendorFieldsHeld = held
+		}
+
+		// Stage 168.15: a changed value of a regulated attribute waits for approval; the stored value stays.
+		attrValueHeld := false
+		if doctype == "ProductAttributeValue" && priorData != nil {
+			held, err := engines.HoldRegulatedAttributeChange(tenantID, priorData, payload, userID, role)
+			if err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				return
+			}
+			attrValueHeld = held
 		}
 
 		// Optimistic locking (24.10): a caller can optionally include
@@ -1567,8 +1604,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				logForEntry(r, errorCatalog[engines.VendorInvoiceBeforePOCode], msg)
 			}
 		}
+		if msg := engines.AssortmentWarnDocument(tenantID, doctype, docID, priorData, payload); msg != "" {
+			resp["range_warning"] = msg
+			logForEntry(r, errorCatalog["PIM-9240"], msg)
+		}
 		if grnNotes.Warning != "" {
 			resp["notes_warning"] = grnNotes.Warning
+		}
+		if attrValueHeld {
+			resp["held_fields"] = "value"
 		}
 		if len(vendorFieldsHeld) > 0 { // Stage 148.10: the form says what is waiting, or the edit looks lost
 			resp["held_fields"] = strings.Join(vendorFieldsHeld, ", ")
@@ -1634,6 +1678,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if gErr := engines.CheckStewardshipDelete(tenantID, doctype, id, userID); gErr != nil {
 				writeEngineError(w, r, gErr, http.StatusUnprocessableEntity)
 				return
+			}
+			if doctype == "ProductAttributeValue" { // 168.12 / 168.15: a delete blanks the value
+				if gErr := engines.CheckAttributeValueDelete(tenantID, id); gErr != nil {
+					writeEngineError(w, r, gErr, http.StatusUnprocessableEntity)
+					return
+				}
 			}
 		} else if documentType == "Transaction" && postedDocumentStatuses[status] {
 			// Stage 74.1.5: a posted document is undone by its own reversing
@@ -2100,6 +2150,8 @@ var approvalOnlyStatuses = engines.ApprovalDecidedStatuses
 var actionOnlyStatuses = map[string][]string{
 	"TransferOrder":    {"Packed", "Dispatched", "Partially Received", "Received", "Returned"}, // /transfer/pack, dispatch, receive, return
 	"ExpenseClaim":     {"Verified", "Paid"},                                                   // /expenses/verify, pay
+	"StaffAdvance":     {"Paid", "Settled"},                                                    // /expenses/advance/pay (170.30)
+	"ProjectMilestone": {"Completed", "Invoiced"},                                              // /projects/milestone/complete (170.32)
 	"VendorInvoice":    {"Matched", "MismatchHold", "Paid"},                                    // /procurement/vendor-invoice/match, pay
 	"ProductionOrder":  {"Material Issued", "In Process", "Completed"},                         // /manufacturing/issue-material, confirm-operation, complete
 	"PriceListVersion": {"Superseded"},                                                         // set when a newer version is approved (135.12)
@@ -2109,6 +2161,11 @@ var actionOnlyStatuses = map[string][]string{
 	"POSCart": {"Paid"}, // /checkout
 	// Stage 148.23: only the voucher's Reverse action reverses it.
 	"SetOffVoucher": {"Reversed"}, // /finance/set-off/{id}/reverse
+	// Stage 168: only Activate / Close and Accept set these.
+	"PurchaseContract":  {"Active", "Closed"}, // /procurement/contract/{id}/activate, close
+	"ServiceEntrySheet": {"Accepted"},         // /procurement/service-entry/{id}/accept
+	// Ask 170.5: a lease is Active only once its opening entry is booked.
+	"Lease": {"Active", "Closed"}, // /assets/leases/{id}/activate; Closed by the lease worker
 }
 
 func isActionOnlyStatus(doctype, s string) bool {
@@ -2127,7 +2184,7 @@ var postedDocumentStatuses = map[string]bool{
 	"Approved": true, "Posted": true, "Paid": true, "Partially Paid": true, "Received": true, "Partially Received": true,
 	"Dispatched": true, "In Transit": true, "Completed": true, "Closed": true, "Reversed": true, "Delivered": true, "Shipped": true,
 	// Stage 130.16 (74.5.3): the new documents' issued states - never deleted.
-	"Issued": true, "Partly Returned": true, "Returned": true, "Partly Received": true, "Sent": true, "Challan Pending": true, "Used": true,
+	"Issued": true, "Partly Returned": true, "Returned": true, "Partly Received": true, "Sent": true, "Challan Pending": true, "Used": true, "Accepted": true, "Active": true,
 }
 
 func isApprovalOnlyStatus(s string) bool {

@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**449** reports across **27** categories, all reachable from
+**456** reports across **28** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -50,7 +50,8 @@ open the right page.
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 41 reports
+- [Expenses](#expenses) - 1 reports
+- [Finance](#finance) - 43 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](report-catalog-2.md#hrms) - 15 reports
@@ -59,16 +60,16 @@ open the right page.
 - [Manufacturing](report-catalog-2.md#manufacturing) - 21 reports
 - [Master Data & Audit](report-catalog-2.md#master-data-audit) - 11 reports
 - [OMS](report-catalog-2.md#oms) - 25 reports
-- [PIM](report-catalog-2.md#pim) - 6 reports
+- [PIM](report-catalog-2.md#pim) - 8 reports
 - [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
 - [Procurement](report-catalog-3.md#procurement) - 27 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
-- [Quality](report-catalog-3.md#quality) - 2 reports
+- [Quality](report-catalog-3.md#quality) - 3 reports
 - [Sales](report-catalog-3.md#sales) - 14 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
 - [Service](report-catalog-3.md#service) - 1 reports
 - [Stock Transfer](report-catalog-3.md#stock-transfer) - 9 reports
-- [WMS](report-catalog-4.md#wms) - 49 reports
+- [WMS](report-catalog-4.md#wms) - 50 reports
 
 ## Accounting
 
@@ -1350,6 +1351,18 @@ open the right page.
 
 **Drill-down:** no.
 
+## Expenses
+
+### R5171 Employee advance balance
+
+**Report id:** `employee-advance-balance`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Employee · Advanced *(sensitive)* · Settled *(sensitive)* · Balance *(sensitive)*
+
+**Drill-down:** no.
+
 ## Finance
 
 ### R5060 Balance Sheet
@@ -1577,7 +1590,7 @@ open the right page.
 
 - **Account Code** (`account_code`) - text, **required**
 
-**Columns:** Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Running Balance *(sensitive)* · Date
+**Columns:** Document Type · Document ID · Line · Debit *(sensitive)* · Credit *(sensitive)* · Running Balance *(sensitive)* · Date
 
 **Drill-down:** no.
 
@@ -1606,6 +1619,19 @@ open the right page.
 **Columns:** From · To · Taxable Value *(sensitive)* · Output CGST *(sensitive)* · Output SGST *(sensitive)* · Output IGST *(sensitive)* · Total Tax Liability *(sensitive)* · Input Tax Credit *(sensitive)* · Net GST Payable *(sensitive)* · Exempt Value *(sensitive)* · Nil-Rated Value *(sensitive)* · Zero-Rated Value *(sensitive)* · Total Non-Taxable *(sensitive)* · Transactions
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### R5170 GSTR-2B reconciliation
+
+**Report id:** `gstr2b-reconciliation`
+
+**Parameters:**
+
+- **Month (YYYY-MM)** (`month`) - text, **required**
+- **Status** (`status`) - text, optional
+
+**Columns:** Status · Supplier GSTIN · Supplier · Invoice · Date · Value · Tax · Vendor bill · Why · Decision
+
+**Drill-down:** no.
 
 ### R5065 General Journal (who posted what)
 
@@ -1771,6 +1797,18 @@ open the right page.
 **Columns:** Project · Type · Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### R5172 Project budget vs actual
+
+**Report id:** `project-budget-vs-actual`
+
+**Parameters:**
+
+- **Project** (`project`) - text, **required**
+
+**Columns:** Cost type · Budget *(sensitive)* · Actual *(sensitive)* · Left *(sensitive)*
+
+**Drill-down:** no.
 
 ### R5075 Receivables Ageing
 

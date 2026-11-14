@@ -358,7 +358,7 @@ func stewardSourceMatches(e *StewardEntry, source, ref string) bool {
 // the value is stamped with its source (default ERP) and the entry's
 // confidence, and - when the entry says the system of record wins - a write
 // from another source is refused unless it leaves the stored value as it is.
-// The entry's channels and languages narrow the rule to the variants it covers.
+// The entry's channels, languages and markets narrow the rule to the variants it covers.
 func StewardshipGuard(tenantID string, payload map[string]interface{}) error {
 	attribute := strField(payload, "attribute")
 	if attribute == "" {
@@ -387,6 +387,15 @@ func StewardshipGuard(tenantID string, payload map[string]interface{}) error {
 	}
 	if lang := strField(payload, "locale"); lang != "" && len(csvList(e.Languages)) > 0 && !containsString(csvList(e.Languages), lang) {
 		return nil
+	}
+	// A market outside the entry's markets is not covered - but only when the write goes to that
+	// market's own row. The row's id carries no market unless it is named, so a write that
+	// declared another market while aiming at the shared row would otherwise step round the rule.
+	if mkt := strField(payload, "market"); mkt != "" && len(csvList(e.Markets)) > 0 && !containsString(csvList(e.Markets), mkt) {
+		own := attributeValueID(strField(payload, "item"), attribute, strField(payload, "locale"), strField(payload, "channel"), mkt)
+		if id := firstNonEmpty(strField(payload, "id"), strField(payload, "code")); id == own {
+			return nil
+		}
 	}
 	if stewardSourceMatches(e, source, strField(payload, "source_ref")) {
 		return nil

@@ -96,6 +96,9 @@ type DoctypeScope struct {
 	SelfField string
 	// OwnerField holds the inventory owner a row belongs to (47.5).
 	OwnerField string
+	// SelfContains (170.20): SelfField holds a comma-separated list of
+	// Employee codes and the row is the session's when its code is in it.
+	SelfContains bool
 }
 
 // Scoped reports whether any dimension applies.
@@ -155,6 +158,8 @@ var doctypeScopes = map[string]DoctypeScope{
 	"StockMove":              locScope("location", true), // Stage 85.B
 	"ProductionOrder":        locScope("location", true),
 	"PurchaseOrder":          locScope("location", true),
+	"PurchaseContract":       locScope("location", false),
+	"ServiceEntrySheet":      locScope("location", false),
 	"ReorderPointConfig":     locScope("location_code", true),
 	"SalesInvoice":           locScope("location", true),
 	"SubcontractOrder":       locScope("location", true),
@@ -213,11 +218,19 @@ var doctypeScopes = map[string]DoctypeScope{
 	// --- self (employee) ------------------------------------------------
 	// ExpenseClaim and ShiftAssignment also declare a location; both are
 	// listed with it so one map holds every dimension a doctype has.
+	"JobOpening":          {LocationFields: []string{"location"}}, // 170.18
+	"JobOffer":            {SelfField: "employee_id"},             // 170.18
+	"HolidayCalendar":     {LocationFields: []string{"location"}}, // 170.28
 	"Appraisal":           {SelfField: "employee_id"},
+	"BenefitEnrolment":    {SelfField: "employee_id"}, // 170.24
+	"SalaryRevision":      {SelfField: "employee_id"}, // 170.25
+	"StaffAdvance":        {SelfField: "employee_id"}, // 170.30
+	"Timesheet":           {SelfField: "employee_id"}, // 170.31
 	"EmployeeLoan":        {SelfField: "employee_id"},
 	"IncentiveProfile":    {SelfField: "employee_id"}, // Stage 148.30
 	"ExpenseClaim":        {LocationFields: []string{"location"}, LocationMandatory: true, SelfField: "employee_id"},
 	"Grievance":           {SelfField: "employee_id"},
+	"DisciplinaryCase":    {SelfField: "readers", SelfContains: true}, // 170.20
 	"Leave":               {SelfField: "employee_id"},
 	"OnboardingChecklist": {SelfField: "employee_id"},
 	"Payslip":             {SelfField: "employee_id"},
@@ -274,10 +287,13 @@ var globalScopeGrants = map[string][]string{
 var selfScopeExemptions = map[string]map[string]bool{
 	RoleStoreManager: {
 		"Appraisal": true, "Attendance": true,
-		"ExpenseClaim": true, "Grievance": true, "Leave": true,
+		"ExpenseClaim": true, "Grievance": true, "Leave": true, "Timesheet": true,
 		"OnboardingChecklist": true, "ShiftAssignment": true,
 		"TrainingRecord": true,
 	},
+	// 170.30 / 170.31: an Accountant pays every employee's advance and reads
+	// timesheets to cost projects.
+	"Accountant": {"StaffAdvance": true, "Timesheet": true},
 	// Cashier deliberately has NO exemption, even though the shipped seed
 	// grants it create/update on Leave, ExpenseClaim and Grievance. Those
 	// grants exist for self-service submission, not for reading colleagues'
@@ -341,6 +357,11 @@ type SessionScope struct {
 	// with no Employee record sees none of the self-scoped rows rather
 	// than all of them.
 	EmployeeCode string
+	// TeamMode (170.26): the self scope also admits the session's direct
+	// reports' records (TeamCodes). Set by ResolveSessionScope only when the
+	// hr.manager_team_scope setting is on.
+	TeamMode  bool
+	TeamCodes []string
 }
 
 // HasGlobalScope reports whether the role sees every row of a dimension.
@@ -358,6 +379,9 @@ func (s SessionScope) HasGlobalScope(dimension ScopeDimension, doctype string) b
 	}
 	switch dimension {
 	case ScopeSelf:
+		if s.TeamMode && teamScopeDoctypes[doctype] {
+			return false
+		}
 		return selfScopeExemptions[CanonicalRole(s.Role)][doctype]
 	case ScopeLocation:
 		return roleHasGlobalGrant(CapabilityGlobalLocation, s.Role)
@@ -389,6 +413,10 @@ type ScopeConstraint struct {
 	// for a dimension the doctype declares as optional, where a missing
 	// value means "not applicable" rather than "belongs to everyone".
 	AllowMissing bool
+	// Alt (170.26) are further values that match, a manager's direct reports.
+	Alt []string
+	// Contains (170.20): the field is a comma-separated list holding Value.
+	Contains bool
 }
 
 // ScopeConstraints returns everything a session must match to see a row of
@@ -412,7 +440,7 @@ func ScopeConstraints(doctype string, session SessionScope) ([]ScopeConstraint, 
 	if scope.SelfField != "" && !session.HasGlobalScope(ScopeSelf, doctype) {
 		out = append(out, ScopeConstraint{
 			Dimension: ScopeSelf, Fields: []string{scope.SelfField},
-			Value: session.EmployeeCode,
+			Value: session.EmployeeCode, Alt: session.TeamCodes, Contains: scope.SelfContains,
 		})
 	}
 	if scope.OwnerField != "" && !session.HasGlobalScope(ScopeOwner, doctype) {
@@ -446,7 +474,7 @@ func DocumentMatchesScope(constraints []ScopeConstraint, data map[string]interfa
 			}
 			return c.Dimension
 		}
-		if value != c.Value {
+		if !c.Matches(value) {
 			return c.Dimension
 		}
 	}
@@ -521,6 +549,9 @@ func SessionStoreFromContext(ctx context.Context) string {
 // it, so an ordinary request pays nothing.
 func ResolveSessionScope(tenantID, doctype string, session SessionScope) (SessionScope, error) {
 	scope, known := ScopeForDoctype(doctype)
+	if known && scope.SelfField != "" && teamModeApplies(tenantID, doctype, session) {
+		session.TeamMode = true // 170.26
+	}
 	if !known || scope.SelfField == "" || session.HasGlobalScope(ScopeSelf, doctype) {
 		return session, nil
 	}
@@ -529,6 +560,11 @@ func ResolveSessionScope(tenantID, doctype string, session SessionScope) (Sessio
 		return session, err
 	}
 	session.EmployeeCode = code
+	if session.TeamMode && code != "" {
+		if session.TeamCodes, err = DirectReportCodes(tenantID, code); err != nil {
+			return session, err
+		}
+	}
 	return session, nil
 }
 

@@ -223,7 +223,7 @@ function renderPOSReturnTable() {
         <div style="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
                     background: ${ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'};">
           ${cfgEsc(posReturnEligibility.explanation || '')}
-          ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div class="s-96ad60"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> Goods come back into this store.</div>` : ''}
+          ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div class="s-96ad60"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> ${posReturnEligibility.centralised ? `Booked there; goods come here by transfer.` : `Goods come back into this store.`}</div>` : ''}
           ${posReturnEligibility.sale_date ? `<span class="s-5872de"> Sold ${cfgEsc(posReturnEligibility.sale_date)}; return window ${posReturnEligibility.window_days} days.</span>` : ''}
           ${posBillCancellable() ? `<div class="s-8a77e5"><button type="button" class="btn btn-outline btn-sm" ${actionAttrs('cancelWholePOSBill', [])}>Cancel the whole bill</button> <span class="s-5872de">Refunds everything.</span></div>` : ''}
         </div>`;

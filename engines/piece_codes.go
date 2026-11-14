@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"custom_erp/db"
 )
 
 // Stage 146.3.2 - a code for every piece received.
@@ -189,4 +191,185 @@ func saveGRNLinesTx(tx *sql.Tx, schema, grnID string, lines []map[string]interfa
 // is not blank). The RF menu and the mint route use it.
 func PieceCodesSwitchedOn(tenantID string) bool {
 	return strings.TrimSpace(GetSettingString(tenantID, "inventory.piece_codes_stores")) != ""
+}
+
+// --- Stage 146.3.2b: the handheld's Receive pieces screen -------------------
+//
+// A goods receipt received in steps sits unposted until its children post, so
+// the codes can be scanned (or minted) onto each line from the handheld while
+// the goods are unpacked. They are kept on the line's serial_numbers, which is
+// what planPieceCodesTx reads at posting: those codes are kept and only the
+// shortfall is minted then. A line whose child has posted is read-only.
+
+// GRNPieceLine is one line of a stepped goods receipt that gives every piece
+// a code.
+type GRNPieceLine struct {
+	LineNo   int      `json:"line_no"`
+	SKU      string   `json:"sku"`
+	ItemName string   `json:"item_name,omitempty"`
+	Pieces   int      `json:"pieces"`
+	Codes    []string `json:"codes"`
+	Posted   bool     `json:"posted,omitempty"`
+}
+
+// GRNPieces is the Receive pieces screen for one goods receipt.
+type GRNPieces struct {
+	ID       string         `json:"id"`
+	Code     string         `json:"code"`
+	Location string         `json:"location"`
+	Lines    []GRNPieceLine `json:"lines"`
+}
+
+// resolveStepGRNRef turns what was typed or scanned (the receipt's id or its
+// code) into its id.
+func resolveStepGRNRef(tenantID, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	var id string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'GRN' AND deleted_at IS NULL
+		AND (id = $1 OR data->>'code' = $1) ORDER BY (id = $1) DESC LIMIT 1`, schema), ref).Scan(&id)
+	if err == sql.ErrNoRows || ref == "" {
+		return "", &ValidationError{Code: "GLOBAL-0004", Message: fmt.Sprintf("goods receipt %s not found", ref)}
+	}
+	return id, err
+}
+
+func pieceLineCodes(l map[string]interface{}) []string {
+	out := []string{}
+	if raw, ok := l["serial_numbers"].([]interface{}); ok {
+		for _, v := range raw {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+	}
+	return out
+}
+
+func grnPiecesView(tenantID string, g *stepGRN) *GRNPieces {
+	loc := strField(g.data, "location")
+	posted := map[string]bool{}
+	for _, c := range grnChildren(g.data) {
+		posted[c.Key] = c.Status == GRNStepPosted
+	}
+	all := g.step() == GRNStepPosted
+	v := &GRNPieces{ID: g.id, Code: firstNonEmpty(strField(g.data, "code"), g.id), Location: loc, Lines: []GRNPieceLine{}}
+	for _, l := range g.lines {
+		sku := strField(l, "sku")
+		if !PieceCodesOn(tenantID, sku, loc) {
+			continue
+		}
+		item, _, _ := fetchDocData(tenantID, "Item", sku)
+		v.Lines = append(v.Lines, GRNPieceLine{
+			LineNo: grnLineNo(l), SKU: sku, ItemName: strField(item, "name"),
+			Pieces: int(grnStepAccepted(l) + 0.5), Codes: pieceLineCodes(l),
+			Posted: all || posted[strField(l, "child")],
+		})
+	}
+	return v
+}
+
+// GRNPieceLines lists the lines of a stepped goods receipt that give every
+// piece a code, with the codes held so far.
+func GRNPieceLines(tenantID, ref string) (*GRNPieces, error) {
+	id, err := resolveStepGRNRef(tenantID, ref)
+	if err != nil {
+		return nil, err
+	}
+	g, err := loadStepGRN(tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer g.tx.Rollback()
+	return grnPiecesView(tenantID, g), nil
+}
+
+// SetGRNPieceCodes replaces the codes held on one line of a stepped goods
+// receipt; mintRest also mints a code for every piece still without one.
+func SetGRNPieceCodes(tenantID, userID, ref string, lineNo int, codes []string, mintRest bool) (*GRNPieces, error) {
+	id, err := resolveStepGRNRef(tenantID, ref)
+	if err != nil {
+		return nil, err
+	}
+	g, err := loadStepGRN(tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	l := g.line(lineNo)
+	if l == nil {
+		g.tx.Rollback()
+		return nil, &ValidationError{Code: "GLOBAL-0004", Message: fmt.Sprintf("goods receipt %s has no line %d", g.id, lineNo)}
+	}
+	sku, loc := strField(l, "sku"), strField(g.data, "location")
+	var line *GRNPieceLine
+	for _, pl := range grnPiecesView(tenantID, g).Lines {
+		if pl.LineNo == lineNo {
+			pl := pl
+			line = &pl
+		}
+	}
+	if line == nil {
+		g.tx.Rollback()
+		return nil, &ValidationError{Code: "INVENT-0115", Message: fmt.Sprintf("item %s does not take a code per piece at %s", sku, loc)}
+	}
+	if line.Posted {
+		g.tx.Rollback()
+		return nil, &ValidationError{Code: "GOODSR-0944", Message: fmt.Sprintf("line %d of goods receipt %s has posted - its codes cannot change", lineNo, firstNonEmpty(strField(g.data, "code"), g.id))}
+	}
+	var clean []string
+	for _, c := range codes {
+		if c = strings.TrimSpace(c); c != "" {
+			clean = append(clean, c)
+		}
+	}
+	if err := ValidateReceiptPieceLine(tenantID, loc, sku, clean, float64(line.Pieces)); err != nil {
+		g.tx.Rollback()
+		return nil, err
+	}
+	// A code is one piece's for good: not on another line of this receipt,
+	// and not already in the serial register for the item.
+	for _, other := range g.lines {
+		if grnLineNo(other) == lineNo || strField(other, "sku") != sku {
+			continue
+		}
+		taken := map[string]bool{}
+		for _, c := range pieceLineCodes(other) {
+			taken[c] = true
+		}
+		for _, c := range clean {
+			if taken[c] {
+				g.tx.Rollback()
+				return nil, &ValidationError{Code: "GLOBAL-0003", Message: fmt.Sprintf("code %s is already on line %d of this receipt", c, grnLineNo(other))}
+			}
+		}
+	}
+	for _, c := range clean {
+		if s, err := GetSerial(tenantID, sku, c); err != nil {
+			g.tx.Rollback()
+			return nil, err
+		} else if s != nil {
+			g.tx.Rollback()
+			return nil, &ValidationError{Code: "GLOBAL-0003", Message: fmt.Sprintf("code %s is already used for item %s", c, sku)}
+		}
+	}
+	if short := line.Pieces - len(clean); mintRest && short > 0 {
+		minted, err := MintPieceCodes(tenantID, short)
+		if err != nil {
+			g.tx.Rollback()
+			return nil, err
+		}
+		clean = append(clean, minted...)
+	}
+	list := make([]interface{}, len(clean))
+	for i, c := range clean {
+		list[i] = c
+	}
+	l["serial_numbers"] = list
+	if err := g.save(tenantID, userID, "Piece codes", ""); err != nil {
+		return nil, err
+	}
+	return GRNPieceLines(tenantID, id)
 }

@@ -16955,6 +16955,28 @@
         "sensitive": true
       }
     ],
+    "BenefitEnrolment": [
+      {
+        "doctype": "BenefitEnrolment",
+        "field": "value_override",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      }
+    ],
+    "BenefitPlan": [
+      {
+        "doctype": "BenefitPlan",
+        "field": "value",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      }
+    ],
     "Customer": [
       {
         "doctype": "Customer",
@@ -16983,6 +17005,24 @@
         "can_read": false,
         "can_write": false,
         "reason": "Employee salary account - payroll-grade personal data",
+        "sensitive": true
+      },
+      {
+        "doctype": "Employee",
+        "field": "cost_rate",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Employee hourly cost - individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "Employee",
+        "field": "tax_declared_deductions",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual tax declaration",
         "sensitive": true
       }
     ],
@@ -17102,6 +17142,42 @@
     "Payslip": [
       {
         "doctype": "Payslip",
+        "field": "benefit_deductions",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "Payslip",
+        "field": "benefit_earnings",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "Payslip",
+        "field": "benefit_employer",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "Payslip",
+        "field": "benefit_lines",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "Payslip",
         "field": "esi_deduction",
         "category": "hr.payroll",
         "can_read": false,
@@ -17125,6 +17201,24 @@
         "can_read": false,
         "can_write": false,
         "reason": "Reveals an individual's outstanding salary advance",
+        "sensitive": true
+      },
+      {
+        "doctype": "Payslip",
+        "field": "lwf_deduction",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "Payslip",
+        "field": "lwf_employer",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
         "sensitive": true
       },
       {
@@ -17183,6 +17277,80 @@
         "can_read": false,
         "can_write": false,
         "reason": "Robotics integration credential",
+        "sensitive": true
+      }
+    ],
+    "SalaryRevision": [
+      {
+        "doctype": "SalaryRevision",
+        "field": "basic",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "effective_date",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "esi_percent",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "hra",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "other_allowances",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "pf_percent",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "pt_amount",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
+        "sensitive": true
+      },
+      {
+        "doctype": "SalaryRevision",
+        "field": "reason",
+        "category": "hr.payroll",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Individual compensation",
         "sensitive": true
       }
     ],
@@ -20087,6 +20255,38 @@
       "number": "R9045"
     },
     {
+      "id": "employee-advance-balance",
+      "label": "Employee advance balance",
+      "category": "Expenses",
+      "module_key": "expenses",
+      "columns": [
+        {
+          "key": "employee_id",
+          "label": "Employee",
+          "sensitive": false
+        },
+        {
+          "key": "advanced",
+          "label": "Advanced",
+          "sensitive": true
+        },
+        {
+          "key": "settled",
+          "label": "Settled",
+          "sensitive": true
+        },
+        {
+          "key": "balance",
+          "label": "Balance",
+          "sensitive": true
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5171"
+    },
+    {
       "id": "profit-and-loss",
       "label": "Profit \u0026 Loss",
       "category": "Finance",
@@ -20271,6 +20471,11 @@
         {
           "key": "document_id",
           "label": "Document ID",
+          "sensitive": false
+        },
+        {
+          "key": "source_line_id",
+          "label": "Line",
           "sensitive": false
         },
         {
@@ -21498,6 +21703,81 @@
       "question": "What has arrived but is not in stock yet?",
       "description": "Goods on receipts still being verified, priced or posted - not sellable until their child GRN posts.",
       "number": "R3065"
+    },
+    {
+      "id": "gstr2b-reconciliation",
+      "label": "GSTR-2B reconciliation",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "supplier_gstin",
+          "label": "Supplier GSTIN",
+          "sensitive": false
+        },
+        {
+          "key": "supplier_name",
+          "label": "Supplier",
+          "sensitive": false
+        },
+        {
+          "key": "doc_number",
+          "label": "Invoice",
+          "sensitive": false
+        },
+        {
+          "key": "doc_date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "total",
+          "label": "Value",
+          "sensitive": false
+        },
+        {
+          "key": "tax",
+          "label": "Tax",
+          "sensitive": false
+        },
+        {
+          "key": "bill_id",
+          "label": "Vendor bill",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Why",
+          "sensitive": false
+        },
+        {
+          "key": "decision",
+          "label": "Decision",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "month",
+          "label": "Month (YYYY-MM)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5170"
     },
     {
       "id": "help-article-feedback",
@@ -23585,6 +23865,104 @@
       "number": "R3083"
     },
     {
+      "id": "range-by-store",
+      "label": "Range by store",
+      "category": "PIM",
+      "module_key": "pim",
+      "columns": [
+        {
+          "key": "store",
+          "label": "Store or channel",
+          "sensitive": false
+        },
+        {
+          "key": "item",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "via",
+          "label": "In range by",
+          "sensitive": false
+        },
+        {
+          "key": "valid_from",
+          "label": "From",
+          "sensitive": false
+        },
+        {
+          "key": "valid_to",
+          "label": "To",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "store",
+          "label": "Store or channel",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R7968"
+    },
+    {
+      "id": "listing-drift",
+      "label": "Listing drift",
+      "category": "PIM",
+      "module_key": "pim",
+      "columns": [
+        {
+          "key": "channel",
+          "label": "Channel",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "item_name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "kind",
+          "label": "Differs",
+          "sensitive": false
+        },
+        {
+          "key": "listing",
+          "label": "Listing",
+          "sensitive": false
+        },
+        {
+          "key": "master",
+          "label": "Item master",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "channel",
+          "label": "Channel",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R7969"
+    },
+    {
       "id": "pim-product-group-readiness",
       "label": "PIM Product Group Readiness",
       "category": "PIM",
@@ -24772,6 +25150,45 @@
       "number": "R5073"
     },
     {
+      "id": "project-budget-vs-actual",
+      "label": "Project budget vs actual",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "cost_type",
+          "label": "Cost type",
+          "sensitive": false
+        },
+        {
+          "key": "budget",
+          "label": "Budget",
+          "sensitive": true
+        },
+        {
+          "key": "actual",
+          "label": "Actual",
+          "sensitive": true
+        },
+        {
+          "key": "variance",
+          "label": "Left",
+          "sensitive": true
+        }
+      ],
+      "params": [
+        {
+          "key": "project",
+          "label": "Project",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5172"
+    },
+    {
       "id": "late-promise-lines",
       "label": "Late promise lines",
       "category": "Sales",
@@ -24855,6 +25272,149 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R2050"
+    },
+    {
+      "id": "aql-sample-plan",
+      "label": "AQL Sample Plan",
+      "category": "Quality",
+      "module_key": "quality",
+      "columns": [
+        {
+          "key": "lot_size",
+          "label": "Lot size",
+          "sensitive": false
+        },
+        {
+          "key": "aql",
+          "label": "AQL",
+          "sensitive": false
+        },
+        {
+          "key": "code_letter",
+          "label": "Code letter",
+          "sensitive": false
+        },
+        {
+          "key": "sample_size",
+          "label": "Sample",
+          "sensitive": false
+        },
+        {
+          "key": "accept_no",
+          "label": "Accept at",
+          "sensitive": false
+        },
+        {
+          "key": "reject_no",
+          "label": "Reject at",
+          "sensitive": false
+        },
+        {
+          "key": "full_inspection",
+          "label": "Whole lot",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "lot_size",
+          "label": "Lot size",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "aql",
+          "label": "AQL",
+          "type": "select",
+          "options": "0.065,0.10,0.15,0.25,0.40,0.65,1.0,1.5,2.5,4.0,6.5",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R7970"
+    },
+    {
+      "id": "lot-trace",
+      "label": "Lot Trace (Both Ways)",
+      "category": "WMS",
+      "module_key": "wms",
+      "columns": [
+        {
+          "key": "direction",
+          "label": "Direction",
+          "sensitive": false
+        },
+        {
+          "key": "level",
+          "label": "Step",
+          "sensitive": false
+        },
+        {
+          "key": "relation",
+          "label": "What",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "batch_no",
+          "label": "Batch / Lot",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "party",
+          "label": "Vendor / Location",
+          "sensitive": false
+        },
+        {
+          "key": "on",
+          "label": "When",
+          "sensitive": false
+        },
+        {
+          "key": "source",
+          "label": "Lot source",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "batch_no",
+          "label": "Batch / Lot",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sku",
+          "label": "Item Code (optional)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "direction",
+          "label": "Direction",
+          "type": "select",
+          "options": "Both,Forward,Backward",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R4050"
     },
     {
       "id": "rejections-by-reason",
@@ -49507,6 +50067,16 @@
         {
           "key": "qc_reject",
           "label": "QC reject",
+          "sensitive": false
+        },
+        {
+          "key": "dpm",
+          "label": "Defects per million",
+          "sensitive": false
+        },
+        {
+          "key": "open_scars",
+          "label": "Open SCARs",
           "sensitive": false
         },
         {

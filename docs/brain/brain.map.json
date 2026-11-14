@@ -458,14 +458,23 @@
         "internal/server/handlers_costing.go",
         "engines/budgeting.go",
         "engines/deferred_prepaid.go",
-        "engines/project.go"
+        "engines/project.go",
+        "engines/bank_part_match.go",
+        "engines/bank_statement_import.go",
+        "engines/payment_bank_response.go",
+        "internal/server/handlers_finance_bank_files.go",
+        "engines/gl_source_line.go",
+        "engines/project_milestone_budget.go",
+        "engines/project_revenue.go",
+        "engines/project_timesheet.go",
+        "internal/server/handlers_project_billing.go"
       ]
     },
     {
       "id": "tax",
       "lobe": "business",
       "name": "Tax & Statutory",
-      "role": "GST computation and enforcement (CGST/SGST/IGST, place-of-supply), TDS, and e-invoice (IRN) readiness - GSTIN rules, the canonical e-invoice JSON, the IRP queue and its test provider (Stage 75.2). Called from PO creation, checkout and invoicing rather than living inside any one of them.",
+      "role": "GST computation and enforcement (CGST/SGST/IGST, place-of-supply), TDS, and e-invoice (IRN) readiness - GSTIN rules, the canonical e-invoice JSON, the IRP queue and its test provider (Stage 75.2). Called from PO creation, checkout and invoicing rather than living inside any one of them. Ask 170 added the GSTR-1 and GSTR-2B files and export under LUT.",
       "match": [
         "engines/gstr1_lock.go",
         "engines/itc_bands_stage148_42.go",
@@ -480,14 +489,18 @@
         "engines/einvoice*.go",
         "internal/server/handlers_einvoice.go",
         "engines/ewaybill.go",
-        "internal/server/handlers_ewaybill.go"
+        "internal/server/handlers_ewaybill.go",
+        "engines/gst_export_lut.go",
+        "engines/gstr1_json.go",
+        "engines/gstr2b_reconcile.go",
+        "internal/server/handlers_gst_returns_files.go"
       ]
     },
     {
       "id": "procurement",
       "lobe": "business",
       "name": "Procurement & Vendors",
-      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note. Goods receipt in steps (Stage 94): receive, verify, price check into child GRNs, MRP per batch and posting per child, the invoice-vs-GRN note, the auto vendor bill, optional payment, correct after posting, and the grn_line / grn_line_change reports. Bulk Purchase Upload (Stage 129): vendors, designs, POs and the goods receipts of their bills from one Excel file.",
+      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note. Goods receipt in steps (Stage 94): receive, verify, price check into child GRNs, MRP per batch and posting per child, the invoice-vs-GRN note, the auto vendor bill, optional payment, correct after posting, and the grn_line / grn_line_change reports. Bulk Purchase Upload (Stage 129): vendors, designs, POs and the goods receipts of their bills from one Excel file. Ask 168 adds rate and blanket contracts with release POs, service POs with service entry sheets, supplier onboarding with an approved vendor list, and the supplier portal (orders, ASNs, bills, payments).",
       "match": [
         "engines/vendor_po_link.go",
         "internal/server/handlers_vendor_po_link.go",
@@ -537,7 +550,14 @@
         "engines/vendor_price_agreement.go",
         "engines/day_limits.go",
         "engines/gate_entry.go",
-        "engines/purchasing_conveniences.go"
+        "engines/purchasing_conveniences.go",
+        "engines/purchase_contract.go",
+        "internal/server/handlers_procurement_contracts.go",
+        "engines/service_entry.go",
+        "engines/vendor_onboarding.go",
+        "internal/server/handlers_vendor_onboarding.go",
+        "engines/supplier_portal_orders.go",
+        "internal/server/handlers_supplier_portal.go"
       ]
     },
     {
@@ -674,7 +694,16 @@
         "internal/server/handlers_shipping_package.go",
         "internal/server/handlers_bundles.go",
         "internal/server/handlers_returns.go",
-        "internal/server/handlers_settlement_reconciliation.go"
+        "internal/server/handlers_settlement_reconciliation.go",
+        "engines/oms_backorder.go",
+        "engines/oms_freight.go",
+        "engines/oms_payment_events.go",
+        "engines/oms_risk_hold.go",
+        "engines/oms_substitution.go",
+        "engines/returns_centralised.go",
+        "internal/server/handlers_oms_freight.go",
+        "internal/server/handlers_order_backorders.go",
+        "internal/server/handlers_order_payments.go"
       ]
     },
     {
@@ -727,7 +756,7 @@
       "id": "pim",
       "lobe": "business",
       "name": "Product Information (PIM)",
-      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary. Stage 36.5 adds declarative value-transform rules (a closed function vocabulary, applied by both the channel-publish and import paths); Stage 36.3 adds import depth on top of it: column-mapping templates, a scheduled directory scan, an inbound webhook, and variant-parent-aware preview. Stage 95 adds Design and Combination ID images (the PO's Images page, file-name matching) and each client's own S3-compatible image drive (hand-written SigV4) that every product image is read from and written to.",
+      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary. Stage 36.5 adds declarative value-transform rules (a closed function vocabulary, applied by both the channel-publish and import paths); Stage 36.3 adds import depth on top of it: column-mapping templates, a scheduled directory scan, an inbound webhook, and variant-parent-aware preview. Stage 95 adds Design and Combination ID images (the PO's Images page, file-name matching) and each client's own S3-compatible image drive (hand-written SigV4) that every product image is read from and written to. Ask 168 adds category attribute rules, item merge, store range, markdowns, listing drift and the Myntra price harvester.",
       "match": [
         "engines/pim*.go",
         "engines/image_drive*.go",
@@ -755,7 +784,12 @@
         "public/view-pim-data.css",
         "public/pim-catalog-share.html",
         "public/pim-catalog-share.css",
-        "public/pim-catalog-share.js"
+        "public/pim-catalog-share.js",
+        "internal/server/handlers_pim_category_rules.go",
+        "internal/server/handlers_pim_item_merge.go",
+        "internal/server/handlers_pim_range.go",
+        "internal/server/handlers_pim_market_harvest.go",
+        "public/view-market-harvest.css"
       ]
     },
     {
@@ -784,7 +818,7 @@
       "id": "hr",
       "lobe": "business",
       "name": "HR & Payroll",
-      "role": "Employee records, attendance and leave, payroll runs and export, and the employee↔user access link.",
+      "role": "Employee records, attendance and leave, payroll runs and export, and the employee↔user access link. Ask 170 added positions, recruitment, exits, disciplinary cases, certificates, calibration, slab TDS / LWF / ECR / 24Q, benefits, salary revisions, holiday calendars and people analytics.",
       "match": [
         "engines/hr.go",
         "engines/person_department.go",
@@ -794,7 +828,19 @@
         "engines/payroll_reconciliation.go",
         "internal/server/handlers_hr_usability.go",
         "engines/hr_journeys.go",
-        "internal/server/handlers_hr_journeys.go"
+        "internal/server/handlers_hr_journeys.go",
+        "engines/hr_analytics.go",
+        "engines/hr_appraisal_calibration.go",
+        "engines/hr_benefits.go",
+        "engines/hr_certificates.go",
+        "engines/hr_ecr.go",
+        "engines/hr_holiday_calendar.go",
+        "engines/hr_people.go",
+        "engines/hr_recruitment.go",
+        "engines/hr_salary_revision.go",
+        "engines/hr_tax.go",
+        "internal/server/handlers_hr_people.go",
+        "internal/server/handlers_hr_tax_calibration.go"
       ]
     },
     {
@@ -814,7 +860,7 @@
       "id": "assets",
       "lobe": "business",
       "name": "Fixed Assets, Service & Quality Management",
-      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings; service tickets (Draft→Assigned→InProgress→Resolved→Closed) and AMC service contracts with visit-entitlement tracking against those assets; and quality/maintenance - inspection plans, certificates of analysis (with batch quarantine on rejection), non-conformance/CAPA, and preventive maintenance schedules against those same assets.",
+      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings; service tickets (Draft→Assigned→InProgress→Resolved→Closed) and AMC service contracts with visit-entitlement tracking against those assets; and quality/maintenance - inspection plans, certificates of analysis (with batch quarantine on rejection), non-conformance/CAPA, and preventive maintenance schedules against those same assets. Ask 170 added leases, CWIP, impairment and revaluation, meters, maintenance cost, service SLAs, AQL sampling, lot genealogy and supplier SCARs.",
       "match": [
         "engines/assets.go",
         "engines/asset_items.go",
@@ -831,7 +877,18 @@
         "engines/stock_age_inspection.go",
         "internal/server/handlers_inspection_stage148_33.go",
         "internal/server/handlers_quality_maintenance.go",
-        "engines/quality_inspection.go"
+        "engines/quality_inspection.go",
+        "engines/asset_adjustment.go",
+        "engines/asset_cwip.go",
+        "engines/asset_lease.go",
+        "engines/asset_meter.go",
+        "engines/maintenance_cost.go",
+        "internal/server/handlers_asset_extras.go",
+        "engines/service_sla.go",
+        "engines/quality_aql_sampling.go",
+        "engines/quality_lot_genealogy.go",
+        "engines/quality_supplier_scar.go",
+        "internal/server/handlers_quality_scar.go"
       ]
     },
     {
@@ -844,7 +901,10 @@
         "engines/attachments.go",
         "engines/media_store.go",
         "public/attachments-panel.js",
-        "internal/server/handlers_attachments.go"
+        "internal/server/handlers_attachments.go",
+        "engines/expense_advance.go",
+        "engines/expense_limits.go",
+        "internal/server/handlers_expense_advance.go"
       ]
     },
     {
@@ -902,7 +962,9 @@
         "internal/server/handlers_import_resume.go",
         "engines/setup_workbook.go",
         "engines/xlsx_reader*.go",
-        "internal/server/setup_workbook*.go"
+        "internal/server/setup_workbook*.go",
+        "engines/data_quality_queue.go",
+        "engines/import_load_order.go"
       ]
     },
     {
@@ -923,7 +985,8 @@
         "internal/server/handlers_channel_listings.go",
         "engines/shopify_sync.go",
         "engines/shopify_pim_content.go",
-        "internal/server/handlers_shopify.go"
+        "internal/server/handlers_shopify.go",
+        "engines/shopify_relations.go"
       ]
     },
     {
@@ -936,6 +999,7 @@
         "engines/sticker_printer_preset.go",
         "internal/server/handlers_qz_*.go",
         "public/qz-print.js",
+        "public/qz-print-flow.js",
         "public/downloads/*",
         "public/sticker-engine.js",
         "public/sticker-studio.js",
@@ -1096,6 +1160,7 @@
         "engines/security_export.go",
         "engines/security_export_backfill.go",
         "engines/notification_decisions.go",
+        "engines/notification_clock.go",
         "engines/security_test_alert.go",
         "engines/security_baseline.go",
         "engines/outbound_guard.go",
@@ -1104,6 +1169,7 @@
         "internal/server/login_abuse.go",
         "engines/data_classification.go",
         "engines/privacy_rights.go",
+        "engines/privacy_rights_sweep.go",
         "engines/secret_keyring.go",
         "engines/telemetry_redaction.go",
         "engines/security_detection.go",
@@ -1115,6 +1181,8 @@
         "internal/server/webhook_events.go",
         "engines/security_emergency.go",
         "engines/security_posture.go",
+        "engines/security_evidence_encryption.go",
+        "internal/server/security_read_only.go",
         "engines/privileged_sessions.go",
         "engines/restore_verify.go",
         "engines/bounded_state.go",
@@ -1132,7 +1200,11 @@
         "cmd/surfacescan/*",
         "cmd/edgecheck/*",
         "cmd/securityimpact/*",
-        "cmd/stateforecast/*"
+        "cmd/stateforecast/*",
+        "engines/data_retention.go",
+        "engines/privacy_rights_staff_vendor.go",
+        "engines/tenant_masked_copy.go",
+        "internal/server/handlers_data_governance.go"
       ]
     },
     {

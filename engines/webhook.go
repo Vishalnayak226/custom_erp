@@ -185,6 +185,14 @@ func deliverWebhook(ctx context.Context, schema string, job Job) (map[string]int
 	eventName, _ := job.Payload["event_name"].(string)
 	eventPayload, _ := job.Payload["event_payload"].(map[string]interface{})
 
+	// 170.43: an export queued before the export freeze must not leave after it.
+	if isExportDeliveryEvent(eventName) {
+		if tenantID, err := tenantIDForSchema(schema); err == nil && GetSettingBool(tenantID, SettingFreezeExports) {
+			LogAuditEvent(tenantID, "system", "DATA_EXPORT", "REFUSED_FROZEN", "Webhook "+eventName)
+			return map[string]interface{}{"skipped": true, "reason": "exports are paused for this business"}, nil
+		}
+	}
+
 	if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
 		log.Printf("[WEBHOOK] sandbox tenant %s - simulating delivery of %q to %s (no real HTTP call made)", schema, eventName, rawURL)
 		noteSandboxSuppressed(schema, eventName+" -> "+sandboxHostOf(rawURL))

@@ -1075,4 +1075,11 @@ var reportNumbers = map[string]string{
 	"summary-invoice-groups":                                   "R3090",
 	"dropship-open-lines":                                      "R3091",
 	"sales-incentives":                                         "R3095",
+	"range-by-store":                                           "R7968",
+	"listing-drift":                                            "R7969",
+	"gstr2b-reconciliation":                                    "R5170",
+	"employee-advance-balance":                                 "R5171",
+	"project-budget-vs-actual":                                 "R5172",
+	"aql-sample-plan":                                          "R7970",
+	"lot-trace":                                                "R4050",
 }

@@ -114,3 +114,49 @@ func TestStage4962RegisterRowsAreComplete(t *testing.T) {
 		}
 	}
 }
+
+// 49.6.2: personal values held only in a document's JSON are in the register,
+// complete, and genuinely have no doctype_fields row.
+func TestPersonalDataJSONOnlyRowsAreComplete(t *testing.T) {
+	db.InitDB(testConnStr())
+	schema, err := db.GetTenantSchema("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(personalDataJSONOnly) == 0 {
+		t.Fatal("the JSON-only list is empty")
+	}
+	for dt, fields := range personalDataJSONOnly {
+		for f, row := range fields {
+			name := dt + "." + f
+			if strings.TrimSpace(row.Purpose) == "" || strings.TrimSpace(row.Retention) == "" || strings.TrimSpace(row.Readers) == "" {
+				t.Errorf("%s: purpose, retention and readers are all required", name)
+			}
+			if !personalDataKinds[row.Kind] || !personalDataBases[row.LegalBasis] {
+				t.Errorf("%s: kind or basis outside the vocabularies", name)
+			}
+			if !IsPersonalDataField(dt, f) {
+				t.Errorf("%s: not a personal-looking name - it does not belong here", name)
+			}
+			if _, dup := personalDataRegister[dt][f]; dup {
+				t.Errorf("%s is in both lists", name)
+			}
+			var n int
+			if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.doctype_fields WHERE doctype_name=$1 AND fieldname=$2`, schema), dt, f).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n > 0 {
+				t.Errorf("%s now has a doctype_fields row - move it to personalDataRegister", name)
+			}
+			if _, ok := LookupPersonalDataField(dt, f); !ok {
+				t.Errorf("%s: lookup does not find it", name)
+			}
+		}
+	}
+	// 49.6.2: the owner answered the SalesOrder questions; none stay open.
+	for _, q := range PersonalDataJSONOnlyQuestions() {
+		if strings.HasPrefix(q, "SalesOrder.") {
+			t.Errorf("answered question still open: %s", q)
+		}
+	}
+}

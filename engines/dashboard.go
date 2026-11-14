@@ -259,8 +259,11 @@ func runDashboardDigest(ctx context.Context, schema, tenantID, id, runBy string,
 	totalRows := -1
 
 	tiles, terr := getDashboardLayoutTiles(schema, layoutID)
-	// Stage 100.3.4: a custom dashboard's digest carries its charts.
-	if cd, cerr := getCustomDashboard(schema, layoutID); cerr == nil {
+	if scheduledExportFrozen(tenantID, runBy, "DashboardDigest "+id) {
+		// 146.5.6c: the export freeze stops a digest like any other export.
+		runStatus = exportsPausedRunStatus
+	} else if cd, cerr := getCustomDashboard(schema, layoutID); cerr == nil {
+		// Stage 100.3.4: a custom dashboard's digest carries its charts.
 		runStatus, totalRows = deliverCustomDashboardDigest(schema, tenantID, id, role, cd, data)
 	} else if terr != nil {
 		runStatus = "Failed: " + terr.Error()

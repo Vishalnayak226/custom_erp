@@ -358,6 +358,9 @@ func ValidateMaintenanceScheduleDocument(tenantID string, payload map[string]int
 	if days, ok := parityNumber(payload["interval_days"]); ok && days <= 0 {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Interval (days)", Message: "interval_days must be greater than zero"}
 	}
+	if m, ok := parityNumber(payload["interval_meter"]); ok && m <= 0 { // 170.9
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Interval (meter)", Message: "interval_meter must be greater than zero"}
+	}
 	return nil
 }
 
@@ -469,10 +472,28 @@ func runMaintenanceSchedulingForSchema(schema string) {
 		}
 		nextDueDate, _ := data["next_due_date"].(string)
 		intervalDays := int(numFromInterface(data["interval_days"]))
-		if nextDueDate == "" || intervalDays <= 0 || nextDueDate > today {
+		asset, _ := data["asset"].(string)
+		dateDue := nextDueDate != "" && intervalDays > 0 && nextDueDate <= today
+		// 170.9: a meter interval makes it due at whichever comes first.
+		meterDue, meterNow, meterKnown := false, 0.0, false
+		if meterInterval := numFromInterface(data["interval_meter"]); meterInterval > 0 && asset != "" {
+			if meterNow, meterKnown = latestMeterReading(schema, asset); meterKnown {
+				if _, has := data["meter_baseline"]; !has {
+					// First sight: the reading now is the baseline; nothing is raised.
+					db.DB.Exec(fmt.Sprintf(
+						`UPDATE %s.documents SET data = jsonb_set(data, '{meter_baseline}', to_jsonb($1::float8)), updated_at = CURRENT_TIMESTAMP WHERE doctype = 'MaintenanceSchedule' AND id = $2`, schema),
+						meterNow, s.id)
+				} else if meterNow-numFromInterface(data["meter_baseline"]) >= meterInterval {
+					meterDue = true
+				}
+			}
+		}
+		if !dateDue && !meterDue {
 			continue
 		}
-		asset, _ := data["asset"].(string)
+		if !dateDue {
+			nextDueDate = today // raised by the meter alone: due today
+		}
 		description, _ := data["description"].(string)
 
 		orderID := NewDocID("MO")
@@ -495,6 +516,14 @@ func runMaintenanceSchedulingForSchema(schema string) {
 			continue
 		}
 
+		if meterKnown { // 170.9: the next meter interval counts from this service
+			db.DB.Exec(fmt.Sprintf(
+				`UPDATE %s.documents SET data = jsonb_set(data, '{meter_baseline}', to_jsonb($1::float8)), updated_at = CURRENT_TIMESTAMP WHERE doctype = 'MaintenanceSchedule' AND id = $2`, schema),
+				meterNow, s.id)
+		}
+		if intervalDays <= 0 {
+			continue // a meter-only schedule has no date to advance
+		}
 		newNextDueDate, err := time.Parse("2006-01-02", nextDueDate)
 		if err != nil {
 			log.Printf("[MAINTENANCE-SCHEDULE] Failed to parse next_due_date for schedule %s: %v", s.id, err)

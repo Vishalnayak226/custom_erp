@@ -177,6 +177,10 @@ func MatchVendorInvoiceAs(tenantID, userID, invoiceID, poID, grnID string, toler
 	if poID, err = resolveRef(poID, "po_id", "PO"); err != nil {
 		return out, err
 	}
+	// Stage 168.2: a service PO has no GRN; the accepted service entry sheet stands in.
+	if svc, _, _ := fetchDocData(tenantID, "PurchaseOrder", poID); POIsService(svc) {
+		return matchServiceVendorInvoice(tx, tenantID, schema, invoiceID, poID, invData, tolerancePercent)
+	}
 	if grnID, err = resolveRef(grnID, "grn_id", "GRN"); err != nil {
 		return out, err
 	}

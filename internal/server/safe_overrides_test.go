@@ -101,6 +101,13 @@ var reviewedOverrides = func() map[string]overrideEntry {
 		"internal/server/handlers_qz_print.go|json|copies_override":         {NotAControl: "how many copies to print"},
 		"engines/shopify_sync.go|bool|force":                                {NotAControl: "send every price instead of only the changed ones"},
 		"engines/transaction_controls.go|bool|force":                        {NotAControl: "run the reconciliation checks now instead of at most once a day"},
+		// 170.41: Ignored takes a data-quality finding off the open queue; it lifts no business rule.
+		"engines/data_quality_queue.go|json|ignore_reason": {Gate: "master.data-quality capability on POST /api/v1/data-quality/{id}/status",
+			Reason: "a reason is required to set Ignored (MASTER-1700), kept on the row", Audit: "DATA_QUALITY_STATUS row per change; an Ignored row stays ignored on later scans, a Fixed one reopens if its problem returns"},
+		"engines/data_quality_queue.go|key|ignore_reason": {Gate: "master.data-quality capability, or the DataQualityIssue doctype permission on the generic screen (validateDataQualityIssueRules applies the same rule)",
+			Reason: "a reason is required to set Ignored (MASTER-1700)", Audit: "DATA_QUALITY_STATUS row; the document's version history"},
+		"engines/hr_benefits.go|key|value_override": {NotAControl: "a benefit enrolment's own amount or percent in place of its plan's default (170.24) - payroll configuration on the enrolment record, not a lifted check"},
+		"engines/project_revenue.go|bool|Skipped":   {NotAControl: "output: the project-month was already booked, so the run booked nothing (170.33's replay-safe path)"},
 	}
 }()
 

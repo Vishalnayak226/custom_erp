@@ -193,6 +193,17 @@ func handleEditOrderLines(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(result)
 }
 
+// handleSubstituteOrderLine is Stage 73.4.2.5: the line swapped for its
+// item's set substitute, as one line edit.
+func handleSubstituteOrderLine(w http.ResponseWriter, r *http.Request) {
+	result, err := engines.SubstituteOrderLine(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.PathValue("lineId"), r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
 // handleCreateReplacementOrder is Stage 73.2.15: a no-charge Replacement or
 // Reship linked to a shipped order. request_key makes a retry safe.
 func handleCreateReplacementOrder(w http.ResponseWriter, r *http.Request) {

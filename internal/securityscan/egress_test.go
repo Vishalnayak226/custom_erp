@@ -86,6 +86,18 @@ var reviewedEgress = map[string]egressEntry{
 			PIM publish and return-pickup paths name it.`,
 		Evidence: []string{viaGuard, viaCallGate},
 	},
+	"engines/pim_market_harvest.go": {
+		Uses: map[string]int{"http-request": 1},
+		Destination: `One fixed public host: https://www.myntra.com (its robots.txt and search pages), for an admin-started
+			market-price run. Never a client-typed address; redirects are not followed.`,
+		Guard: `The outbound guard (public addresses only). robots.txt is fetched once per run and a disallowed
+			path is never requested; one request at a time, at least 5 seconds apart; a hard page cap per run;
+			a stop on 429, 403, a redirect or a captcha-looking answer; a generic product User-Agent.`,
+		KillSwitch: `Off by default: the client's platform.market_harvest_myntra setting (admin-only) must be on, and the
+			call goes through outsideCallRefusal first, so the emergency switch, a sandbox client, a frozen
+			client and development all stop it (development refuses every non-loopback address).`,
+		Evidence: []string{viaGuard, viaCallGate, "SettingMyntraHarvest"},
+	},
 	"engines/webhook.go": {
 		Uses:        map[string]int{"http-request": 1, "dns": 1},
 		Destination: `Client-registered webhook subscriptions (signed event deliveries).`,

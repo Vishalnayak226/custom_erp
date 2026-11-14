@@ -57,7 +57,24 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return err
 	}
 
+	if err := validateAssortmentRange(tenantID, doctype, priorData, payload); err != nil {
+		return err
+	}
+	// Ask 170 (17, 18, 20, 28): positions, managers, recruitment, disciplinary
+	// readers and the holiday calendar - hr_people.go.
+	if err := validateHRPeople(tenantID, doctype, docID, priorStatus, priorData, payload); err != nil {
+		return err
+	}
+
 	switch doctype {
+	case "Assortment":
+		return ValidateAssortmentRecord(payload)
+	case "MarkdownPlan":
+		return ValidateMarkdownPlan(payload)
+	case ApprovedVendorDoctype:
+		return validateApprovedVendorRow(tenantID, docID, payload)
+	case "JournalVoucher": // 49.5.7: the engine line rules on a generic save too
+		return validateJournalVoucherSave(payload)
 	case "StatusTransitionRule":
 		return validateStatusTransitionRule(tenantID, payload)
 	case "GRN":
@@ -66,6 +83,10 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateASNRules(tenantID, payload)
 	case "VendorInvoice":
 		return validateVendorInvoiceCreateRules(tenantID, payload)
+	case PurchaseContractDoctype:
+		return validatePurchaseContractSave(tenantID, docID, priorStatus, priorData, payload)
+	case ServiceEntrySheetDoctype:
+		return validateServiceEntrySheetSave(tenantID, docID, priorStatus, priorData, payload)
 	case "PurchaseOrder":
 		return validatePurchaseOrderEditRules(tenantID, docID, priorStatus, priorData, payload)
 	case "PostingProfile": // Stage 74.1.3
@@ -93,11 +114,29 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateLeaveRules(tenantID, docID, payload)
 	case "Attendance":
 		return validateAttendanceRules(tenantID, payload)
+	case "Appraisal": // 170.22
+		return validateAppraisalCalibrationFields(priorData, payload)
+	case "SalaryRevision": // 170.25
+		return validateSalaryRevision(tenantID, payload)
+	case "BenefitEnrolment": // 170.24
+		return validateBenefitEnrolment(tenantID, payload)
+	case "BenefitPlan": // 170.24
+		return validateBenefitPlan(payload)
+	case "TaxSlab": // 170.23
+		return validateTaxSlab(payload)
 	case "PurchaseRequisition":
 		if err := validatePurchaseRequisitionEditRules(priorStatus, priorData); err != nil {
 			return err
 		}
 		return validateRequisitionLineEdit(priorData, payload) // 148.14
+	case ProjectMilestoneDoctype: // 170.32
+		return validateProjectMilestoneSave(tenantID, docID, priorStatus, priorData, payload)
+	case ProjectBudgetDoctype: // 170.32
+		return validateProjectBudgetSave(payload)
+	case "Timesheet": // 170.31
+		return validateTimesheetSave(tenantID, docID, priorStatus, priorData, payload)
+	case "ExpenseClaim": // 170.29
+		return validateExpenseClaimLimit(tenantID, payload)
 	case "PurchaseReturn":
 		return validatePurchaseReturnRules(tenantID, docID, priorStatus, priorData, payload)
 	case "VendorQuote": // Stage 73.2.3: the award selects a quote
@@ -538,6 +577,9 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine,
 	if err := refuseDropShipGRN(tenantID, poID); err != nil { // Stage 148.32: the goods never come to our stores
 		return err
 	}
+	if err := refuseServiceGRN(tenantID, poID); err != nil { // Stage 168.2: work is recorded on a service entry sheet
+		return err
+	}
 	ordered, err := fetchPOItemQuantities(tenantID, poID)
 	if err != nil && err != sql.ErrNoRows {
 		// 24.33: fail closed on a corrupt PO row instead of silently
@@ -769,6 +811,13 @@ func validateVendorInvoiceCreateRules(tenantID string, payload map[string]interf
 // not a status-only update (e.g. the approval flow moving Draft ->
 // Approved touches nothing this function cares about).
 func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorData, payload map[string]interface{}) error {
+	// Stage 168: the kind is fixed after approval; a named contract fixes the rate, window and cap.
+	if err := validatePOKind(priorStatus, priorData, payload); err != nil {
+		return err
+	}
+	if err := applyPOContract(tenantID, docID, priorStatus, priorData, payload); err != nil {
+		return err
+	}
 	// Stage 148.11: the PO form rebuilds lines from sku / qty / rate, so the
 	// line control of the prior lines is carried over, then checked.
 	if docID != "" && priorData != nil {
@@ -779,6 +828,9 @@ func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorDa
 	}
 	if newItems, _ := payload["items"].(string); newItems != "" {
 		if err := validatePOLineControl(newItems); err != nil {
+			return err
+		}
+		if err := validatePOLifecycle(tenantID, priorData, payload); err != nil { // 168.5
 			return err
 		}
 	}

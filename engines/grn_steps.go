@@ -642,7 +642,8 @@ func writeGRNLineRows(ex grnExecer, schema, grnID string, data map[string]interf
 
 // grnLoggedFields are the line figures whose every change is logged.
 var grnLoggedFields = []string{"received_qty", "invoice_qty", "invoice_rate", "grn_qty", "grn_price",
-	"rejected_qty", "damaged_qty", "excess_action", "child", "mrp"}
+	"rejected_qty", "damaged_qty", "excess_action", "child", "mrp",
+	"serial_numbers"} // 146.3.2b: piece codes scanned on the handheld
 
 func grnFieldText(v interface{}) string {
 	if v == nil {

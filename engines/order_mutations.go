@@ -306,6 +306,9 @@ func EditSalesOrder(tenantID, orderID string, edit OrderEdit, userID string) err
 	apply("customer_name", edit.CustomerName)
 	apply("shipping_address", edit.ShippingAddress)
 	apply("billing_address", edit.BillingAddress)
+	if b, _ := orderData["billing_address"].(string); b != "" && billingUnlessShipping(b, strField(orderData, "shipping_address")) == "" {
+		delete(orderData, "billing_address") // 49.6.2: the shipping address already says it
+	}
 	apply("customer_reference", edit.CustomerRef) // Stage 73.2.9
 	apply("payment_status", edit.PaymentStatus)
 	if edit.DeliveryDate != nil {

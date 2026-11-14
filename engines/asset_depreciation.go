@@ -56,6 +56,18 @@ type assetDepPlan struct {
 	start     time.Time // first day of month 1 (the capitalisation month)
 	months    int       // useful life in months
 	costPaise int64     // what capitalisation posted to 1400
+	// 170.7: an impairment or revaluation resets the base over the remaining
+	// life. baseCost is the cost the months before the first reset were
+	// planned on; each reset is the charge from month idx on.
+	baseCost int64
+	rebases  []assetDepRebase
+}
+
+// assetDepRebase is one reset of the depreciation base (170.7): from month idx
+// the charge is per, and the last month of the life takes last.
+type assetDepRebase struct {
+	idx       int
+	per, last int64
 }
 
 // assetCostPaise is what capitalisation debits (or debited) to 1400, the
@@ -82,6 +94,19 @@ func assetDepreciationPlan(data map[string]interface{}, capDate string) (assetDe
 		capDate, _ = data["capitalisation_date"].(string)
 	}
 	plan := assetDepPlan{costPaise: assetCostPaise(data), months: int(math.Round(life * 12))}
+	plan.baseCost = plan.costPaise
+	if o, ok := data["original_cost_paise"].(float64); ok && o > 0 {
+		plan.baseCost = int64(o)
+	}
+	if list, ok := data["dep_rebases"].([]interface{}); ok {
+		for _, raw := range list {
+			m, _ := raw.(map[string]interface{})
+			idx, per, last := int(numFromInterface(m["idx"])), int64(numFromInterface(m["per"])), int64(numFromInterface(m["last"]))
+			if idx > 0 {
+				plan.rebases = append(plan.rebases, assetDepRebase{idx: idx, per: per, last: last})
+			}
+		}
+	}
 	t, err := time.Parse("2006-01-02", capDate)
 	if err != nil || plan.months <= 0 || plan.costPaise <= 0 {
 		return plan, false
@@ -96,9 +121,21 @@ func (p assetDepPlan) monthKey(i int) string      { return p.monthStart(i).Forma
 
 // amount is month i's charge in paise; the last month takes the remainder.
 func (p assetDepPlan) amount(i int) int64 {
-	per := p.costPaise / int64(p.months)
+	for k := len(p.rebases) - 1; k >= 0; k-- {
+		if r := p.rebases[k]; i >= r.idx {
+			if i == p.months {
+				return r.last
+			}
+			return r.per
+		}
+	}
+	base := p.baseCost
+	if base <= 0 {
+		base = p.costPaise
+	}
+	per := base / int64(p.months)
 	if i == p.months {
-		return p.costPaise - per*int64(p.months-1)
+		return base - per*int64(p.months-1)
 	}
 	return per
 }
@@ -522,6 +559,7 @@ func PreviewAssetDisposal(tenantID, assetID string, proceeds float64, receivedIn
 	for _, p := range posted {
 		accumulated += p.amount
 	}
+	accumulated += assetAdjustmentAccumulated(data) // 170.7: impairment and revaluation-down credits to 1410
 	preview := &AssetDisposal{AssetID: assetID, DepreciationFirst: []string{}, DepreciationSkipped: []AssetDepreciationSkip{}}
 	preview.Code, _ = data["code"].(string)
 	if plan, ok := assetDepreciationPlan(data, ""); ok {
@@ -611,6 +649,7 @@ func DisposeAssetWithProceeds(tenantID, assetID, disposalType string, proceeds f
 	for _, p := range posted {
 		accumulated += p.amount
 	}
+	accumulated += assetAdjustmentAccumulated(data) // 170.7
 	costPaise := assetCostPaise(data)
 	proceedsPaise := RupeesToPaise(proceeds)
 	debits, credits, gainLoss := assetDisposalEntry(costPaise, accumulated, proceedsPaise, receivedInto)

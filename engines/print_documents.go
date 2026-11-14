@@ -854,6 +854,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, firstNonEmpty(strField(data, "customer_id"), strField(data, "customer"))), "Buyer"
 		d.Interstate, _ = data["interstate"].(bool)
 		d.Fields["sales_order"] = DocumentNumber(tenantID, "SalesOrder", strField(data, "sales_order_id")) // its number, not its id
+		exportPrintFields(tenantID, data, d.Fields)                                                        // 170.37: LUT declaration and shipping bill
 		d.Fields["buyer_gstin"] = firstNonEmpty(strField(data, "customer_gstin"), d.Party.GSTIN)           // Stage 130.16: the invoice's own first
 		if pos := strField(data, "place_of_supply"); pos != "" {
 			d.Fields["place_of_supply"] = pos

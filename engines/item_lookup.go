@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrItemNotFound is returned by ResolveItemBySKU when nothing matches the
@@ -45,6 +46,13 @@ type ResolvedItem struct {
 // only then the barcode, and only then the raw internal id. Soft-deleted items
 // (Stage 17.1) never match.
 func ResolveItemBySKU(tenantID, sku string) (*ResolvedItem, error) {
+	return resolveItemBySKUHops(tenantID, sku, 0)
+}
+
+// resolveItemBySKUHops is ResolveItemBySKU with the merge redirect: a merged
+// item (merged_into set) resolves to the item it joined, MatchedOn "merged".
+// hops < 0 does not follow it (the merge itself reads both sides as stored).
+func resolveItemBySKUHops(tenantID, sku string, hops int) (*ResolvedItem, error) {
 	if sku == "" {
 		return nil, ErrItemNotFound
 	}
@@ -76,7 +84,7 @@ func ResolveItemBySKU(tenantID, sku string) (*ResolvedItem, error) {
 		// its SKU too. Only consulted when nothing matched directly, so it can
 		// never shadow a code, barcode or id.
 		if itemID := resolveRegisteredBarcode(schema, sku); itemID != "" && itemID != sku {
-			resolved, errReg := ResolveItemBySKU(tenantID, itemID)
+			resolved, errReg := resolveItemBySKUHops(tenantID, itemID, hops)
 			if errReg == nil {
 				resolved.MatchedOn = "registered_barcode"
 			}
@@ -91,6 +99,12 @@ func ResolveItemBySKU(tenantID, sku string) (*ResolvedItem, error) {
 	item := &ResolvedItem{ID: id, Status: status, MatchedOn: matchedOn, Data: map[string]interface{}{}}
 	if err := json.Unmarshal([]byte(dataStr), &item.Data); err != nil {
 		return nil, fmt.Errorf("item '%s' has unreadable data: %v", sku, err)
+	}
+	if to := strings.TrimSpace(fmt.Sprint(item.Data["merged_into"])); hops >= 0 && hops < 5 && to != "" && to != "<nil>" && to != sku {
+		if next, errNext := resolveItemBySKUHops(tenantID, to, hops+1); errNext == nil {
+			next.MatchedOn = "merged"
+			return next, nil
+		}
 	}
 	return item, nil
 }

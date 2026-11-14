@@ -34,6 +34,8 @@ func handleTaskInbox(w http.ResponseWriter, r *http.Request) {
 	if !scope.Exceptions {
 		scope.Exceptions, _ = checkPermission(tenantID, role, "DeliveryChallan", "read")
 	}
+	// 170.41: the data-quality queue, for whoever may update the issue rows.
+	scope.DataQuality, _ = checkPermission(tenantID, role, "DataQualityIssue", "update")
 	inbox, err := engines.ListTaskInbox(tenantID, scope)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)

@@ -121,13 +121,14 @@ func handleBankLineAction(w http.ResponseWriter, r *http.Request) {
 	tenantID, _, username, role := financeActor(r)
 	lineID, action := r.PathValue("id"), r.PathValue("action")
 	var req struct {
-		PostingIDs      []string `json:"posting_ids"`
-		Note            string   `json:"note"`
-		Reason          string   `json:"reason"`
-		Owner           string   `json:"owner"`
-		BatchID         string   `json:"settlement_batch_id"`
-		ClearingAccount string   `json:"clearing_account"`
-		Fee             float64  `json:"fee"`
+		PostingIDs      []string           `json:"posting_ids"`
+		Note            string             `json:"note"`
+		Reason          string             `json:"reason"`
+		Owner           string             `json:"owner"`
+		BatchID         string             `json:"settlement_batch_id"`
+		ClearingAccount string             `json:"clearing_account"`
+		Fee             float64            `json:"fee"`
+		Parts           []engines.BankPart `json:"parts"`
 	}
 	if !decodeFinanceBody(w, r, &req) {
 		return
@@ -136,6 +137,8 @@ func handleBankLineAction(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "match":
 		err = engines.MatchBankLine(tenantID, lineID, req.PostingIDs, req.Note, username)
+	case "part-match":
+		err = engines.MatchBankLineParts(tenantID, lineID, req.Parts, req.Note, username)
 	case "unmatch":
 		err = engines.UnmatchBankLine(tenantID, lineID, req.Reason, username)
 	case "exception":

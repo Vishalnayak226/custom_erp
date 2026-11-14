@@ -194,6 +194,13 @@ func RoleMayOnDoctype(tenantID, role, doctype, action string) (bool, error) {
 	if HasFullAccess(role) {
 		return true, nil
 	}
+	// 165.1: every signed-in role keeps its own favourites and saved views, so
+	// a role made after Stage 139 needs no grant row. Safe because UserShortcut
+	// is creator-owned (CreatorMayAccess): each role reads and changes only
+	// the rows it made.
+	if doctype == UserShortcutDoctype && role != "" {
+		return true, nil
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return false, err

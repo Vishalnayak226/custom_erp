@@ -14,6 +14,8 @@
 // BLD-041: native ES module loaded with import() by the Manufacturing view.
 const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
+const scarMod = await import('./view-quality-scar.js' + new URL(import.meta.url).search);
+
 const esc = v => escapeHTMLText(v == null ? '' : String(v));
 const num = v => { const x = Number(v) || 0; return x === Math.round(x) ? String(x) : x.toFixed(2); };
 const today = () => localISODate(new Date());
@@ -184,6 +186,9 @@ async function renderInspections(container) {
         <select id="qi-plan" class="form-select"><option value="">No plan - enter readings</option>${active.map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.item || '')}</option>`).join('')}</select></div>
     </div>
     <p id="qi-hint" class="s-cc7568"></p>
+    <p id="qi-aql" class="s-cc7568"></p>
+    <div class="form-group s-41a73c"><label class="form-label" for="qi-defects">Defects found</label>
+      <input type="number" id="qi-defects" class="form-input" min="0" step="1"></div>
     <div class="s-4c0544">${readingsTable('qi-readings', true)}</div>
     <div class="form-group s-41a73c"><label class="form-label" for="qi-remarks">Remarks</label>
       <input type="text" id="qi-remarks" class="form-input"></div>
@@ -215,13 +220,15 @@ async function renderInspections(container) {
   attachLinkTypeahead(form.querySelector('#qi-item'), 'Item');
   attachLinkTypeahead(form.querySelector('#qi-loc'), 'Location');
   wireReadings(form, 'qi-readings', true, form.querySelector('#qi-plan'));
+  scarMod.wireAqlHint(form, active);
   form.querySelector('#qi-save').addEventListener('click', e => guardAgainstDoubleSubmit(e.currentTarget, 'Saving...', async () => {
     const body = {
       source_type: typeSel.value, source_id: form.querySelector('#qi-source').value.trim(),
       item: form.querySelector('#qi-item').value.trim(), batch_no: form.querySelector('#qi-batch').value.trim(),
       location: form.querySelector('#qi-loc').value.trim(), qty_inspected: parseFloat(form.querySelector('#qi-qty').value) || 0,
       inspection_plan: form.querySelector('#qi-plan').value, remarks: form.querySelector('#qi-remarks').value.trim(),
-      readings: readReadings(form.querySelector('#qi-readings'))
+      readings: readReadings(form.querySelector('#qi-readings')),
+      defects_found: form.querySelector('#qi-defects').value === '' ? undefined : parseFloat(form.querySelector('#qi-defects').value)
     };
     const out = await post('/api/v1/quality/inspection', body, 'The inspection could not be recorded.', 'Quality Inspection');
     if (!out) return;
@@ -461,6 +468,7 @@ async function renderMaintenance(container) {
       <div class="form-group s-50435f"><label class="form-label" for="ms-asset">Asset</label><input type="text" id="ms-asset" class="form-input s-30080b" autocomplete="off"></div>
       <div class="form-group s-20be51"><label class="form-label" for="ms-desc">Work</label><input type="text" id="ms-desc" class="form-input"></div>
       <div class="form-group s-50435f"><label class="form-label" for="ms-every">Every (days)</label><input type="number" id="ms-every" class="form-input s-34deaa" min="1"></div>
+      <div class="form-group s-50435f"><label class="form-label" for="ms-meter">Every (meter)</label><input type="number" id="ms-meter" class="form-input s-34deaa" min="1"></div>
       <div class="form-group s-50435f"><label class="form-label" for="ms-next">First due</label><input type="date" id="ms-next" class="form-input"></div>
     </div>
     <div class="form-group s-41a73c"><label class="form-label" for="ms-checklist">Task checklist - one task per line; each order raised gets it</label><textarea id="ms-checklist" class="form-input" rows="3"></textarea></div>
@@ -482,7 +490,7 @@ async function renderMaintenance(container) {
   schedForm.querySelector('#ms-save').addEventListener('click', e => guardAgainstDoubleSubmit(e.currentTarget, 'Saving...', async () => {
     const code = schedForm.querySelector('#ms-code').value.trim();
     const out = await post('/api/v1/doc/MaintenanceSchedule', { id: code, code, asset: schedForm.querySelector('#ms-asset').value.trim(), description: schedForm.querySelector('#ms-desc').value.trim(),
-      interval_days: parseInt(schedForm.querySelector('#ms-every').value, 10) || 0, next_due_date: schedForm.querySelector('#ms-next').value,
+      interval_days: parseInt(schedForm.querySelector('#ms-every').value, 10) || 0, interval_meter: parseFloat(schedForm.querySelector('#ms-meter').value) || undefined, next_due_date: schedForm.querySelector('#ms-next').value,
       checklist: schedForm.querySelector('#ms-checklist').value, status: 'Active' }, 'The schedule could not be saved.', 'Maintenance');
     if (!out) return;
     showToast(`Schedule ${code} saved - its orders are raised on each due date.`, { variant: 'success' });
@@ -507,24 +515,28 @@ async function maintenanceStep(o, act) {
     const dlg = openQualityDialog(`Complete ${o.code || o.id}`, `
       ${tasks.length ? `<fieldset class="s-d056b1"><legend class="form-label">Checklist - every task must be ticked</legend>
         ${tasks.map((x, i) => `<label class="s-d17d1d"><input type="checkbox" class="mo-task" data-i="${i}"> ${esc(x.task)}</label>`).join('')}</fieldset>` : ''}
-      <div><label class="form-label">Parts used (recorded on the order - not taken from stock)</label>
-        <table><thead><tr><th>Item</th><th class="num">Qty</th><th></th></tr></thead><tbody id="mo-parts"></tbody></table>
+      <div><label class="form-label">Parts used</label>
+        <table><thead><tr><th>Item</th><th class="num">Qty</th><th>Store</th><th></th></tr></thead><tbody id="mo-parts"></tbody></table>
         <button type="button" class="btn btn-outline btn-sm s-a5595d" id="mo-add-part">+ Add part</button></div>
       <div class="form-group s-2a0ca8"><label class="form-label" for="mo-hours">Hours worked</label><input type="number" id="mo-hours" class="form-input s-da190a" min="0" step="any"></div>
+      <div class="form-group s-2a0ca8"><label class="form-label" for="mo-rate">Rate per hour</label><input type="number" id="mo-rate" class="form-input s-da190a" min="0" step="any"></div>
+      <div class="form-group s-2a0ca8"><label class="form-label" for="mo-down">Downtime (hours)</label><input type="number" id="mo-down" class="form-input s-da190a" min="0" step="any"></div>
       <div class="form-group s-2a0ca8"><label class="form-label" for="mo-notes">What was done</label><textarea id="mo-notes" class="form-input" rows="2"></textarea></div>`,
       'Complete', async d => {
-        const parts = [...d.querySelectorAll('#mo-parts tr')].map(tr => ({ sku: tr.querySelector('.mo-part-sku').value.trim(), qty: parseFloat(tr.querySelector('.mo-part-qty').value) || 0 })).filter(p => p.sku || p.qty);
+        const parts = [...d.querySelectorAll('#mo-parts tr')].map(tr => ({ sku: tr.querySelector('.mo-part-sku').value.trim(), qty: parseFloat(tr.querySelector('.mo-part-qty').value) || 0, location: tr.querySelector('.mo-part-loc').value.trim() })).filter(p => p.sku || p.qty);
         const checklist = tasks.map((x, i) => ({ task: x.task, done: d.querySelector(`.mo-task[data-i="${i}"]`).checked }));
-        return (await post(`${path}/complete`, { completion_notes: d.querySelector('#mo-notes').value, labour_hours: parseFloat(d.querySelector('#mo-hours').value) || 0, checklist, parts_used: parts },
+        return (await post(`${path}/complete`, { completion_notes: d.querySelector('#mo-notes').value, labour_hours: parseFloat(d.querySelector('#mo-hours').value) || 0, labour_rate: parseFloat(d.querySelector('#mo-rate').value) || 0, downtime_hours: parseFloat(d.querySelector('#mo-down').value) || 0, checklist, parts_used: parts },
           'Could not complete the order.', 'Maintenance')) && done('Completed.');
       });
     const addPart = () => {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td><input type="text" class="form-input mo-part-sku" aria-label="Part" autocomplete="off"></td><td class="num"><input type="number" class="form-input mo-part-qty s-dabaad" min="0" step="any" aria-label="Quantity"></td>
+        <td><input type="text" class="form-input mo-part-loc" aria-label="Store" autocomplete="off"></td>
         <td><button type="button" class="action-btn">Remove</button></td>`;
       tr.querySelector('button').addEventListener('click', () => tr.remove());
       dlg.querySelector('#mo-parts').appendChild(tr);
       attachLinkTypeahead(tr.querySelector('.mo-part-sku'), 'Item');
+      attachLinkTypeahead(tr.querySelector('.mo-part-loc'), 'Location');
     };
     dlg.querySelector('#mo-add-part').addEventListener('click', addPart);
   }
@@ -533,6 +545,7 @@ async function maintenanceStep(o, act) {
 async function renderQualityTab(container, tab) {
   if (tab === 'certificates') return renderCertificates(container);
   if (tab === 'ncr') return renderNonConformance(container);
+  if (tab === 'scar') return scarMod.renderScarTab(container, { listOf, post, esc, muted, today, txnPagedSection, txnRestorePane, txnDone, openQualityDialog });
   if (tab === 'maintenance') return renderMaintenance(container);
   return renderInspections(container);
 }

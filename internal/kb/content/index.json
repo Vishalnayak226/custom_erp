@@ -1785,7 +1785,8 @@
             "doctype:itemname",
             "module:pim",
             "reports",
-            "configuration"
+            "configuration",
+            "dataquality"
           ],
           "last_verified": "2026-09-03",
           "owner": "documentation-maintainer",
@@ -1821,6 +1822,11 @@
               "level": 2,
               "text": "Completeness scoring",
               "slug": "completeness-scoring"
+            },
+            {
+              "level": 2,
+              "text": "Data quality queue",
+              "slug": "data-quality-queue"
             },
             {
               "level": 2,
@@ -2288,7 +2294,8 @@
             "journal-vouchers",
             "reports",
             "configuration",
-            "einvoice"
+            "einvoice",
+            "bank-files"
           ],
           "last_verified": "2026-09-03",
           "owner": "documentation-maintainer",
@@ -2339,6 +2346,11 @@
               "level": 2,
               "text": "Accounts Payable: Vendor Invoices and payment runs",
               "slug": "accounts-payable-vendor-invoices-and-payment-runs"
+            },
+            {
+              "level": 2,
+              "text": "Bank files: statements and bank responses",
+              "slug": "bank-files-statements-and-bank-responses"
             },
             {
               "level": 2,
@@ -2821,6 +2833,11 @@
               "level": 2,
               "text": "Where to look",
               "slug": "where-to-look"
+            },
+            {
+              "level": 2,
+              "text": "A breach that may need telling someone",
+              "slug": "a-breach-that-may-need-telling-someone"
             },
             {
               "level": 2,
@@ -3569,6 +3586,16 @@
             },
             {
               "level": 2,
+              "text": "Expenses",
+              "slug": "expenses"
+            },
+            {
+              "level": 3,
+              "text": "R5171 Employee advance balance",
+              "slug": "r5171-employee-advance-balance"
+            },
+            {
+              "level": 2,
               "text": "Finance",
               "slug": "finance"
             },
@@ -3674,6 +3701,11 @@
             },
             {
               "level": 3,
+              "text": "R5170 GSTR-2B reconciliation",
+              "slug": "r5170-gstr-2b-reconciliation"
+            },
+            {
+              "level": 3,
               "text": "R5065 General Journal (who posted what)",
               "slug": "r5065-general-journal-who-posted-what"
             },
@@ -3736,6 +3768,11 @@
               "level": 3,
               "text": "R5073 Project P\u0026L (Job Costing)",
               "slug": "r5073-project-p-l-job-costing"
+            },
+            {
+              "level": 3,
+              "text": "R5172 Project budget vs actual",
+              "slug": "r5172-project-budget-vs-actual"
             },
             {
               "level": 3,
@@ -4536,6 +4573,11 @@
             },
             {
               "level": 3,
+              "text": "R7969 Listing drift",
+              "slug": "r7969-listing-drift"
+            },
+            {
+              "level": 3,
               "text": "R7038 PIM Overdue Tasks",
               "slug": "r7038-pim-overdue-tasks"
             },
@@ -4553,6 +4595,11 @@
               "level": 3,
               "text": "R7037 PIM Task Workload by Assignee",
               "slug": "r7037-pim-task-workload-by-assignee"
+            },
+            {
+              "level": 3,
+              "text": "R7968 Range by store",
+              "slug": "r7968-range-by-store"
             },
             {
               "level": 2,
@@ -4950,6 +4997,11 @@
               "level": 2,
               "text": "Quality",
               "slug": "quality"
+            },
+            {
+              "level": 3,
+              "text": "R7970 AQL Sample Plan",
+              "slug": "r7970-aql-sample-plan"
             },
             {
               "level": 3,
@@ -5395,6 +5447,11 @@
             },
             {
               "level": 3,
+              "text": "R4050 Lot Trace (Both Ways)",
+              "slug": "r4050-lot-trace-both-ways"
+            },
+            {
+              "level": 3,
               "text": "R4044 Owner Stock Exceptions (3PL)",
               "slug": "r4044-owner-stock-exceptions-3pl"
             },
@@ -5509,6 +5566,16 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-11-14",
+              "slug": "2026-11-14"
+            },
+            {
+              "level": 2,
+              "text": "2026-11-13",
+              "slug": "2026-11-13"
+            },
+            {
+              "level": 2,
               "text": "2026-11-12",
               "slug": "2026-11-12"
             },
@@ -5619,7 +5686,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-08-04 to 2026-10-16, continued from the release notes.",
+          "summary": "Earlier releases, 2026-08-11 to 2026-10-17, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5631,6 +5698,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-10-17",
+              "slug": "2026-10-17"
+            },
             {
               "level": 2,
               "text": "2026-10-16",
@@ -5855,7 +5927,26 @@
               "level": 2,
               "text": "2026-08-11",
               "slug": "2026-08-11"
-            },
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-3",
+          "title": "Release notes (part 3)",
+          "section": "Reference",
+          "order": 27,
+          "summary": "Earlier releases, 2026-07-27 to 2026-08-10, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-3.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-08-10",
@@ -5881,30 +5972,6 @@
               "text": "2026-08-05",
               "slug": "2026-08-05"
             },
-            {
-              "level": 2,
-              "text": "2026-08-04",
-              "slug": "2026-08-04"
-            }
-          ]
-        },
-        {
-          "slug": "release-notes-3",
-          "title": "Release notes (part 3)",
-          "section": "Reference",
-          "order": 27,
-          "summary": "Earlier releases, 2026-07-27 to 2026-08-04, continued from the release notes.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Release notes (part 3)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/release-notes-3.md",
-          "headings": [
             {
               "level": 2,
               "text": "2026-08-04",
@@ -6336,6 +6403,11 @@
             },
             {
               "level": 2,
+              "text": "Data Import",
+              "slug": "data-import"
+            },
+            {
+              "level": 2,
               "text": "Data Import / Excel Upload",
               "slug": "data-import-excel-upload"
             },
@@ -6361,6 +6433,11 @@
             },
             {
               "level": 2,
+              "text": "Finance",
+              "slug": "finance"
+            },
+            {
+              "level": 2,
               "text": "Finance \u0026 Accounting",
               "slug": "finance-accounting"
             },
@@ -6383,16 +6460,6 @@
               "level": 2,
               "text": "Global / Common",
               "slug": "global-common"
-            },
-            {
-              "level": 2,
-              "text": "Goods Receipt",
-              "slug": "goods-receipt"
-            },
-            {
-              "level": 2,
-              "text": "Goods Receipt / GRN",
-              "slug": "goods-receipt-grn"
             }
           ]
         },
@@ -6401,7 +6468,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for HR \u0026 Payroll to Procurement / RFQ, continued from the error code reference.",
+          "summary": "Error codes for Goods Receipt to PIM, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6417,6 +6484,16 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Goods Receipt",
+              "slug": "goods-receipt"
+            },
+            {
+              "level": 2,
+              "text": "Goods Receipt / GRN",
+              "slug": "goods-receipt-grn"
             },
             {
               "level": 2,
@@ -6452,6 +6529,11 @@
               "level": 2,
               "text": "Item Master",
               "slug": "item-master"
+            },
+            {
+              "level": 2,
+              "text": "Manufacturing",
+              "slug": "manufacturing"
             },
             {
               "level": 2,
@@ -6492,6 +6574,30 @@
               "level": 2,
               "text": "PIM",
               "slug": "pim"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-3",
+          "title": "Error code reference (part 3)",
+          "section": "Troubleshooting",
+          "order": 22,
+          "summary": "Error codes for PIM / Product Publishing to Tax / GST / E-Invoice, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-3.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -6532,30 +6638,6 @@
               "level": 2,
               "text": "Procurement / RFQ",
               "slug": "procurement-rfq"
-            }
-          ]
-        },
-        {
-          "slug": "error-code-reference-3",
-          "title": "Error code reference (part 3)",
-          "section": "Troubleshooting",
-          "order": 22,
-          "summary": "Error codes for Purchase Order to WMS / Logistics, continued from the error code reference.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Error code reference (part 3)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "troubleshooting/error-code-reference-3.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -6576,6 +6658,11 @@
               "level": 2,
               "text": "Purchase Return / RTV",
               "slug": "purchase-return-rtv"
+            },
+            {
+              "level": 2,
+              "text": "Quality",
+              "slug": "quality"
             },
             {
               "level": 2,
@@ -6614,6 +6701,11 @@
             },
             {
               "level": 2,
+              "text": "Security",
+              "slug": "security"
+            },
+            {
+              "level": 2,
               "text": "Security / AI assistant access",
               "slug": "security-ai-assistant-access"
             },
@@ -6631,6 +6723,30 @@
               "level": 2,
               "text": "Tax / GST / E-Invoice",
               "slug": "tax-gst-e-invoice"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-4",
+          "title": "Error code reference (part 4)",
+          "section": "Troubleshooting",
+          "order": 23,
+          "summary": "Error codes for User Access \u0026 Security to WMS / Logistics, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 4)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-4.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -6684,6 +6800,9 @@
       "security-approvals",
       "journey-admin"
     ],
+    "bank-files": [
+      "finance-tax"
+    ],
     "bank-reconciliation": [
       "journey-finance"
     ],
@@ -6718,6 +6837,9 @@
       "inventory-wms-operations",
       "wms-start-here",
       "journey-warehouse-operator"
+    ],
+    "dataquality": [
+      "pim-pxm"
     ],
     "doctype-builder": [
       "journey-admin"
@@ -7103,5 +7225,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 62
+  "article_count": 63
 }

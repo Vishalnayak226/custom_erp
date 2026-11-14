@@ -7,22 +7,22 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 341 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 298 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
-| JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 9 | 2 | 0 |
+| JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 8 | 2 | 0 |
 | JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 2 | 0 | 1 |
-| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 8 | 4 | 0 |
-| JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 19 | 0 | 1 |
+| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 4 | 2 | 0 |
+| JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 13 | 0 | 1 |
 | JRN-05 WMS | REF-WAREHOUSE-IN | Warehouse owner; Stage 36/47.6 | 0 | 0 | 0 |
 | JRN-06 warehouse billing/3PL | REF-WAREHOUSE-IN | Warehouse/finance; 47.5; mixed owner excluded | 0 | 0 | 0 |
-| JRN-07 source-to-pay | REF-WAREHOUSE-IN | Buyer/AP; Stage 37/procurement | 12 | 0 | 0 |
-| JRN-08 PIM/catalog/DAM | REF-RETAIL-IN | Product data steward; 26.4/47.13 | 6 | 0 | 1 |
-| JRN-09 record-to-report | REF-RETAIL-IN, REF-WAREHOUSE-IN | Qualified accountant; 26.6/Stage 37 | 8 | 0 | 0 |
+| JRN-07 source-to-pay | REF-WAREHOUSE-IN | Buyer/AP; Stage 37/procurement | 4 | 0 | 0 |
+| JRN-08 PIM/catalog/DAM | REF-RETAIL-IN | Product data steward; 26.4/47.13 | 1 | 0 | 0 |
+| JRN-09 record-to-report | REF-RETAIL-IN, REF-WAREHOUSE-IN | Qualified accountant; 26.6/Stage 37 | 1 | 0 | 0 |
 | JRN-10 FX/intercompany/consolidation | deferred - outside both | Finance policy owner; Stage 37; depth decision DEC-01 | 0 | 0 | 0 |
 | JRN-11 revenue schedules | deferred - outside both | Accountant; existing contract engine; separate from SaaS billing | 0 | 0 | 0 |
-| JRN-12 India tax | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tax/legal owner; 26.2/26.6/47.16 | 4 | 0 | 0 |
+| JRN-12 India tax | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tax/legal owner; 26.2/26.6/47.16 | 3 | 0 | 0 |
 | JRN-13 manufacturing | deferred - outside both | Factory/cost owner; 26.9/Stage 37 | 0 | 0 | 0 |
 | JRN-14 quality/maintenance | deferred - outside both | Quality/maintenance owner; chosen industry scope | 0 | 0 | 0 |
 | JRN-15 CRM/loyalty | REF-RETAIL-IN | Marketing/privacy/store; 26.7 | 2 | 0 | 2 |
@@ -31,21 +31,20 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 | JRN-18 expenses | deferred - outside both | Finance/employee owner; existing expenses scope | 0 | 0 | 0 |
 | JRN-19 projects/service | deferred - outside both | Service/project owner; Experimental scope preserved | 0 | 0 | 0 |
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 1 | 0 | 0 |
-| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 19 | 3 | 0 |
-| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 75 | 16 | 0 |
-| JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
-| Cross-journey acceptance and audits | - | - | 70 | 3 | 8 |
-| Engineering housekeeping | - | - | 13 | 3 | 0 |
-| Unmapped - place these stages | - | - | 59 | 38 | 4 |
+| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 18 | 3 | 0 |
+| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 69 | 14 | 0 |
+| JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 33 | 0 | 1 |
+| Cross-journey acceptance and audits | - | - | 65 | 2 | 10 |
+| Engineering housekeeping | - | - | 9 | 1 | 0 |
+| Unmapped - place these stages | - | - | 65 | 6 | 6 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (12), Stage 147 (1), Stage 148 (25), Stage 149 (2), Stage 152 (1), Stage 154 (4), Stage 157 (1), Stage 158 (2), Stage 162 (4), Stage 164 (4), Stage 165 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (6), Stage 148 (1), Stage 149 (2), Stage 154 (3), Stage 158 (2), Stage 162 (3), Stage 164 (1), Stage 170 (42), Stage 171 (1), Stage 173 (1), Stage 174 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
 - **47.6** Real mobile/RF WMS/POS shell and physical reference journey
 - **102.1.2** Camera scanning
 - **102.1.3** Push alerts
-- **102.4.2** Basket to the till
 - **102.5.2** Real phones
 - **31.1.8** Live verification against a real QZ Tray and a real printer — partially closed 2026-0...
 - **31.1.9** Replace QZ Tray with our own lightweight agent (PrintBridge) — Windows deployable; ma... *(decision)*
@@ -60,28 +59,18 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 ## JRN-03 returns/refunds
 
 - **49.5** Server-authoritative business controls, fraud resistance and invariant security
-- **49.5.2** Close Stage 47 atomicity work
-- **49.5.3** Workflow transition enforcement *(decision)*
 - **49.5.5** Trusted totals and reconciliation
 - **49.5.5b** Persist money / UOM / tax versions on posted lines? *(decision)*
 - **49.5.6** Safe overrides *(decision)*
-- **49.5.7** Adversarial invariant tests
-- **49.5.7a** Changing an item's UOM after stock exists? *(decision)*
 
 ## JRN-04 inventory
 
-- **106.4** Stock Locations > Transactions: every row editable
 - **106.5** From / To stock location at the top of every transaction
-- **119.5** Remember the template for a product type from the Print screen
 - **121.1** "GRN 7" not in Print stickers' Document list *(blocked)*
 - **106.2** Square and Ring label designs from the client's old PRN files
 - **113.3** A ready design for the Seznik 100 × 14.3 tag
-- **113.4** Seznik tag is a 3-up roll, tags standing vertically
 - **119.1** Four Seznik built-ins: horizontal × 1, horizontal × 3, vertical × 1, vertical × 3
-- **119.2** Print direction on every template
-- **119.3** Labels down
 - **58.7** Physical printer check
-- **106.1** Tail tag 100 × 14.3 preset
 - **119.4** A clean browser print
 - **137.3** Alignment set once per printer
 - **137.4** One PrintBridge installer from the ERP
@@ -92,43 +81,22 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## JRN-07 source-to-pay
 
-- **94.22** New PO: an existing plain SKU went on without its colour / size matrix
-- **94.25** New PO: Add put typed text on as a line without picking or creating an item
-- **94.26** New PO: the combinations table left out the design-level attributes
-- **94.28** New PO: the item entry as one compact table - parent row, then variant rows
 - **129.5** Docs, tests, live check
-- **94.12** Release
-- **94.6** MRP per batch at the POS
-- **71.7** Modules the pack needs that the ERP does not have
-- **98.2.2** Page size and pictures kept
 - **98.5.2** Walk-through
 - **84.5** Local test data from the walk
 - **78.4** Release of this session's work
 
 ## JRN-08 PIM/catalog/DAM
 
-- **89.4.4** Hidden fields leave the forms, data kept *(blocked)*
-- **89.6.3** Walk-through
-- **81.7** Later, if wanted
-- **95.0** Decisions
-- **95.9** Design and Combination folders in the Image drive settings
 - **47.13** Master-data migration, stewardship and legal product attributes
 
 ## JRN-09 record-to-report
 
-- **93.1** A new location gets its cost center
-- **93.3** Postings carry the cost center
-- **93.6** Cost Center is mandatory on a location, and suggested
-- **93.10** Postings carry the department
-- **93.7** Legal Entity is mandatory on a location; postings carry the entity
-- **93.8** GSTIN is mandatory on a legal entity
-- **93.9** Every person has a department, from day one
 - **93.11** Old long codes are cleaned once
 
 ## JRN-12 India tax
 
 - **66.7** Rates for the six codes shipped without one
-- **66.8** Back-fill the HSN Code list for clients whose industry was set before Stage 66
 - **66.9** Confirm every live client has its industry set
 - **47.16** India-first data lifecycle and compliance-control implementation
 
@@ -143,7 +111,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## JRN-21 platform/integrations
 
-- **56.4** Volume for `media_store`
 - **56.6** Prove multi-tenant hosting end to end — this is the item that makes the money
 - **90.1** The rule and the stamp
 - **90.3** Map 840909b
@@ -165,9 +132,7 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## JRN-22 identity/approval/audit
 
-- **92.4** Send to Vendor never needs a vendor email
 - **49.2** Identity, authentication, recovery and machine identity
-- **49.2.1** Identity lifecycle
 - **49.2.3** MFA assurance tiers
 - **49.2.7** OAuth2/API-key convergence
 - **47.1** Deny-by-default authorization, privacy and segregation of duties
@@ -182,10 +147,8 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 - **49.4** Browser, session, API and request-boundary hardening
 - **49.4.3** XSS and content boundary
 - **49.4.6** Canonical input validation
-- **49.4.7** API misuse controls
 - **49.4.8** Browser/API security regression suite
 - **49.6** Data classification, privacy, cryptography, keys and secrets
-- **49.6.2** Data minimization
 - **49.6.3** Encryption in transit *(decision)*
 - **49.6.4** Encryption at rest and field-level decision *(decision)*
 - **49.6.7** Safe telemetry and support *(decision)*
@@ -208,8 +171,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 - **49.0.6** Risk register and acceptance authority *(decision)*
 - **49.12** Incident response, forensic readiness, breach workflow and safe recovery
 - **49.12.1** Incident taxonomy and authority
-- **49.12.3** Emergency controls *(decision)*
-- **49.12.4** Forensic readiness *(decision)*
 - **49.12.5** Notification decision workflow
 - **49.12.8** Tabletop and live drills
 - **49.14** Secure human operations, support, devices and anti-social-engineering controls
@@ -245,7 +206,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 - **91.4** Run it on app.wholeops.in and minn.wholeops.in *(blocked)*
 - **138.1** Remove the product switcher
-- **83.2** Working-store switcher in the top bar
 - **47.15** Executable documentation and in-product learning
 - **124.1** PO setup guide
 - **48.7** Canonical user Knowledge Center and generated manuals
@@ -280,14 +240,11 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## Cross-journey acceptance and audits
 
-- **136.3** Production link rejections: Vendor on Product Family, Legal Entity on Location
 - **55.11** PIM/catalog
-- **73.4.4** PIM / merchandising:
-- **73.4.1** Procurement:
-- **135.24** A step GRN with a vendor credit note overpays by the note
 - **73.B.11** Physical RF acceptance
-- **55.9** OMS/marketplace/delivery
+- **55.9** OMS/marketplace/delivery *(blocked)*
 - **73.4.2** OMS / logistics:
+- **73.4.2.8** Route / load planning
 - **55.10** Finance/close
 - **73.4.3** Finance:
 - **73.4.8** Expenses / projects / service:
@@ -304,13 +261,12 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 - **55.14** HR/payroll
 - **73.4.5** Manufacturing / quality:
 - **73.4.6** Assets:
-- **55.18** Service/projects
+- **55.18** Service/projects *(blocked)*
 - **55.19** Stickers/printing
 - **135.25** One marketplace order can be settled under two settlement IDs
 - **55.21** Integrations/admin/ops
 - **73.B.13** Local dev data cleanup
 - **73.C.5** Remove the throwaway client `batchc55f`
-- **74.1.1** Reason codes: one governed catalogue, required on every exception *(decision)*
 - **47.12** Scope-led solo onboarding and evidence-based readiness
 - **47.12.5** Bootstrap governance
 - **50.12** SaaS and separately sellable modules
@@ -343,7 +299,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 - **74.5.7** Pilot gates *(blocked)*
 - **57.12** Full-ERP walkthrough video with segment-level re-recording
 - **57.12a** SOP videos to the client - kept open for the end (user, 2026-10-17)
-- **134.9** Guides and handover under their budgets
 - **135.15** Knowledge Center: a bullet's wrapped line falls out of its list
 - **50.16** Finish existing Stage 48
 - **73.0.1** Policy decisions D01-D12
@@ -353,11 +308,7 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## Engineering housekeeping
 
-- **132.22** Finished goods came into stock with no cost
-- **132.25** Built-in GRN layout: headings break mid-word; app's HO has no address *(decision)*
-- **103.1** Free space (no code change)
 - **103.4.1** Rest of the dead code *(decision)*
-- **103.5** Git housekeeping *(decision)*
 - **132.9** Guide learns the whole ERP
 - **132.11** Guide an ERP expert: business flows, numbers checked in screens, tables and reports
 - **132.12** Guide expert in every module's setup and inside each module, and the help manual
@@ -369,62 +320,68 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## Unmapped
 
-- **146.5.5** Design-level attribute values, grid entry, bulk set
-- **147.3** IDs are text, never design plus values *(decision)*
 - **146.5.12** Typed product relationships
 - **149.2** PIM ▸ Workbench does not load
-- **148.9b** Which account takes the early-payment discount? *(decision)*
-- **148.10b** Ship the approval list on by default? *(decision)*
-- **148.17b** Rebate tiers and GST *(decision)*
-- **148.18a** A date change from a vendor link on a PO under value-gated approval? *(decision)*
-- **148.14b** One PO per vendor and store? *(decision)*
-- **148.14c** Role check on `POST /api/v1/procurement/convert-requisition` *(decision)*
-- **148.1c** A visible Cancel on a vendor bill? *(decision)*
-- **148.8b** Two choices in trade charges *(decision)*
-- **148.12b** Rate history and jump for foreign-currency bills? *(decision)*
-- **148.12c** Who may match a bill? *(decision)*
-- **148.16a** A customer returns a memo-sold unit: what happens? *(decision)*
-- **148.16b** Cancel a sale that drew memo units? *(decision)*
-- **148.16c** GST on the memo bill? *(decision)*
-- **148.16d** Memo units lost or damaged? *(decision)*
-- **148.40b** Correct a piece already sold? *(decision)*
-- **148.1d** Bundle return *(decision)*
-- **148.1b** Tracked items sold without naming the piece; credit notes *(decision)*
+- **173.1** A step receipt's bill rounding leaves inventory valuation a few paise off *(decision)*
 - **146.3.10** License plates at receipt *(blocked)*
 - **146.3.9** Weighing scale at pack *(blocked)*
-- **146.3.16** Leave an item out of cycle counts
-- **146.3.2b** An RF receive screen *(decision)*
-- **148.26a** Setting "Ask for a reason" on an order: refuse or hold? *(decision)*
-- **152.6** OMS Orders on a short window *(decision)*
-- **148.28a** GST on the restocking fee? *(decision)*
-- **148.2b** Is the channel's shipping charge GST-inclusive? *(decision)*
-- **146.2.2b** Value per point per loyalty scheme *(decision)*
-- **148.4b** Remap receivable and payable by group? *(decision)*
-- **148.15b** TDS on an advance? *(decision)*
-- **148.3b** Credit back-fill and approver *(decision)*
-- **148.23a** A second approver to reverse a set-off? *(decision)*
-- **146.5.6c** Should the export freeze also stop dashboard digests? *(decision)*
+- **148.4b** Remap receivable and payable by group? *(blocked)*
+- **170.1** A GL line names its source line
+- **170.2** Part-match a bank line
+- **170.3** Bank statement file import
+- **170.4** Bank acknowledgement file
+- **170.29** Expense limits by category
+- **170.30** Employee advances settled against claims
+- **170.35** GSTR-1 JSON
+- **170.36** GSTR-2B import and match
+- **170.37** Exports under LUT
+- **170.17** Positions and reporting lines
+- **170.18** Recruitment
+- **170.19** Login at onboarding, clearance before exit
+- **170.20** Disciplinary case
+- **170.21** Skills and certificate expiry
+- **170.22** Appraisal calibration
+- **170.28** Holiday calendar and weekly offs
+- **170.23** Salary TDS by slab, LWF, PF ECR and Form 24Q
+- **170.24** Benefits
+- **170.25** Salary revision through approval
+- **170.26** My team for managers
+- **170.27** People analytics with privacy
+- **170.10** Operation confirmation with quantities and time
+- **170.11** Scrap and rework move stock and cost
+- **170.14** Backward lot trace
+- **170.12** By-product cost share
+- **170.13** WIP accounting and variance
+- **170.5** Leases (IND AS 116)
+- **170.6** Capital work in progress
+- **170.7** Impairment and revaluation
+- **170.8** Maintenance order cost
+- **170.9** Meter-based maintenance
+- **170.31** Timesheets cost the project
+- **170.32** Project milestones and budget
+- **170.33** Project revenue recognition
+- **170.34** Service ticket SLA timers and escalation
+- **170.15** AQL sampling
+- **170.16** Supplier quality: SCAR and defects per million
 - **143.6** Barcode print sorted: select the GRN and print
-- **146.3.4b** Bin labels through sticker templates; a Print labels button on the Bin list *(decision)*
 - **154.2** Fix: roll held straight, then Printer preset on Jewellery
-- **154.3** A printer's Shift right moves the print, never crops it
 - **154.4** Same settings on minn
 - **154.5** Printer preset: Turn (°) - straighten a print that comes out tilted on the tag *(blocked)*
 - **146.5.1** Shopify gets the approved PIM content
 - **146.4.1** A real Unicommerce integration *(blocked)*
 - **146.5.2** Marketplace templates from their own file, per category, with validation
-- **148.38b** Reason codes on new clients *(decision)*
-- **164.2** Cache the setup checks on the admin Home card
+- **170.40** Masked copy of a client
+- **170.42** Import load order
+- **170.41** Data-quality queue
 - **162.17** MFA tiers: when to require? *(decision)*
-- **157.4c** The old report endpoints ignore a store-limited user's stores *(decision)*
-- **164.3** Move a user to another store from the Users screen
-- **165.1** Roles added after Stage 139 cannot keep favourites
 - **162.16** Cross-origin write check: when to enforce? *(decision)*
+- **170.39** Privacy rights for employees and vendors
+- **170.38** Retention per record type
 - **162.5** Meet the browser and server budgets
-- **164.1** Find a stock ledger entry by its key without a scan
 - **164.4** Split `app.js` for a smaller first paint
 - **149.1** Remove every descriptive / instructional blurb from dialogs, panels and section intros,...
 - **158.4** Clicked end-to-end checks are not a release gate *(decision)*
-- **162.21** Footprint ledger: when to record? *(decision)*
+- **174.1** Release and deploy everything in the tree
 - **158.2** Is `OPS_ALERT_WEBHOOK_URL` set on production? *(decision)*
+- **171.4** Scratch databases of finished sessions *(blocked)*
 - **143.3** The same file on minn *(decision)*

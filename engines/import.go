@@ -30,6 +30,8 @@ type ImportResult struct {
 	CreatedIDs []string `json:"created_ids,omitempty"`
 	UpdatedIDs []string `json:"updated_ids,omitempty"`
 	DryRun     bool     `json:"dry_run"`
+	// Warnings (170.42): record types this import needs that have no rows yet.
+	Warnings []string `json:"warnings,omitempty"`
 	// Stage 47.13.3: what the file held against what was posted.
 	Controls *ImportControlTotals `json:"control_totals,omitempty"`
 	controls *importControls
@@ -161,6 +163,11 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 		return nil, &ValidationError{Code: "DATAIM-0164", Message: fmt.Sprintf("uploaded file is missing mandatory column(s): %s", strings.Join(missing, ", "))}
 	}
 
+	loadWarnings, err := CheckImportLoadOrder(tenantID, doctype)
+	if err != nil {
+		return nil, err
+	}
+
 	docRows := csvRowsToDocData(headers, records[1:])
 	preErrors := make([]string, len(docRows))
 	if strings.EqualFold(doctype, "Item") {
@@ -170,6 +177,9 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 		preErrors = pimVariantParentPreflight(tenantID, docRows)
 	}
 	res, err := runDocDataImportContext(ctx, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
+	if err == nil && res != nil {
+		res.Warnings = append(res.Warnings, loadWarnings...)
+	}
 	if err == nil {
 		attachFailedSourceRows(res, headers, records[1:], doctype, "")
 		stampImportSource(res, src, userID)
@@ -1010,6 +1020,7 @@ func importBatch(shared *sql.Tx, tenantID, schema, doctype, userID, role string,
 	}
 	writes = screenImportWrites(tx, tenantID, doctype, lk.rules, writes, result)
 	writes = holdVendorImportChanges(tx, tenantID, doctype, userID, role, dryRun, writes, result) // Stage 148.10
+	writes = stampVendorImportOnboarding(tx, tenantID, doctype, dryRun, writes)                   // 168.3
 	writes = screenActionOnlyImportFields(tx, doctype, writes, result)                            // 49.5.6c
 
 	// 49.4.4a: the batch's valid rows go in one statement instead of an

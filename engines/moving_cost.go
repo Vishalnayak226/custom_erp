@@ -1257,12 +1257,22 @@ func useBookedSaleCosts(prices map[string]originalLinePrice, dataStr string) {
 		batch    string
 		oneBatch bool
 	}
+	type bundle struct {
+		qty   int
+		parts []saleCostLine
+	}
+	bundles := map[string]*bundle{}
 	sums := map[string]*sum{}
 	for _, l := range readSaleCosts(dataStr) {
-		// A bundle's record is kept but not returned against: what comes back today
-		// is the kit's own code, which holds no cost, so the GL would run ahead of the
-		// stock value. Its components coming back is a decision for later (148.1).
+		// A bundle comes back as its components (148.1d): its record is kept apart.
 		if len(l.Parts) > 0 {
+			b := bundles[l.SKU]
+			if b == nil {
+				b = &bundle{}
+				bundles[l.SKU] = b
+			}
+			b.qty += l.Qty
+			b.parts = append(b.parts, l.Parts...)
 			continue
 		}
 		s := sums[l.SKU]
@@ -1287,6 +1297,49 @@ func useBookedSaleCosts(prices map[string]originalLinePrice, dataStr string) {
 		}
 		prices[sku] = p
 	}
+	for sku, b := range bundles {
+		p, ok := prices[sku]
+		if !ok || b.qty <= 0 {
+			continue
+		}
+		// The kit's own code holds no cost: the components carry it.
+		p.CostPrice, p.SoldQty, p.Parts = 0, b.qty, mergeSaleParts(b.parts)
+		prices[sku] = p
+	}
+}
+
+// mergeSaleParts adds up a bundle's components by code, in first-seen order.
+func mergeSaleParts(parts []saleCostLine) []saleCostLine {
+	var out []saleCostLine
+	at := map[string]int{}
+	for _, part := range parts {
+		i, ok := at[part.SKU]
+		if !ok {
+			at[part.SKU] = len(out)
+			out = append(out, saleCostLine{SKU: part.SKU})
+			i = len(out) - 1
+		}
+		out[i].Qty += part.Qty
+		out[i].ValuePaise += part.ValuePaise
+	}
+	return out
+}
+
+// returnedParts is this return's share of a bundle line's components, by quantity.
+// A bundle sold before parts were recorded has none and comes back as before.
+func (p originalLinePrice) returnedParts(qty int) []returnPart {
+	if len(p.Parts) == 0 || p.SoldQty <= 0 || qty <= 0 {
+		return nil
+	}
+	var out []returnPart
+	for _, part := range p.Parts {
+		q := int(sharePaise(int64(part.Qty), float64(qty), float64(p.SoldQty)))
+		if q <= 0 {
+			continue
+		}
+		out = append(out, returnPart{SKU: part.SKU, Qty: q, ValuePaise: sharePaise(part.ValuePaise, float64(qty), float64(p.SoldQty))})
+	}
+	return out
 }
 
 // returnedPieces picks the sold pieces a return line brings back: the one it
@@ -1346,6 +1399,18 @@ func returnCostsToAverageTx(tx *sql.Tx, schema, location string, items []returnI
 			if err := patchSerialTx(tx, schema, docID, status, map[string]interface{}{"location_code": location}); err != nil {
 				return err
 			}
+		}
+		for _, part := range it.Parts {
+			if part.ValuePaise <= 0 {
+				continue
+			}
+			ps := sums[part.SKU]
+			if ps == nil {
+				ps = &sum{}
+				sums[part.SKU] = ps
+			}
+			ps.qty += float64(part.Qty)
+			ps.value += part.ValuePaise
 		}
 		if it.OriginalCostPrice <= 0 {
 			continue

@@ -71,6 +71,11 @@ var workerOwner = map[string]string{
 	"StartDayLimitsWorker":                "",
 	"StartItemTaxChangeWorker":            "",
 	"StartSlowQuerySampler":               "",
+	"StartBackorderReleaser":              "", // 73.4.2.2: every tenant, each reads its own orders.backorder_auto_release
+	"StartLeaseWorker":                    "assets",
+	"StartProjectRevenueWorker":           "", // 170.33
+	"StartServiceSLAWorker":               "", // 170.34
+	"StartScheduledItemChangeWorker":      "pim",
 }
 
 // claimSafeWorkers may run on every server: they claim each unit of work

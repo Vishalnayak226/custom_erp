@@ -35,6 +35,10 @@ type VendorScorecard struct {
 	FillPct *float64 `json:"fill_pct"`
 	// QCRejectPct: quantity received but not accepted, of quantity received.
 	QCRejectPct *float64 `json:"qc_reject_pct"`
+	// DefectsPerMillion (170.16): rejected quantity per million received.
+	DefectsPerMillion *float64 `json:"defects_per_million"`
+	// OpenSCARs: supplier corrective action requests not yet closed.
+	OpenSCARs int `json:"open_scars"`
 	// PriceVariancePct: billed rate against ordered rate, weighted by accepted
 	// quantity; positive = dearer than ordered.
 	PriceVariancePct *float64 `json:"price_variance_pct"`
@@ -263,6 +267,7 @@ func VendorScorecards(tenantID, vendor, from, to string) ([]VendorScorecard, err
 		}
 	}
 	out := make([]VendorScorecard, 0, len(by))
+	openScars := openSCARCounts(schema)
 	for _, a := range by {
 		for poID, skus := range a.acceptedBySKU {
 			p := pos[poID]
@@ -288,6 +293,8 @@ func VendorScorecards(tenantID, vendor, from, to string) ([]VendorScorecard, err
 		sc.OnTimePct = pctOf(a.onTime, a.timed)
 		sc.FillPct = pctOf(a.filled, a.ordered)
 		sc.QCRejectPct = pctOf(a.recv-a.accepted, a.recv)
+		sc.DefectsPerMillion = defectsPerMillion(a.recv, a.accepted)
+		sc.OpenSCARs = openScars[sc.Vendor]
 		if a.varDen > 0 {
 			v := math.Round(a.varNum/a.varDen*1000) / 10
 			sc.PriceVariancePct = &v
@@ -326,7 +333,7 @@ func init() {
 		ID: "vendor-scorecard", Label: "Vendor scorecard", Category: "Procurement", ModuleKey: "procurement", StoreKey: "-",
 		Columns: []ReportColumn{
 			{Key: "vendor", Label: "Vendor"}, {Key: "orders", Label: "Orders"}, {Key: "receipts", Label: "Receipts"},
-			{Key: "on_time", Label: "On time"}, {Key: "fill", Label: "Fill rate"}, {Key: "qc_reject", Label: "QC reject"},
+			{Key: "on_time", Label: "On time"}, {Key: "fill", Label: "Fill rate"}, {Key: "qc_reject", Label: "QC reject"}, {Key: "dpm", Label: "Defects per million"}, {Key: "open_scars", Label: "Open SCARs"},
 			{Key: "price_variance", Label: "Price variance"}, {Key: "bills", Label: "Bills"}, {Key: "mismatches", Label: "Bill mismatches"},
 		},
 		Params: []ReportParam{
@@ -342,7 +349,7 @@ func init() {
 			for _, s := range list {
 				rows = append(rows, map[string]interface{}{
 					"vendor": s.Vendor, "orders": s.Orders, "receipts": s.Receipts, "on_time": scText(s.OnTimePct),
-					"fill": scText(s.FillPct), "qc_reject": scText(s.QCRejectPct), "price_variance": scText(s.PriceVariancePct),
+					"fill": scText(s.FillPct), "qc_reject": scText(s.QCRejectPct), "dpm": dpmText(s.DefectsPerMillion), "open_scars": s.OpenSCARs, "price_variance": scText(s.PriceVariancePct),
 					"bills": s.Bills, "mismatches": s.BillMismatches,
 				})
 			}

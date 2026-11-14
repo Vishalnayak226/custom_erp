@@ -3489,3 +3489,29 @@ input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { di
   .table-panel .s-d25a61.s-d25a61.s-d25a61,
   .table-panel .s-f8ff87.s-f8ff87.s-f8ff87 { max-width: 100% !important; }
 }
+
+/* 49.4.3: the bulk-import dialog's result box and Item-only template button. */
+.import-result-summary { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 13px; }
+.import-family-btn { margin-left: 6px; }
+
+/* 49.12.3: read-only mode strip (setReadOnlyBanner in app.js). Fixed at the
+   foot of the window and never takes a click, so it covers no control. */
+#read-only-banner {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+  max-width: calc(100vw - 32px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--warning-soft-border);
+  background-color: var(--warning-soft-bg);
+  color: var(--warning-strong);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}

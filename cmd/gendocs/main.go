@@ -210,7 +210,7 @@ func errorCodesDoc(stamp string) string {
 		"catalog's User Message, below), the *detail* (the specific field or value that\n"+
 		"failed, written by the engine that rejected it), and the *action* (the User\n"+
 		"Action column, below). The detail line is usually the one that tells you what to\n"+
-		"fix. See [USER_GUIDE](user-guide.md) §12.\n\n", len(entries)))
+		"fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-logged-out-or-see-an-error).\n\n", len(entries)))
 
 	byModule := map[string][]server.CatalogEntry{}
 	for _, e := range entries {

@@ -57,6 +57,8 @@ export function attachScorecard(body, record) {
         <tr><td>On time</td><td class="num">${pct(s.on_time_pct)}</td></tr>
         <tr><td>Fill rate</td><td class="num">${pct(s.fill_pct)}</td></tr>
         <tr><td>QC reject</td><td class="num">${pct(s.qc_reject_pct)}</td></tr>
+        <tr><td>Defects per million</td><td class="num">${s.defects_per_million == null ? "No data" : Math.round(s.defects_per_million)}</td></tr>
+        <tr><td>Open SCARs</td><td class="num">${s.open_scars || 0}</td></tr>
         <tr><td>Price variance</td><td class="num">${price}</td></tr>
         <tr><td>Bill mismatches</td><td class="num">${s.bill_mismatches}${s.bill_mismatch_pct == null ? '' : ` (${s.bill_mismatch_pct}%)`}</td></tr>
       </tbody></table>`;

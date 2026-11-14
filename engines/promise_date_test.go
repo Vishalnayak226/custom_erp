@@ -66,3 +66,31 @@ func TestStage14827PromiseOnOrderAndLate(t *testing.T) {
 		t.Fatalf("off: %+v %v", p, err)
 	}
 }
+
+// 73.4.2.1: an order keeps its own promise - its latest line's - and none
+// when a line cannot be promised; off, the order carries no promise at all.
+func TestStage73421OrderPromise(t *testing.T) {
+	if p := OrderPromise([]string{"A", "B"}, []PromiseResult{{}, {}}); p != (PromiseResult{}) {
+		t.Fatalf("off: %+v", p)
+	}
+	if p := OrderPromise([]string{"A", "B"}, []PromiseResult{{Date: "2026-11-14", Reason: "in stock"}, {Date: "2026-11-20", Reason: "PO"}}); p.Date != "2026-11-20" {
+		t.Fatalf("latest line: %+v", p)
+	}
+	if p := OrderPromise([]string{"A", "B"}, []PromiseResult{{Date: "2026-11-14"}, {Reason: "short 2, none due"}}); p.Date != "" || p.Reason != "no date for B" {
+		t.Fatalf("a line with no date: %+v", p)
+	}
+
+	f := newCreditFixture(t)
+	off := f.order("Pat", "", 2)
+	if f.field("SalesOrder", off, "promise_date") != "" || f.field("SalesOrder", off, "promise_reason") != "" {
+		t.Fatal("setting off: the order must carry no promise")
+	}
+	if err := SetSetting(f.tenantID, SettingPromiseDates, "true", "admin"); err != nil {
+		t.Fatal(err)
+	}
+	on := f.order("Pat", "", 2)
+	line := f.field("SalesOrderLine", on+"-L1", "promise_date")
+	if line == "" || f.field("SalesOrder", on, "promise_date") != line {
+		t.Fatalf("order promise %q must be the line's %q", f.field("SalesOrder", on, "promise_date"), line)
+	}
+}

@@ -204,7 +204,9 @@ function elementName(el) {
 
 async function loadFields() {
   const base = E.BUILTIN_FIELDS.map(f => ({ key: f.key, label: f.label, type: 'builtin', sample: f.sample, group: 'Label' }));
-  const known = new Set(base.map(f => f.key));
+  // Stage 146.3.4b: a bin label's own fields (the Bin record).
+  const bin = E.BIN_FIELDS.map(f => ({ key: f.key, label: f.label, type: 'builtin', sample: f.sample, group: 'Bin' }));
+  const known = new Set(base.concat(bin).map(f => f.key));
   const extra = [];
   try {
     const res = await window.apiFetch('/api/v1/doc/Item/meta');
@@ -219,13 +221,15 @@ async function loadFields() {
     }
   } catch (e) { /* the built-in fields still work */ }
   extra.sort((a, b) => a.label.localeCompare(b.label));
-  S.fields = base.concat(extra);
+  S.fields = base.concat(extra, bin);
   const sampleFields = {};
-  for (const f of extra) sampleFields[f.key] = sampleFor(f);
+  for (const f of extra.concat(bin)) sampleFields[f.key] = sampleFor(f);
   S.label = Object.assign({}, E.SAMPLE_LABEL, { fields: sampleFields });
 }
 
 function sampleFor(f) {
+  const binField = E.BIN_FIELDS.find(b => b.key === f.key);
+  if (binField) return binField.sample;
   const k = f.key.toLowerCase();
   if (k === 'variant_option_values') return 'Silver / 7';
   if (/weight|wt/.test(k)) return '38.505';
@@ -742,7 +746,7 @@ function renderInspector() {
 
 function fieldOptions(current, { allowCustom = true } = {}) {
   let html = allowCustom ? `<option value="custom" ${current === 'custom' ? 'selected' : ''}>Custom text / combine fields…</option>` : '';
-  const groups = [['Label', 'On every label'], ['Item', 'Item fields']];
+  const groups = [['Label', 'On every label'], ['Item', 'Item fields'], ['Bin', 'Bin labels']];
   for (const [g, title] of groups) {
     const list = S.fields.filter(f => f.group === g);
     if (!list.length) continue;
@@ -939,7 +943,7 @@ function labelTabHTML() {
       <h4>Size</h4>
       <label class="stk-field"><span>Standard size</span><select data-sa-change="preset">
         <option value="">${presetMatch ? '' : 'Custom size'}</option>
-        ${groups.map(g => `<optgroup label="${esc(g)}">${E.LABEL_PRESETS.filter(p => p.group === g).map(p => `<option value="${p.id}" ${presetMatch && presetMatch.id === p.id ? 'selected' : ''}>${esc(p.label)}${p.group === 'Ready designs' ? '' : ' mm'}</option>`).join('')}</optgroup>`).join('')}
+        ${groups.map(g => `<optgroup label="${esc(g)}">${E.LABEL_PRESETS.filter(p => p.group === g).map(p => `<option value="${p.id}" ${presetMatch && presetMatch.id === p.id ? 'selected' : ''}>${esc(p.label)}${p.elements ? '' : ' mm'}</option>`).join('')}</optgroup>`).join('')}
       </select></label>
       <div class="stk-grid2">
         ${numInput('w', t.w, { label: 'Width', min: 5, scope: 'tpl' })}
@@ -1178,7 +1182,7 @@ function renderDrawer() {
   if (!S.drawer) return;
   const q = S.drawerQuery.trim().toLowerCase();
   const list = S.fields.filter(f => !q || f.label.toLowerCase().includes(q) || f.key.includes(q));
-  const groups = [['Label', 'On every label'], ['Item', 'From the item record']];
+  const groups = [['Label', 'On every label'], ['Item', 'From the item record'], ['Bin', 'Bin labels']];
   drawer.querySelector('.stk-drawer-list').innerHTML = groups.map(([g, title]) => {
     const items = list.filter(f => f.group === g);
     if (!items.length) return '';
@@ -1818,7 +1822,7 @@ async function usePreviewItem(code) {
 }
 
 function clearPreviewItem() {
-  S.label = Object.assign({}, E.SAMPLE_LABEL, { fields: Object.fromEntries(S.fields.filter(f => f.group === 'Item').map(f => [f.key, sampleFor(f)])) });
+  S.label = Object.assign({}, E.SAMPLE_LABEL, { fields: Object.fromEntries(S.fields.filter(f => f.group === 'Item' || f.group === 'Bin').map(f => [f.key, sampleFor(f)])) });
   S.previewName = '';
   const input = S.root.querySelector('.stk-preview-input');
   input.value = '';

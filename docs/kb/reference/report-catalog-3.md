@@ -21,14 +21,14 @@ screens: [reports]
 # Report catalog (part 3)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **102** reports, from
+every category and explains how to run a report. It holds **103** reports, from
 Procurement to Stock Transfer.
 
 ## Contents
 
 - [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement-grn) - 27 reports
-- [Quality](#quality) - 2 reports
+- [Quality](#quality) - 3 reports
 - [Sales](#sales) - 14 reports
 - [Sales & POS](#sales-pos) - 22 reports
 - [Service](#service) - 1 reports
@@ -356,7 +356,7 @@ Procurement to Stock Transfer.
 - **To** (`to`) - date, optional
 - **Vendor** (`vendor`) - link, optional, one of: Vendor
 
-**Columns:** Vendor · Orders · Receipts · On time · Fill rate · QC reject · Price variance · Bills · Bill mismatches
+**Columns:** Vendor · Orders · Receipts · On time · Fill rate · QC reject · Defects per million · Open SCARs · Price variance · Bills · Bill mismatches
 
 **Drill-down:** no.
 
@@ -757,6 +757,19 @@ Procurement to Stock Transfer.
 **Drill-down:** no.
 
 ## Quality
+
+### R7970 AQL Sample Plan
+
+**Report id:** `aql-sample-plan`
+
+**Parameters:**
+
+- **Lot size** (`lot_size`) - text, **required**
+- **AQL** (`aql`) - select, optional, one of: 0.065,0.10,0.15,0.25,0.40,0.65,1.0,1.5,2.5,4.0,6.5
+
+**Columns:** Lot size · AQL · Code letter · Sample · Accept at · Reject at · Whole lot
+
+**Drill-down:** no.
 
 ### R9060 Inspection lots
 
