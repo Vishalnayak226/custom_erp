@@ -401,14 +401,6 @@ func InvalidateTenantLifecycleCache(tenantID string) {
 	tenantGateMu.Unlock()
 }
 
-// ResetTenantLifecycleCache clears the whole gate cache. Test-support only,
-// matching ResetLiveUserStateCache.
-func ResetTenantLifecycleCache() {
-	tenantGateMu.Lock()
-	tenantGateCache = map[string]tenantGateEntry{}
-	tenantGateMu.Unlock()
-}
-
 // tenantHasCachedGate reports whether this process still holds a gate decision
 // for a tenant. Used by the post-purge residue proof.
 func tenantHasCachedGate(tenantID string) bool {

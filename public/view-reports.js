@@ -309,7 +309,7 @@ function renderExecDashboardTrendChart(container, labels, values) {
       <text x="${(x + barWidth / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" font-size="10" fill="var(--text-main)" text-anchor="middle">${Math.round(v)}</text>
     `;
   }).join('');
-  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:${width}px; height:${height}px;">${bars}</svg>`;
+  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" data-css="width:100%; max-width:${width}px; height:${height}px;">${bars}</svg>`;
 }
 
 // Inventory (Stage 21 QA fix): "Inventory" routed to a view name the router
@@ -1036,7 +1036,7 @@ function renderReportControlTotals(ct) {
       ${ct.detail_vs_summary ? `<span>Detail - summary <b>${money(ct.detail_vs_summary)}</b></span>` : ''}
       ${ct.summary_vs_ledger ? `<span>Summary - ledger <b>${money(ct.summary_vs_ledger)}</b></span>` : ''}`;
   el.innerHTML = `
-    <div class="table-panel" style="padding:12px 16px;margin-top:12px;border-left:4px solid ${ct.tied ? 'var(--success-color, #10b981)' : 'var(--warning-color, #f59e0b)'}">
+    <div class="table-panel" data-css="padding:12px 16px;margin-top:12px;border-left:4px solid ${ct.tied ? 'var(--success-color, #10b981)' : 'var(--warning-color, #f59e0b)'}">
       <div class="s-ccd221">
         <span class="badge ${ct.tied ? 'badge-success' : 'badge-warning'}">${ct.tied ? 'Control totals tie' : 'Control totals do not tie'}</span>
         ${amounts}
@@ -1363,7 +1363,9 @@ function renderReportCatalogResultTable(container, result, params) {
       if (!res) return;
       if (!res.ok) { showCustomAlert(await getErrorMessage(res, 'Merge failed.'), 'Merge'); return; }
       const out = await res.json();
-      showToast(`Merged - ${out.moved} reference(s) moved.`, { variant: 'success' });
+      // 47.13.5: with a MasterMerge approval rule the merge waits in Approvals
+      if (out.status === 'Pending Approval') showToast(`Sent for approval - ${out.id}.`, { variant: 'success' });
+      else showToast(`Merged - ${out.merge?.moved ?? 0} reference(s) moved.`, { variant: 'success' });
       button.closest('tr').remove();
     });
   });

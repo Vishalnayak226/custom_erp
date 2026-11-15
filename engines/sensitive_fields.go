@@ -30,6 +30,8 @@ import "sort"
 //	write:                     RejectRestrictedFieldWrites (handlers_core_doc_engine.go:350)
 //	bulk CSV import:           RejectRestrictedFieldWrites (import.go:262)
 //	PIM bulk edit:             RejectRestrictedFieldWrites (pim_bulk.go:83)
+//	list search and filter:    HiddenFieldsForRole         (handlers_core_doc_engine.go, 49.3.4)
+//	print data, CSV / Excel:   RedactPrintDocument         (handlers_po_design.go, 49.3.4)
 //
 // - which is the same "attach it at the one shared choke point every caller
 // already runs through" rule the rest of this codebase follows.
@@ -88,6 +90,11 @@ type sensitiveFieldRule struct {
 	// Why is the one-line reason an administrator sees in the
 	// "why allowed/denied" explanation (ExplainSensitiveFields).
 	Why string
+	// HiddenFromAll (103.4.1) denies read and write to Super Admin too: a
+	// stored digest (a share or hook token hash) is never shown or typed by
+	// anyone, so a document list or form must not carry it even to the top
+	// role. Tokens are minted and rotated by their own commands.
+	HiddenFromAll bool
 }
 
 // sensitiveFields is doctype -> fieldname -> rule.
@@ -199,10 +206,10 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 		"api_key": {Category: SensitiveCategorySecret, Why: "Robotics integration credential"},
 	},
 	"PIMCatalog": {
-		"share_token_hash": {Category: SensitiveCategorySecret, Why: "Catalog share token - system-generated, never hand-entered"},
+		"share_token_hash": {Category: SensitiveCategorySecret, HiddenFromAll: true, Why: "Catalog share token - system-generated, never hand-entered"},
 	},
 	"PIMImportSchedule": {
-		"hook_token_hash": {Category: SensitiveCategorySecret, Why: "Import hook token - system-generated, never hand-entered"},
+		"hook_token_hash": {Category: SensitiveCategorySecret, HiddenFromAll: true, Why: "Import hook token - system-generated, never hand-entered"},
 	},
 
 	// --- Personal data (Super Admin + Store Manager) ------------------
@@ -287,17 +294,25 @@ func roleListAllows(allowed []string, role string) bool {
 
 // sensitiveFieldPolicy returns the deny entries this policy adds for a
 // role/doctype pair: one FieldPermission per sensitive field the role may
-// not fully use. A Super Admin gets nil (nothing to add).
+// not fully use. A Super Admin gets nil (nothing to add) except for fields
+// marked HiddenFromAll (stored digests), which nobody reads or writes (103.4.1).
 //
 // Read and write are decided independently, so a write-only secret and a
 // read-only cost field both express correctly.
 func sensitiveFieldPolicy(role, doctype string) map[string]FieldPermission {
 	rules, ok := sensitiveFields[doctype]
-	if !ok || HasFullAccess(role) {
+	if !ok {
 		return nil
 	}
+	full := HasFullAccess(role)
 	out := make(map[string]FieldPermission, len(rules))
 	for field, rule := range rules {
+		if full {
+			if rule.HiddenFromAll {
+				out[field] = FieldPermission{}
+			}
+			continue
+		}
 		read := roleListAllows(rule.ReadRoles, role)
 		write := roleListAllows(rule.WriteRoles, role)
 		if read && write {
@@ -384,7 +399,7 @@ func ExplainSensitiveFields(role, doctype string) []SensitiveFieldAccess {
 			Doctype: doctype, Field: field, Category: rule.Category,
 			Reason: rule.Why, Sensitive: true,
 		}
-		if superAdmin {
+		if superAdmin && !rule.HiddenFromAll {
 			access.CanRead, access.CanWrite = true, true
 		} else {
 			access.CanRead = roleListAllows(rule.ReadRoles, role)

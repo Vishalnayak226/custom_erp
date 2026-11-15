@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **456**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **463**
 across **28** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -22,28 +22,28 @@ table has the same shape whoever runs it.
 ## Contents
 
 - [Accounting](#accounting) - 26 reports
-- [Admin](#admin) - 7 reports
+- [Admin](#admin) - 8 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 36 reports
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Expenses](#expenses) - 1 reports
-- [Finance](#finance) - 43 reports
+- [Expenses](#expenses) - 3 reports
+- [Finance](#finance) - 44 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
-- [HR](#hr) - 2 reports
+- [HR](#hr) - 3 reports
 - [HRMS](#hrms) - 15 reports
 - [Inventory](#inventory) - 43 reports
 - [MIS & Management](#mis--management) - 10 reports
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data--audit) - 11 reports
 - [OMS](#oms) - 25 reports
-- [PIM](#pim) - 8 reports
+- [PIM](#pim) - 9 reports
 - [PIM / PIMS](#pim--pims) - 16 reports
 - [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement--grn) - 27 reports
-- [Quality](#quality) - 3 reports
+- [Quality](#quality) - 4 reports
 - [Sales](#sales) - 14 reports
 - [Sales & POS](#sales--pos) - 22 reports
 - [Service](#service) - 1 reports
@@ -460,6 +460,19 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Record · Code · Name · Missing · Why it matters
+
+**Drill-down:** no.
+
+### Own approval decisions
+
+**Report id:** `own-approval-decisions`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Decided · Document type · Document · Decision · Decided by · Role · Amount · Reason
 
 **Drill-down:** no.
 
@@ -1342,6 +1355,16 @@ table has the same shape whoever runs it.
 
 ## Expenses
 
+### Card lines not matched
+
+**Report id:** `card-lines-unmatched`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Card · Card holder · Date · Description · Amount *(sensitive)* · Claims that fit
+
+**Drill-down:** no.
+
 ### Employee advance balance
 
 **Report id:** `employee-advance-balance`
@@ -1349,6 +1372,18 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Employee · Advanced *(sensitive)* · Settled *(sensitive)* · Balance *(sensitive)*
+
+**Drill-down:** no.
+
+### Travel requests
+
+**Report id:** `travel-requests`
+
+**Parameters:**
+
+- **Status** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Rejected
+
+**Columns:** Request · Employee · Destination · From · To · Status · Estimated *(sensitive)* · Advance paid *(sensitive)* · Claimed *(sensitive)* · Left of estimate *(sensitive)*
 
 **Drill-down:** no.
 
@@ -1428,6 +1463,18 @@ table has the same shape whoever runs it.
 - **To** (`end`) - date, **required**
 
 **Columns:** Activity · Cash In *(sensitive)* · Cash Out *(sensitive)* · Net Change *(sensitive)*
+
+**Drill-down:** no.
+
+### Cash position
+
+**Report id:** `cash-position`
+
+**Parameters:**
+
+- **As of** (`as_of`) - date, optional
+
+**Columns:** Section · Item · Now *(sensitive)* · Week 1 *(sensitive)* · Week 2 *(sensitive)* · Week 3 *(sensitive)* · Week 4 *(sensitive)* · Later *(sensitive)* · Total *(sensitive)*
 
 **Drill-down:** no.
 
@@ -1619,7 +1666,7 @@ table has the same shape whoever runs it.
 - **Month (YYYY-MM)** (`month`) - text, **required**
 - **Status** (`status`) - text, optional
 
-**Columns:** Status · Supplier GSTIN · Supplier · Invoice · Date · Value · Tax · Vendor bill · Why · Decision
+**Columns:** Status · Supplier GSTIN · Supplier · Type · Number · Date · Value · Tax · Bill / note · Why · Decision
 
 **Drill-down:** no.
 
@@ -2028,6 +2075,18 @@ table has the same shape whoever runs it.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Employee ID · Employee · Department · Present · Absent · Late · Leave · Holiday · Weekly Off · Total Marked Days · Attendance %
+
+**Drill-down:** no.
+
+### Certificate Expiry
+
+**Report id:** `certificate-expiry`
+
+**Parameters:**
+
+- **Days ahead (optional)** (`days`) - text, optional
+
+**Columns:** Employee ID · Employee · Department · Training · Certificate · Valid until · Days left · Status
 
 **Drill-down:** no.
 
@@ -2673,7 +2732,7 @@ table has the same shape whoever runs it.
 - **From (optional)** (`start`) - date, optional
 - **To (optional)** (`end`) - date, optional
 
-**Columns:** Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User
+**Columns:** Date · SKU · Location · Qty Delta · UOM · Running Balance · Voucher Type · Voucher ID · Unit Cost · Unit Price · Tax % · From Location/Bin · To Location/Bin · From Condition · To Condition · User
 
 **Drill-down:** no.
 
@@ -3708,6 +3767,18 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Declaration gaps
+
+**Report id:** `declaration-gaps`
+
+**Parameters:**
+
+- **Category** (`category`) - text, optional
+
+**Columns:** Item · Name · Category · Pack · Channel · Missing · Turned on by
+
+**Drill-down:** no.
+
 ### Listing drift
 
 **Report id:** `listing-drift`
@@ -4731,6 +4802,18 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Inspection · Store · Rule · Age · Age from · Outcome · Markdown · Due · Days left · Status
+
+**Drill-down:** no.
+
+### Instruments due for calibration
+
+**Report id:** `calibration-due`
+
+**Parameters:**
+
+- **Show** (`show`) - select, optional, one of: Due and overdue,All
+
+**Columns:** Instrument · Name · Kept at · Last calibrated · Result · Next due · Days overdue · State
 
 **Drill-down:** no.
 

@@ -116,6 +116,7 @@ var roleTemplates = []RoleTemplate{
 			"audit.logs", "system.logs", "finance.statements",
 			"assets.manage", "hr.payroll", "expenses.manage",
 			"pos.price_override", "returns.exception", "pos.offline_validate", "finance.post",
+			"jobs.view", "jobs.manage", // 49.3.1
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
@@ -128,6 +129,7 @@ var roleTemplates = []RoleTemplate{
 		Capabilities: []string{
 			"audit.logs", "finance.statements", "assets.manage", "hr.payroll",
 			"expenses.manage", "pos.price_override", "returns.exception", "pos.offline_validate", "finance.post",
+			"jobs.view", "jobs.manage", // 49.3.1
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
@@ -164,12 +166,19 @@ var roleTemplates = []RoleTemplate{
 		Name:    "Cashier",
 		Landing: "pos",
 		Summary: "Serves customers at the till: rings up sales, takes payment, handles receipted returns, looks up stock and prices.",
+		// 55.5a (approved 2026-11-15): the till, its returns and customer
+		// lookup only. Inventory, PIM and Master Data were whole-module
+		// reads, which put the WMS floor screens, PIM and setup lists in a
+		// cashier's menu; the till reads just the record types below
+		// through /api/v1/doc (view-pos*.js) and the rest through its own
+		// pos/checkout/returns routes.
 		Modules: map[string]AccessLevel{
 			"POS": AccessOperate, "Sales": AccessOperate, "CRM": AccessOperate,
-			"Master Data": AccessRead, "Inventory": AccessRead, "PIM": AccessRead,
 			"Core": AccessRead,
 		},
 		Doctypes: map[string]AccessLevel{
+			"Item": AccessRead, "Bin": AccessRead, "ReasonCode": AccessRead,
+			"ReturnRequest": AccessRead,
 			// Self-service only. These three were the "generic sensitive
 			// grants" in the shipped seed: read on every colleague's
 			// Payslip and EmployeeLoan, and create/update on Grievance
@@ -297,7 +306,7 @@ var roleTemplates = []RoleTemplate{
 			"Payslip": AccessNone, "SalaryStructure": AccessNone,
 			"EmployeeLoan": AccessNone, "Grievance": AccessNone,
 		},
-		Capabilities: []string{"audit.logs", "system.logs", "finance.statements"},
+		Capabilities: []string{"audit.logs", "system.logs", "finance.statements", "jobs.view"}, // 49.3.1: sees jobs, re-runs none
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeOwner},
 	},
 	{
@@ -396,14 +405,61 @@ var newClientSeedNarrowings = map[string][]string{
 	RoleStoreManager: {"EmployeeLoan", "JournalVoucher", "VendorInvoice", "WebhookSubscription"},
 }
 
-// narrowNewClientSeedGrantsTx applies newClientSeedNarrowings to a client
-// schema inside its provisioning transaction: read stays, create, update and
-// delete go.
-func narrowNewClientSeedGrantsTx(tx *sql.Tx, schema string) error {
+// newClientSeedWidenings (55.5a, approved 2026-11-15) are grants a new
+// client's copy of the seed gains at operate: the till's + New Customer
+// needs create on Customer, which the seed (stage24 addendum) left read-only
+// for Store Manager. An existing client gets it in Roles or from the plan.
+var newClientSeedWidenings = map[string][]string{
+	RoleStoreManager: {"Customer"},
+}
+
+// newClientTemplateRoles (55.5a) are seeded roles a new client gets exactly
+// as their template says, not as the seed copied them. The shipped Cashier
+// seed showed about 35 menu entries beyond the till.
+var newClientTemplateRoles = []string{RoleCashier}
+
+// fitNewClientSeedGrantsTx shapes a new client's copy of the seed inside its
+// provisioning transaction: newClientSeedNarrowings keep read and lose
+// create, update and delete; newClientSeedWidenings gain operate; each
+// newClientTemplateRoles role is rewritten from its template.
+func fitNewClientSeedGrantsTx(tx *sql.Tx, schema string) error {
 	for role, doctypes := range newClientSeedNarrowings {
 		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.role_permissions SET allow_create = FALSE, allow_update = FALSE, allow_delete = FALSE
 			WHERE role = $1 AND doctype_name = ANY($2::text[])`, schema), role, pq.Array(doctypes)); err != nil {
 			return fmt.Errorf("could not narrow the seeded %s role: %v", role, err)
+		}
+	}
+	for role, doctypes := range newClientSeedWidenings {
+		for _, doctype := range doctypes {
+			if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
+				VALUES ($1, $2, TRUE, TRUE, TRUE, FALSE)
+				ON CONFLICT (role, doctype_name) DO UPDATE SET allow_read = TRUE, allow_create = TRUE, allow_update = TRUE`, schema), role, doctype); err != nil {
+				return fmt.Errorf("could not widen the seeded %s role: %v", role, err)
+			}
+		}
+	}
+	if len(newClientTemplateRoles) == 0 {
+		return nil
+	}
+	modules, err := doctypeModulesIn(tx, schema)
+	if err != nil {
+		return err
+	}
+	for _, role := range newClientTemplateRoles {
+		template, ok := RoleTemplateFor(role)
+		if !ok {
+			return fmt.Errorf("role %s has no template", role)
+		}
+		grants := expandTemplateGrants(modules, template)
+		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.role_permissions WHERE role = $1`, schema), role); err != nil {
+			return fmt.Errorf("could not reset the seeded %s role: %v", role, err)
+		}
+		for _, doctype := range sortedKeys(grants) {
+			read, create, update, del := grants[doctype].Permissions()
+			if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
+				VALUES ($1, $2, $3, $4, $5, $6)`, schema), role, doctype, read, create, update, del); err != nil {
+				return fmt.Errorf("could not write the %s template: %v", role, err)
+			}
 		}
 	}
 	return nil
@@ -552,6 +608,11 @@ func TemplateGrants(tenantID string, template RoleTemplate) (map[string]AccessLe
 	if err != nil {
 		return nil, err
 	}
+	return expandTemplateGrants(modules, template), nil
+}
+
+// expandTemplateGrants resolves a template against doctype -> module.
+func expandTemplateGrants(modules map[string]string, template RoleTemplate) map[string]AccessLevel {
 	grants := map[string]AccessLevel{}
 	for doctype, module := range modules {
 		if level, ok := template.Modules[module]; ok && level != AccessNone {
@@ -570,7 +631,7 @@ func TemplateGrants(tenantID string, template RoleTemplate) (map[string]AccessLe
 		}
 		grants[doctype] = level
 	}
-	return grants, nil
+	return grants
 }
 
 // doctypeModules reads doctype -> module for a tenant.
@@ -579,7 +640,15 @@ func doctypeModules(tenantID string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT name, module FROM %s.doctype_meta`, schema))
+	return doctypeModulesIn(db.DB, schema)
+}
+
+// doctypeModulesIn reads doctype -> module from a schema through a pool or a
+// transaction (a client being provisioned is not committed yet).
+func doctypeModulesIn(q interface {
+	Query(string, ...interface{}) (*sql.Rows, error)
+}, schema string) (map[string]string, error) {
+	rows, err := q.Query(fmt.Sprintf(`SELECT name, module FROM %s.doctype_meta`, schema))
 	if err != nil {
 		return nil, err
 	}

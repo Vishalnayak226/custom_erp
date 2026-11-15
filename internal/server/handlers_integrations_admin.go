@@ -825,7 +825,7 @@ func handleSetTenantPackage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grantedBy := r.Header.Get("Resolved-Username")
-	if err := engines.ApplyPackageSelection(req.TenantID, req.Packages, grantedBy); err != nil {
+	if _, err := engines.TransitionTenantPackages(req.TenantID, req.Packages, grantedBy, r.Header.Get("Idempotency-Key"), false); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}

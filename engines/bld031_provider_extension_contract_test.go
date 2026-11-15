@@ -198,7 +198,7 @@ func TestBLD031ExtensionHookDeliveryRevalidatesTargetBeforeEveryCall(t *testing.
 	// which is exactly why the re-check at delivery time is the real guarantee.
 	seedExtensionHook(t, schema, "document.before_save", doctype, "https://169.254.169.254/hook", "secret", 3000)
 
-	err = InvokeBeforeSaveHooks(tenantID, doctype, "DOC-BLD031-SSRF", map[string]interface{}{})
+	err = InvokeBeforeSaveHooks(tenantID, "test-user", doctype, "DOC-BLD031-SSRF", map[string]interface{}{})
 	if err == nil {
 		t.Fatal("expected a hook whose target resolves to a private/link-local address to be refused at delivery time, got no error")
 	}

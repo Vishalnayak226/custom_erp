@@ -2,6 +2,8 @@ package engines
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"sync"
@@ -117,7 +119,22 @@ func sourceLinePostingLines(debits, credits map[string]int64, shares []sourceLin
 // already carries its own Lines, or that is in a foreign currency, is left as
 // it is. With the setting off opts comes back untouched.
 func withSourceLines(schema string, opts []PostingOptions, debits, credits map[string]int64, shares []sourceLineShare) []PostingOptions {
-	if !sourceLinesOn(schema) || len(shares) == 0 {
+	return withSourceLineParts(schema, opts, sourceLinePart{Debits: debits, Credits: credits, Shares: shares})
+}
+
+// sourceLinePart is one slice of a posting and the lines it is spread over: a
+// GRN's expensed lines carry the expense account, its stock lines the
+// inventory account, and every line its share of the payable.
+type sourceLinePart struct {
+	Debits, Credits map[string]int64
+	Shares          []sourceLineShare
+}
+
+// withSourceLineParts is withSourceLines for a posting made of parts. Any part
+// that cannot be spread (no weighted line) leaves opts untouched, so the rows
+// always add up to the posting.
+func withSourceLineParts(schema string, opts []PostingOptions, parts ...sourceLinePart) []PostingOptions {
+	if len(parts) == 0 || !sourceLinesOn(schema) {
 		return opts
 	}
 	var o PostingOptions
@@ -127,12 +144,53 @@ func withSourceLines(schema string, opts []PostingOptions, debits, credits map[s
 	if len(o.Lines) > 0 || o.Currency != "" {
 		return opts
 	}
-	lines := sourceLinePostingLines(debits, credits, shares)
-	if lines == nil {
+	var lines []PostingLine
+	for _, p := range parts {
+		var amount int64
+		for _, v := range p.Debits {
+			amount += max(v, 0)
+		}
+		for _, v := range p.Credits {
+			amount += max(v, 0)
+		}
+		if amount == 0 {
+			continue
+		}
+		pl := sourceLinePostingLines(p.Debits, p.Credits, p.Shares)
+		if pl == nil {
+			return opts
+		}
+		lines = append(lines, pl...)
+	}
+	if len(lines) == 0 {
 		return opts
 	}
 	o.Lines = lines
 	return []PostingOptions{o}
+}
+
+// posCartLineShares weights a POS cart's lines, numbered by position, by what
+// each sold for (net of its offer share) or, with byCost, by its cost. Nil
+// when the setting is off, so the cart is only read when it is wanted.
+func posCartLineShares(tx *sql.Tx, schema, tenantID, checkoutID string, byCost bool) []sourceLineShare {
+	if !sourceLinesOn(schema) {
+		return nil
+	}
+	cart, ok := posCartForGroups(tx, schema, checkoutID)
+	if !ok {
+		return nil
+	}
+	out := make([]sourceLineShare, 0, len(cart.Items))
+	for i, it := range cart.Items {
+		w := RupeesToPaise(it.SalePrice)*int64(it.Qty) - RupeesToPaise(it.OfferShare)
+		if byCost {
+			if c := ResolveCOGSUnitCostPaise(tenantID, it.Sku, itemStandardCostRupees(tenantID, it.Sku)) * int64(it.Qty); c > 0 {
+				w = c
+			}
+		}
+		out = append(out, sourceLineShare{ID: lineNoID(i + 1), Weight: max(w, 0)})
+	}
+	return out
 }
 
 // glSourceLineColumn caches, per schema, whether gl_postings has the column
@@ -171,6 +229,29 @@ func salesInvoiceLineShares(dataStr string) []sourceLineShare {
 	var out []sourceLineShare
 	for i, l := range salesInvoiceLineWeights(dataStr) {
 		out = append(out, sourceLineShare{ID: lineNoID(i + 1), Weight: l.Weight})
+	}
+	return out
+}
+
+// grnSKULineNo is the GRN line (1-based) each SKU first appears on - receipt
+// costing works per SKU. Nil when the setting is off.
+func grnSKULineNo(tx *sql.Tx, schema, grnID string) map[string]int {
+	if !sourceLinesOn(schema) {
+		return nil
+	}
+	var raw string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema), grnID).Scan(&raw); err != nil {
+		return nil
+	}
+	var data map[string]interface{}
+	if json.Unmarshal([]byte(raw), &data) != nil {
+		return nil
+	}
+	out := map[string]int{}
+	for i, l := range grnLineMaps(data) {
+		if sku := strField(l, "sku"); sku != "" && out[sku] == 0 {
+			out[sku] = i + 1
+		}
 	}
 	return out
 }

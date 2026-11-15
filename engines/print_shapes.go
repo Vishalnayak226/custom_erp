@@ -25,7 +25,8 @@ type printShape struct {
 var printShapes = map[string]printShape{
 	"JournalVoucher": {title: "Journal Voucher", lines: jvPrintLines, columns: []genericPrintColumn{
 		{Key: "account_code", Label: "Account"}, {Key: "account_name", Label: "Account name"}, {Key: "debit", Label: "Debit"}, {Key: "credit", Label: "Credit"}}},
-	"Payslip": {title: "Payslip", partyTitle: "Employee", hide: []string{"gross_pay", "pf_deduction", "esi_deduction", "pt_deduction", "tds_deduction", "loan_deduction"}, lines: payslipPrintLines, columns: []genericPrintColumn{
+	"Payslip": {title: "Payslip", partyTitle: "Employee", hide: []string{"gross_pay", "pf_deduction", "esi_deduction", "pt_deduction", "tds_deduction", "loan_deduction",
+		"lwf_deduction", "lwf_employer", "benefit_earnings", "benefit_deductions", "benefit_employer", "benefit_lines"}, lines: payslipPrintLines, columns: []genericPrintColumn{
 		{Key: "component", Label: "Pay head"}, {Key: "earning", Label: "Earnings"}, {Key: "deduction", Label: "Deductions"}}},
 	"SubcontractOrder": {title: "Job Work Challan (Rule 55)", partyTitle: "Job worker", lines: jobWorkPrintLines, columns: []genericPrintColumn{
 		{Key: "direction", Label: "Goods"}, {Key: "sku", Label: "SKU"}, {Key: "item_name", Label: "Item"}, {Key: "qty", Label: "Qty"}}},
@@ -52,10 +53,10 @@ func jvPrintLines(tenantID, _ string, data map[string]interface{}) []map[string]
 		}
 		row := map[string]interface{}{"account_code": l.AccountCode, "account_name": name}
 		if l.Debit > 0 {
-			row["debit"] = PaiseToRupees(int64(l.Debit))
+			row["debit"] = PaiseToRupees(RupeesToPaise(l.Debit))
 		}
 		if l.Credit > 0 {
-			row["credit"] = PaiseToRupees(int64(l.Credit))
+			row["credit"] = PaiseToRupees(RupeesToPaise(l.Credit))
 		}
 		out = append(out, row)
 	}
@@ -64,16 +65,36 @@ func jvPrintLines(tenantID, _ string, data map[string]interface{}) []map[string]
 
 // payslipPrintLines: gross pay as earnings, each deduction the slip carries.
 func payslipPrintLines(_, _ string, data map[string]interface{}) []map[string]interface{} {
-	out := []map[string]interface{}{{"component": "Gross pay", "earning": round2(numFromInterface(data["gross_pay"]))}}
+	// 170.23: each enrolled benefit is its own line (an earning one is part of
+	// gross_pay, so the gross line shows the rest); LWF is a deduction line.
+	var benEarn, benDed []map[string]interface{}
+	if lines, ok := data["benefit_lines"].([]interface{}); ok {
+		for _, l := range lines {
+			m, _ := l.(map[string]interface{})
+			name, amt := firstNonEmpty(strField(m, "name"), strField(m, "plan")), round2(numFromInterface(m["amount"]))
+			switch {
+			case amt == 0:
+			case strField(m, "type") == "Earning":
+				benEarn = append(benEarn, map[string]interface{}{"component": name, "earning": amt})
+			case strField(m, "type") == "Deduction":
+				benDed = append(benDed, map[string]interface{}{"component": name, "deduction": amt})
+			}
+		}
+	}
+	gross, label := numFromInterface(data["gross_pay"]), "Gross pay"
+	if len(benEarn) > 0 {
+		gross, label = gross-numFromInterface(data["benefit_earnings"]), "Salary"
+	}
+	out := append([]map[string]interface{}{{"component": label, "earning": round2(gross)}}, benEarn...)
 	for _, d := range []struct{ key, label string }{
 		{"pf_deduction", "Provident Fund"}, {"esi_deduction", "ESI"}, {"pt_deduction", "Professional Tax"},
-		{"tds_deduction", "TDS"}, {"loan_deduction", "Loan recovery"},
+		{"tds_deduction", "TDS"}, {"loan_deduction", "Loan recovery"}, {"lwf_deduction", "Labour Welfare Fund"},
 	} {
 		if v := numFromInterface(data[d.key]); v != 0 {
 			out = append(out, map[string]interface{}{"component": d.label, "deduction": round2(v)})
 		}
 	}
-	return out
+	return append(out, benDed...)
 }
 
 // jobWorkPrintLines: the goods sent to the job worker and what comes back

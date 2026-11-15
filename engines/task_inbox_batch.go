@@ -19,6 +19,9 @@ type inboxApprovalFacts struct {
 	createdBy string
 	waiting   time.Time
 	made      bool
+	// waitedHours is the database's own count since the last change (73.4.9:
+	// the escalation cover is read from it, not from the viewer's clock).
+	waitedHours int64
 }
 
 type inboxApprovalBatch struct {
@@ -58,6 +61,7 @@ func loadInboxApprovalFacts(schema, userID string, pending []map[string]interfac
 	// The same expression as madeApprovalRound, evaluated for every row.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT d.doctype, d.id, COALESCE(d.created_by, ''), d.updated_at AT TIME ZONE current_setting('TimeZone'),
+		       EXTRACT(EPOCH FROM (NOW() - d.updated_at))::bigint / 3600,
 		       COALESCE(d.updated_by, '') = $3 OR EXISTS (
 			SELECT 1 FROM %[1]s.approval_log l
 			WHERE l.doctype = d.doctype AND l.document_id = d.id AND l.actor_user_id = $3 AND l.action IN ('Submitted', 'Modified')
@@ -72,7 +76,7 @@ func loadInboxApprovalFacts(schema, userID string, pending []map[string]interfac
 	for rows.Next() {
 		var doctype, id string
 		var f inboxApprovalFacts
-		if err := rows.Scan(&doctype, &id, &f.createdBy, &f.waiting, &f.made); err != nil {
+		if err := rows.Scan(&doctype, &id, &f.createdBy, &f.waiting, &f.waitedHours, &f.made); err != nil {
 			rows.Close()
 			return nil, err
 		}

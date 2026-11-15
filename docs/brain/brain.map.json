@@ -236,6 +236,7 @@
         "engines/field_formats.go",
         "engines/phone.go",
         "internal/server/handlers_core_doc_engine.go",
+        "internal/server/handlers_core_list_search.go",
         "internal/server/handlers_doc_find.go",
         "internal/server/handlers_field_formats.go"
       ]
@@ -244,7 +245,7 @@
       "id": "identity",
       "lobe": "brainstem",
       "name": "Identity, RBAC & MFA",
-      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MFA recovery codes and authenticator re-enrollment, account lockout, password reset, field-level permissions, and (Stage 47.1) the deny-by-default authorization layer: the route-capability registry, the sensitive-field policy, scope semantics, role templates, the SoD conflict catalog and the reviewed/reversible tenant grant migration. 162.15 adds server-side sessions (user_sessions): a real sign-out and an optional server idle limit.",
+      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MFA recovery codes and authenticator re-enrollment, account lockout, password reset, field-level permissions, and (Stage 47.1) the deny-by-default authorization layer: the route-capability registry, the sensitive-field policy, scope semantics, role templates, the SoD conflict catalog and the reviewed/reversible tenant grant migration. 162.15 adds server-side sessions (user_sessions): a real sign-out and an optional server idle limit. 49.2.3 adds passkeys (WebAuthn registration and sign-in, webauthn.go, handlers_passkeys.go, passkey-client.js).",
       "match": [
         "engines/auth.go",
         "engines/auth_livestate.go",
@@ -282,6 +283,10 @@
         "internal/server/handlers_auth_sessions.go",
         "internal/server/handlers_mfa_recovery.go",
         "internal/server/handlers_mfa_devices.go",
+        "engines/webauthn.go",
+        "engines/webauthn_store.go",
+        "internal/server/handlers_passkeys.go",
+        "public/passkey-client.js",
         "internal/server/handlers_admin_identity.go",
         "internal/server/handlers_access_governance.go",
         "internal/server/route_capabilities.go",
@@ -297,9 +302,15 @@
       "id": "tenancy",
       "lobe": "brainstem",
       "name": "Tenancy, Packaging & Settings",
-      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet. Stage 38.7 adds self-service sandbox tenants on top of the same ProvisionTenantSchema baseline: is_sandbox/sandbox_expires_at flag a tenant for auto-expiry (checked at login and on every live session re-check) and for external side effects being turned off (Stage 38.4's webhook delivery checks it), plus a reset (truncate business data, keep login/config) and delete path guarded so neither can ever touch a non-sandbox tenant. Stage 49.1.5 makes the whole lifecycle governed: tenant_lifecycle.go holds the state machine (active ⇄ suspended, → deprovision_requested → purged), the one-time provisioning credential's expiry and rotation record, the append-only evidence trail in public.tenant_lifecycle_events, the four purge preconditions (deprovisioned first, no legal hold, retention elapsed, backup reference) and the post-purge residue proof; suspension is enforced through the tenant gate in auth_livestate.go so it reaches sessions already in flight, and cmd/tenantctl is the operator surface — deliberately a CLI rather than a route, so no role inside the product can reach DROP SCHEMA. Stage 65.6 puts pause/resume and a per-client free trial (tenant_trial.go, public.tenants.trial_ends_at) on the operator's Control Panel; a trial that has ended is refused by the same tenant gate, compared on every read.",
+      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet. Stage 38.7 adds self-service sandbox tenants on top of the same ProvisionTenantSchema baseline: is_sandbox/sandbox_expires_at flag a tenant for auto-expiry (checked at login and on every live session re-check) and for external side effects being turned off (Stage 38.4's webhook delivery checks it), plus a reset (truncate business data, keep login/config) and delete path guarded so neither can ever touch a non-sandbox tenant. Stage 49.1.5 makes the whole lifecycle governed: tenant_lifecycle.go holds the state machine (active ⇄ suspended, → deprovision_requested → purged), the one-time provisioning credential's expiry and rotation record, the append-only evidence trail in public.tenant_lifecycle_events, the four purge preconditions (deprovisioned first, no legal hold, retention elapsed, backup reference) and the post-purge residue proof; suspension is enforced through the tenant gate in auth_livestate.go so it reaches sessions already in flight, and cmd/tenantctl is the operator surface — deliberately a CLI rather than a route, so no role inside the product can reach DROP SCHEMA. Stage 65.6 puts pause/resume and a per-client free trial (tenant_trial.go, public.tenants.trial_ends_at) on the operator's Control Panel; a trial that has ended is refused by the same tenant gate, compared on every read. 50.12 adds the paid side: package change with preview and a downgrade that keeps data (saas_package_transition.go), Razorpay subscriptions behind a small adapter with a signed webhook (saas_subscription.go, handlers_saas_billing.go), metering and quotas (saas_metering.go), GST tax invoices for the subscription (saas_invoice_gst.go), and tenantctl's portable client copy (tenant_portable_export.go).",
       "match": [
         "engines/saas.go",
+        "engines/saas_subscription.go",
+        "engines/saas_package_transition.go",
+        "engines/saas_metering.go",
+        "engines/saas_invoice_gst.go",
+        "engines/tenant_portable_export.go",
+        "internal/server/handlers_saas_billing.go",
         "engines/sandbox.go",
         "engines/sandbox_effects.go",
         "engines/sandbox_reset.go",
@@ -315,6 +326,7 @@
         "engines/capability_maturity.go",
         "engines/query_fingerprints.go",
         "engines/query_baseline.go",
+        "engines/query_explain.go",
         "engines/storage_safety*.go",
         "internal/server/handlers_control_panel.go",
         "engines/platform_support.go",
@@ -325,6 +337,7 @@
         "cmd/releasegate/*",
         "cmd/upgradegate/*",
         "internal/releasegate/*.go",
+        "internal/releasever/*.go",
         "cmd/installcheck/*",
         "cmd/journeylab/*",
         "cmd/epicledger/*",
@@ -361,6 +374,8 @@
         "engines/approval.go",
         "engines/approval_hooks.go",
         "engines/approval_threshold_split.go",
+        "engines/approval_reminders.go",
+        "engines/approval_own_decisions.go",
         "engines/task_inbox.go",
         "engines/task_inbox_batch.go",
         "internal/server/handlers_task_inbox.go"
@@ -467,7 +482,11 @@
         "engines/project_milestone_budget.go",
         "engines/project_revenue.go",
         "engines/project_timesheet.go",
-        "internal/server/handlers_project_billing.go"
+        "internal/server/handlers_project_billing.go",
+        "engines/finance_cash_position.go",
+        "engines/acquirer_upi_statements.go",
+        "engines/finance_payment_links.go",
+        "internal/server/handlers_finance_payment_links.go"
       ]
     },
     {
@@ -493,7 +512,9 @@
         "engines/gst_export_lut.go",
         "engines/gstr1_json.go",
         "engines/gstr2b_reconcile.go",
-        "internal/server/handlers_gst_returns_files.go"
+        "internal/server/handlers_gst_returns_files.go",
+        "engines/gstr1_amendments.go",
+        "engines/gstr1_till_sales.go"
       ]
     },
     {
@@ -572,6 +593,7 @@
         "engines/inventory.go",
         "engines/availability_network.go",
         "engines/stock_ledger_idempotency.go",
+        "engines/inventory_ledger_snapshot.go",
         "engines/inventory_documents.go",
         "engines/inventory_stock_view.go",
         "internal/server/handlers_inventory_erp.go",
@@ -584,6 +606,7 @@
         "engines/consumption_entry.go",
         "internal/server/handlers_item_master.go",
         "engines/item_setup.go",
+        "engines/item_alias.go",
         "engines/item_attribute_map.go",
         "engines/grn_item_values.go",
         "engines/item_treatment_correction.go",
@@ -604,6 +627,7 @@
         "engines/transfer_allocation.go",
         "engines/transfer_fill_policy.go",
         "engines/transfer_lifecycle.go",
+        "engines/transfer_store_scope.go",
         "internal/server/handlers_transfers.go",
         "engines/stock_book_ledger.go",
         "engines/supply_proposals.go",
@@ -737,6 +761,7 @@
         "engines/pos_tender_master.go",
         "engines/pos_customers.go",
         "engines/pos_bill_number.go",
+        "engines/pos_till_series.go",
         "engines/customer_advance.go",
         "internal/server/handlers_pos_customers.go",
         "engines/pos_cash_movements.go",
@@ -749,7 +774,8 @@
         "internal/server/handlers_pos_cash.go",
         "internal/server/handlers_pos_held.go",
         "engines/store_credit.go",
-        "engines/pos_bill_cancel.go"
+        "engines/pos_bill_cancel.go",
+        "engines/pos_upi_qr.go"
       ]
     },
     {
@@ -759,6 +785,7 @@
       "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary. Stage 36.5 adds declarative value-transform rules (a closed function vocabulary, applied by both the channel-publish and import paths); Stage 36.3 adds import depth on top of it: column-mapping templates, a scheduled directory scan, an inbound webhook, and variant-parent-aware preview. Stage 95 adds Design and Combination ID images (the PO's Images page, file-name matching) and each client's own S3-compatible image drive (hand-written SigV4) that every product image is read from and written to. Ask 168 adds category attribute rules, item merge, store range, markdowns, listing drift and the Myntra price harvester.",
       "match": [
         "engines/pim*.go",
+        "engines/pim_declaration_packs.json",
         "engines/image_drive*.go",
         "engines/owner_images*.go",
         "engines/s3_sigv4*.go",
@@ -888,7 +915,10 @@
         "engines/quality_aql_sampling.go",
         "engines/quality_lot_genealogy.go",
         "engines/quality_supplier_scar.go",
-        "internal/server/handlers_quality_scar.go"
+        "internal/server/handlers_quality_scar.go",
+        "engines/quality_calibration.go",
+        "engines/service_field_visit.go",
+        "engines/service_knowledge_base.go"
       ]
     },
     {
@@ -904,7 +934,9 @@
         "internal/server/handlers_attachments.go",
         "engines/expense_advance.go",
         "engines/expense_limits.go",
-        "internal/server/handlers_expense_advance.go"
+        "internal/server/handlers_expense_advance.go",
+        "engines/expense_travel_request.go",
+        "engines/expense_corporate_card.go"
       ]
     },
     {
@@ -1183,6 +1215,7 @@
         "engines/security_posture.go",
         "engines/security_evidence_encryption.go",
         "internal/server/security_read_only.go",
+        "internal/server/security_automation_key.go",
         "engines/privileged_sessions.go",
         "engines/restore_verify.go",
         "engines/bounded_state.go",

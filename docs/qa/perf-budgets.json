@@ -73,18 +73,14 @@
     "overrides": {}
   },
   "ratchet": {
-    "desktop-cable.switchP95Ms": 350,
-    "desktop-cable.unlabelledFields": 3,
-    "throttled-4x.lcpP75Ms": 3000,
-    "throttled-4x.inpP75Ms": 750,
-    "throttled-4x.switchP95Ms": 1100,
-    "throttled-4x.unlabelledFields": 3,
+    "throttled-4x.lcpP75Ms": 2400,
+    "throttled-4x.inpP75Ms": 580,
+    "throttled-4x.switchP95Ms": 740,
     "server./api/v1/inbox p95": 160,
     "phone-low.lcpP75Ms": 5400,
     "phone-low.inpP75Ms": 950,
     "phone-low.switchP95Ms": 2100,
-    "phone-low.unlabelledFields": 3,
     "server./api/v1/inbox p99": 200
   },
-  "ratchetNote": "Ceilings = 1.5x the worst scratch-DB measurement seen on 2026-11-07 and 2026-11-10 (phone-low clean run 2026-11-10: LCP 8912, INP 1368, switch p95 2727). Server figures come from 5-10 reps on a freshly restarted server, so they are noisy; re-baseline with --probe-reps 30 before relying on them. Lower a ceiling as each fix lands. 2026-11-12 re-baseline (--probe-reps 30, same scratch DB, before then after 162.5): desktop switch p95 264 to under 250; throttled LCP 2920 to 2728, INP 672 to 648, switch p95 928 to 875; /api/v1/inbox p95 330 to 105, p99 400 to 156 (one query for the per-item approval facts); /api/v1/doc/Item p95 165 to 33. Phone ceilings are unchanged: the same build measured 4.8 s to 6.6 s LCP on one machine within an hour, so that profile cannot show a gain this small."
+  "ratchetNote": "Ceilings = 1.5x the worst scratch-DB measurement seen on 2026-11-07 and 2026-11-10 (phone-low clean run 2026-11-10: LCP 8912, INP 1368, switch p95 2727). Server figures come from 5-10 reps on a freshly restarted server, so they are noisy; re-baseline with --probe-reps 30 before relying on them. Lower a ceiling as each fix lands. 2026-11-12 re-baseline (--probe-reps 30, same scratch DB, before then after 162.5): desktop switch p95 264 to under 250; throttled LCP 2920 to 2728, INP 672 to 648, switch p95 928 to 875; /api/v1/inbox p95 330 to 105, p99 400 to 156 (one query for the per-item approval facts); /api/v1/doc/Item p95 165 to 33. Phone ceilings are unchanged: the same build measured 4.8 s to 6.6 s LCP on one machine within an hour, so that profile cannot show a gain this small. 2026-11-14 re-run on a quiet machine (ask 175, after 164.4's app.js split; --probe-reps 30, scratch copy of the 0.24.0 release DB): desktop meets every budget (LCP 1464, INP 96, switch p95 143); throttled LCP 1612, INP 648 to 384, switch p95 875 to 490; phone LCP 2800, INP 1016 (runs 520 / 768 / 1016), switch p95 1287; every server endpoint met, /api/v1/inbox p95 136. Removed the desktop switch ceiling and the three unlabelled-field ceilings (met; 0 unlabelled fields in all 9 runs); throttled ceilings lowered to 1.5x this run. Phone kept: its INP was over 950 in one run of three."
 }

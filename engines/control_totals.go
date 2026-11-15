@@ -302,7 +302,7 @@ func receivablesAgeingControlTotals(tenantID string, _ map[string]string, rows [
 		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND created_at <= $1`, salesInvoiceOutstandingSQL, schema), cut).Scan(&summary, &foreign); err != nil {
 		return nil, err
 	}
-	ledger, err := glDebitBalanceAt(tx, schema, []string{"1300"}, cut)
+	ledger, err := glDebitBalanceAt(tx, schema, ControlAccounts(tx, schema, "1300"), cut)
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +352,7 @@ func payablesAgeingControlTotals(tenantID string, _ map[string]string, rows []ma
 			billed++
 		}
 	}
-	debitBalance, err := glDebitBalanceAt(tx, schema, []string{"2100"}, cut)
+	debitBalance, err := glDebitBalanceAt(tx, schema, ControlAccounts(tx, schema, "2100"), cut)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +393,7 @@ func poCommitmentsControlTotals(tenantID string, _ map[string]string, rows []map
 		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND status = 'Approved' AND created_at <= $1`, schema), cut).Scan(&summary); err != nil {
 		return nil, err
 	}
-	grnSuspense, err := glDebitBalanceAt(tx, schema, []string{"2100"}, cut)
+	grnSuspense, err := glDebitBalanceAt(tx, schema, ControlAccounts(tx, schema, "2100"), cut)
 	if err != nil {
 		return nil, err
 	}

@@ -43,8 +43,10 @@ func init() {
 		Columns: []ReportColumn{
 			{Key: "created_at", Label: "Date"}, {Key: "item_id", Label: "SKU"},
 			{Key: "warehouse_id", Label: "Location"}, {Key: "qty", Label: "Qty Delta"},
+			{Key: "uom", Label: "UOM"}, // 49.5.5b.12: the snapshot each line was posted with
 			{Key: "running_balance", Label: "Running Balance"},
 			{Key: "voucher_type", Label: "Voucher Type"}, {Key: "voucher_id", Label: "Voucher ID"},
+			{Key: "valuation_rate", Label: "Unit Cost"}, {Key: "sale_rate", Label: "Unit Price"}, {Key: "tax_rate", Label: "Tax %"},
 			{Key: "from_location_id", Label: "From Location/Bin"}, {Key: "to_location_id", Label: "To Location/Bin"},
 			{Key: "from_status", Label: "From Condition"}, {Key: "to_status", Label: "To Condition"},
 			{Key: "user_id", Label: "User"},
@@ -216,7 +218,9 @@ func stockLedgerRows(tenantID, sku, locationCode, voucherType, start, end string
 			       COALESCE(data->>'voucher_type', '') AS voucher_type, COALESCE(data->>'voucher_id', '') AS voucher_id,
 			       COALESCE(data->>'from_location_id', '') AS from_location_id, COALESCE(data->>'to_location_id', '') AS to_location_id,
 			       COALESCE(data->>'from_status', '') AS from_status, COALESCE(data->>'to_status', '') AS to_status,
-			       COALESCE(data->>'user_id', '') AS user_id
+			       COALESCE(data->>'user_id', '') AS user_id,
+			       COALESCE(data->>'uom', '') AS uom, COALESCE(data->>'valuation_rate', '') AS valuation_rate,
+			       COALESCE(data->>'sale_rate', '') AS sale_rate, COALESCE(data->>'tax_rate', '') AS tax_rate
 			FROM %s.documents
 			WHERE doctype = 'StockLedgerEntry'
 			  AND ($1 = '' OR data->>'item_id' = $1)
@@ -224,7 +228,8 @@ func stockLedgerRows(tenantID, sku, locationCode, voucherType, start, end string
 			  %s
 		)
 		SELECT created_at, item_id, warehouse_id, qty, running_balance, voucher_type, voucher_id,
-		       from_location_id, to_location_id, from_status, to_status, user_id, COUNT(*) OVER () AS total_rows
+		       from_location_id, to_location_id, from_status, to_status, user_id,
+		       uom, valuation_rate, sale_rate, tax_rate, COUNT(*) OVER () AS total_rows
 		FROM card
 		WHERE ($3 = '' OR voucher_type = $3)
 		  AND ($4 = '' OR created_at >= public.erp_day_start($4::date))
@@ -240,9 +245,10 @@ func stockLedgerRows(tenantID, sku, locationCode, voucherType, start, end string
 	out := []map[string]interface{}{}
 	for rows.Next() {
 		var r stockLedgerRow
+		var uom, valuation, sale, tax string
 		if err := rows.Scan(&r.CreatedAt, &r.ItemID, &r.WarehouseID, &r.Qty, &r.RunningBalance,
 			&r.VoucherType, &r.VoucherID, &r.FromLocationID, &r.ToLocationID,
-			&r.FromStatus, &r.ToStatus, &r.UserID, &total); err != nil {
+			&r.FromStatus, &r.ToStatus, &r.UserID, &uom, &valuation, &sale, &tax, &total); err != nil {
 			continue
 		}
 		out = append(out, map[string]interface{}{
@@ -251,6 +257,7 @@ func stockLedgerRows(tenantID, sku, locationCode, voucherType, start, end string
 			"voucher_type": r.VoucherType, "voucher_id": r.VoucherID,
 			"from_location_id": r.FromLocationID, "to_location_id": r.ToLocationID,
 			"from_status": r.FromStatus, "to_status": r.ToStatus, "user_id": r.UserID,
+			"uom": uom, "valuation_rate": valuation, "sale_rate": sale, "tax_rate": tax,
 		})
 	}
 	if page == nil {

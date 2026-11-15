@@ -181,6 +181,7 @@ func Run() {
 	// Start Amortization Worker (Stage 37.6.1/37.6.2) - monthly-granularity
 	// recognition of deferred revenue and prepaid expense schedules.
 	engines.StartAmortizationWorker(workerCtx, 1*time.Hour)
+	engines.StartSaaSBillingWorker(workerCtx, 1*time.Hour) // 50.12: grace and cancellation sweep
 
 	// Lease worker (170.5): monthly interest, payment and ROU depreciation (or
 	// rent) per Active lease; idempotent per lease per period.
@@ -393,6 +394,12 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/me/mfa/reenroll/confirm", apiMiddleware(handleMFAReenrollConfirm))
 	http.HandleFunc("POST /api/v1/me/mfa/reenroll/cancel", apiMiddleware(handleMFAReenrollCancel))
 	http.HandleFunc("POST /api/v1/me/mfa/devices/forget", apiMiddleware(handleForgetMyMFADevices)) // Stage 125.8
+	http.HandleFunc("GET /api/v1/me/passkeys", apiMiddleware(handleListMyPasskeys))                // 49.2.3
+	http.HandleFunc("POST /api/v1/me/passkeys/options", apiMiddleware(handlePasskeyRegisterOptions))
+	http.HandleFunc("POST /api/v1/me/passkeys", apiMiddleware(handlePasskeyRegisterFinish))
+	http.HandleFunc("DELETE /api/v1/me/passkeys/{id}", apiMiddleware(handleDeleteMyPasskey))
+	http.HandleFunc("POST /api/v1/auth/passkey/options", apiMiddleware(handlePasskeyAssertOptions))
+	http.HandleFunc("POST /api/v1/auth/passkey/verify", apiMiddleware(handlePasskeyAssertVerify))
 
 	// Admin user/role management (Stage 21 QA fix) - the Users/Roles sidebar
 	// items had never had a backend at all. HR/Admin-only, enforced in each handler.
@@ -811,6 +818,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pos/session/close", apiMiddleware(handlePOSSessionClose))
 	http.HandleFunc("GET /api/v1/pos/session/current", apiMiddleware(handlePOSSessionCurrent))
 	http.HandleFunc("POST /api/v1/pos/offline-heartbeat", apiMiddleware(handlePOSOfflineHeartbeat))
+	http.HandleFunc("POST /api/v1/pos/till-series", apiMiddleware(handlePOSTillSeries))
 	// Stage 49.5.6a: offline sales held for validation (POS > Offline Sales).
 	http.HandleFunc("GET /api/v1/pos/offline-sales", apiMiddleware(handleListOfflineSales))
 	http.HandleFunc("GET /api/v1/pos/offline-sales/{id}", apiMiddleware(handleGetOfflineSale))
@@ -917,6 +925,20 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/finance/credit-note/{id}/post", apiMiddleware(handlePostCreditNote))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/post", apiMiddleware(handlePostSalesInvoice))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/settle", apiMiddleware(handleSettleSalesInvoice))
+	// 185.3: a Razorpay payment link for what the invoice owes; its keys; its public webhook.
+	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/payment-link", apiMiddleware(handleSalesInvoicePaymentLink))
+	http.HandleFunc("GET /api/v1/razorpay/credentials", apiMiddleware(handleGetRazorpayCredentials))
+	http.HandleFunc("POST /api/v1/razorpay/credentials", apiMiddleware(handleRazorpayCredentials))
+	http.HandleFunc("POST /api/v1/integration/razorpay/webhook", apiMiddleware(inboundWebhookGate(handleRazorpayWebhook)))
+	// 50.12 (ask 193, ADR-009): the platform's SaaS subscription - Razorpay subscription webhook, impact preview, plans, usage and cost.
+	http.HandleFunc("POST /api/v1/integration/razorpay/subscription-webhook", apiMiddleware(inboundWebhookGate(handleSaaSSubscriptionWebhook)))
+	http.HandleFunc("POST /api/v1/admin/tenant/package/impact", apiMiddleware(handlePackageImpact))
+	http.HandleFunc("GET /api/v1/saas/subscription", apiMiddleware(handleMySubscription))
+	http.HandleFunc("GET /api/v1/admin/saas/plan", apiMiddleware(handleSaaSPlans))
+	http.HandleFunc("POST /api/v1/admin/saas/plan", apiMiddleware(handleSaaSPlans))
+	http.HandleFunc("POST /api/v1/admin/saas/subscribe", apiMiddleware(handleSaaSSubscribe))
+	http.HandleFunc("POST /api/v1/admin/saas/reconcile", apiMiddleware(handleSaaSReconcile))
+	http.HandleFunc("GET /api/v1/admin/saas/costs", apiMiddleware(handleSaaSCosts))
 	// 140.12.5 / 140.12.6: back-office receipts across invoices, TDS, bank, on account.
 	http.HandleFunc("GET /api/v1/finance/receipts", apiMiddleware(handleCustomerReceipts))
 	http.HandleFunc("POST /api/v1/finance/receipts", apiMiddleware(handleCustomerReceipts))
@@ -1693,6 +1715,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/trial", apiMiddleware(handleControlPanelTenantTrial))              // Stage 65.6
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/open", apiMiddleware(handleControlPanelOpenTenant))                // Stage 125.2
 	http.HandleFunc("POST /api/v1/platform/query-baseline", apiMiddleware(handleControlPanelQueryBaseline))                    // Stage 47.9.3c
+	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/query-plan", apiMiddleware(handleControlPanelQueryPlan))           // Stage 47.9.3d
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/attribute-library", apiMiddleware(handleAttributeLibrary))          // Stage 81
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/attribute-library", apiMiddleware(handleApplyAttributeLibrary))    // Stage 81
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/attribute-library/rules", apiMiddleware(handleApplyCategoryRules)) // 168.12
@@ -1808,6 +1831,7 @@ func registerRoutes() {
 	// checksum column, which these do not and should not reinterpret.
 	http.HandleFunc("GET /api/v1/admin/audit-logs/evidence", apiMiddleware(handleVerifyAuditEvidence))
 	http.HandleFunc("POST /api/v1/admin/audit-logs/checkpoint", apiMiddleware(handleWriteAuditCheckpoint))
+	http.HandleFunc("POST /api/v1/admin/audit-logs/seal-legacy", apiMiddleware(handleSealLegacyAudit)) // 47.7.4
 	// Stage 47.7.6 - the archive half: list/query/export/restore a checkpoint
 	// window that has been moved out of audit_logs, and a manual trigger for
 	// an operator to run outside the daily schedule (e.g. before an auditor's

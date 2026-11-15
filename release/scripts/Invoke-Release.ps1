@@ -7,6 +7,15 @@ hand, in the same order. It commits and pushes only when every gate passes.
   pwsh release\scripts\Invoke-Release.ps1 -DryRun         # gates only; nothing committed
   pwsh release\scripts\Invoke-Release.ps1 -NoPush         # gates + local commit
   pwsh release\scripts\Invoke-Release.ps1 -QuietMinutes 0 # skip the "tree is quiet" wait
+  pwsh release\scripts\Invoke-Release.ps1 -Wait           # also wait for the GitHub run
+  pwsh release\scripts\Invoke-Release.ps1 -LocalTests     # build and test on this laptop
+
+Where the tests run (item 177.1, user 2026-11-14): on GitHub's machines. The
+click commits the release and pushes it to candidate/<version>. The Release
+workflow (.github/workflows/release.yml) builds that commit, runs the whole
+suite in 16 shards, and moves main to it only when every job passes; Deploy.cmd
+waits for that. -LocalTests (or config.json "testsOn": "local") runs G8 and G10
+here instead and pushes main itself, as before.
 
 What ships: everything modified or new in the working tree, minus the paths
 in release\hold.txt (git-ignored; one path or glob per line, `#` starts
@@ -19,12 +28,15 @@ param(
     [switch]$DryRun,
     [switch]$NoPush,
     [int]$QuietMinutes = -1,
-    [switch]$KeepWorktree
+    [switch]$KeepWorktree,
+    [switch]$LocalTests,
+    [switch]$Wait
 )
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\ReleaseCommon.ps1"
 
 $cfg = Get-ReleaseConfig
+$onGitHub = -not $LocalTests -and "$($cfg.testsOn)" -ne 'local'
 $repo = $RepoRoot
 $go = $cfg.goBin
 $goDir = Split-Path $go -Parent
@@ -36,7 +48,12 @@ New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 $reportPath = Join-Path $reportDir "release-$ts.md"
 $report = [System.Collections.Generic.List[string]]::new()
 $report.Add("# Release $ts")
-$wt = Join-Path $env:TEMP "erp_release_$ts"
+# One fixed folder, not one per run (177.5): Go keys its build cache by a
+# package's folder, so a new folder per run compiled every tool from cold
+# (G4b alone was 130 s). G0a lets one release run at a time; G1 clears a
+# folder a dead run left behind.
+$wt = Join-Path $env:TEMP 'erp_release'
+$graphKeep = Join-Path $env:TEMP 'erp_release_graphify'   # graphify-out between runs (G7)
 $scratchDb = "custom_erp_release_$ts"
 $state = [ordered]@{ status = 'failed'; at = (Get-Date).ToString('o'); commit = ''; tree = ''; findings = @(); flaky = @(); held = @() }
 
@@ -101,7 +118,13 @@ foreach ($tool in @('git', 'node', 'pwsh', 'graphify')) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { Stop-Release "$tool is not on PATH" }
 }
 foreach ($p in @($go, $gofmt, $cfg.psql)) { if (-not (Test-Path $p)) { Stop-Release "not found: $p (release\config.json)" } }
-$branch = (Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
+if ($onGitHub) {
+    # 177.1: the tests run on GitHub, so the push to candidate/<version> and the wait need gh signed in.
+    if (-not (Get-Command 'gh' -ErrorAction SilentlyContinue)) { Stop-Release 'gh (GitHub CLI) is not on PATH - install it, or run with -LocalTests' }
+    & gh auth status 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Release 'gh is not signed in - run "gh auth login", or run with -LocalTests' }
+}
+$branch =(Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
 if ($branch -ne 'main') { Stop-Release "the repo is on '$branch', not main" }
 $staged = @((Invoke-Git @('diff', '--cached', '--name-only')) | Where-Object { $_ })
 if ($staged.Count) {
@@ -165,6 +188,21 @@ Note "$($ship.Count) file(s) to ship, $ahead unpushed commit(s)"
 # tested exactly as it will be committed, while other sessions keep working in
 # the shared tree. LF checkout, so it matches the commit byte for byte.
 Write-Gate 'G1 Snapshot'
+# 177.5: the last release's code map redraw works in this folder until it ends.
+$redraw = Read-BrainRedraw
+if ($redraw -and $redraw.state -eq 'running') {
+    Note "waiting for the last release's code map redraw (pid $($redraw.pid))"
+    $redraw = Wait-BrainRedraw 10
+    if ($redraw.state -eq 'running') { Stop-Release "the code map redraw (pid $($redraw.pid)) is still running after 10 min - see $BrainRedrawDir\redraw.log" }
+}
+if (Test-Path -LiteralPath $wt) {
+    # A run that died (or -KeepWorktree) left it; keep its graph cache, drop the rest.
+    $oldGraph = Join-Path $wt 'graphify-out'
+    if ((Test-Path -LiteralPath $oldGraph) -and -not (Test-Path -LiteralPath $graphKeep)) { Move-Item -LiteralPath $oldGraph -Destination $graphKeep }
+    Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'worktree', 'remove', '--force', $wt) -AllowFail | Out-Null
+    if (Test-Path -LiteralPath $wt) { Remove-Item -LiteralPath $wt -Recurse -Force }
+}
+Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'worktree', 'prune') -AllowFail | Out-Null
 Invoke-Native -Exe 'git' -Arguments @('-C', $repo, '-c', 'core.autocrlf=false', 'worktree', 'add', '--detach', $wt, 'HEAD') | Out-Null
 $snapHash = @{}
 foreach ($c in $ship) {
@@ -189,11 +227,17 @@ Note "worktree $wt"
 Write-Gate 'G2 Line endings'
 $mixed = @((Invoke-Git @('ls-files', '--eol') $wt) | Where-Object { $_ -match '^i/(mixed|crlf)' } | ForEach-Object { ($_ -split "`t")[-1] })
 $fixed = 0
+# Files .gitattributes keeps CRLF (the .cmd launchers) stay as they are. One
+# check-attr per 200 paths, not one per file (177.5: 502 files took 71 s).
+$keepCrlf = @{}
+$present = @($ship | Where-Object { $_.Code -ne ' D' } | ForEach-Object { $_.Path })
+for ($i = 0; $i -lt $present.Count; $i += 200) {
+    $chunk = $present[$i..([Math]::Min($i + 199, $present.Count - 1))]
+    & git -C $wt check-attr eol -- @chunk | ForEach-Object { if ($_ -match '^(.*): eol: crlf$') { $keepCrlf[$Matches[1]] = $true } }
+}
 foreach ($c in $ship | Where-Object { $_.Code -ne ' D' }) {
     $p = Join-Path $wt $c.Path
-    if ($mixed -contains $c.Path -or (Test-Binary $p)) { continue }
-    # Files .gitattributes keeps CRLF (the .cmd launchers) stay as they are.
-    if ((& git -C $wt check-attr eol -- $c.Path) -match ':\s*crlf$') { continue }
+    if ($mixed -contains $c.Path -or $keepCrlf.ContainsKey($c.Path) -or (Test-Binary $p)) { continue }
     $s = Read-Text $p
     if ($s.Contains("`r`n")) { Write-Text $p ($s.Replace("`r`n", "`n")); $fixed++ }
 }
@@ -201,10 +245,16 @@ Note "$fixed file(s) converted to LF"
 
 # ---------------------------------------------------------------- G3 gofmt
 Write-Gate 'G3 gofmt'
-foreach ($c in $ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.go' }) {
+# One gofmt -l over every shipped Go file (177.5); only the ones it names are
+# looked at one by one.
+$goShip = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.go' })
+$unformatted = @{}
+for ($i = 0; $i -lt $goShip.Count; $i += 200) {
+    $chunk = @($goShip[$i..([Math]::Min($i + 199, $goShip.Count - 1))] | ForEach-Object { $_.Path })
+    Invoke-Native -Exe $gofmt -Arguments (@('-l') + $chunk) -WorkDir $wt -AllowFail | Where-Object { $_ } | ForEach-Object { $unformatted[$_.Trim().Replace('\', '/')] = $true }
+}
+foreach ($c in $goShip | Where-Object { $unformatted.ContainsKey($_.Path) }) {
     $p = Join-Path $wt $c.Path
-    $bad = Invoke-Native -Exe $gofmt -Arguments @('-l', $p) -AllowFail
-    if (-not ($bad | Where-Object { $_ })) { continue }
     $headWasClean = $true
     if ($c.Code -ne '??') {
         # HEAD's copy goes through a file: a PowerShell pipe would add CRLF and
@@ -266,9 +316,30 @@ $pbServed = (Read-Text $pbVerFile).Trim()
 $pbSrc = Join-Path (Split-Path $repo -Parent) 'PrintBridge/agent/internal/agent/handlers.go'
 if (Test-Path $pbSrc) {
     $pbAgent = [regex]::Match((Read-Text $pbSrc), 'BuildVersion\s*=\s*"([^"]+)"').Groups[1].Value
-    if ($pbAgent -and $pbAgent -ne $pbServed) { Stop-Release "PrintBridge is $pbAgent but the ERP serves $pbServed - run ..\PrintBridge\installer\build.ps1 -Universal -OutDir <a temp folder>, copy printbridge-setup.exe into public\downloads and write $pbAgent to printbridge-version.txt" }
+    if ($pbAgent -and $pbAgent -ne $pbServed) { Stop-Release "PrintBridge is $pbAgent but the ERP serves $pbServed - run ..\PrintBridge\installer\build.ps1 -Universal -OutDir <a temp folder> and copy its three files (printbridge-setup.exe, printbridge-update.json, printbridge-version.txt) into public\downloads" }
     Note "PrintBridge download $pbServed (agent source $pbAgent)"
 } else { Note "PrintBridge download $pbServed (no ..\PrintBridge on this machine to compare)" }
+# 203.3: from 0.3.0 installed agents replace themselves from
+# printbridge-update.json. It must describe the served installer exactly
+# (version, name, size, SHA-256), or every agent refuses the update - or never
+# sees it. The signature itself is checked by the agents (and by
+# `go run ./cmd/pbsign verify` in ..\PrintBridge\agent on the key's machine).
+$pbUpd = Join-Path $wt 'public/downloads/printbridge-update.json'
+$pbNeedsUpd = $false; try { $pbNeedsUpd = [version]$pbServed -ge [version]'0.3.0' } catch { }
+if ($pbNeedsUpd -or (Test-Path $pbUpd)) {
+    if (-not (Test-Path $pbUpd)) { Stop-Release "public/downloads/printbridge-update.json is missing - installed PrintBridge agents cannot update to $pbServed. build.ps1 -Universal writes it; copy it beside printbridge-setup.exe" }
+    try { $pbM = (Read-Text $pbUpd) | ConvertFrom-Json } catch { Stop-Release "public/downloads/printbridge-update.json is not valid JSON: $($_.Exception.Message)" }
+    $pbHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pbExe).Hash.ToLowerInvariant()
+    $pbSize = (Get-Item -LiteralPath $pbExe).Length
+    $pbBad = @()
+    if ($pbM.version -ne $pbServed) { $pbBad += "version $($pbM.version) (served $pbServed)" }
+    if ($pbM.file -ne 'printbridge-setup.exe') { $pbBad += "file $($pbM.file)" }
+    if ([int64]$pbM.size -ne $pbSize) { $pbBad += "size $($pbM.size) (exe $pbSize)" }
+    if ("$($pbM.sha256)".ToLowerInvariant() -ne $pbHash) { $pbBad += 'sha256 differs from the exe' }
+    if (-not $pbM.signature) { $pbBad += 'no signature' }
+    if ($pbBad) { Stop-Release ("printbridge-update.json does not match the served installer: " + ($pbBad -join '; ') + " - copy all three files from one build.ps1 -Universal run") }
+    Note "PrintBridge update file matches the installer ($pbServed)"
+}
 
 # --------------------------------------------------------- G4b Release number
 # One number everywhere: the release decides it, internal/server/VERSION holds
@@ -305,13 +376,30 @@ Note "release $releaseVersion (live $($live.version) at $($live.git_commit); thi
 # them, so it is judged here, not after the ~5 min of G5-G7 (0.11.0: stopped at
 # G8 at 5:52 for 983 bytes).
 Write-Gate 'G4c Release budget'
-$budgetText = (Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget') -WorkDir $wt -AllowFail) -join "`n"
+# 177.4: the stripped Linux server binary is measured here as well, built the
+# way CI builds it (.github/workflows/ci.yml, "Enforce release artifact
+# budgets"). Before, G4c never passed -binary, so every release passed while
+# CI was red on every push at the binary budget.
+$budgetDir = Join-Path $env:TEMP 'erp_release_budget'
+New-Item -ItemType Directory -Force -Path $budgetDir | Out-Null
+$budgetBin = Join-Path $budgetDir 'erp-server'
+$savedEnv = @{ CGO_ENABLED = $env:CGO_ENABLED; GOOS = $env:GOOS; GOARCH = $env:GOARCH }
+try {
+    $env:CGO_ENABLED = '0'; $env:GOOS = 'linux'; $env:GOARCH = 'amd64'
+    Invoke-Native -Exe $go -Arguments @('build', '-trimpath', '-ldflags=-s -w', '-o', $budgetBin, './cmd/server') -WorkDir $wt | Out-Null
+} finally {
+    foreach ($k in $savedEnv.Keys) { [Environment]::SetEnvironmentVariable($k, $savedEnv[$k], 'Process') }
+}
+$budgetText = (Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget', '-binary', $budgetBin) -WorkDir $wt -AllowFail) -join "`n"
+Remove-Item -LiteralPath $budgetBin -ErrorAction SilentlyContinue
 if ($budgetText -match '"status":\s*"over') {
     $over = [regex]::Matches($budgetText, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
-    Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module, or condense comments in app.js / view-pos.js"
+    Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module, or condense comments in app.js / view-pos.js. binary_stripped_bytes is the stripped Linux server (NFR-COST-001): look for a new dependency or embedded file"
 }
-if ($budgetText -notmatch '"cold_core_gzip_bytes"') { Stop-Release "releasebudget gave no report:`n$(($budgetText -split "`n" | Select-Object -Last 15) -join "`n")" }
-Note 'release budget within limits'
+if ($budgetText -notmatch '"cold_core_gzip_bytes"' -or $budgetText -notmatch '"binary_stripped_bytes"[^{}]*\{[^{}]*"status":\s*"within_budget"') {
+    Stop-Release "releasebudget gave no full report:`n$(($budgetText -split "`n" | Select-Object -Last 15) -join "`n")"
+}
+Note 'release budget within limits (stripped Linux binary included)'
 
 # ------------------------------------------------- G4f footprint ledger
 # 162.21 (user, 2026-11-11): each release records one entry in the footprint
@@ -341,9 +429,15 @@ Note 'compliance matrix: no review overdue'
 
 # ------------------------------------------------- G5 generated Go and reports
 Write-Gate 'G5 Report catalog spec'
-# Always regenerated, even when its inputs did not change: a stale file
-# committed outside Release.cmd must still be caught (accuracy before speed).
-if (Test-Path (Join-Path $wt 'cmd/gencatalog')) {
+# With -LocalTests it is always regenerated: a stale file committed outside
+# Release.cmd must still be caught (accuracy before speed). With the tests on
+# GitHub (177.5) it is regenerated only when its inputs ship, which saves a
+# full engines compile here; the GitHub run's "Report catalog spec is current"
+# step (gencatalog -check) catches a stale one before main moves.
+$releasePaths = @($ship | ForEach-Object { $_.Path }) + @(Invoke-Git @('diff', '--name-only', 'origin/main', 'HEAD'))
+$specInputs = @($releasePaths | Where-Object { $_ -like 'docs/specs/reports/*' -or $_ -like 'cmd/gencatalog/*' -or $_ -eq 'engines/report_catalog_spec_generated.go' })
+if ($onGitHub -and -not $specInputs.Count) { Note 'catalog spec inputs unchanged (the GitHub run checks it)' }
+elseif (Test-Path (Join-Path $wt 'cmd/gencatalog')) {
     $specTmp = Join-Path $env:TEMP "release_spec_$ts.go"
     Invoke-Native -Exe $go -Arguments @('run', './cmd/gencatalog', '-out', $specTmp) -WorkDir $wt | Out-Null
     $spec = Join-Path $wt 'engines/report_catalog_spec_generated.go'
@@ -366,8 +460,32 @@ if ($baseLines.Count -gt 0 -and $baseLines[0] -eq '{') {
     $impact = Invoke-Native -Exe $go -Arguments @('run', './cmd/securityimpact', '-base', $surfBase, '-new', $surfTmp) -WorkDir $wt -AllowFail
     $report.Add(''); $report.Add('Security impact (G6b):'); $impact | ForEach-Object { $report.Add("    $_") }
     $impact | Set-Content -LiteralPath (Join-Path $env:TEMP "release_impact_$ts.txt") -Encoding utf8NoBOM   # read again by G10b
-    $high = @($impact | Where-Object { $_ -like '  ! *' }).Count
+    $highLines = @($impact | Where-Object { $_ -like '  ! *' } | ForEach-Object { $_.Substring(4).Trim() })
+    $high = $highLines.Count
     Note "security impact: $high high-risk change(s), see the report"
+    # 49.17.1 (owner, 2026-11-14: "all recommended"): a high-risk change stops
+    # the release until the owner writes a one-line reason for it in
+    # release\security-ack.txt (git-ignored, like hold.txt), one line each:
+    #   <the change exactly as the report prints it after "! "> | <reason>
+    # The reasons go into the report, so the release record says who accepted what.
+    if ($high) {
+        $ackFile = Join-Path $ReleaseDir 'security-ack.txt'
+        $acks = @{}
+        if (Test-Path $ackFile) {
+            foreach ($l in Get-Content -LiteralPath $ackFile) {
+                if ($l -match '^\s*(#|$)') { continue }
+                $i = $l.IndexOf('|')   # the change text never holds one; a reason may
+                if ($i -gt 0 -and $l.Substring($i + 1).Trim()) { $acks[$l.Substring(0, $i).Trim()] = $l.Substring($i + 1).Trim() }
+            }
+        }
+        $unread = @($highLines | Where-Object { -not $acks.ContainsKey($_) })
+        if ($unread.Count) {
+            Stop-Release ("security impact: {0} high-risk change(s) have no reason in release\security-ack.txt. Add one line each, '<change> | <reason>':`n{1}" -f $unread.Count, (($unread | ForEach-Object { "    $_ | " }) -join "`n"))
+        }
+        $report.Add('    Accepted by the owner (release\security-ack.txt):')
+        foreach ($h in $highLines) { $report.Add("      $h - $($acks[$h])") }
+        Note "security impact: every high-risk change has the owner's reason"
+    }
     Remove-Item $surfBase -ErrorAction SilentlyContinue
 } else { Note 'security impact: no manifest at HEAD to compare' }
 Copy-Item $surfTmp (Join-Path $wt 'docs/security/attack_surface.json') -Force
@@ -376,11 +494,24 @@ Note 'attack_surface.json regenerated from the release set'   # the full suite's
 
 # ---------------------------------------------------------------- G7 docs
 Write-Gate 'G7 Guides, KB, brain, register'
-# The code graph only reads code and writes graphify-out/, so it builds while
-# the KB is generated (Stage 109.9); the brain needs both.
-$graphLog = Join-Path $env:TEMP "release_graphify_$ts.log"
-$graph = Start-Process -FilePath 'graphify' -ArgumentList @('update', '.') -WorkingDirectory $wt -RedirectStandardOutput $graphLog -RedirectStandardError "$graphLog.err" -NoNewWindow -PassThru
-$null = $graph.Handle
+# 177.5: the code map's file list is exact here (every file is filed in a region
+# below). Its counts come from the code graph of the last release: rebuilding the
+# graph takes minutes, so Invoke-BrainRedraw.ps1 does it after the push and Deploy
+# (D6) brings the exact map in. The graph comes from the last redraw, else the
+# shared tree's copy; with neither, it is built here once.
+$graphDir = Join-Path $wt 'graphify-out'
+$sharedGraph = Join-Path $repo 'graphify-out/graph.json'
+if (Test-Path -LiteralPath $graphKeep) { Move-Item -LiteralPath $graphKeep -Destination $graphDir }
+elseif (Test-Path -LiteralPath $sharedGraph) {
+    New-Item -ItemType Directory -Force -Path $graphDir | Out-Null
+    Copy-Item -LiteralPath $sharedGraph -Destination $graphDir
+}
+if (-not (Test-Path -LiteralPath (Join-Path $graphDir 'graph.json'))) {
+    Note 'no code graph yet - building it once (a few minutes)'
+    $run = Get-GraphifyRun
+    $graphOut = Invoke-Native -Exe $run.Exe -Arguments $run.Arguments -WorkDir $wt -AllowFail
+    if ($LASTEXITCODE -ne 0) { Stop-Release "graphify failed:`n$(($graphOut | Select-Object -Last 10) -join "`n")" }
+}
 $kb = Invoke-Docs 'KB'
 if (-not $kb.ok) { Stop-Release "update-docs -Group KB failed:`n$(($kb.out | Select-Object -Last 15) -join "`n")" }
 # The checklist's module map (2026-11-10): counts and empty-sub-module markers are refreshed
@@ -390,9 +521,6 @@ if (-not $kb.ok) { Stop-Release "update-docs -Group KB failed:`n$(($kb.out | Sel
 $map = Invoke-Native -Exe 'pwsh' -Arguments @('-NoProfile', '-File', 'docs/update-checklist-map.ps1') -WorkDir $wt -AllowFail
 if ($LASTEXITCODE -ne 0) { Stop-Release "checklist module map (docs/update-checklist-map.ps1):`n$(($map | Select-Object -Last 10) -join "`n")" }
 Note (($kb.out | Where-Object { $_ -match 'Published' }) -join ' ')
-$graph.WaitForExit()
-if ($graph.ExitCode -ne 0) { Stop-Release "graphify update failed:`n$((Get-Content $graphLog, "$graphLog.err" -ErrorAction SilentlyContinue | Select-Object -Last 10) -join "`n")" }
-Remove-Item $graphLog, "$graphLog.err" -ErrorAction SilentlyContinue
 # brainmap itself names the files no region claims (update-docs only reports
 # that the generator failed), so ask it first.
 $brainTmp = Join-Path $env:TEMP "release_brain_$ts"
@@ -430,7 +558,7 @@ if ($unclaimed.Count) {
 }
 $brain = Invoke-Docs 'Brain'
 if (-not $brain.ok) { Stop-Release "brain redraw failed:`n$(($brain.out | Select-Object -Last 15) -join "`n")" }
-Note 'brain redrawn (100% coverage)'
+Note 'brain: every file filed; counts from the last graph, exact map after the push'
 $regTmp = Join-Path $env:TEMP "release_register_$ts.json"
 $lint = Invoke-Native -Exe $go -Arguments @('run', './cmd/doclint', '-root', '.', '-write-register', $regTmp) -WorkDir $wt -AllowFail
 if (-not (Test-Path $regTmp)) { Stop-Release 'doclint could not write the document register' }
@@ -456,11 +584,16 @@ function Start-GoJob([string]$name, [string[]]$a) {
     [pscustomobject]@{ Name = $name; Proc = $p; Log = $log }
 }
 $testExes = [System.Collections.Generic.List[string]]::new()
-$goJobs = @((Start-GoJob 'build' @('build', './...')), (Start-GoJob 'vet' @('vet', './...')))
-foreach ($p in @('engines', 'internal/server')) {
-    $exe = Join-Path $env:TEMP "release_$($p -replace '/', '_')_$ts.test.exe"
-    $testExes.Add($exe)
-    $goJobs += Start-GoJob "compile $p tests" @('test', '-c', '-o', $exe, "./$p")
+# 177.1: on GitHub the Release workflow builds, vets and compiles the same commit
+# before anything else, so the laptop only checks the JS here.
+$goJobs = @()
+if (-not $onGitHub) {
+    $goJobs = @((Start-GoJob 'build' @('build', './...')), (Start-GoJob 'vet' @('vet', './...')))
+    foreach ($p in @('engines', 'internal/server')) {
+        $exe = Join-Path $env:TEMP "release_$($p -replace '/', '_')_$ts.test.exe"
+        $testExes.Add($exe)
+        $goJobs += Start-GoJob "compile $p tests" @('test', '-c', '-o', $exe, "./$p")
+    }
 }
 $jsFiles = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.js' } | ForEach-Object Path) + @('public/app.js') | Select-Object -Unique
 foreach ($js in $jsFiles) { Invoke-Native -Exe 'node' -Arguments @('--check', (Join-Path $wt $js)) | Out-Null }
@@ -471,7 +604,7 @@ foreach ($j in $goJobs) {
     Remove-Item -LiteralPath $j.Log, "$($j.Log).err" -ErrorAction SilentlyContinue
     if ($j.Proc.ExitCode -ne 0) { Stop-Release "go $($j.Name) failed:`n$(($out | Select-Object -Last 20) -join "`n")" }
 }
-Note 'go build + go vet clean; test programs compiled'
+Note $(if ($onGitHub) { 'go build + go vet: in the GitHub run' } else { 'go build + go vet clean; test programs compiled' })
 
 # ---------------------------------------------------- G9 data-change scan
 Write-Gate 'G9 What this changes in client data'
@@ -521,6 +654,37 @@ foreach ($l in $settingsAdded) {
 # more: a test process may open 50 connections and local Postgres allows 100.
 # Every release runs the whole suite (a docs change can break server tests).
 Write-Gate 'G10 Fresh database, migrations, tests'
+$testTimesPath = Join-Path $wt 'release/test-times.json'
+function Save-TestTimes([hashtable]$t) {
+    # Sorted by name and rounded, so a release's diff of this file stays small.
+    $o = [ordered]@{}
+    foreach ($k in ($t.Keys | Sort-Object -CaseSensitive)) { $o[$k] = [math]::Round([double]$t[$k], 2) }
+    Write-Text $testTimesPath ((($o | ConvertTo-Json) -replace "`r`n", "`n") + "`n")
+}
+if ($onGitHub) {
+    # 177.1: the GitHub run migrates an empty database and runs every test of this
+    # exact commit. Here the split's times are only brought up to date from the
+    # last GitHub run's shards, so its 16 shards stay even.
+    $ranCount = 'on GitHub'
+    $times = Read-TestTimes $testTimesPath
+    Push-Location $repo   # gh finds the GitHub repository from the folder's origin
+    try {
+        $lastRun = @((& gh run list --workflow release.yml --status completed --limit 1 --json databaseId 2>$null) | ConvertFrom-Json)
+        if ($lastRun.Count) {
+            $dl = Join-Path $env:TEMP "release_times_$ts"
+            & gh run download $lastRun[0].databaseId --pattern 'shard-*' --dir $dl 2>&1 | Out-Null
+            $n = 0
+            foreach ($f in @(Get-ChildItem -LiteralPath $dl -Recurse -Filter 'times-*.json' -ErrorAction SilentlyContinue)) {
+                (Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $times[$_.Name] = [double]$_.Value; $n++ }
+            }
+            Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue
+            if ($n) { Save-TestTimes $times }
+            Note "test times: $n taken from GitHub run $($lastRun[0].databaseId)"
+        }
+    } catch { Note "WARNING test times: not refreshed from GitHub ($($_.Exception.Message))" }
+    finally { Pop-Location }
+    Note 'tests: on GitHub after the push - migrate from empty and the whole suite on this exact commit; main moves only when every job passes'
+} else {
 function Get-DbUrl([string]$name) { "postgres://$($cfg.pgUser)@$($cfg.pgHost):$($cfg.pgPort)/$($name)?sslmode=disable" }
 Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "CREATE DATABASE $scratchDb") | Out-Null
 $serverExe = Join-Path $env:TEMP "release_erp_server_$ts.exe"
@@ -539,10 +703,20 @@ try {
     if ($mig | Where-Object { $_ -match '\[sync-warn\]' }) { Stop-Release "migrate printed [sync-warn]:`n$(($mig | Where-Object { $_ -match 'sync-warn' }) -join "`n")" }
     Note (($mig | Where-Object { $_ -match '^Applied' }) -join ' ')
 
+    # 177.7: the guard tests (release\guard-tests.txt) first, on their own copy of
+    # the database: a missed registration stops the release here, in about a
+    # minute, not when the last job ends (ask 174 found nine of them last).
+    $guardDb = "$($scratchDb)_guards"
+    Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "CREATE DATABASE $guardDb TEMPLATE $scratchDb") | Out-Null
+    $copies.Add($guardDb)
+    $env:DATABASE_URL = Get-DbUrl $guardDb; $env:TEST_DATABASE_URL = $env:DATABASE_URL
+    $guardOut = @(& (Join-Path $PSScriptRoot 'Invoke-GuardTests.ps1') -Root $wt -Go $go -Exes @{ 'engines' = $testExes[0]; 'internal/server' = $testExes[1] })
+    if ($LASTEXITCODE -ne 0) { Stop-Release (($guardOut | Select-Object -Last 1) -join '') }
+    Note (($guardOut | Select-Object -Last 1) -join '')
+
     # The jobs.
     $pkgs = @((Invoke-Native -Exe $go -Arguments @('list', '-f', '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', './...') -WorkDir $wt) | Where-Object { $_ })
     $jobs = [System.Collections.Generic.List[object]]::new()
-    $timesPath = Join-Path $reportDir 'test-times.json'
     $times = @{}
     function New-TestJob($name, $kind, $pkg, $exe, $dir, $run, $pkgList) {
         [pscustomobject]@{ Name = $name; Kind = $kind; Pkg = $pkg; Exe = $exe; Dir = $dir; Run = $run; Pkgs = $pkgList; Db = ''; Out = ''; Proc = $null; Code = $null; Expect = @() }
@@ -553,21 +727,13 @@ try {
         $engDir = Join-Path $wt 'engines'
         # Tests, examples and fuzz seeds - everything `go test` runs (benchmarks it skips).
         $names = @((Invoke-Native -Exe $testExes[0] -Arguments @('-test.list', '.*') -WorkDir $engDir) | Where-Object { $_ -match '^(Test|Example|Fuzz)\w*$' } | Sort-Object)
-        # Three groups of equal running time, from each test's time in the last
-        # run (reports\test-times.json; an unknown test counts as the median):
-        # longest first, each into the group with the least so far. Round-robin
-        # left one group 45 s behind the others (2026-10-19).
-        $times = @{}
-        if (Test-Path $timesPath) { try { (Get-Content $timesPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $times[$_.Name] = [double]$_.Value } } catch { } }
-        $median = if ($times.Count) { @($times.Values | Sort-Object)[[int]($times.Count / 2)] } else { 1.0 }
-        $cost = { param($n) if ($times.ContainsKey($n)) { $times[$n] } else { $median } }
+        # Three groups of equal running time (Split-TestsByTime in ReleaseCommon.ps1,
+        # the same split the GitHub shards make), from each test's time in the last
+        # run: release\test-times.json, committed with each release.
+        $times = Read-TestTimes $testTimesPath
         $groups = 3
-        $bucket = @(for ($g = 0; $g -lt $groups; $g++) { , [System.Collections.Generic.List[string]]::new() })
-        $load = [double[]]::new($groups)
-        foreach ($n in ($names | Sort-Object { - (& $cost $_) })) {
-            $k = 0; for ($g = 1; $g -lt $groups; $g++) { if ($load[$g] -lt $load[$k]) { $k = $g } }
-            $bucket[$k].Add($n); $load[$k] += (& $cost $n)
-        }
+        $split = Split-TestsByTime -Names $names -Times $times -Groups $groups
+        $bucket = $split.Buckets; $load = $split.Load
         for ($g = 0; $g -lt $groups; $g++) {
             $jobs.Add((New-TestJob "engines$($g + 1)" 'exe' 'custom_erp/engines' $testExes[0] $engDir "^($($bucket[$g] -join '|'))$" @()))
             $jobs[$jobs.Count - 1].Expect = @($bucket[$g])
@@ -613,7 +779,7 @@ try {
     foreach ($j in $jobs | Where-Object { $_.Run }) {
         foreach ($l in Get-Content -LiteralPath $j.Out) { if ($l -match '^--- (PASS|FAIL|SKIP): (Test\w+) \(([\d.]+)s\)') { $newTimes[$Matches[2]] = [double]$Matches[3] } }
     }
-    if ($newTimes.Count) { $newTimes | ConvertTo-Json | Set-Content -LiteralPath $timesPath -Encoding utf8 }
+    if ($newTimes.Count) { Save-TestTimes $newTimes }
     $testLog = Join-Path $reportDir "release-$ts-tests.log"
     $all = foreach ($j in $jobs) { "===== $($j.Name)"; Get-Content -LiteralPath $j.Out; Get-Content -LiteralPath "$($j.Out).err" -ErrorAction SilentlyContinue }
     $all | Set-Content -LiteralPath $testLog -Encoding utf8
@@ -664,6 +830,7 @@ try {
     Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 foreach ($db in @($copies) + $scratchDb) { Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "DROP DATABASE IF EXISTS $db") -AllowFail | Out-Null }
+}   # end of the -LocalTests G10
 
 # ------------------------------------------------------- G10a browser smoke run
 # 158.4: the snapshot's own server and screens in a real browser, through Guide (the bug
@@ -679,7 +846,12 @@ foreach ($db in @($copies) + $scratchDb) { Invoke-Native -Exe $cfg.psql -Argumen
 Write-Gate 'G10a Browser smoke run'
 $guidePs1 = if ($cfg.PSObject.Properties['guide']) { [Environment]::ExpandEnvironmentVariables([string]$cfg.guide) } else { '' }
 $smokeResult = 'not run'
-if (-not $guidePs1 -or -not (Test-Path -LiteralPath $guidePs1)) {
+if ($onGitHub) {
+    # 177.2: the smoke run needs this laptop's Guide, Edge and dev data and takes minutes;
+    # the click no longer waits for it. Run it on its own with -LocalTests when wanted.
+    $smokeResult = 'not run (tests on GitHub)'
+    Note 'smoke: not run - the tests run on GitHub (-LocalTests runs it here)'
+} elseif (-not $guidePs1 -or -not (Test-Path -LiteralPath $guidePs1)) {
     Note "WARNING smoke: SKIPPED - Guide is not at '$guidePs1' on this machine"
 } else {
     # The snapshot's tree before and after: G11 commits whatever is in it, so nothing may be left behind.
@@ -728,8 +900,13 @@ Invoke-Git @('add', '-A') $wt | Out-Null
 $rcTree = (Invoke-Git @('write-tree') $wt)[0]
 $rcOut = Join-Path $env:TEMP "release_rc_$ts"
 $impactFile = Join-Path $env:TEMP "release_impact_$ts.txt"
-$rcArgs = @('run', './cmd/releasegate', 'check', '-root', '.', '-base', $startHead, '-tree', $rcTree, '-out', $rcOut,
-    '-result', 'build=pass', '-result', 'vet=pass', '-result', "tests=pass ($ranCount engines+server tests, $($state.flaky.Count) flaky)", '-result', "smoke=$smokeResult")
+$rcResults = if ($onGitHub) {
+    # 177.2: build, vet and tests run on GitHub after the push; main moves only when they pass there.
+    @('-result', 'build=github (release.yml, before main moves)', '-result', 'vet=github (release.yml, before main moves)', '-result', 'tests=github (release.yml: every package, 16 shards)', '-result', "smoke=$smokeResult")
+} else {
+    @('-result', 'build=pass', '-result', 'vet=pass', '-result', "tests=pass ($ranCount engines+server tests, $($state.flaky.Count) flaky)", '-result', "smoke=$smokeResult")
+}
+$rcArgs = @('run', './cmd/releasegate', 'check', '-root', '.', '-base', $startHead, '-tree', $rcTree, '-out', $rcOut) + $rcResults
 if (Test-Path -LiteralPath $impactFile) { $rcArgs += @('-impact-file', $impactFile) }
 $rcOutLines = Invoke-Native -Exe $go -Arguments $rcArgs -WorkDir $wt -AllowFail
 $rcCode = $LASTEXITCODE
@@ -810,7 +987,8 @@ if ($tree -ne $headTree) {
     $body = @($subject, '')
     $body += $titles | ForEach-Object { "- $_" }
     $body += ''
-    $body += "Gates passed (release/scripts/Invoke-Release.ps1): snapshot, LF, gofmt, cache versions, compliance reviews, catalog spec, attack surface, KB, brain, register, build, vet, JS, budget, migrate from empty, full tests."
+    $body += if ($onGitHub) { "Gates passed (release/scripts/Invoke-Release.ps1): snapshot, LF, gofmt, cache versions, compliance reviews, catalog spec, attack surface, KB, brain, register, JS, budget. Build, vet, migrate from empty and the full tests run on GitHub (.github/workflows/release.yml) before main moves to this commit." }
+              else { "Gates passed (release/scripts/Invoke-Release.ps1): snapshot, LF, gofmt, cache versions, compliance reviews, catalog spec, attack surface, KB, brain, register, build, vet, JS, budget, migrate from empty, full tests." }
     if ($state.flaky.Count) { $body += "Flaky (passed on rerun): $($state.flaky -join ', ')" }
     if ($held.Count) { $body += "Held back: $($held -join ', ')" }
     $msgFile = Join-Path $env:TEMP "release_msg_$ts.txt"
@@ -871,6 +1049,33 @@ Note "$synced file(s) synced; tree changes left: $((Invoke-Git @('status', '--po
 # ---------------------------------------------------------------- G13 push
 Write-Gate 'G13 Push'
 if ($NoPush) { Note 'not pushed (-NoPush)'; $state.status = 'committed' }
+elseif ($onGitHub) {
+    # 177.2: push the release commit to candidate/<version>, not main. release.yml tests that
+    # exact commit and fast-forwards main to it only when every job passes. Deploy waits for that.
+    $candidate = "candidate/$releaseVersion"
+    $push = Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'push', 'origin', "$($newCommit):refs/heads/$candidate") -AllowFail
+    if ($LASTEXITCODE -ne 0) { $state.status = 'committed'; Stop-Release "push to $candidate failed:`n$(($push | Select-Object -Last 5) -join "`n")" }
+    $state.status = 'committed'; $state.tests = 'github'; $state.candidate = $candidate
+    Note "pushed to $candidate - GitHub now builds and tests it; main moves when every job passes"
+    # The run appears a few seconds after the push.
+    $runUrl = ''; $runId = ''
+    for ($i = 0; $i -lt 15 -and -not $runId; $i++) {
+        Start-Sleep -Seconds 2
+        $runs = Invoke-Native -Exe 'gh' -Arguments @('run', 'list', '--workflow', 'release.yml', '--commit', $newCommit, '--limit', '1', '--json', 'databaseId,url') -WorkDir $repo -AllowFail
+        if ($LASTEXITCODE -eq 0) { try { $r = @(($runs -join "`n") | ConvertFrom-Json); if ($r.Count) { $runId = [string]$r[0].databaseId; $runUrl = [string]$r[0].url } } catch { } }
+    }
+    $state.run = $runUrl
+    Note $(if ($runUrl) { "GitHub run: $runUrl" } else { 'GitHub run: not listed yet - see the Actions tab' })
+    if ($Wait -and $runId) {
+        Save-Report
+        Write-Host "   waiting for the GitHub run..."
+        & gh run watch $runId --exit-status --interval 15 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "   $_" }
+        if ($LASTEXITCODE -ne 0) { Stop-Release "the GitHub run failed - main did not move. See $runUrl" }
+        & git -C $repo fetch -q origin main 2>$null
+        $state.status = 'passed'
+        Note 'GitHub run passed; main moved to the release commit'
+    }
+}
 else {
     $push = Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'push', 'origin', 'main') -AllowFail
     if ($LASTEXITCODE -ne 0) { $state.status = 'committed'; Stop-Release "push failed:`n$(($push | Select-Object -Last 5) -join "`n")" }
@@ -878,9 +1083,20 @@ else {
     $state.status = 'passed'
 }
 Save-Report
-if (-not $KeepWorktree) { Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'worktree', 'remove', '--force', $wt) -AllowFail | Out-Null }
+if (-not $KeepWorktree) {
+    # 177.5: the exact code map is drawn now, in the background at low priority, from this
+    # worktree (the release commit's files). The redraw keeps the graph for the next G7 and
+    # removes the worktree; Deploy (D6) brings the map into the shared tree.
+    $redrawScript = Join-Path $PSScriptRoot 'Invoke-BrainRedraw.ps1'
+    Start-Process -FilePath 'pwsh' -ArgumentList "-NoProfile -File `"$redrawScript`" -Worktree `"$wt`" -Commit $newCommit" -WorkingDirectory $env:TEMP -WindowStyle Hidden
+    Note "code map redraw started in the background ($BrainRedrawDir)"
+}
 Write-Host ''
-Write-Host "RELEASED $($newCommit.Substring(0,7)) - next: Deploy.cmd" -ForegroundColor Green
+if ($onGitHub -and $state.status -ne 'passed') {
+    Write-Host "RELEASED $($newCommit.Substring(0,7)) to $($state.candidate) - GitHub tests it now; Deploy.cmd waits for that run" -ForegroundColor Green
+} else {
+    Write-Host "RELEASED $($newCommit.Substring(0,7)) - next: Deploy.cmd" -ForegroundColor Green
+}
 Write-Host "Report: $reportPath"
 exit 0
 } catch {

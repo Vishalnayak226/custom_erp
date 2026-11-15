@@ -18,11 +18,21 @@ import (
 // everyone except administrators. Off by default: they are labelled instead.
 const SettingKeyHideUnfinished = "navigation.hide_unfinished"
 
+// SettingKeyShortCodes (202.2) switches the search box's short codes
+// (public/shortcut-codes.json) on or off for the whole company. On by
+// default; a client that does not want them turns it off, and back on later.
+const SettingKeyShortCodes = "navigation.short_codes"
+
 func init() {
 	RegisterSetting(SettingDefinition{
 		Key: SettingKeyHideUnfinished, Module: "Navigation",
 		Label: "Hide Experimental and Preview screens", Type: SettingTypeBool, Default: "false",
 		Description: "Off: those entries show a Preview or Experimental label. On: only administrators see them.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingKeyShortCodes, Module: "Navigation",
+		Label: "Short codes", Type: SettingTypeBool, Default: "true",
+		Description: "On: a screen's code (PO, GRN) typed in search opens it. Off: screens are found by name.",
 	})
 }
 
@@ -137,6 +147,9 @@ type NavInfo struct {
 	Hide    bool              `json:"hide,omitempty"`
 	Modules map[string]string `json:"modules,omitempty"` // module key -> level, below Production only
 	Menus   map[string]string `json:"menus,omitempty"`   // menu id -> level, below Production only
+	// NoCodes (202.2): the company switched short codes off. Absent means on,
+	// so a browser's older cached copy keeps them.
+	NoCodes bool `json:"no_codes,omitempty"`
 }
 
 // NavForRole builds the NavInfo for one signed-in role.
@@ -145,5 +158,6 @@ func NavForRole(tenantID, role string) NavInfo {
 	n.Landing, _ = ResolveRoleLanding(tenantID, role)
 	n.Modules, n.Menus = NavMaturity()
 	n.Hide = GetSettingBool(tenantID, SettingKeyHideUnfinished) && !HasFullAccess(role)
+	n.NoCodes = !GetSettingBool(tenantID, SettingKeyShortCodes)
 	return n
 }

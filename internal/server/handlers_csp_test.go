@@ -47,10 +47,16 @@ func TestSecurityHeadersEnforcesStrictScriptSrc(t *testing.T) {
 		t.Errorf("object-src/base-uri lockdown must survive the script-src change: %q", enforced)
 	}
 
-	// The report-only header carries the NEXT candidate (strict style-src), so
-	// the same two-phase mechanism is still in place for the next step.
+	// 49.4.3 (ask 191): style-src is enforced strict too - run-time styles go
+	// through the CSSOM. 'unsafe-inline' anywhere in the enforced policy would
+	// bring markup styles (and the attack surface they carry) back.
+	if !strings.Contains(enforced, "style-src 'self';") || strings.Contains(enforced, "'unsafe-inline'") {
+		t.Errorf("the enforced policy must restrict style-src to 'self', without 'unsafe-inline' - set a run-time style through data-css or adoptCss instead: %q", enforced)
+	}
+	// The report-only header keeps the same strictness and carries the NEXT
+	// candidate (Trusted Types), so the two-phase mechanism is still in place.
 	if !strings.Contains(reportOnly, "style-src 'self';") {
-		t.Errorf("report-only candidate should now be tightening style-src: %q", reportOnly)
+		t.Errorf("report-only candidate must keep the strict style-src: %q", reportOnly)
 	}
 	if !strings.Contains(reportOnly, "report-uri /api/v1/security/csp-report") {
 		t.Fatalf("report-only candidate has no reporting endpoint: %q", reportOnly)
@@ -89,8 +95,9 @@ func TestCSPReportHandlerBoundsAndRedactsBrowserReport(t *testing.T) {
 	}
 }
 
-// 49.4.3: the report-only candidate also runs the Trusted Types trial and the strict style-src, while
-// the enforced policy has neither yet (it changes only once a browser sweep shows zero violations).
+// 49.4.3: the report-only candidate runs the Trusted Types trial, which the enforced policy does not
+// carry yet (it changes only once a browser sweep shows zero violations). Both carry the strict style-src;
+// the enforced one since ask 191's zero-violation crawl.
 func TestSecurityHeadersTrustedTypesTrialIsReportOnly(t *testing.T) {
 	response := httptest.NewRecorder()
 	securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))

@@ -60,6 +60,12 @@ func handleStockAgeInspections(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		rows, err := engines.ListStockAgeInspections(tenantID, role, r.URL.Query().Get("status"), access)
+		// 193: the Quality screen asks on every visit; with the check off that is
+		// an answer, not an error. Posting a decision while it is off is still refused.
+		if ve, ok := err.(*engines.ValidationError); ok && ve.Code == "QUALIT-0602" {
+			storeAppJSON(w, map[string]interface{}{"inspections": []interface{}{}, "off": true})
+			return
+		}
 		if err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return

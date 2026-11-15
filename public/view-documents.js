@@ -26,6 +26,7 @@ async function renderDocTableView(container) {
     state.activeDocFields = fresh.fields;
     state.docData = fresh.records;
     state.docTotal = fresh.total;
+    state.docTotalEstimated = !!fresh.estimated;
     renderDocTable();
   });
 
@@ -33,6 +34,7 @@ async function renderDocTableView(container) {
     state.activeDocFields = cached.fields;
     state.docData = cached.records;
     state.docTotal = cached.total;
+    state.docTotalEstimated = !!cached.estimated;
   } else {
     const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
     if (!metaRes) return;
@@ -55,6 +57,7 @@ async function renderDocTableView(container) {
     const totalHeader = dataRes.headers.get('X-Total-Count');
     const offset = (pageAtRequestTime - 1) * itemsPerPage;
     state.docTotal = totalHeader !== null ? (parseInt(totalHeader, 10) || 0) : offset + state.docData.length;
+    state.docTotalEstimated = dataRes.headers.get('X-Total-Count-Estimated') === 'true';
   }
   bulkSelectedDocIDs = new Set();
 
@@ -336,6 +339,7 @@ async function refreshDocTablePage() {
   const totalHeader = dataRes.headers.get('X-Total-Count');
   const offset = (page - 1) * itemsPerPage;
   state.docTotal = totalHeader !== null ? (parseInt(totalHeader, 10) || 0) : offset + state.docData.length;
+  state.docTotalEstimated = dataRes.headers.get('X-Total-Count-Estimated') === 'true';
   renderDocTable();
 
   // Keyboard focus (BLD-034/MC-083 "keyboard scroll/focus is usable"): a
@@ -530,7 +534,9 @@ function renderDocTable() {
         // doctype, only the submit-for-approval action is bespoke" shape
         // QualityInspection already uses above.
         // 135.12: PriceListVersion too - this list is its only screen.
-        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance' || currentDoctype === 'HoldReleaseRequest' || currentDoctype === 'SupplierSubmission' || currentDoctype === 'PriceListVersion') && row.status === 'Draft'
+        // 55.11 (ask 179): MediaRuleException (Setup › PIM) too; 47.13.6
+        // (ask 185) DeclarationPack beside it.
+        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance' || currentDoctype === 'HoldReleaseRequest' || currentDoctype === 'SupplierSubmission' || currentDoctype === 'PriceListVersion' || currentDoctype === 'MediaRuleException' || currentDoctype === 'DeclarationPack') && row.status === 'Draft'
         ? `<button class="action-btn s-c6b76b" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" data-doc-action="submit-document" data-doc-id="${escapeHTMLText(row.id)}" data-doctype="${escapeHTMLText(currentDoctype)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
@@ -669,12 +675,18 @@ function renderDocTablePager() {
   const total = state.docTotal;
   const pages = Math.max(1, Math.ceil(total / itemsPerPage));
   const start = (currentTablePage - 1) * itemsPerPage;
-  const end = Math.min(start + state.docData.length, total);
+  // Stage 47.10: over 10k matches the server sends an estimate. The pager
+  // then says "about 250,000" and Next follows whether this page was full,
+  // since the estimate cannot say where the last page is.
+  const estimated = state.docTotalEstimated;
+  const end = estimated ? start + state.docData.length : Math.min(start + state.docData.length, total);
+  const totalText = estimated ? `about ${Number(total.toPrecision(2)).toLocaleString()}` : total;
+  const lastPage = estimated ? state.docData.length < itemsPerPage : currentTablePage === pages;
   paginator.innerHTML = `
-    <span>Showing ${total === 0 ? 0 : start + 1}-${end} of ${total}${docTableLoading ? ' — loading…' : ''}</span>
+    <span>Showing ${total === 0 ? 0 : start + 1}-${end} of ${totalText}${docTableLoading ? ' — loading…' : ''}</span>
     <div class="pagination-buttons">
       <button class="pagination-btn" id="doc-table-prev-btn" data-page="${currentTablePage - 1}" ${currentTablePage === 1 || docTableLoading ? 'disabled' : ''}>Previous</button>
-      <button class="pagination-btn" id="doc-table-next-btn" data-page="${currentTablePage + 1}" ${currentTablePage === pages || docTableLoading ? 'disabled' : ''}>Next</button>
+      <button class="pagination-btn" id="doc-table-next-btn" data-page="${currentTablePage + 1}" ${lastPage || docTableLoading ? 'disabled' : ''}>Next</button>
     </div>
   `;
   if (!paginator.dataset.actionListenersBound) {
@@ -771,7 +783,7 @@ window.togglePIMBulkPageSelection = function(selected) {
 // and Delete go through the same endpoint as the row's own button, one row
 // after another - up to 40 a run, as the session's request budget is 60 a
 // minute.
-const GENERIC_SUBMIT_DOCTYPES = new Set(['Appraisal', 'Grievance', 'HoldReleaseRequest', 'SupplierSubmission', 'QualityInspection', 'PurchaseRequisition']);
+const GENERIC_SUBMIT_DOCTYPES = new Set(['Appraisal', 'Grievance', 'HoldReleaseRequest', 'SupplierSubmission', 'QualityInspection', 'PurchaseRequisition', 'MediaRuleException', 'DeclarationPack']);
 const bulkSelectedRows = new Map();
 const BULK_RUN_LIMIT = 40;
 async function runDocBulk(kind, button) {
@@ -1866,6 +1878,23 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     if (zoneInput && zoneInput.tagName === 'INPUT') attachLinkTypeahead(zoneInput, 'Zone', { showAllOnFocus: true });
   }
 
+  // 57.26(g): department and location are already picked (pick_from, 93.9).
+  // Reports-to is picked from the employees (name shown, id stored) and the
+  // designation from the positions' titles. Both stay text, so an employee
+  // saved earlier with a typed value still saves unchanged.
+  if (currentDoctype === 'Employee') {
+    const managerInput = body.querySelector('input[name="reporting_manager"]');
+    if (managerInput) { managerInput.autocomplete = 'off'; attachLinkTypeahead(managerInput, 'Employee'); }
+    const designationInput = body.querySelector('input[name="designation"]');
+    if (designationInput) {
+      designationInput.autocomplete = 'off';
+      attachLinkTypeahead(designationInput, 'Position', {
+        valueFields: ['title'], labelFn: doc => doc.title || doc.code || '',
+        filters: { q_fields: 'title,code' }, showAllOnFocus: true, noSetupHint: true,
+      });
+    }
+  }
+
   // Stage 57.10: an Offer's Scope Value follows its Scope.
   if (currentDoctype === 'Offer') wireOfferScopeValue(body);
   // Stage 93.6: a location's cost center is suggested ("New: <name>"), never blank.
@@ -1891,9 +1920,10 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   if (currentDoctype === 'ProductAttributeDef' || currentDoctype === 'ItemAttribute') wireAttributeDefForm(body); // Stage 81 / 86.3
   // Stage 89: the Item form asked the org's way (kind of item, item name,
   // defaults, attribute dropdowns); attributes per Product Type / Category.
-  if (['Item', 'ProductType', 'Category', 'ItemType'].includes(currentDoctype)) {
+  if (['Item', 'ProductType', 'Category', 'ItemType', 'ItemName'].includes(currentDoctype)) {
     const itemForm = await loadViewModule('/view-item-form.js');
     if (currentDoctype === 'Item') await itemForm.wireItemForm(body, { isEdit, record: isEdit ? existingRecord : createDefaults });
+    else if (currentDoctype === 'ItemName') await itemForm.wireItemNameForm(body); // 201.2
     else if (currentDoctype === 'ItemType') await itemForm.wireItemTypeForm(body, isEdit ? existingRecord : null);
     else await itemForm.wireAttributeMapForm(body, currentDoctype, isEdit ? existingRecord : null);
   }

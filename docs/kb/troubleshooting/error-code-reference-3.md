@@ -2,7 +2,7 @@
 title: Error code reference (part 3)
 section: Troubleshooting
 order: 22
-summary: Error codes for PIM / Product Publishing to Tax / GST / E-Invoice, continued from the error code reference.
+summary: Error codes for PIM to SaaS / Multi-Tenant, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,13 +20,14 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 3)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **319** codes, from
-PIM / Product Publishing to Tax / GST / E-Invoice.
+lists every area and explains how to read a code. It holds **274** codes, from
+PIM to SaaS / Multi-Tenant.
 
 ## Contents
 
+- [PIM](#pim) - 57 codes
 - [PIM / Product Publishing](#pim-product-publishing) - 8 codes
-- [POS / Billing](#pos-billing) - 42 codes
+- [POS / Billing](#pos-billing) - 44 codes
 - [POS / Offline & Cash Drawer](#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch-bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
@@ -37,19 +38,74 @@ PIM / Product Publishing to Tax / GST / E-Invoice.
 - [Purchase Requisition](#purchase-requisition) - 6 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return-rtv) - 5 codes
-- [Quality](#quality) - 6 codes
+- [Quality](#quality) - 8 codes
 - [Quality & Maintenance](#quality-maintenance) - 12 codes
 - [RFQ](#rfq) - 6 codes
 - [Reports](#reports) - 3 codes
 - [Reports & Exports](#reports-exports) - 8 codes
 - [SaaS / Multi-Tenant](#saas-multi-tenant) - 8 codes
-- [Sales / POS](#sales-pos) - 40 codes
-- [Sales Return](#sales-return) - 9 codes
-- [Security](#security) - 9 codes
-- [Security / AI assistant access](#security-ai-assistant-access) - 10 codes
-- [Security / Rate Limit](#security-rate-limit) - 6 codes
-- [Stock Transfer](#stock-transfer) - 17 codes
-- [Tax / GST / E-Invoice](#tax-gst-e-invoice) - 15 codes
+
+## PIM
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PIM-0321` | Adding an attribute value from the PO that cannot be added | That value could not be added to the product attribute. | Type one value without commas, for an attribute chosen from a list; typed attributes take their value on the design itself. | Low | 422 |
+| `PIM-0690` | Deleting a product attribute that was set up from the attribute library | This attribute was set up for your business and cannot be deleted. | Switch it off instead: open it and set Status to Inactive. Its values can still be removed one by one. | Low | 422 |
+| `PIM-0691` | Creating a new product attribute from a purchase order when the business's attributes are set up for it | New attributes are not created from a purchase order here - your product attributes are set up for your business. | Pick one of the attributes shown, or ask your administrator to add one under Setup -> Item Attribute. | Low | 422 |
+| `PIM-0950` | Saving or testing image drive settings with a field missing or malformed | The image drive settings are not complete. | Fill in the field named in the message: the endpoint (https://...), the bucket name, the access key ID and the secret access key, as your storage provider shows them. | Low | 422 |
+| `PIM-0951` | The client's image drive could not be reached, or refused the keys, bucket or region | The image drive did not accept the request. | Read the reason in the message, correct the endpoint, region, bucket or keys in Settings > Configuration > Integrations > Image drive, and press Test connection. | Medium | 422 |
+| `PIM-0952` | Opening an image stored on the image drive after the drive's settings were removed | This image is stored on the image drive, which is not set up. | Ask your administrator to set the image drive up again in Settings > Configuration > Integrations > Image drive. | Medium | 422 |
+| `PIM-0953` | Loading a marketplace template file that cannot be read or has no columns | The template file could not be read. | Upload the category file as downloaded from the marketplace (.xlsx) and check it has a header row. | Medium | 422 |
+| `PIM-0954` | Saving or loading a marketplace template that is not valid | This marketplace template is not valid. | Fix the field named in the message and save again. | Medium | 422 |
+| `PIM-0955` | Using a marketplace template that does not exist | This marketplace template was not found. | Load the category file again, or choose another template. | Medium | 422 |
+| `PIM-0956` | Saving a feed with a missing or unusable setting | This feed cannot be saved as it is. | Fix the field named in the message: template, product group, format, destination or recipient. | Medium | 422 |
+| `PIM-0957` | Using Ready only on a feed whose template has no channel | Ready only needs a template that belongs to a channel. | Choose a template made for a channel, or turn Ready only off. | Medium | 422 |
+| `PIM-0958` | Running a feed that does not exist or is not active | This feed was not found or is not active. | Open Feeds, make the feed Active, and run it again. | Medium | 422 |
+| `PIM-0959` | Setting design values with no product group or design chosen | Choose a product group or a design first. | Pick a product group or at least one design, then set the value. | Medium | 422 |
+| `PIM-0960` | Setting a design value for an attribute that does not exist | This attribute was not found. | Choose an attribute from the list. | Medium | 422 |
+| `PIM-0961` | Setting a design value on a design that is not an item | This design was not found. | Choose a design from the grid; it must be an existing product. | Medium | 422 |
+| `PIM-0962` | Setting design values on more designs than one bulk set allows | Too many designs for one bulk set. | Choose a smaller product group, or ask your administrator to raise the bulk edit limit. | Medium | 422 |
+| `PIM-0970` | Adding or removing tags in bulk with no action or no tag | Choose add or remove, and enter at least one tag. | Pick the action and type the tags, separated by commas. | Low | 422 |
+| `PIM-0971` | Saving a dynamic product group with an attribute condition that does not fit its attribute | One of the conditions cannot be saved. | Use an operator that fits the attribute (for example between for a number, after for a date) and a value of that type. | Low | 422 |
+| `PIM-0972` | Making a checklist task with no attribute, an unknown attribute, or opening one on a task without a checklist | This checklist cannot be used. | Choose at least one attribute that exists. | Low | 422 |
+| `PIM-0973` | Making a checklist task for something that is not a product or a product group | Choose a product or a product group for this checklist. | Pick the product or product group the attributes are to be filled for. | Low | 422 |
+| `PIM-0980` | Attribute value that does not fit its attribute's type | That value does not fit this attribute. | Use Yes or No, pick from the attribute's list, or give a web address starting http:// or https://, as the attribute's type asks. | Medium | 422 |
+| `PIM-0981` | Product related to itself | A product cannot be related to itself. | Choose a different related item. | Low | 422 |
+| `PIM-0982` | Same product relation entered twice | This relation already exists. | Keep the existing relation, or choose another type or item. | Low | 422 |
+| `PIM-1000` | Product sheet without an id column | The sheet needs an id column. | Add a column named id holding each item code, then upload again. | Medium | 422 |
+| `PIM-9150` | Attribute stewardship request that is incomplete or names an unknown attribute, user or channel | This stewardship entry is not complete. | Fix the field named, then save the request again. | Medium | 422 |
+| `PIM-9151` | Attribute value written from a source other than the attribute's system of record | This value comes from another system. | Write it from the system of record named, or ask for the stewardship entry to change. | Medium | 422 |
+| `PIM-9152` | Image order for a channel that names an unknown channel or an image not on the item | This image order cannot be saved. | Choose a channel and only images of this item. | Medium | 422 |
+| `PIM-9200` | New purchase order line for a Phase-out or End of life item | This item is being phased out. | Buy the substitute item named in the message, or move the item back to Active on its Item screen. | Medium | 422 |
+| `PIM-9201` | Item lifecycle boxes invalid (item is its own substitute, launch date not a date) | The lifecycle details are not valid. | Pick a different substitute item, and give the launch date as YYYY-MM-DD. | Low | 422 |
+| `PIM-9202` | End of life item sold while the refuse setting is on | This item is End of life. | Sell the substitute item named in the message, or ask an administrator to turn the refuse setting off (Configuration > Product Information). | Medium | 422 |
+| `PIM-9203` | Launch item sold before its launch date while the refuse setting is on | This item has not launched yet. | Wait for the launch date, or change the item's launch date or stage on its Item screen. | Medium | 422 |
+| `PIM-9210` | Scheduled item change not allowed (field not on the list, value not valid, date missing or in the past) | That change cannot be scheduled. | Pick selling price, MRP, purchase price, a tax or HSN field or an attribute, give a valid new value, and a date that is today or later. | Low | 422 |
+| `PIM-9211` | Two scheduled changes to the same item field on the same day | That field already has a change on that day. | Cancel the other scheduled change, or pick a different date. | Low | 422 |
+| `PIM-9212` | Scheduled item change edited or cancelled after it was applied or already cancelled | This change is no longer scheduled. | Only a Scheduled change can be cancelled. Schedule a new change if needed. | Low | 422 |
+| `PIM-9240` | New purchase order carrying items outside the store range | These items are outside the store range. | Remove them from the lines, or add them to the store range. | Medium | 422 |
+| `PIM-9241` | Transfer into a store carrying items outside its range | These items are outside the store range. | Remove them from the lines, or add them to the store range. | Medium | 422 |
+| `PIM-9242` | Sale at a store of an item outside its range | This item is not sold at this store. | Add it to the store range, or sell it elsewhere. | Medium | 422 |
+| `PIM-9243` | Channel order line outside the channel range | These items are outside the channel range. | Add them to the channel range, or drop the lines. | Medium | 422 |
+| `PIM-9244` | Range row that is incomplete or inconsistent | This range row is not complete. | Name a store or a channel, one item or category, and valid dates. | Medium | 422 |
+| `PIM-9245` | Bulk range add with no target or no item or category | Choose where to add and what to add. | Pick a store or channel, and a category or items. | Medium | 422 |
+| `PIM-9250` | Markdown plan that is incomplete or inconsistent | This markdown plan is not complete. | Fix the field named, then save again. | Medium | 422 |
+| `PIM-9260` | Listing drift asked for with no channel | Choose a channel. | Pick a channel, then open the report again. | Medium | 422 |
+| `PIM-9300` | Blank value for a category-required attribute | This attribute is required for the item's category. | Enter a value, or ask an admin to change the category rule. | Medium | 422 |
+| `PIM-9301` | Item saved without its category-required attribute values | The item's category needs more attribute values. | Add the values named in the message, then save again. | Medium | 422 |
+| `PIM-9302` | Category attribute rule with an unknown rule | The rule must be Required, Optional or Hidden. | Pick one of the three. | Medium | 422 |
+| `PIM-9303` | Category attribute rule default value refused | That default value does not fit. | Use a value that fits the attribute, or leave it blank. A hidden attribute has none. | Medium | 422 |
+| `PIM-9304` | Second rule for one category and attribute | This category already has a rule for that attribute. | Edit the existing rule instead. | Medium | 422 |
+| `PIM-9305` | Number with a unit typed with text | Type the number only. | The unit is added for you. Remove the letters. | Medium | 422 |
+| `PIM-9306` | Regulated value changed where it cannot wait for approval | A regulated value changes on the item page. | Open the item and change it there; it waits for approval. | Medium | 422 |
+| `PIM-9340` | Myntra market-price collection started while the client switched it off | Collecting Myntra prices is switched off. | Ask an admin to turn it on in Settings, Platform. | Medium | 422 |
+| `PIM-9341` | Myntra run with a missing, too long or too many keywords, a bad category or a bad day | This run cannot start. | Fix the field named, then try again. | Medium | 422 |
+| `PIM-9342` | Myntra run started while another is waiting or running | A Myntra run is already going. | Wait for it to finish, then start the next one. | Medium | 409 |
+| `PIM-9343` | Re-parse of a day with no saved Myntra pages | No saved Myntra pages for that day. | Choose a day that has a run, or start a run first. | Medium | 404 |
+| `PIM-9360` | Copying photos to the image drive while the drive is not switched on | The image drive is not switched on. | Switch it on under Settings, Image drive, then copy the photos. | Medium | 422 |
+| `PIM-9361` | Starting a photo copy to the image drive while one is already running | A copy is already running. | Wait for it to finish, then start it again if photos are left. | Low | 409 |
+| `PIM-9362` | Saving a declaration pack with an unknown pack, no reviewer or evidence, or a last day before the effective date | This declaration pack can't be saved. | Pick a shipped pack, name the qualified reviewer and the evidence, and a last day on or after the effective date. | Medium | 422 |
+| `PIM-9363` | Saving an item or item name with an item alias longer than 14 characters | The item alias can be 14 characters at most. | Shorten it, or clear it to have it made from the name. | Low | 422 |
 
 ## PIM / Product Publishing
 
@@ -102,6 +158,7 @@ PIM / Product Publishing to Tax / GST / E-Invoice.
 | `POSOFF-0875` | Bill paid by a tender the store does not take | This store does not take that tender. | Pick one of the store's tenders, or add it in Setup -> Masters -> POS Tender (and the store to its Stores). | Medium | 422 |
 | `POSOFF-0876` | Bill without the salesman the store asks for, or with someone not its salesman | The bill needs one of the store's salesmen. | Pick the salesman on the till. Add or reactivate them in Setup -> Masters -> Salesman. | Medium | 422 |
 | `POSOFF-0877` | Bill discount above the reason limit without a reason | This discount needs a reason. | Say why the discount is given; above an approval slab a manager approves it too. | Medium | 422 |
+| `POSOFF-0878` | Saving a store or tender with a UPI ID that is not name@provider, or a UPI ID on a non-UPI tender | This UPI ID can't be used. | Type the UPI ID as name@provider (for example store@ybl), or leave it blank. Only a UPI tender takes one. | Medium | 422 |
 | `POSOFF-1301` | Bill cannot be cancelled (not found, not today's, partly returned, nothing left, or no reason) | This bill can't be cancelled. | Only today's bill, with nothing returned yet, can be cancelled - give the reason. For an older bill, or one already partly returned, take a return instead. | Medium | 422 |
 | `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
 | `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |
@@ -109,6 +166,7 @@ PIM / Product Publishing to Tax / GST / E-Invoice.
 | `POSOFF-1361` | Offline sale validated with a line not scanned, or scanned with a code that is not that item's barcode | The scanned barcodes don't match. | Every line must have been scanned with one of the item's own barcodes. Check the goods with the cashier; if it can't be put right, reject the sale with the reason. | High | 422 |
 | `POSOFF-1362` | Offline sale cannot be decided (already validated or rejected, rung up by the person deciding, or a rejection with no reason) | This offline sale can't be decided. | Only a Pending sale is validated or rejected, by a manager other than the cashier who rang it up; a rejection needs the reason. | Medium | 422 |
 | `POSOFF-1363` | Duplicate tender - the same card / UPI / cheque reference and amount was taken at this store minutes ago | This payment was already taken on an earlier bill. | Check the earlier bill. If the customer really paid twice with the same reference, mark the tender as a second payment and try again. | High | 409 |
+| `POSOFF-1371` | Till series refused (not a store, all 99 tills taken) or an offline bill number refused at sync (not this store's till series, malformed, or already on a bill) | This offline bill number can't be used. | Check the number on the customer's receipt against the till that rang it up. If it is on another bill already, reject the sale with the reason and re-bill it online; a till gets its series when its screen opens online. | High | 422 |
 | `STORE-0854` | Store switch while the user's till session is open at the current store | Your till session is still open at this store. | Close the session (POS -> More... -> Close Session), then switch store. | High | 422 |
 
 ## POS / Offline & Cash Drawer
@@ -291,6 +349,8 @@ PIM / Product Publishing to Tax / GST / E-Invoice.
 | `QUALIT-1763` | SCAR missing vendor, issue or reply-by date, or its vendor or non-conformance not found | The SCAR is not complete. | Give the vendor, the issue and the reply-by date. | Medium | 422 |
 | `QUALIT-1764` | SCAR opened for a non-conformance that already has an open SCAR | That non-conformance already has an open SCAR. | Close the open SCAR first. | Medium | 422 |
 | `QUALIT-1765` | SCAR step out of order, with no text, or on an unknown SCAR | That SCAR step cannot be recorded. | Record root cause, then action, then verification. | Medium | 422 |
+| `QUALIT-1766` | Instrument calibration interval missing or out of range | This instrument cannot be saved. | Give a calibration interval of 1 to 3650 days. | Medium | 422 |
+| `QUALIT-1767` | Calibration record refused (unknown or retired instrument, date missing or in the future, result not Pass or Fail, or a recorded calibration edited) | This calibration cannot be saved. | Pick an instrument in use, the date it was calibrated (not later than today) and Pass or Fail. A recorded calibration cannot be changed. | Medium | 422 |
 
 ## Quality & Maintenance
 
@@ -353,145 +413,4 @@ PIM / Product Publishing to Tax / GST / E-Invoice.
 | `SAAS-0193` | Subscription limit exceeded | Your plan limit has been reached. Please upgrade or disable unused records. | Upgrade plan or reduce usage. | High | 422 |
 | `SAAS-0194` | Industry switch blocked after transactions | Industry profile cannot be changed after transactions are posted. | Create a new tenant or archive data before switching. | High | 409 |
 | `SAAS-0195` | Tenant version mismatch | Tenant schema version does not match the running application version. Please run migration or rollback. | Contact tech admin to migrate or rollback. | High | 200 |
-
-## Sales / POS
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `SALESP-0122` | MRP exceeded | Selling price cannot exceed MRP. | Lower the price to the MRP or below. | High | 422 |
-| `SALESP-0123` | Discount exceeds limit | Discount exceeds your allowed limit. Approval is required. | Lower the discount, or ask a manager to approve it. | High | 422 |
-| `SALESP-0124` | Coupon invalid | Coupon is invalid, expired, or not applicable for this bill. | Remove the coupon, or check its dates and conditions. | High | 422 |
-| `SALESP-0125` | Payment split mismatch | Payment total must match invoice total. | Change the payments so they add up to the bill total. | High | 422 |
-| `SALESP-0126` | Card payment reference missing | A card or UPI payment needs its reference number. | Type the reference from the card slip or the UPI app. | High | 422 |
-| `SALESP-0127` | Cash limit exceeded | Cash amount exceeds allowed transaction limit. | Take part of the payment by card or UPI so the cash stays under the limit. | High | 422 |
-| `SALESP-0128` | Bill cancellation blocked | Bill cannot be cancelled after the allowed cancellation period. | Take a return against the bill instead. | High | 409 |
-| `SALESP-0183` | Bill saved | Bill generated successfully. | No action required. | Low | 200 |
-| `SALESP-0616` | Change to an issued sale without a reason | Say why this issued sale is being changed. | Enter a reason for the change and save again. The change, who made it and the reason are kept in the Post-Sale Edit History report. | Medium | 422 |
-| `SALESP-0620` | Customer price-list row not valid | A price-list row is not valid. | Name an item, a design or a category, give a price above 0, and keep the bands in order. | Low | 422 |
-| `SALESP-0621` | Margin hold released by the generic release | This order is on Margin hold, so it cannot be released or held again by hand. | A Store Manager releases it with a reason. | Low | 409 |
-| `SALESP-0622` | Margin hold release by a role that may not | Only a Store Manager or an administrator can release a Margin hold. | Ask a Store Manager to release the order. | Low | 403 |
-| `SALESP-0623` | Order line below the floor without a reason | A line is below the lowest rate. | Give a reason for the line, or raise the rate. | Low | 422 |
-| `SALESP-0624` | Invoice or quote line below the floor without a reason | A line is below the lowest rate. | Give a reason for the line, or raise the rate. | Low | 422 |
-| `SALESP-0625` | Price endings on an approved or vendor list | Only a draft customer price list can be changed. | Make a new version of the list. | Low | 409 |
-| `SALESP-0626` | Price ending or release reason not valid | Check the ending and the reason. | Use 0, 9, 49, 99 or none, and say why a low rate is accepted. | Low | 422 |
-| `SALESP-0710` | Wholesale used while the module is off | Wholesale is off for this company. | Ask an administrator to switch Wholesale on. | Medium | 422 |
-| `SALESP-0711` | Bill-to customer is itself, missing, or billed elsewhere | This bill-to customer cannot be used. | Pick another customer, or leave bill-to blank. | Medium | 422 |
-| `SALESP-0712` | A summary invoice group cannot be one invoice | This group cannot be one invoice. | Change the grouping on the customer, or invoice the orders one by one. | Medium | 422 |
-| `SALESP-0713` | Nothing chosen or nothing to invoice | Nothing to invoice here. | Pick a period that has shipped orders, then choose the groups. | Medium | 422 |
-| `SALESP-0714` | Instalment dates on a line do not add up | The instalments do not match the line. | Write each as qty; together they may not pass the line quantity. | Medium | 422 |
-| `SALESP-0715` | Drop-ship item without a default vendor | A drop-ship item needs a default vendor. | Set the default vendor on the item. | Medium | 422 |
-| `SALESP-0716` | Drop-ship and stock lines on one order | An order is all drop-ship or none. | Put the drop-ship items on their own order. | Medium | 422 |
-| `SALESP-0717` | Change refused: the drop-ship purchase order is past Draft | The purchase order is past Draft. | Ask the vendor to change it. | Medium | 409 |
-| `SALESP-0718` | A new line on a drop-ship order | A drop-ship order takes no new line. | Use a new order. | Medium | 422 |
-| `SALESP-0719` | Drop-ship line already shipped or not a drop-ship line | A chosen line is already shipped. | Refresh the list and choose again. | Medium | 409 |
-| `SALESP-0740` | Incentive split is not 100 percent | The salesman split does not add up to 100%. | Change the split so the shares add up to 100% and post again. | Medium | 422 |
-| `SALESP-0741` | Incentive salesman not on file | That salesman is not on file. | Pick a salesman from the list. | Medium | 422 |
-| `SALESP-0742` | Sales incentives are off | Sales incentives are off. | Ask an admin to turn on Sales incentives. | Medium | 403 |
-| `SALESP-0743` | Login is not a salesman | This login is not linked to a salesman. | Ask HR to link your login to your salesman profile. | Medium | 422 |
-| `SALESP-0760` | Custom orders used while the module is off | Custom orders are off. | Ask an admin to turn the Custom orders module on. | Low | 403 |
-| `SALESP-0761` | No metal rate for today | No rate for today. | Add today's rate for this metal and purity under Metal Rate, then try again. | Medium | 422 |
-| `SALESP-0762` | A choice that is not in the masters | Pick a choice from the list. | Pick from the list, or add the choice under Custom choices. | Medium | 422 |
-| `SALESP-0763` | Custom order without a weight | Enter the weight. | Enter the weight in grams. | Medium | 422 |
-| `SALESP-0764` | Making type without a making charge | This making type has no charge. | Set the making charge on the choice under Custom choices. | Medium | 422 |
-| `SALESP-0765` | Metal without HSN or GST | The metal has no HSN or GST. | Set the HSN and GST on the metal under Custom choices. | Medium | 422 |
-| `SALESP-0766` | Custom order without customer or address | Enter the customer and address. | Fill both and save again. | Medium | 422 |
-| `SALESP-0767` | The item for a custom order was not saved | The item was not saved. | Fix what the message says and try again. No order was made. | Medium | 422 |
-| `SALESP-0768` | A custom-order quote typed in by hand | Quotes are made with New order. | Use New order on the Custom order quotes list. | Medium | 422 |
-| `SALESR-1400` | Order line for a brand outside the dealer's allowed list | This dealer cannot buy that brand. | Remove the line, or add the brand to the dealer's allowed brands on the customer. | Medium | 422 |
-
-## Sales Return
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `SALESR-0129` | Sales return period exceeded | Sales return is not allowed after the configured return period. | Tell the customer the return period has ended, or ask a manager whether an exception can be made. | High | 422 |
-| `SALESR-0130` | Return quantity exceeds sold quantity | Return quantity cannot exceed sold quantity. | Lower the return quantity to no more than was sold, less anything already returned. | High | 422 |
-| `SALESR-0131` | Original bill required for return | Original bill reference is required for sales return. | Scan or type the original bill number. Without the bill, a manager handles the return. | High | 422 |
-| `SALESR-0132` | Refund exceeds return value | Refund amount cannot exceed approved return value. | Lower the refund to the approved return value. | High | 422 |
-| `SALESR-0617` | Return or refund approved by the person who raised the return | Another person must approve this. | Ask a colleague or manager to approve it. The business has turned on second-person approval of returns and refunds. | Medium | 422 |
-| `SALESR-1307` | Whole purchase returned without its free gift (Gift With Purchase) | The free gift comes back with the purchase. | Everything paid for on this bill is coming back - add the free gift to the return, or keep part of the purchase. An administrator can let customers keep gifts (Configuration > Point of Sale). | Medium | 422 |
-| `SALESR-1310` | Store credit chosen for a refund of a bill with no customer | Store credit needs a customer. | This bill was a walk-in sale - refund it the way it was paid. | Low | 422 |
-| `SALESR-1315` | A return raised without a reason | A return needs a reason. | Pick a reason or type one. | Low | 422 |
-| `SALESR-1316` | Credit note on stock items before the return is received | This credit note needs a received return. | Receive and check in the return first, then post the note. | Low | 422 |
-
-## Security
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `SEC-1700` | Retention rule not valid (record type, unit, action or field missing) | The retention rule is not valid. | Fill the record type, a keep period, and the field for a clear-field rule. | Medium | 422 |
-| `SEC-1701` | Retention below the statutory floor (audit address 180 days) | That record must be kept longer. | Use the minimum shown in the message or more. | Medium | 422 |
-| `SEC-1705` | Erasure of an employee or vendor refused: legal hold | This record is under legal hold. | Lift the hold first, or leave it as it is. | Medium | 422 |
-| `SEC-1706` | Erasure of an employee refused: still active | The employee is still active. | Set the exit date and status first. | Medium | 422 |
-| `SEC-1707` | Erasure of an employee refused: inside the payroll retention window | Payroll records must be kept longer. | Try again after the date in the message. | Medium | 422 |
-| `SEC-1708` | Erasure of a vendor refused: open purchase documents | The vendor has open documents. | Finish or cancel them, then try again. | Medium | 422 |
-| `SEC-1709` | Privacy request subject not found or not an employee or vendor | That record was not found. | Check the record and try again. | Medium | 422 |
-| `SEC-1710` | Masked copy target is not a sandbox, or is a production client name | A copy can only go into a sandbox client. | Create a new sandbox for the copy. | Medium | 422 |
-| `SEC-1711` | Masked copy source missing, unknown or the same as the target | Pick a different client to copy from. | Choose the client to copy. | Medium | 422 |
-
-## Security / AI assistant access
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `SEC-0300` | Assistant call by a user who is disabled or gone | This assistant can no longer act. | Ask an administrator to turn the user back on, or make a new assistant client for another user. | High | 403 |
-| `SEC-0301` | Assistant asked for a store its user may not work at | This user cannot see that store. | Ask for a store the user works at, or leave the store out to get all of theirs. | High | 403 |
-| `SEC-0302` | Assistant client not tied to a user | This client is not set up as an assistant. | Make the client under Admin, AI assistants, so it acts as one named user. | High | 403 |
-| `SEC-0303` | Assistant draft order not valid | The draft order is not complete. | Send at least one line with a known item and a quantity above zero. | Medium | 422 |
-| `SEC-0304` | Assistant client not valid at issue | The assistant client cannot be made. | Pick an active user and only the read and draft choices. | Medium | 422 |
-| `SEC-0305` | Order not found for the assistant | No such order. | Check the order number. Only orders at the user's stores are shown. | Low | 404 |
-| `SEC-0306` | Submitting something that is not an open assistant draft | This is not an open assistant draft. | Pick a draft made by an assistant that is still a draft. | Medium | 422 |
-| `SEC-0307` | Report not found for the assistant | No such report. | Ask for a report from the list. | Low | 404 |
-| `SEC-0308` | Report refused for the assistant's role | This user's role cannot run that report. | Pick a report the list shows for this user. | High | 403 |
-| `SEC-0309` | Assistant tied to a user who has full access | This assistant cannot act as an Admin. | Make a new assistant for a user with a narrower role. | High | 403 |
-
-## Security / Rate Limit
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `SEC-0280` | Rate limit exceeded | Too many requests. Please wait and try again. | Wait and retry later. | High | 429 |
-| `SEC-0281` | Payload size exceeded | Request is too large. Please reduce file/data size and try again. | Reduce payload size. | High | 422 |
-| `SEC-0282` | Suspicious activity blocked | Suspicious activity detected. Action was blocked for security review. | Contact administrator. | Critical | 409 |
-| `SEC-0283` | Token purpose invalid | This verification token is not valid for this action. Please restart the process. | Restart login/authorized process. | High | 401 |
-| `SEC-0284` | Origin not allowed | This browser origin is not allowed to access the ERP API. | Use approved ERP URL. | Critical | 422 |
-| `SEC-0290` | A second active API access for a purpose another already holds | Another active API access already has this purpose. | Rotate that access instead, revoke it first, or give this one a different purpose. | Medium | 409 |
-
-## Stock Transfer
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `STOCKT-0111` | Transfer source destination same | Source and destination location cannot be the same. | Choose a different location to send the stock to. | High | 422 |
-| `STOCKT-0112` | Transfer quantity exceeds available | Transfer quantity cannot exceed available stock. | Lower the quantity to what the sending location has. | High | 422 |
-| `STOCKT-0113` | Transfer receipt pending | Stock transfer cannot be closed until receipt is completed. | Receive the transfer at the receiving store first, then close it. | High | 422 |
-| `STOCKT-0481` | Direct transfer approval not allowed (D04) | This transfer cannot be approved directly. | Submit it for approval - someone other than its creator approves it. | Medium | 422 |
-| `STOCKT-0482` | Batch-tracked transfer line cannot be traced to a lot | The lots for this item could not be found. | Name the batch on the line, or put the stock away against its lot first. | Medium | 422 |
-| `STOCKT-0483` | Serial numbers on a transfer do not match | The serial numbers do not match this transfer. | Scan one serial number per unit; each must be in stock at the sending store, or in transit on this transfer. | Medium | 422 |
-| `STOCKT-0484` | Transfer discrepancy, return or cancel without a valid reason code | Choose a reason for this. | Pick an active reason code (Masters > Reason Codes: Transfer Discrepancy, or Cancellation to cancel). | Medium | 422 |
-| `STOCKT-0485` | Transfer receipt or return exceeds what is in transit | That is more than is still in transit on this transfer. | Enter at most the quantity still in transit; record extra units as excess with a reason. | Medium | 422 |
-| `STOCKT-0486` | Transfer cannot be cancelled or returned in its current status | This transfer cannot be changed that way now. | Cancel only before dispatch; after dispatch, return what is still in transit to the source. | Medium | 422 |
-| `STOCKT-0487` | Allocation run ID already used | This allocation run ID was already used. | Use a new run ID, or open the existing run to see its transfers. | Medium | 422 |
-| `STOCKT-0488` | Allocation file or parameters invalid | The allocation file cannot be used. | Give a run ID, a source store and a file with store, sku and qty columns; fix the rows listed. | Medium | 422 |
-| `STOCKT-0489` | Source cannot fill the minimum share of the transfer | The source cannot fill enough of this transfer to ship it. | Wait for stock, lower the minimum fill, or cancel the transfer. | Medium | 422 |
-| `STOCKT-0490` | Complete-fill transfer waits for stock | This transfer waits until every line can be filled. | Receive or free the short stock, then dispatch again; the lines that are short are listed. | Medium | 422 |
-| `STOCKT-0491` | Transfer cannot join the wave | This transfer cannot be added to that wave. | Use an Approved or Packed transfer from the wave's location, into a wave that is not closed, with transfer waves turned on. | Medium | 422 |
-| `STOCKT-0492` | Allocation run not found or nothing to act on | That allocation run has nothing to do. | Check the run ID; submit applies to Drafts, approve to transfers waiting for approval. | Medium | 422 |
-| `STOCKT-0493` | Fill policy value not recognised | That fill policy is not valid. | Choose Exact, Ship what is there or Complete. | Medium | 422 |
-| `TRN-0259` | Transfer receiving mismatch | Received quantity does not match dispatched quantity. Shortage/damage reason is required. | Enter shortage/damage reason and submit exception. | High | 200 |
-
-## Tax / GST / E-Invoice
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `TAX-0264` | IRN cancellation window expired | IRN cannot be cancelled because the allowed cancellation window has expired. | Create credit note/reversal as per process. | Critical | 422 |
-| `TAX-0265` | Vehicle or transporter details missing | Vehicle/transporter details are required before e-way bill generation. | Enter transport details. | High | 422 |
-| `TAX-0266` | GST return already filed | GST return is already filed for this period. Changes are blocked. | Use correction in next period or approved reversal. | Critical | 409 |
-| `TAXGST-0067` | GSTIN missing | GSTIN is required for this GST transaction. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0068` | Invalid GSTIN state code | GSTIN state code does not match the selected state. Please verify GSTIN and state. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0069` | Place of supply missing | Place of Supply is required for GST calculation. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0070` | Tax rate missing | GST rate is missing for one or more items. Please check tax configuration. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0071` | CGST/SGST vs IGST mismatch | Tax type does not match the place of supply. Please verify billing state and supply state. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0072` | E-invoice IRN generation failed | IRN generation failed. Please review the error details and try again. | Correct GST details or retry API. | High | 503 |
-| `TAXGST-0073` | E-invoice already generated | IRN is already generated for this invoice. Duplicate IRN generation is not allowed. | Correct GST details or retry API. | High | 409 |
-| `TAXGST-0074` | E-way bill required | E-way bill is required for this transaction before dispatch. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0075` | Taxable value mismatch | Taxable value does not match item value after discount and charges. Please recalculate. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0076` | GST round off mismatch | GST total has a rounding difference beyond allowed tolerance. | Correct GST details or retry API. | High | 422 |
-| `TAXGST-0077` | GSTR data locked | GST return data is locked for the selected period. Changes are not allowed. | Correct GST details or retry API. | High | 409 |
-| `TAXGST-0186` | IRN generated | IRN generated successfully. | No action required. | Low | 200 |
 

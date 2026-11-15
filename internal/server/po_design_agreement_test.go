@@ -28,10 +28,13 @@ func TestStage1486PreviewAnswersTheDesignGrid(t *testing.T) {
 	seed(vendor, "Vendor", "Active", map[string]interface{}{"code": vendor, "name": vendor})
 	seed(agreement, "PriceListVersion", "Approved", map[string]interface{}{"code": agreement, "price_list_code": agreement, "vendor": vendor,
 		"effective_from": "2026-01-01", "currency": "INR", "status": "Approved", "items": `[{"category":"` + cat + `","price":100}]`})
+	// The shipped `system` account is Inactive (SB-021), so act as a seeded admin.
+	actor, dropActor := seedContractUser(t, "HR/Admin", "HO")
+	defer dropActor()
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/procurement/purchase-order/preview", apiMiddleware(handlePreviewPurchaseOrder))
 	post := func(body string) *httptest.ResponseRecorder {
-		token := engines.SignToken("system", "system", "Super Admin", "default", "HO", currentCredentialVersion("system"))
+		token := engines.SignToken(actor, actor, "HR/Admin", "default", "HO", currentCredentialVersion(actor))
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/procurement/purchase-order/preview", strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()

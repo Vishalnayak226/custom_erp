@@ -212,7 +212,7 @@ func ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode string, lin
 	}
 	// The unicommerce.order.imported outbox event is part of this path's
 	// contract, not an extra: processUnicommerceOutbox consumes it, and the
-	// legacy ImportUnicommerceOrder published it. Rewiring intake onto
+	// legacy Unicommerce intake (since removed, 103.4.1) published it. Rewiring intake onto
 	// SalesOrder (26.12.1) dropped it, which silently stopped acknowledging
 	// imports back to Unicommerce. Restored here (Stage 35.1.2) in the same
 	// transaction as the mapping row, so an event can never outlive a

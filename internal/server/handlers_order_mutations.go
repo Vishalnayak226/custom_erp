@@ -166,7 +166,10 @@ func handlePickQueue(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	tasks, err := engines.PickTasksInPriorityOrder(tenantID, r.URL.Query().Get("location_code"))
+	// 197.3: Pick follows the store picked in the top bar, as Pack and Ship do
+	// (Stage 106.6); under "All stores", every store or the one asked for.
+	location, _ := inventoryStore(r, r.URL.Query().Get("location_code"))
+	tasks, err := engines.PickTasksInPriorityOrder(tenantID, location)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return

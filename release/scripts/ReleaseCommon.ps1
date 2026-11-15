@@ -179,3 +179,112 @@ function Import-RestoreDrillEvidence {
         return "restore-drill record NOT ingested: $($out -join ' ')"
     } finally { Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue }
 }
+
+# The code map redraw that Release starts after its push (Invoke-BrainRedraw.ps1,
+# item 177.5): where it writes, the files it makes, and how a later click waits
+# for one still running.
+$script:BrainRedrawDir = Join-Path $env:TEMP 'erp_release_brain'
+$script:BrainRedrawFiles = @('docs/brain/brain-map.md', 'docs/brain/brain.html', 'docs/generated/brain-manifest.json')
+
+# Read-BrainRedraw returns the last redraw's status (state, commit, pid, why), or
+# $null when none ran. A "running" status whose process has ended is "failed".
+function Read-BrainRedraw {
+    $path = Join-Path $script:BrainRedrawDir 'status.json'
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    try { $s = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json } catch { return $null }
+    if ($s.state -eq 'running') {
+        $p = Get-Process -Id $s.pid -ErrorAction SilentlyContinue
+        if (-not $p -or $p.StartTime.ToFileTimeUtc() -ne [long]$s.startTicks) {
+            $s.state = 'failed'; $s.why = 'the redraw stopped before it finished'
+        }
+    }
+    return $s
+}
+
+# Get-GraphifyRun returns the program and arguments that rebuild the code graph in
+# the folder they run in: graphify_update.py (graphify plus its speed fix) under the
+# Python graphify is installed in (Scripts\graphify.exe -> python.exe), else plain graphify.
+function Get-GraphifyRun {
+    $exe = (Get-Command graphify -ErrorAction Stop).Source
+    $python = Join-Path (Split-Path (Split-Path $exe -Parent) -Parent) 'python.exe'
+    if (Test-Path -LiteralPath $python) { return @{ Exe = $python; Arguments = @((Join-Path $PSScriptRoot 'graphify_update.py')) } }
+    return @{ Exe = $exe; Arguments = @('update', '.', '--force') }
+}
+
+# Wait-BrainRedraw waits up to $Minutes for a running redraw, then returns its status.
+function Wait-BrainRedraw([int]$Minutes = 10) {
+    $until = (Get-Date).AddMinutes($Minutes)
+    while ($true) {
+        $s = Read-BrainRedraw
+        if (-not $s -or $s.state -ne 'running' -or (Get-Date) -gt $until) { return $s }
+        Start-Sleep -Seconds 5
+    }
+}
+
+# Each test's time in the last run, by name (release\test-times.json, kept in
+# git so the GitHub run splits the suite the same way; item 177.1).
+function Read-TestTimes([string]$Path) {
+    $t = @{}
+    if (Test-Path -LiteralPath $Path) {
+        try { (Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $t[$_.Name] = [double]$_.Value } } catch { }
+    }
+    return $t
+}
+
+# The guard tests (release\guard-tests.txt, item 177.7) as an ordered map of
+# package folder -> test names. A line it cannot read is an error, not a skip.
+# 49.6.3: one line on a host's TLS certificate - days left, issuer, and any
+# problem a browser would show. The handshake accepts every certificate so an
+# expired or wrong one is still read and reported, not just refused.
+function Get-CertificateExpiryNote([string]$HostName, [int]$WarnDays = 21) {
+    $tcp = $null; $ssl = $null
+    try {
+        $tcp = [Net.Sockets.TcpClient]::new()
+        if (-not $tcp.ConnectAsync($HostName, 443).Wait(10000)) { return "$HostName certificate: no answer on port 443 within 10 s" }
+        $script:certErrors = 'None'
+        $ssl = [Net.Security.SslStream]::new($tcp.GetStream(), $false, { param($s, $c, $ch, $e) $script:certErrors = "$e"; $true })
+        $ssl.AuthenticateAsClient($HostName)
+        $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($ssl.RemoteCertificate)
+        $days = [int][math]::Floor(($cert.NotAfter.ToUniversalTime() - [datetime]::UtcNow).TotalDays)
+        $issuer = ($cert.Issuer -split ',\s*' | Where-Object { $_ -like 'O=*' } | Select-Object -First 1) -replace '^O=', ''
+        $line = "$HostName certificate: $days days left (until $($cert.NotAfter.ToString('yyyy-MM-dd')), $issuer)"
+        if ($script:certErrors -ne 'None') { $line = "**CERTIFICATE PROBLEM:** $line - $($script:certErrors)" }
+        elseif ($days -lt $WarnDays) { $line = "**RENEWAL OVERDUE:** $line - Caddy renews 30 days out; check its log on the server" }
+        return $line
+    } catch {
+        return "$HostName certificate not read: $($_.Exception.GetBaseException().Message)"
+    } finally {
+        if ($ssl) { $ssl.Dispose() }
+        if ($tcp) { $tcp.Dispose() }
+    }
+}
+
+function Read-GuardTests([string]$Path) {
+    $g = [ordered]@{}
+    foreach ($l in Get-Content -LiteralPath $Path) {
+        if ($l -match '^\s*(#|$)') { continue }
+        if ($l -notmatch '^\s*(\S+)\s+((Test|Example|Fuzz)\w+)(\s|$)') { throw "release/guard-tests.txt: cannot read '$l'" }
+        if (-not $g.Contains($Matches[1])) { $g[$Matches[1]] = [System.Collections.Generic.List[string]]::new() }
+        $g[$Matches[1]].Add($Matches[2])
+    }
+    return $g
+}
+
+# Splits test names into $Groups lists of about equal running time, from each
+# test's time in the last run (an unknown test counts as the median): longest
+# first, each into the group with the least so far. Round-robin left one group
+# 45 s behind the others (2026-10-19). Ties go by name, so every machine that
+# makes the split gets the same lists: G10 and each GitHub shard (177.1).
+function Split-TestsByTime {
+    param([string[]]$Names, [hashtable]$Times, [int]$Groups)
+    $median = if ($Times.Count) { @($Times.Values | Sort-Object)[[int]($Times.Count / 2)] } else { 1.0 }
+    $cost = @{}
+    foreach ($n in $Names) { $cost[$n] = if ($Times.ContainsKey($n)) { [double]$Times[$n] } else { [double]$median } }
+    $buckets = @(for ($g = 0; $g -lt $Groups; $g++) { , [System.Collections.Generic.List[string]]::new() })
+    $load = [double[]]::new($Groups)
+    foreach ($n in ($Names | Sort-Object -CaseSensitive @{ Expression = { $cost[$_] }; Descending = $true }, @{ Expression = { $_ }; Descending = $false })) {
+        $k = 0; for ($g = 1; $g -lt $Groups; $g++) { if ($load[$g] -lt $load[$k]) { $k = $g } }
+        $buckets[$k].Add($n); $load[$k] += $cost[$n]
+    }
+    return [pscustomobject]@{ Buckets = $buckets; Load = $load }
+}

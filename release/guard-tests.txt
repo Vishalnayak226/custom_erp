@@ -1,0 +1,31 @@
+# Guard tests (item 177.7): tests that read the code and the registers, not
+# business data, so they run in seconds. They run before the long tests: as
+# the GitHub run's first job (.github/workflows/release.yml, "guards"), and
+# first in the laptop's G10 with -LocalTests. A failure here stops the run in
+# minutes instead of at the end of the suite (ask 174 lost ~40 min to nine of
+# these found last).
+#
+# One test per line: <package folder> <TestName> - what it catches.
+# release/scripts/Invoke-GuardTests.ps1 fails when a listed test no longer
+# exists, so a rename cannot drop a guard silently. Add a guard here when a
+# release is stopped by a missed registration that a test already checks.
+
+engines TestStage49186SecurityCostIsNotOptimizedAway - a cache or shortcut around a security check missing from the security-cost review
+engines TestBLD044WorkerInventoryMatchesTheCode - a background worker with no owner in the worker inventory
+engines TestBLD028OnlyMaintenanceSweepsSeeEveryTenant - a worker that reaches every client without being a maintenance sweep
+engines TestStage49182EveryStateTableIsBounded - a state table with no retention rule
+engines TestReportColumnsMatchCatalogSpec - a report whose columns drift from the catalog spec
+engines TestCatalogWiringIsCatalog - a catalog report wired outside the catalog
+engines TestStage134OutboundGuard - an outbound call (a freight or marketplace API) that skips the outbound guard
+engines TestStage4962EveryPersonalFieldHasARegisteredPurpose - a personal-data field with no registered purpose
+engines TestStage4962RegisterRowsAreComplete - an incomplete personal-data register row
+engines TestStage4932NoSilentDefaultClient - code that falls back to the default client
+internal/server TestEveryAPIMiddlewareRouteIsClassified - a new route with no capability entry
+internal/server TestNoStaleRouteCapabilityEntries - a capability entry for a route that is gone
+internal/server TestStage4956EveryOverrideIsReviewed - a safe-override not in the reviewed list
+internal/server TestStage4938EveryRoleAndSensitiveFieldIsRegistered - a role or sensitive field missing from the generated permission cases
+internal/server TestStage4948NoHandBuiltContentDisposition - a download header built by hand
+internal/server TestEngineErrorCodesAreCatalogued - an error code with no catalog row
+internal/securityscan TestNoUnreviewedBypassPattern - a security bypass pattern not in the reviewed list
+internal/securityscan TestEveryEgressPointIsReviewed - an outside call not in the egress review
+internal/securityscan TestOnlyTheGuardBuildsAnHTTPClient - an HTTP client built outside the egress guard

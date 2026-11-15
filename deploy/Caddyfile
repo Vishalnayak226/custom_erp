@@ -129,7 +129,10 @@
 	log {
 		output file /var/log/caddy/erp-access.log {
 			roll_size 50MB
-			roll_keep 10
+			# 47.16.3: CERT-In asks for 180 days of logs; Caddy keeps 90 by default.
+			# 40 x 50 MB is the size ceiling (2 GB) if traffic ever outgrows the age.
+			roll_keep 40
+			roll_keep_for 4320h
 		}
 	}
 }

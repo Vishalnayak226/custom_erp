@@ -37,15 +37,16 @@ Severity is set by whoever first triages the incident, using best judgement agai
 
 ## 2. Escalation contacts
 
-**[NOT YET FILLED IN — placeholder, do not treat as live]**
+Decided by the owner on 2026-11-15 (ask 193): the platform owner holds every role below until a second person joins. Phone numbers are personal data, so they are not kept in the repository (constitution Article 5). They are in the private, git-ignored file `.local/escalation-contacts.md` on the owner's machine. The [owner checklist](owner-checklist.md) asks the owner to fill it in.
 
-This table needs real names/roles and a reachable contact method before Stage 17.10 can be marked closed. Fill in and remove this placeholder line once done.
-
-| Role | Name | Contact (phone/email/Slack) | Hours |
+| Role | Who | Contact | Hours |
 |---|---|---|---|
-| Primary on-call | _TBD_ | _TBD_ | _TBD_ |
-| Secondary / escalation | _TBD_ | _TBD_ | _TBD_ |
-| Business owner (sign-off on P0/P1 comms) | _TBD_ | _TBD_ | _TBD_ |
+| Primary on-call / incident commander | Platform owner | Phone, from `.local/escalation-contacts.md` | Business hours; P0 any time |
+| Secondary / escalation | None yet. Named when a second person joins | n/a | n/a |
+| Business owner (sign-off on P0/P1 comms) | Platform owner; the client's owner signs off what their business tells its customers | Phone, from `.local/escalation-contacts.md` | As for primary |
+| Legal / privacy contact | Owner's counsel, named on engagement | `.local/escalation-contacts.md` | n/a |
+
+When a second person joins, name them as secondary in this table and add their number to the private file.
 
 ---
 
@@ -139,7 +140,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 
 **Decide in this order:** (1) Is data leaving or being changed right now? Contain first (§7.1-§7.10), then investigate. (2) Does it cross clients? P0 at once. (3) Is money, stock or the audit trail affected? Integrity questions go to the business owner before anything is "fixed" in the data.
 
-**Who:** today one person holds every role. The platform owner is incident commander and technical lead, and decides customer communication. The client's owner signs off on what their business tells its customers. Alternates, out-of-band phone numbers and legal or privacy contacts are §2's placeholders and need the owner's names. Until they are filled in, P0 response depends on one person. **Out-of-band:** if the ERP or its mail may be compromised, use the phone, not ERP notifications.
+**Who:** today one person holds every role. The platform owner is incident commander and technical lead, and decides customer communication. The client's owner signs off on what their business tells its customers. §2 records the owner's decision (2026-11-15): the owner holds every role, no alternate exists yet, and phone numbers and the counsel contact are kept in a private file. Until a second person joins, P0 response depends on one person. **Out-of-band:** if the ERP or its mail may be compromised, use the phone, not ERP notifications.
 
 **Every incident:** take the evidence pack first (§7.11 step 1), write the timeline as you go (§7.12), and never repair evidence rows by hand.
 

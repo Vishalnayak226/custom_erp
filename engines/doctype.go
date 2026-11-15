@@ -518,6 +518,16 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 			return err
 		}
 	}
+	if doctype == DeclarationPackDoctype { // 47.13.6: a shipped pack, a reviewer and evidence
+		if err := ValidateDeclarationPack(docData); err != nil {
+			return err
+		}
+	}
+	if doctype == "POSTender" || doctype == "Location" { // 185.1: the till's UPI QR pays this UPI ID
+		if err := ValidateUPIID(doctype, docData); err != nil {
+			return err
+		}
+	}
 	fields := lk.fields
 	if len(fields) == 0 {
 		// META-0196 (Stage 25.5): "DocType not registered" - a doctype with

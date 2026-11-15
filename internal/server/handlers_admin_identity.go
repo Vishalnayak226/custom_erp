@@ -825,6 +825,32 @@ func handleWriteAuditCheckpoint(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(cp)
 }
 
+// handleSealLegacyAudit (47.7.4, 103.4.1) takes the one boundary checkpoint
+// over audit rows that were written before signing existed. It claims nothing
+// about who wrote them; from the seal on, a changed row shows in the digest.
+// Nothing new to seal is a clean "sealed": false, not an error.
+func handleSealLegacyAudit(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	cp, err := engines.SealLegacyAuditRows(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to seal the older audit rows")
+		return
+	}
+	if cp == nil {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"sealed": false, "reason": "no audit rows are waiting to be sealed"})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sealed": true, "checkpoint": cp})
+}
+
 // handleRunAuditArchive triggers 47.7.6's archive pass on demand - an
 // operator preparing for an auditor's visit or clearing a legacy backlog
 // need not wait for the daily scheduler. allow_large_windows, when true,

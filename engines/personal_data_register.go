@@ -27,8 +27,9 @@ import (
 // TestStage4962EveryPersonalFieldHasARegisteredPurpose (DB-backed) fails when
 // a doctype gains a matching field with no row here, or a row names a field
 // that no longer exists. Employee-linked records whose fields are already
-// classified by category (Payslip, SalaryStructure, EmployeeLoan, Grievance)
-// are governed by data_classification.go, not repeated here; fields kept only
+// classified by category (Payslip, SalaryStructure, EmployeeLoan, Grievance,
+// and DisciplinaryCase as a whole - 170.20) are governed by
+// data_classification.go, not repeated here; fields kept only
 // inside a document's JSON without a doctype_fields row are listed apart, in
 // personalDataJSONOnly (49.6.2).
 //
@@ -281,8 +282,6 @@ func clearAuditSourceFields(tenantID, schema string, days int) (int64, error) {
 func pdField(kind, purpose, basis, retention, readers string) PersonalDataField {
 	return PersonalDataField{Kind: kind, Purpose: purpose, LegalBasis: basis, Retention: retention, Readers: readers}
 }
-
-func (f PersonalDataField) review(q string) PersonalDataField { f.Review = q; return f }
 
 func businessField(purpose string) PersonalDataField {
 	return pdField("business", purpose, BasisNotPersonal, retainBusiness, "roles that read the master")

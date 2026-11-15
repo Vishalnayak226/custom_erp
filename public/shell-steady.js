@@ -46,6 +46,10 @@ addEventListener('pagehide', () => {
     if (view.length > MAX_VIEW) view = '';
     // Object URLs die with the page; the redraw brings the pictures back.
     view = view.replace(/\ssrc="blob:[^"]*"/g, '');
+    // 200.2: the page's CSP drops a style="" read back from HTML, so a screen
+    // that set its own padding painted without it and jumped when the real one
+    // came; paintLastShell puts these back through the style object.
+    view = view.replace(/(<[a-z][^<>]*?\s)style="/gi, '$1data-snap-style="');
     const shell = {
       who: localStorage.getItem('erp_username'),
       hash: location.hash,

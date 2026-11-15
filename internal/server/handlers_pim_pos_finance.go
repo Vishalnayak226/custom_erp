@@ -472,6 +472,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		OfflineSynced bool `json:"offline_synced"`
 		// SoldAt (49.5.6a): when the till queued the sale, as it says.
 		SoldAt string `json:"sold_at"`
+		// OfflineBillNumber (76.10): the number the till gave the sale from
+		// its own series; kept only on an offline sale, checked when it posts.
+		OfflineBillNumber string `json:"offline_bill_number"`
 		// QuoteVersion (Stage 47.2.4): the version of the quote the cashier's
 		// screen is showing. Checkout ALWAYS re-resolves prices server-side;
 		// this field only decides what happens when the re-resolved answer
@@ -1050,6 +1053,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// Taken from the resolved identity, never from the request body.
 	storedPayload["cashier"] = cashier
 	storedPayload["offline_synced"] = req.OfflineSynced
+	if !req.OfflineSynced {
+		delete(storedPayload, "offline_bill_number") // 76.10: a live sale takes the store's number
+	}
 	// Stage 30.7: persist which offers were applied and what each took off, so
 	// the receipt, the audit trail and any later dispute can all reconstruct
 	// how this bill's price was reached - the same reason gst_breakdown is
@@ -1615,6 +1621,29 @@ func handlePOSOfflineHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handlePOSTillSeries (Stage 76.10) gives the calling till its own bill
+// series at a store the user works at, for numbering sales while offline
+// (engines/pos_till_series.go).
+func handlePOSTillSeries(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Location string `json:"location"`
+		Label    string `json:"label"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Location) == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'location' is required")
+		return
+	}
+	if !requireStoreAccess(w, r, req.Location) {
+		return
+	}
+	series, err := engines.RegisterPOSTill(r.Header.Get("Resolved-Tenant-ID"), req.Location, r.Header.Get("Resolved-Username"), req.Label)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	writeJSON(w, http.StatusCreated, series)
 }
 
 // handlePOSSessionCurrent tells the POS screen whether the caller already

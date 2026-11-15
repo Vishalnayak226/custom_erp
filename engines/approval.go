@@ -346,6 +346,10 @@ const (
 	// from then on starts with (ProvisionTenantSchema saves it); clients that
 	// existed before keep their choice, or the default above.
 	NewClientSelfApproval = SelfApprovalNobody
+	// 47.12.5 (ask 185): above this base amount an own decision needs a
+	// written reason; 0 turns the rule off.
+	SettingSelfApprovalReasonAbove = "approvals.self_approval_reason_above"
+	ownDecisionReasonMin           = 10
 )
 
 // SubmitterMayDecideOwn reports whether a submitter in this role may decide
@@ -486,11 +490,17 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		if !selfDecision {
 			msg = "maker-checker violation: you cannot approve or reject a document you changed or sent for approval"
 		}
+		// 92.4: no setting lets the asker decide these, so they get their own
+		// code - APPROV-0840's "change the setting" hint cannot help.
 		if secondAdminDoctypes[doctype] {
-			msg += " - this one always needs a second admin"
+			return &ValidationError{Code: "APPROV-0841", Message: msg + " - this one always needs a second admin"}
+		}
+		if isDualControlDoctype(doctype) {
+			return &ValidationError{Code: "APPROV-0841", Message: msg + " - this one always needs a second person"}
 		}
 		return &ValidationError{Code: "APPROV-0840", Message: msg}
 	}
+	ownReason := strings.TrimSpace(comment)
 	if selfDecision {
 		// Stage 92: kept visible as an exception, never a silent pass.
 		comment = strings.TrimSpace("[decided by the submitter] " + comment)
@@ -500,6 +510,13 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// own currency is never compared against a foreign-currency figure. Falls
 	// back to the raw amount for documents saved before the currency stamp.
 	amount := DocumentBaseAmount(data)
+	// 47.12.5 (ask 185): an own decision above the amount the owner set needs
+	// a written reason, so the monthly own-decisions report says why.
+	if selfDecision {
+		if limit := GetSettingFloat(tenantID, SettingSelfApprovalReasonAbove); limit > 0 && amount > limit && len([]rune(ownReason)) < ownDecisionReasonMin {
+			return &ValidationError{Code: "APPROV-0842", Message: fmt.Sprintf("your own decision on a document above %.2f needs a written reason (at least %d characters)", limit, ownDecisionReasonMin)}
+		}
+	}
 	requiredRole, err := requiredApproverRoleForDoc(tenantID, doctype, docID, data, amount) // Stage 148.39
 	if err != nil {
 		return err
@@ -588,6 +605,12 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// behaviour itself.
 	if doctype == "PriceListVersion" && decision == "Approved" {
 		postApprovedPriceListVersion(tenantID, docID)
+	}
+
+	// 47.13.6 (ask 185): an approved declaration pack adds the pack's
+	// attributes the client does not have yet.
+	if doctype == DeclarationPackDoctype && decision == "Approved" {
+		ensureDeclarationPackAttributes(tenantID, docID, data)
 	}
 
 	// Stage 26.7.5: an Approved LoyaltyRedemptionRequest (a staff-restricted

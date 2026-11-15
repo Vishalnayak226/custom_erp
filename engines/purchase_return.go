@@ -19,7 +19,7 @@ import (
 //
 //   - Accepted: the qty QC accepted, which went into available stock and was
 //     costed into 1200 Inventory / 2100 GRN Suspense at the PO's ex-GST rate
-//     (RecordGRNReceiptCosting). Returning it takes it out of available and
+//     (recordGRNReceiptCostingPartTx). Returning it takes it out of available and
 //     is what the vendor owes us for.
 //   - Rejected / Damaged: the qty QC set aside into qc_hold / damaged. It was
 //     never costed or booked as owed, so returning it moves stock only.
@@ -73,6 +73,9 @@ type PurchaseReturnable struct {
 	// (0 = no limit) - accepted stock only; rejected / damaged always go back.
 	AgeDays    int `json:"age_days"`
 	WindowDays int `json:"window_days,omitempty"`
+	// 49.5.5b.5: the GST rate each SKU was received at, from the GRN's lines,
+	// for the return's Stock Ledger lines. Absent where the GRN gave none.
+	taxRates map[string]float64
 }
 
 type purchaseReturnKey struct{ sku, batch, bucket string }
@@ -150,6 +153,7 @@ func purchaseReturnable(q queryRower, tenantID, schema, grnID, excludeReturnID s
 		if err := json.Unmarshal([]byte(s), &received); err != nil {
 			return nil, fmt.Errorf("GRN %s has malformed received_items: %v", grnID, err)
 		}
+		out.taxRates = grnLineTaxRates(s)
 	}
 	got := map[purchaseReturnKey]float64{}
 	var order []purchaseReturnKey
@@ -544,6 +548,7 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 			if l.BatchNo != "" {
 				line["batch_no"] = l.BatchNo
 			}
+			ctx.markLedgerRates(line, l) // 49.5.5b.5
 			accepted = append(accepted, line)
 		default:
 			column, from := "qc_hold", "QC-Hold"
@@ -564,7 +569,8 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 			ledger = append(ledger, StockLedgerEntry{
 				ItemID: l.SKU, WarehouseID: ctx.Location, Qty: float64(-qty), VoucherType: "PurchaseReturn", VoucherID: returnID,
 				FromStatus: from, UserID: userID, BatchNo: l.BatchNo,
-				IdempotencyKey: fmt.Sprintf("PurchaseReturn:%s:%s:%s:%s:%s", returnID, ctx.Location, l.SKU, l.StockBucket, l.BatchNo),
+				IdempotencyKey:    fmt.Sprintf("PurchaseReturn:%s:%s:%s:%s:%s", returnID, ctx.Location, l.SKU, l.StockBucket, l.BatchNo),
+				stockLineSnapshot: ctx.ledgerSnapshot(l), // 49.5.5b.5
 			})
 		}
 	}

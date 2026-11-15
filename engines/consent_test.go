@@ -68,3 +68,60 @@ func TestStage5517aMarketingConsent(t *testing.T) {
 		t.Errorf("an unknown customer is an error, not a silent success")
 	}
 }
+
+// Stage 49.6.8 - a consent_withdraw privacy request, end to end: it runs only
+// once a second person approves it (its raiser may not), it withdraws every
+// channel in the consent ledger and on the customer, it deletes nothing, and
+// a completed request does not run twice. Own throwaway tenant.
+func TestStage4968ConsentWithdrawRequestRunsThroughMakerChecker(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schemaName := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schemaName)
+	if _, err := ProvisionTenantSchema(tenantID, schemaName, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	raw, _ := json.Marshal(map[string]interface{}{"code": "CUST-CW", "name": "Ravi", "phone": "9800000001", "consent_whatsapp": true, "consent_sms": true})
+	if _, err := db.DB.Exec("INSERT INTO "+schemaName+".documents (id, doctype, data, status, created_by) VALUES ('CUST-CW', 'Customer', $1, 'Active', 'system')", raw); err != nil {
+		t.Fatal(err)
+	}
+	id, err := RequestDataSubjectAction(tenantID, "Customer", "CUST-CW", PrivacyRequestConsentWithdraw, "asked at the till", "manager1")
+	if err != nil {
+		t.Fatalf("RequestDataSubjectAction: %v", err)
+	}
+	if _, err := RunDataSubjectRequest(tenantID, id, "admin2"); err == nil {
+		t.Fatalf("a pending request ran before anyone approved it")
+	}
+	if err := DecideDataSubjectRequest(tenantID, id, "manager1", true, "self"); err == nil {
+		t.Fatalf("the person who raised the request approved it themselves")
+	}
+	if err := DecideDataSubjectRequest(tenantID, id, "admin2", true, "verified by phone"); err != nil {
+		t.Fatalf("DecideDataSubjectRequest: %v", err)
+	}
+	data, err := RunDataSubjectRequest(tenantID, id, "admin2")
+	if err != nil || data != nil {
+		t.Fatalf("RunDataSubjectRequest: data %v, err %v - want no data and no error", data, err)
+	}
+	var name, sms, wa, source string
+	if err := db.DB.QueryRow("SELECT data->>'name', data->>'consent_sms', data->>'consent_whatsapp', data->>'consent_source' FROM "+schemaName+".documents WHERE id = 'CUST-CW'").Scan(&name, &sms, &wa, &source); err != nil {
+		t.Fatalf("the customer is still there after a consent withdrawal: %v", err)
+	}
+	if name != "Ravi" || sms != "false" || wa != "false" || !strings.Contains(source, id) {
+		t.Errorf("customer after withdrawal: name %q sms %q whatsapp %q source %q - want the record kept, both consents off, the request named", name, sms, wa, source)
+	}
+	if crmReady(schemaName) {
+		var withdrawn int
+		_ = db.DB.QueryRow("SELECT count(*) FROM "+schemaName+".crm_consent_ledger WHERE customer_id = 'CUST-CW' AND action = $1", CRMConsentWithdrawn).Scan(&withdrawn)
+		if withdrawn == 0 {
+			t.Errorf("the consent ledger has no withdrawn row for the customer")
+		}
+	} else {
+		t.Logf("no CRM tables in this schema - the ledger row is not checked")
+	}
+	req, err := getDataSubjectRequest(tenantID, id)
+	if err != nil || req.Status != PrivacyRequestCompleted {
+		t.Errorf("request after running: %q, err %v - want %s", req.Status, err, PrivacyRequestCompleted)
+	}
+	if _, err := RunDataSubjectRequest(tenantID, id, "admin2"); err == nil {
+		t.Errorf("a completed request ran a second time")
+	}
+}

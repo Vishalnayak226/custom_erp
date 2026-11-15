@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 80
 summary: Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.
 audience: store manager, marketing, admin
-last_verified: 2026-09-03
+last_verified: 2026-11-15
 screens: [crm, module:crm, doctype:customer, loyalty, reports, configuration]
 doc_id: DOC-F07FAE98C4
 type: procedure
@@ -118,7 +118,7 @@ hourly worker scans every Active campaign: a Birthday campaign matches any
 Active customer whose stored date of birth's month-day equals today's
 (year-independent, so it recurs every year with no extra logic); a Lapsed
 Customer campaign matches anyone whose most recent Paid sale is older than
-**Lapsed Days** (or **`crm.default_lapsed_days`** if left blank on the
+**Lapsed After** (or **`crm.default_lapsed_days`** if left blank on the
 campaign itself) — someone who has never bought anything is not a match,
 since "lapsed" implies having been active before. A match is logged once
 per customer per day (never a duplicate send on the same day) as a CleverTap

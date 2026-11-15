@@ -14,7 +14,7 @@ async function renderBinToolsView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   const field = (id, label, w, ph) => `<div class="form-group"><label class="form-label" for="${id}">${label}</label>
-    <input type="text" id="${id}" class="form-input" style="width: ${w}px;" autocomplete="off" placeholder="${ph || ''}"></div>`;
+    <input type="text" id="${id}" class="form-input" data-css="width: ${w}px;" autocomplete="off" placeholder="${ph || ''}"></div>`;
   panel.innerHTML = `
     <div class="s-608a43">
       ${field('bt-location', 'Location', 150)}
@@ -151,12 +151,14 @@ function printBinSheet(codes, { encodeCode128 }) {
   }
   const w = window.open('', '_blank');
   if (!w) return;
-  w.document.write(`<!doctype html><title>Bin labels</title><style>
+  w.document.write(`<!doctype html><title>Bin labels</title><div class="g">${labels.join('')}</div>`);
+  w.document.close();
+  // 49.4.3: a constructed sheet, which the strict style-src this window inherits allows.
+  adoptCss('bin-labels', `
     body{margin:8px;font-family:sans-serif}.g{display:flex;flex-wrap:wrap;gap:6px}
     .lb{width:60mm;border:1px solid #999;padding:3mm;text-align:center;break-inside:avoid;box-sizing:border-box}
     .lb b{display:block;font-size:14px;margin-top:2px}.lb small{display:block;color:#a00}
-    @media print{.lb{border:1px dashed #bbb}}</style><div class="g">${labels.join('')}</div>`);
-  w.document.close();
+    @media print{.lb{border:1px dashed #bbb}}`, w.document);
   w.focus();
   setTimeout(() => w.print(), 300);
 }

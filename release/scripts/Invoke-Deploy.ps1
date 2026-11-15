@@ -62,17 +62,46 @@ try {
 # ---------------------------------------------------------------- D0 preflight
 Write-Gate 'D0 What is being deployed'
 Invoke-Git @('fetch', '-q', 'origin') | Out-Null
-$target = (Invoke-Git @('rev-parse', 'origin/main'))[0]
-$short = $target.Substring(0, 7)
-$localOnly = [int](Invoke-Git @('rev-list', '--count', 'origin/main..main'))[0]
-if ($localOnly -gt 0) { Stop-Deploy "main has $localOnly commit(s) that are not on origin - run Release.cmd first (never deploy what GitHub does not have)" }
 $lastPath = Join-Path $reportDir 'last-release.json'
 $last = if (Test-Path $lastPath) { Get-Content $lastPath -Raw | ConvertFrom-Json } else { $null }
 # D0a: while a deploy waits for the owner, the release session may commit the
-# three working records on top of the release (0.23.0, 2026-11-12). The server
-# never reads them, so Deploy ships the release commit under them - exactly the
-# commit that passed the gates, and on origin. Any other file after it still stops.
-$recordFiles = @('docs/micro_checklist.md', 'docs/project_ledger.md', 'docs/ai_handover.md')
+# three working records on top of the release (0.23.0, 2026-11-12), and the code map
+# D6 brings in (177.5). The server never reads them, so Deploy ships the release
+# commit under them - exactly the commit that passed the gates, and on origin. Any
+# other file after it still stops.
+$recordFiles = @('docs/micro_checklist.md', 'docs/project_ledger.md', 'docs/ai_handover.md') + $BrainRedrawFiles
+# D0f (177.3): a release whose tests run on GitHub waits on candidate/<version> until
+# .github/workflows/release.yml passes and fast-forwards main to it. Wait for that run
+# here; -Check only reports it. A failed run stops: main never got that commit.
+if ($last -and "$($last.tests)" -eq 'github' -and $last.commit) {
+    & git -C $repo merge-base --is-ancestor $last.commit origin/main 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        $runJson = Invoke-Native -Exe 'gh' -Arguments @('run', 'list', '--workflow', 'release.yml', '--commit', $last.commit, '--limit', '1', '--json', 'databaseId,status,conclusion,url') -AllowFail
+        $run = $null; try { $run = @(($runJson -join "`n") | ConvertFrom-Json)[0] } catch { }
+        if (-not $run) { Stop-Deploy "release $($last.commit.Substring(0, 7)) is not on origin/main and GitHub has no run of it - push $($last.candidate) again" }
+        if ($Check -and $run.status -ne 'completed') {
+            Note "NOTE: GitHub is still testing release $($last.commit.Substring(0, 7)) - a real deploy waits for it: $($run.url)"
+        } else {
+            if ($run.status -ne 'completed') { Write-Host "   waiting for the GitHub run: $($run.url)" }
+            & gh run watch $run.databaseId --exit-status --interval 15 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "   $_" }
+            if ($LASTEXITCODE -ne 0) { Stop-Deploy "the GitHub run of release $($last.commit.Substring(0, 7)) failed, so main did not move - fix it and run Release.cmd again: $($run.url)" }
+            Invoke-Git @('fetch', '-q', 'origin') | Out-Null
+            & git -C $repo merge-base --is-ancestor $last.commit origin/main 2>$null
+            if ($LASTEXITCODE -ne 0) { Stop-Deploy "the GitHub run passed but main does not hold release $($last.commit.Substring(0, 7)) - see the promote job: $($run.url)" }
+            Note "GitHub run passed and moved main: $($run.url)"
+        }
+    }
+}
+$target = (Invoke-Git @('rev-parse', 'origin/main'))[0]
+$short = $target.Substring(0, 7)
+$localOnly = [int](Invoke-Git @('rev-list', '--count', 'origin/main..main'))[0]
+if ($localOnly -gt 0) {
+    # With tests on GitHub, the records are committed while the run is still open and
+    # cannot be pushed to main before it passes; they are not deployed either way.
+    $localFiles = @((Invoke-Git @('diff', '--name-only', 'origin/main...main')) | Where-Object { $_ })
+    if (@($localFiles | Where-Object { $_ -notin $recordFiles }).Count) { Stop-Deploy "main has $localOnly commit(s) that are not on origin - run Release.cmd first (never deploy what GitHub does not have)" }
+    Note "main has $localOnly local commit(s) of the working records only - not deployed; push them after"
+}
 if ($last -and $last.commit -and $last.commit -ne $target -and $last.status -in @('passed', 'committed')) {
     & git -C $repo merge-base --is-ancestor $last.commit $target 2>$null
     if ($LASTEXITCODE -eq 0) {
@@ -306,11 +335,53 @@ foreach ($h in $cfg.hosts) {
 if ($bad.Count) { Stop-Deploy "deployed, but: $($bad -join '; ') - check the site now (rollback copy: $rd/$rb)" }
 $disk = (Remote "df -P / | awk 'NR==2{print `$5}'")[0]
 Note "server disk after cleanup: $disk"
+# D4a (109.12): when the 10-day deep cleanup last ran - its stamp, written by
+# server_cleanup.sh --deep. Over 11 days means the 04:15 cron is not running it.
+# A note, never a stop.
+$deepLast = "$((Remote 'cat /var/lib/erp-cleanup/deep.last 2>/dev/null || true')[0])".Trim()
+if ($deepLast -match '^\d+$') {
+    $deepAt = [DateTimeOffset]::FromUnixTimeSeconds([int64]$deepLast).ToLocalTime()
+    $deepDays = [math]::Floor(((Get-Date) - $deepAt.LocalDateTime).TotalDays)
+    Note ("deep cleanup last ran $($deepAt.ToString('yyyy-MM-dd HH:mm')) ($deepDays days ago)" + $(if ($deepDays -gt 11) { ' - **overdue**: check the 04:15 cron and /var/log/erp-cleanup.log' } else { '' }))
+} else {
+    Note 'deep cleanup has not run on this server yet (the 04:15 cron starts it)'
+}
+# D4b (49.6.3; owner, 2026-11-14: "all recommended"): days until each host's TLS
+# certificate expires, read the way a browser reads it. Caddy renews 30 days out,
+# so under 21 days means renewal is failing. The ops alert webhook (20.2) is meant
+# to watch this; until it is set, this line is the watch. A note, never a stop.
+foreach ($h in $cfg.hosts) { Note (Get-CertificateExpiryNote $h) }
 # D5 (49.17.2): the restore drill's own record, for the next release's gate. A note, never a stop.
 try {
     $drillLines = Remote "cat $rd/backups/restore-drill-evidence.json 2>/dev/null || true"
     Note (Import-RestoreDrillEvidence -Repo $repo -Go $cfg.goBin -RemoteLines $drillLines -Commit $target)
 } catch { Note "restore-drill record not read: $($_.Exception.Message)" }
+# D6 (177.5): the exact code map, redrawn by Release after its push. It goes into the
+# shared tree for the records commit, only where nobody changed those files since HEAD.
+# A note, never a stop.
+try {
+    $brain = Read-BrainRedraw
+    if ($brain -and $brain.commit -eq $target -and $brain.state -eq 'running') {
+        Write-Host '   waiting for the code map redraw...'
+        $brain = Wait-BrainRedraw 10
+    }
+    if (-not $brain -or $brain.commit -ne $target) { Note "code map: no redraw of $short on this machine - run pwsh docs/brain/update-brain.ps1" }
+    elseif ($brain.state -ne 'done') { Note "code map redraw $($brain.state): $($brain.why) - see $BrainRedrawDir\redraw.log" }
+    else {
+        $copied = @()
+        foreach ($f in $BrainRedrawFiles) {
+            & git -C $repo diff --quiet HEAD -- $f 2>$null
+            if ($LASTEXITCODE -ne 0) { Note "code map: $f has changes in the shared tree - left as is"; continue }
+            $src = Join-Path $BrainRedrawDir $f
+            $dst = Join-Path $repo $f
+            if (-not (Test-Path -LiteralPath $dst) -or (Get-FileHash -LiteralPath $src).Hash -ne (Get-FileHash -LiteralPath $dst).Hash) {
+                Copy-Item -LiteralPath $src -Destination $dst -Force
+                $copied += $f
+            }
+        }
+        Note $(if ($copied.Count) { "code map redrawn in $($brain.why): $($copied -join ', ') - commit them with the working records" } else { "code map redrawn in $($brain.why); unchanged" })
+    }
+} catch { Note "code map not brought in: $($_.Exception.Message)" }
 $report | Set-Content -LiteralPath $reportPath -Encoding utf8
 Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'worktree', 'remove', '--force', $wt) -AllowFail | Out-Null
 Write-Host ''

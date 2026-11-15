@@ -196,3 +196,44 @@ func TestStage4986JobOverItsRuntimeBoundFails(t *testing.T) {
 		t.Fatalf("runtime registry: default %s, override %s", JobMaxRuntime("test-4986-never-registered"), JobMaxRuntime(jobType))
 	}
 }
+
+// TestStage4986HandlerThatIgnoresItsContextIsAbandoned (49.8.6): Go cannot
+// stop a goroutine, so the worker walks away from a handler that never looks
+// at ctx after a grace past the bound. The attempt fails and the worker is
+// free well before the handler would have returned.
+func TestStage4986HandlerThatIgnoresItsContextIsAbandoned(t *testing.T) {
+	schema := stage4986JobsReady(t)
+	const jobType = "test-4986-deaf"
+	SetJobMaxRuntime(jobType, 100*time.Millisecond)
+	prevGrace := jobAbandonGrace
+	jobAbandonGrace = 200 * time.Millisecond
+	defer func() { jobAbandonGrace = prevGrace }()
+	release := make(chan struct{})
+	defer close(release)
+	RegisterJobHandler(jobType, func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+		<-release // ignores ctx entirely
+		return map[string]interface{}{"finished": true}, nil
+	})
+	id, err := EnqueueJob("default", jobType, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.DB.Exec("DELETE FROM "+schema+".async_jobs WHERE id = $1", id)
+	db.DB.Exec("UPDATE "+schema+".async_jobs SET next_attempt_at = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = $1", id)
+	before := JobsAbandoned()
+	started := time.Now()
+	runClaimedJobs(schema)
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("the worker was held %s by a handler that ignores its context", elapsed)
+	}
+	var status, lastError string
+	if err := db.DB.QueryRow("SELECT status, last_error FROM "+schema+".async_jobs WHERE id = $1", id).Scan(&status, &lastError); err != nil {
+		t.Fatal(err)
+	}
+	if status == "Succeeded" || !strings.Contains(lastError, "abandoned") {
+		t.Fatalf("status %s, last_error %q: want a failed, abandoned attempt", status, lastError)
+	}
+	if JobsAbandoned() != before+1 {
+		t.Fatalf("abandoned counter %d, want %d", JobsAbandoned(), before+1)
+	}
+}

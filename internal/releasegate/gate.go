@@ -528,18 +528,25 @@ func CheckMigrations(ms []Migration, changed string) Check {
 	return c
 }
 
-// CheckResults: build, vet and tests as the release already ran them.
+// CheckResults: build, vet and tests as the release already ran them. A result
+// that starts with "github" (item 177.2) runs after the push, in
+// .github/workflows/release.yml, which moves main to the commit only when it
+// passes; the Deploy click deploys only what main holds.
 func CheckResults(results map[string]string) Check {
 	c := Check{ID: "results", Requirement: "clean build / vet / tests", Gate: "G8, G10"}
 	var bad, ok []string
+	onGitHub := false
 	for _, k := range []string{"build", "vet", "tests"} {
 		v, has := results[k]
-		if !has {
+		switch {
+		case !has:
 			bad = append(bad, k+" not reported")
-		} else if !strings.HasPrefix(v, "pass") {
-			bad = append(bad, k+"="+v)
-		} else {
+		case strings.HasPrefix(v, "pass"):
 			ok = append(ok, k+"="+v)
+		case strings.HasPrefix(v, "github"):
+			ok, onGitHub = append(ok, k+"="+v), true
+		default:
+			bad = append(bad, k+"="+v)
 		}
 	}
 	if len(bad) > 0 {
@@ -547,6 +554,9 @@ func CheckResults(results map[string]string) Check {
 		return c
 	}
 	c.Status, c.Detail = Pass, strings.Join(ok, "; ")+" (taken from the release's own run, not re-run)"
+	if onGitHub {
+		c.Detail = strings.Join(ok, "; ") + " (run on GitHub before main moves to this commit)"
+	}
 	return c
 }
 

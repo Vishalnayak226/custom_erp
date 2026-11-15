@@ -20,7 +20,12 @@ import (
 //
 //	:INT  Dr interest expense / Cr lease liability
 //	:PAY  Dr lease liability  / Cr payable (2100, or the lease's payment account)
-//	:DEP  Dr ROU depreciation / Cr right-of-use asset   (straight line over the term)
+//	:DEP  Dr ROU depreciation / Cr 1421 accumulated ROU depreciation (straight line)
+//
+// When the last period posts, :CLOSE clears what built up in 1421 against the
+// right-of-use asset (Dr 1421 / Cr 1420), so both end at nought for the lease.
+// A tenant without 1421 (or a lease set to its ROU account) credits 1420
+// directly, as leases did before ask 176, and needs no closing entry.
 //
 // Lessor (operating lease): the leased-out asset stays on the books and keeps
 // depreciating through the asset worker; each ended month posts rent
@@ -32,6 +37,7 @@ import (
 
 const (
 	leaseAccROU          = "1420"
+	leaseAccROUAccum     = "1421"
 	leaseAccLiability    = "2450"
 	leaseAccRentalIncome = "4310"
 	leaseAccROUDep       = "5311"
@@ -283,6 +289,9 @@ func postLeasePeriodTx(tenantID, schema, leaseID string, now time.Time) (bool, e
 	}
 	if idx < 0 {
 		// Every period posted: close it.
+		if err := closeLeaseROUTx(tx, tenantID, schema, leaseID, data, now.Format("2006-01-02")); err != nil {
+			return false, err
+		}
 		if err := writeDocTx(tx, schema, "Lease", leaseID, data, "Closed"); err != nil {
 			return false, err
 		}
@@ -321,7 +330,7 @@ func postLeasePeriodTx(tenantID, schema, leaseID string, now time.Time) (bool, e
 			return false, err
 		}
 		if err := post("DEP", leaseAccountOrDefault(data, "depreciation_account", leaseAccROUDep),
-			leaseAccountOrDefault(data, "rou_account", leaseAccROU), int64(numFromInterface(row["depreciation"]))); err != nil {
+			leaseROUAccumAccount(tx, schema, data), int64(numFromInterface(row["depreciation"]))); err != nil {
 			return false, err
 		}
 	}
@@ -338,11 +347,53 @@ func postLeasePeriodTx(tenantID, schema, leaseID string, now time.Time) (bool, e
 	newStatus := "Active"
 	if posted == len(sched) {
 		newStatus = "Closed"
+		if err := closeLeaseROUTx(tx, tenantID, schema, leaseID, data, date); err != nil {
+			return false, err
+		}
 	}
 	if err := writeDocTx(tx, schema, "Lease", leaseID, data, newStatus); err != nil {
 		return false, err
 	}
 	return true, tx.Commit()
+}
+
+// leaseROUAccumAccount is the account a lessee lease's depreciation credits:
+// the lease's own choice, else 1421, else (no 1421 in this chart) the
+// right-of-use account itself.
+func leaseROUAccumAccount(tx *sql.Tx, schema string, data map[string]interface{}) string {
+	rou := leaseAccountOrDefault(data, "rou_account", leaseAccROU)
+	acc := leaseAccountOrDefault(data, "rou_accumulated_account", leaseAccROUAccum)
+	if acc == rou || !leaseAccountExists(tx, schema, acc) {
+		return rou
+	}
+	return acc
+}
+
+// closeLeaseROUTx clears the accumulated ROU depreciation of a lessee lease
+// against its right-of-use asset once every period has posted. It reads what
+// this lease's own postings left in the accumulated account, so a lease that
+// credited 1420 directly for some months closes only what went to 1421.
+// Keyed per lease: a second call posts nothing.
+func closeLeaseROUTx(tx *sql.Tx, tenantID, schema, leaseID string, data map[string]interface{}, date string) error {
+	if strField(data, "lease_type") == "Lessor" {
+		return nil
+	}
+	rou := leaseAccountOrDefault(data, "rou_account", leaseAccROU)
+	acc := leaseROUAccumAccount(tx, schema, data)
+	if acc == rou {
+		return nil
+	}
+	var built int64
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit - debit), 0) FROM %s.gl_postings
+		WHERE document_type = 'Lease' AND document_id = $1 AND account_code = $2`, schema), leaseID, acc).Scan(&built); err != nil {
+		return err
+	}
+	if built <= 0 {
+		return nil
+	}
+	return PostDoubleEntryTx(tx, tenantID, schema, "Lease", leaseID,
+		map[string]int64{acc: built}, map[string]int64{rou: built}, date, "Lease:"+leaseID+":CLOSE",
+		PostingOptions{PostedAt: date + " 23:59:59"})
 }
 
 // RunLeasePostings posts every ended, unposted period of every Active lease in

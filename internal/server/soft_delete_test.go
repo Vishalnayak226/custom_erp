@@ -20,7 +20,10 @@ func TestGenericSoftDeleteAndMasterReactivation(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
 	mux.HandleFunc("POST /api/v1/doc/{doctype}/{id}/reactivate", apiMiddleware(handleReactivateMasterDocument))
-	token := engines.SignToken("system", "system", "HR/Admin", "default", "HO", currentCredentialVersion("system"))
+	// The shipped `system` account is Inactive (SB-021), so act as a seeded admin.
+	actor, dropActor := seedContractUser(t, "HR/Admin", "HO")
+	defer dropActor()
+	token := engines.SignToken(actor, actor, "HR/Admin", "default", "HO", currentCredentialVersion(actor))
 	request := func(method, path string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(method, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)

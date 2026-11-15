@@ -401,6 +401,21 @@ func finishProductionQty(tenantID, orderID string, qty float64, output ...Output
 	if err != nil {
 		return err
 	}
+	// 49.5.5b.9: the finished good and its by-products are written at the cost they come in at.
+	if mainValue > 0 && qty > 0 {
+		items[0].(map[string]interface{})[ledgerKeyValuationRate] = PaiseToRupees(mainValue) / qty
+	}
+	bpRate := map[string]float64{}
+	for _, bp := range bpParts {
+		if bp.Value > 0 && bp.Qty > 0 {
+			bpRate[bp.Sku] = PaiseToRupees(bp.Value) / bp.Qty
+		}
+	}
+	for _, it := range items[1:] {
+		if m, _ := it.(map[string]interface{}); bpRate[strField(m, "sku")] > 0 && numFromInterface(m["qty"]) > 0 {
+			m[ledgerKeyValuationRate] = bpRate[strField(m, "sku")]
+		}
+	}
 	completion := int(numFromInterface(data["completion_count"])) + 1
 	if err := postProductionStockTx(tx, schema, location, orderID, fmt.Sprintf("FINISH:%d", completion), items); err != nil {
 		return fmt.Errorf("finished goods receipt failed: %v", err)

@@ -23,6 +23,20 @@ func TestFieldSemanticsBeatSubstringInference(t *testing.T) {
 		// would mean the server itself rewriting a stored wave id into E.164.
 		t.Error("mobile-pick-wave-id is still treated as a phone field")
 	}
+	// 188.1: the camelCase spelling of the same field (A-06's third red case)
+	// splits into words too; a real camelCase phone field stays a phone.
+	if got := FieldSemantic("mobilePickWaveId"); got != SemanticWave || IsPhoneField("mobilePickWaveId") {
+		t.Errorf("FieldSemantic(mobilePickWaveId) = %q, phone = %v; want wave, not a phone", got, IsPhoneField("mobilePickWaveId"))
+	}
+	if _, ok := DetectFieldFormat("mobilePickWaveId"); ok {
+		t.Error("mobilePickWaveId still gets a character format (the phone keystroke filter)")
+	}
+	if !IsPhoneField("customerMobile") {
+		t.Error("customerMobile is a phone field and must stay one")
+	}
+	if spec, ok := DetectFieldFormat("customerMobile"); !ok || spec.Key != "phone" {
+		t.Errorf("customerMobile lost its phone format (ok=%v spec=%q)", ok, spec.Key)
+	}
 
 	// Every scan-shaped identifier must be free of character filtering, since
 	// each of these legitimately contains letters.

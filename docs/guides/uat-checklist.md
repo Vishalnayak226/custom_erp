@@ -86,9 +86,9 @@ Companion to [user-guide.md](user-guide.md) (explains what each screen is *for*)
 ## 2. Landing screen
 
 - [ ] **No Dashboard entry in the sidebar.** The old Dashboard screen was retired in August 2026 (everything on it was derived counts and shortcuts into Settings screens). Seeing one means you are testing an older build.
-- [ ] **Home loads as the landing screen** with no error on a fresh browser profile (clear `localStorage` first, or use a private window). It is not the retired Dashboard: it links only to real task screens (never a Settings/admin one), and its tiles are role-derived - see the next three checks.
-- [ ] **Home's quick-action tiles match what this login can actually do.** As `cashier1`: **Point of Sale** is present; **Purchase Orders**/**Finance / GL**'s own doctype tiles are not. As `admin`: most tiles are present. A tile you cannot use is simply absent - never shown greyed out or disabled.
-- [ ] **A tile reaches its screen in one click** - e.g. click **Point of Sale** on Home and you land on POS / Billing directly.
+- [ ] **Home loads as the landing screen** with no error on a fresh browser profile (clear `localStorage` first, or use a private window).
+- [ ] **Home shows dashboards, not shortcuts (180.1).** No quick-action tiles and no Recent list. It shows the role's home dashboard when one is set, the approvals-waiting count for a role that uses Approvals, and (for an admin) Finish setting up.
+- [ ] **The approvals count reaches its screen in one click** - click it on Home and you land on Approvals directly.
 - [ ] **On a tenant with little or no data yet**, Home shows a **"Get started"** panel naming the first missing master (e.g. Vendor, Item) with a link to create one, instead of an empty grid with no explanation.
 - [ ] **Last screen is remembered**: navigate to another screen, refresh (F5), and you return to that screen rather than to Home.
 
@@ -385,7 +385,7 @@ Three tabs: **Audit Logs**, **System Errors**, **Integration Payloads**.
 
 - [ ] **Audit Logs tab** (default) loads a table (User, Action, Details, Timestamp) reflecting real actions — spot-check that at least one action you took earlier in this checklist (e.g. creating a PO, deciding an approval) shows up here.
 - [ ] **System Errors tab** loads without error.
-- [ ] **"Test Panic Recovery"** button (top-right of the page) deliberately triggers a server-side panic and should come back with a handled error response, not a browser network failure — then a new row should appear on the System Errors tab reflecting it.
+- [ ] **No "Test Panic Recovery" button** on the page, for any role (it was removed: the route behind it exists only on development and test servers).
 - [ ] **Integration Payloads tab** loads a table of integration events; any row with status "Failed" shows a "Retry" button — clicking it asks for confirmation, then queues a retry (confirmation toast, not a silent no-op). Rows with other statuses show no Retry button — that's correct, not missing functionality.
 
 ---

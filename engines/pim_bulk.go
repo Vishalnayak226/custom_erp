@@ -187,7 +187,7 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 	// before-save hook after all validation succeeds but before the transaction
 	// writes, so a hook failure leaves the whole selected set unchanged.
 	for _, update := range updates {
-		if err := InvokeBeforeSaveHooks(tenantID, doctype, update.id, update.data); err != nil {
+		if err := InvokeBeforeSaveHooks(tenantID, editorUserID, doctype, update.id, update.data); err != nil {
 			return nil, err
 		}
 	}
@@ -219,7 +219,7 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 	}
 
 	for _, update := range updates {
-		InvokeAfterSaveHooksAsync(tenantID, doctype, update.id, update.data)
+		InvokeAfterSaveHooksAsync(tenantID, editorUserID, doctype, update.id, update.data)
 	}
 	return orderedIDs, nil
 }

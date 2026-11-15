@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"time"
 )
@@ -22,8 +23,11 @@ import (
 // validateJournalVoucherLines rejects that.
 type JournalVoucherLine struct {
 	AccountCode string `json:"account_code"`
-	Debit       int    `json:"debit,omitempty"`
-	Credit      int    `json:"credit,omitempty"`
+	// Rupees with up to two decimals (item 193.2). A whole-rupee voucher stored
+	// before then decodes and re-encodes unchanged (100 stays 100). Never sum
+	// these as floats: convert once with jvPaise and add the paise.
+	Debit  float64 `json:"debit,omitempty"`
+	Credit float64 `json:"credit,omitempty"`
 	// Stage 148.20: the line's own dimensions (journal_dimensions.go).
 	// Empty keeps the voucher's, so a voucher without them posts as before.
 	CostCenter string `json:"cost_center,omitempty"`
@@ -34,31 +38,59 @@ type JournalVoucherLine struct {
 	Narration  string `json:"narration,omitempty"`
 }
 
-func validateJournalVoucherLines(lines []JournalVoucherLine) (totalAmount int, err error) {
+// jvPaise converts a line amount in rupees to paise through RupeesToPaise, the
+// one conversion rule. ok is false when the amount has more than two decimals.
+func jvPaise(rupees float64) (paise int64, ok bool) {
+	paise = RupeesToPaise(rupees)
+	return paise, math.Abs(rupees*100-float64(paise)) < 1e-6
+}
+
+// journalLinesPaise returns each line's debit and credit in paise, refusing a
+// third decimal (FIN-0843).
+func journalLinesPaise(lines []JournalVoucherLine) (debits, credits []int64, err error) {
+	debits, credits = make([]int64, len(lines)), make([]int64, len(lines))
+	for i, l := range lines {
+		d, okD := jvPaise(l.Debit)
+		c, okC := jvPaise(l.Credit)
+		if !okD || !okC {
+			return nil, nil, dimErr("FIN-0843", "Line %d: amounts take up to two decimals (paise).", i+1)
+		}
+		debits[i], credits[i] = d, c
+	}
+	return debits, credits, nil
+}
+
+// validateJournalVoucherLines checks the voucher and returns its total in
+// rupees. The balance is checked in whole paise, never as float sums.
+func validateJournalVoucherLines(lines []JournalVoucherLine) (totalAmount float64, err error) {
 	if len(lines) < 2 {
 		return 0, fmt.Errorf("a journal voucher needs at least two lines")
 	}
-	totalDebit, totalCredit := 0, 0
-	for _, l := range lines {
+	pd, pc, err := journalLinesPaise(lines)
+	if err != nil {
+		return 0, err
+	}
+	var totalDebit, totalCredit int64
+	for i, l := range lines {
 		if l.AccountCode == "" {
 			return 0, fmt.Errorf("every line needs an account_code")
 		}
 		if l.Debit < 0 || l.Credit < 0 {
 			return 0, fmt.Errorf("debit/credit cannot be negative")
 		}
-		if l.Debit > 0 && l.Credit > 0 {
+		if pd[i] > 0 && pc[i] > 0 {
 			return 0, fmt.Errorf("line for account %s cannot have both a debit and a credit", l.AccountCode)
 		}
-		totalDebit += l.Debit
-		totalCredit += l.Credit
+		totalDebit += pd[i]
+		totalCredit += pc[i]
 	}
 	if totalDebit != totalCredit {
-		return 0, fmt.Errorf("unbalanced journal voucher: total debit (%d) must equal total credit (%d)", totalDebit, totalCredit)
+		return 0, fmt.Errorf("unbalanced journal voucher: total debit (%.2f) must equal total credit (%.2f)", PaiseToRupees(totalDebit), PaiseToRupees(totalCredit))
 	}
 	if totalDebit == 0 {
 		return 0, fmt.Errorf("journal voucher has no amount")
 	}
-	return totalDebit, nil
+	return PaiseToRupees(totalDebit), nil
 }
 
 // JournalVoucherOptions carries the voucher's optional whole-voucher
@@ -106,11 +138,11 @@ func validateJournalVoucherSave(payload map[string]interface{}) error {
 	}
 	var lines []JournalVoucherLine
 	if err := json.Unmarshal(b, &lines); err != nil {
-		return dimErr("FIN-0844", "The voucher lines are not readable.")
+		return dimErr("FIN-0843", "The voucher lines are not readable.")
 	}
 	total, err := validateJournalVoucherLines(lines)
 	if err != nil {
-		return dimErr("FIN-0844", "%s", err.Error())
+		return dimErr("FIN-0843", "%s", err.Error())
 	}
 	payload["total_amount"] = total
 	return nil
@@ -315,14 +347,19 @@ func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data m
 		}
 	}
 
-	debits := map[string]int{}
-	credits := map[string]int{}
-	for _, l := range lines {
-		if l.Debit > 0 {
-			debits[l.AccountCode] += l.Debit
+	// Item 193.2: amounts are summed in paise, converted once.
+	pd, pc, perr := journalLinesPaise(lines)
+	if perr != nil {
+		return fmt.Errorf("voucher %s: %w", voucherID, perr)
+	}
+	debits := map[string]int64{}
+	credits := map[string]int64{}
+	for i, l := range lines {
+		if pd[i] > 0 {
+			debits[l.AccountCode] += pd[i]
 		}
-		if l.Credit > 0 {
-			credits[l.AccountCode] += l.Credit
+		if pc[i] > 0 {
+			credits[l.AccountCode] += pc[i]
 		}
 	}
 	voucherDate, _ := data["voucher_date"].(string)
@@ -352,7 +389,45 @@ func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data m
 		if !ok || rate <= 0 {
 			return fmt.Errorf("voucher %s is in %s but carries no usable exchange rate; not posted", voucherID, currency)
 		}
-		debits, credits, opt.TransactionDebits, opt.TransactionCredits = ConvertPostingToFunctional(debits, credits, rate)
+		// ConvertPostingToFunctional works in whole units. Whole-unit vouchers keep
+		// that exact path; a voucher with paise converts at paise precision.
+		wholeD, wholeC, whole := map[string]int{}, map[string]int{}, true
+		for k, v := range debits {
+			wholeD[k], whole = int(v/100), whole && v%100 == 0
+		}
+		for k, v := range credits {
+			wholeC[k], whole = int(v/100), whole && v%100 == 0
+		}
+		if whole {
+			var fd, fc map[string]int
+			fd, fc, opt.TransactionDebits, opt.TransactionCredits = ConvertPostingToFunctional(wholeD, wholeC, rate)
+			debits, credits = PaiseMap(fd), PaiseMap(fc)
+		} else {
+			pD, pC := map[string]int{}, map[string]int{}
+			for k, v := range debits {
+				pD[k] = int(v)
+			}
+			for k, v := range credits {
+				pC[k] = int(v)
+			}
+			var fd, fc map[string]int
+			var td, tc map[string]float64
+			fd, fc, td, tc = ConvertPostingToFunctional(pD, pC, rate)
+			debits, credits = map[string]int64{}, map[string]int64{}
+			for k, v := range fd {
+				debits[k] = int64(v)
+			}
+			for k, v := range fc {
+				credits[k] = int64(v)
+			}
+			for k := range td {
+				td[k] /= 100
+			}
+			for k := range tc {
+				tc[k] /= 100
+			}
+			opt.TransactionDebits, opt.TransactionCredits = td, tc
+		}
 		opt.Currency = currency
 		opt.ExchangeRate = rate
 	}
@@ -367,7 +442,7 @@ func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data m
 	if _, perr := time.Parse("2006-01-02", voucherDate); perr == nil && voucherDate < BusinessToday() {
 		opt.PostedAt = voucherDate
 	}
-	if err := PostDoubleEntryTx(tx, tenantID, schema, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, postingKey, opt); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "JournalVoucher", voucherID, debits, credits, voucherDate, postingKey, opt); err != nil {
 		return fmt.Errorf("voucher %s approved but GL post failed: %v", voucherID, err)
 	}
 	if err := updateJournalVoucherDataIn(tx, schema, voucherID, "Posted", data); err != nil {

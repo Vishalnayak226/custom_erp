@@ -47,16 +47,16 @@ function jtEditorLine(l) {
   return out;
 }
 
-// Whole rupees split by percent; the last line on a side takes the rounding.
+// Rupees (paise kept) split by percent; the last line on a side takes the rounding.
 function jtSplit(lines, total) {
   const out = lines.map(l => ({ ...l }));
   ['debit', 'credit'].forEach(side => {
     const idx = out.map((l, i) => (Number(l[side + '_pct']) > 0 ? i : -1)).filter(i => i >= 0);
     let left = total;
     idx.forEach((i, n) => {
-      const v = n === idx.length - 1 ? left : Math.round(total * Number(out[i][side + '_pct']) / 100);
+      const v = n === idx.length - 1 ? left : Math.round(total * Number(out[i][side + '_pct'])) / 100;
       out[i][side] = v;
-      left -= v;
+      left = Math.round((left - v) * 100) / 100;
     });
   });
   return out;
@@ -81,7 +81,7 @@ async function openUseJournalTemplate(apply) {
     let lines;
     try { lines = JSON.parse(t.lines || '[]'); } catch { lines = []; }
     if (t.split_mode === 'Percent') {
-      const amount = parseInt(get('amount'), 10) || 0;
+      const amount = parseFloat(get('amount')) || 0;
       if (amount <= 0) { showToast('Enter the amount.', { variant: 'error' }); return false; }
       lines = jtSplit(lines, amount);
     }
@@ -105,16 +105,16 @@ function openSaveJournalTemplate(lines, narration) {
   ], 'Save', async get => {
     if (!get('name')) { showToast('Enter a name.', { variant: 'error' }); return false; }
     const percent = get('mode') === 'Percent';
-    const sum = f => used.reduce((s, l) => s + (parseInt(l[f], 10) || 0), 0);
+    const sum = f => used.reduce((s, l) => s + (parseFloat(l[f]) || 0), 0);
     const totals = { debit: sum('debit'), credit: sum('credit') };
     const seen = { debit: 0, credit: 0 };
     const last = { debit: -1, credit: -1 };
-    used.forEach((l, i) => { ['debit', 'credit'].forEach(s => { if (parseInt(l[s], 10) > 0) last[s] = i; }); });
+    used.forEach((l, i) => { ['debit', 'credit'].forEach(s => { if (parseFloat(l[s]) > 0) last[s] = i; }); });
     const out = used.map((l, i) => {
       const row = { account_code: l.account };
       JT_LINE_KEYS.forEach(k => { if (l[k]) row[k] = l[k]; });
       ['debit', 'credit'].forEach(s => {
-        const v = parseInt(l[s], 10) || 0;
+        const v = parseFloat(l[s]) || 0;
         if (v <= 0) return;
         if (!percent) { row[s] = v; return; }
         // Hundredths of a percent, the last line takes the rest so each side is exactly 100.

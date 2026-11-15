@@ -78,8 +78,8 @@ func payablesOpenItems(q queryRower, schema string, cut time.Time) ([]PayableOpe
 		FROM %[1]s.gl_postings g
 		LEFT JOIN %[1]s.documents d ON d.id = g.document_id AND d.doctype = g.document_type
 		LEFT JOIN %[1]s.documents src ON src.id = d.data->>'source_doc_id' AND src.doctype = d.data->>'source_doctype'
-		WHERE g.account_code = '2100' AND ($1::timestamp IS NULL OR g.created_at <= $1::timestamp)
-		GROUP BY 1, 2, 3`, schema), cutArg)
+		WHERE g.account_code IN %[2]s AND ($1::timestamp IS NULL OR g.created_at <= $1::timestamp)
+		GROUP BY 1, 2, 3`, schema, controlAccountsIn(schema, "2100")), cutArg)
 	if err != nil {
 		return nil, err
 	}

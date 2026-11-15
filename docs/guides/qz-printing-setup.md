@@ -32,13 +32,17 @@ too](#making-the-marketplace-panels-work-too).
 ## The easy way: PrintBridge (Stage 137)
 
 PrintBridge is the ERP's own print agent. It speaks the same protocol as QZ
-Tray, needs no Java, and one installer serves every Wholeops address. On each
-computer that prints:
+Tray, needs no Java, and one installer serves every Wholeops address. Each
+computer installs it once; later versions replace themselves. On each computer
+that prints:
 
-1. In the ERP open **Sticker Printing → + Print Stickers → Printer setup on
-   this computer** and click **Download PrintBridge**.
-2. Run the file and click **Yes** to the one certificate question.
-3. A printer icon appears near the clock. PrintBridge starts with Windows; if
+1. Print anything. On a computer without PrintBridge the ERP shows *Install
+   PrintBridge* - click **Install**. (Or open **Sticker Printing → + Print
+   Stickers → Printer setup on this computer** and click **Download
+   PrintBridge**.)
+2. Open the downloaded file. It asks nothing; if Windows says *Windows
+   protected your PC*, click **More info → Run anyway**.
+3. A printer icon appears near the clock and the waiting print goes out. PrintBridge starts with Windows; if
    it was closed from the tray, the ERP starts it again at your next click (the
    browser may ask once *Open PrintBridge?* - tick **Always allow**).
 
@@ -194,6 +198,11 @@ Go to **Setup → Printing → Printer** and create one record per printer:
 Not sure? Start with `PDF` — it works through the normal Windows driver on
 anything. Switch to `ZPL` later if labels look soft or print slowly.
 
+When a PC picks its own sticker printer (its first sticker print), the record
+it makes fills this in by name: `ZPL` for a Zebra, `TSPL` for TSC / TVS /
+Xprinter / Gprinter / Y468 printers, and `PDF` for any other printer, such
+as the Seznik LD0801, which takes neither.
+
 **"Default For" is the store-wide default.** Once a printer at a store is the
 default for Shipping Label, every label printed at that store goes there - on
 any PC there that has not chosen its own label printer.
@@ -280,10 +289,12 @@ administrator notes (permissions, rendering, DPI, storage limits):
 
 The studio canvas is a true preview: the canvas, its **Printer view**, the
 browser print dialog and the thermal printer are all drawn by the same code.
-For silent printing the Printer record's **Printer Language** must be
-**TSPL** (TSC and most Indian desktop label printers) or **ZPL** (Zebra);
-each label is sent as a bitmap at the printer's DPI, so any font and logo
-prints exactly as designed.
+For silent printing the Printer record's **Printer Language** is
+**TSPL** (TSC and most Indian desktop label printers), **ZPL** (Zebra) or
+**PDF** (any other label printer, through its own Windows driver). With TSPL
+or ZPL each label is sent as a bitmap at the printer's DPI; with PDF the same
+drawing goes to the driver as a page. Either way any font and logo prints
+exactly as designed.
 
 ### 2. Print from a GRN or Transfer Order
 
@@ -352,8 +363,10 @@ compare character by character.
 
 **Labels come out blank, tiny, or clipped**
 The Printer Language is probably wrong. A `PDF` payload sent to a printer
-configured as `ZPL` prints garbage or nothing. Also check Label Width/Height
-are set for 4x6 labels.
+configured as `ZPL` prints garbage or nothing. A label printer that takes
+neither `ZPL` nor `TSPL` (the Seznik LD0801 is one) prints nothing in those
+languages: set it to `PDF`. Also check Label Width/Height are set for 4x6
+labels.
 
 **It works on one PC but not another**
 Setup is per-PC. Walk through Part 1 again on the failing machine — usually

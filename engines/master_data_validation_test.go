@@ -195,3 +195,29 @@ func TestLottableConstraintMasterRules(t *testing.T) {
 		t.Errorf("expected editing the same row to not collide with itself: %v", err)
 	}
 }
+
+// 199.1: a design's combinations share its item name, so the same name in
+// the same family is refused only when the values are the same too.
+func TestItemDuplicateNameInFamilyNeedsSameValues(t *testing.T) {
+	db.InitDB(testConnStr())
+	schema, err := db.GetTenantSchema("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id LIKE 'T199-DUP-%'")
+	seedStaffVendor(t, schema, "Item", "T199-DUP-A", map[string]interface{}{"code": "T199-DUP-A", "name": "T199 Necklace",
+		"family": "T199-DUP-FAM", "variant_option_values": "COL:Red"})
+	item := func(values string) map[string]interface{} {
+		return map[string]interface{}{"code": "T199-DUP-B", "name": "T199 Necklace", "family": "T199-DUP-FAM",
+			"variant_option_values": values, "hsn_code": "7117", "gst_rate": 3.0}
+	}
+	if err := ValidateMasterDataRules("default", "T199-DUP-B", "Item", item("COL:Green")); err != nil {
+		t.Errorf("a second combination of the design was refused: %v", err)
+	}
+	if err := ValidateMasterDataRules("default", "T199-DUP-B", "Item", item("col:red")); err == nil {
+		t.Error("the same name, design and values was not refused")
+	}
+	if err := ValidateMasterDataRules("default", "T199-DUP-A", "Item", item("COL:Red")); err != nil {
+		t.Errorf("saving the combination itself collided with itself: %v", err)
+	}
+}

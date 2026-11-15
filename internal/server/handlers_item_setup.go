@@ -18,6 +18,26 @@ func handleGetItemSetup(w http.ResponseWriter, r *http.Request) {
 	if !requireDocPermission(w, r, "Item", "read", "You do not have permission to view items") {
 		return
 	}
+	// Item 201.1/201.2: ?preview=name (category, product_type) or
+	// ?preview=alias (name, category) - what an Item Name or Item form
+	// fills in as the user picks, before the save makes it for real.
+	if q := r.URL.Query(); q.Get("preview") != "" {
+		tenantID := r.Header.Get("Resolved-Tenant-ID")
+		var name, alias string
+		var err error
+		if q.Get("preview") == "name" {
+			name, alias, err = engines.PreviewItemName(tenantID, q.Get("category"), q.Get("product_type"))
+		} else {
+			name = strings.TrimSpace(q.Get("name"))
+			alias, err = engines.PreviewItemAlias(tenantID, name, q.Get("category"))
+		}
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to make the item name")
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "item_alias": alias})
+		return
+	}
 	setup, err := engines.GetItemSetup(r.Header.Get("Resolved-Tenant-ID"))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to read the item setup")

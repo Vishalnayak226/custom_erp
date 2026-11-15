@@ -229,7 +229,8 @@ func DetectFieldFormat(fieldname string) (FieldFormat, bool) {
 	// its letters as an operator typed it, silently, on a device where nobody
 	// could see it happen. A field declared as a scanned code has no character
 	// format to enforce here; scanner handling is the RF shell's job.
-	if semantic := FieldSemantic(f); semantic != "" {
+	// 188.1: the raw name, so a camelCase identifier still splits into words.
+	if semantic := FieldSemantic(fieldname); semantic != "" {
 		if scanSemantics[semantic] {
 			return FieldFormat{}, false
 		}

@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -88,6 +89,27 @@ func TestStage127_3GenericPrint(t *testing.T) {
 	}
 	for _, h := range d.Fields["generic_print"].(map[string]interface{})["header"].([]genericPrintColumn) {
 		if h.Key == "gross_pay" || h.Key == "pf_deduction" {
+			t.Errorf("payslip header repeats %s", h.Key)
+		}
+	}
+	// 170.23: benefit lines and LWF are their own pay heads; totals still match.
+	insert("PS-G2", "Payslip", "Draft", map[string]interface{}{"code": "PS-G2", "gross_pay": 31000.0, "pf_deduction": 1800.0, "lwf_deduction": 25.0,
+		"benefit_earnings": 1000.0, "benefit_deductions": 500.0, "benefit_employer": 700.0, "net_pay": 28675.0,
+		"benefit_lines": []interface{}{
+			map[string]interface{}{"plan": "BP1", "name": "Meal card", "type": "Earning", "amount": 1000.0},
+			map[string]interface{}{"plan": "BP2", "name": "Health top-up", "type": "Deduction", "amount": 500.0},
+			map[string]interface{}{"plan": "BP3", "name": "Group insurance", "type": "Employer-paid", "amount": 700.0}}})
+	d, err = BuildPrintDocument(tenantID, "Payslip", "PS-G2", "", false)
+	heads := map[string]bool{}
+	for _, l := range d.Lines {
+		heads[fmt.Sprint(l["component"])] = true
+	}
+	if err != nil || len(d.Lines) != 5 || d.Fields["total__earning"] != 31000.0 || d.Fields["total__deduction"] != 2325.0 ||
+		!heads["Salary"] || !heads["Meal card"] || !heads["Labour Welfare Fund"] || !heads["Health top-up"] || heads["Group insurance"] {
+		t.Errorf("payslip with benefits: %v lines %v totals %v/%v", err, d.Lines, d.Fields["total__earning"], d.Fields["total__deduction"])
+	}
+	for _, h := range d.Fields["generic_print"].(map[string]interface{})["header"].([]genericPrintColumn) {
+		if h.Key == "benefit_lines" || h.Key == "lwf_deduction" {
 			t.Errorf("payslip header repeats %s", h.Key)
 		}
 	}

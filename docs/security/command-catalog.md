@@ -23,7 +23,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Family | Commands |
 |---|---|
 | Export | 8 |
-| Credential / config change | 30 |
+| Credential / config change | 32 |
 | Loyalty | 6 |
 | Tender | 2 |
 | Quote / discount / override | 9 |
@@ -38,7 +38,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Staged import | 7 |
 | Channel listing | 3 |
 | Assistant order | 1 |
-| **Total** | **163** |
+| **Total** | **165** |
 
 ## Export
 
@@ -73,7 +73,8 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | `POST /api/v1/admin/security/sessions/end` | admin · admin.audit-logs | the session id, a reason and the admin's own password; who ended it and when | an administrator; a stored privileged session | that one token is refused at its next request; the user's other sessions carry on | none - a repeat is a second command | USER_MANAGEMENT / SESSION_ENDED |
 | `POST /api/v1/admin/security/sign-out-all` | admin · admin.audit-logs | session revocation stamp | an administrator | every session of the client is dead after | none - a repeat is a second command | USER_MANAGEMENT / ALL_SESSIONS_REVOKED |
 | `POST /api/v1/admin/security/sign-out-user` | admin · admin.audit-logs | session revocation stamp | an administrator; a user | every session of that user is dead after | none - a repeat is a second command | USER_MANAGEMENT / SESSIONS_REVOKED |
-| `POST /api/v1/admin/tenant/package` | admin · admin.tenant | module entitlements from the package | an administrator | core modules stay on; dependents follow their prerequisite | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
+| `POST /api/v1/admin/tenant/package` | admin · admin.tenant | module entitlements from the package | an administrator | core modules stay on; dependents follow their prerequisite | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries); saas.package_transition / Applied |
+| `POST /api/v1/admin/tenant/package/impact` | admin · admin.tenant | - | - | - | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/clevertap/credentials` | authenticated · clevertap.default | the secret stored encrypted, write-only | an administrator | a stored secret is never returned | none - a repeat is a second command | CONNECTOR_ENABLED_WITHOUT_REHEARSAL / WARNING; CONNECTOR_ENABLE_REFUSED / FAILURE; CONNECTOR_REHEARSED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/integrations/credentials/active` | admin · admin.integrations | the connector kind, its code and on / off; who and when stamped | an administrator; a saved credential for that connector | a switched-off credential is refused before any call out; saving it again switches it back on | none - a repeat is a second command | CONNECTOR_ENABLED_WITHOUT_REHEARSAL / WARNING; CONNECTOR_ENABLE_REFUSED / FAILURE; CONNECTOR_REHEARSED / SUCCESS; CONNECTOR_SWITCHED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/integrations/credentials/disconnect` | admin · admin.integrations | the connector kind and its code; who disconnected and when | an administrator; a saved credential for that connector | the credential is deleted and its pending / leased jobs cancelled; mappings and settings stay; disconnecting nothing is refused | none - a repeat is a second command | CONNECTOR_DISCONNECTED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
@@ -82,6 +83,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | `POST /api/v1/marketplace/couriers/{provider}/credentials` | authenticated · oms.default; module oms | the secret stored encrypted, write-only | a provider the ERP knows | a stored secret is never returned | none - a repeat is a second command | CONNECTOR_ENABLED_WITHOUT_REHEARSAL / WARNING; CONNECTOR_ENABLE_REFUSED / FAILURE; CONNECTOR_REHEARSED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/pim/channels/{code}/credentials` | authenticated · pim.default; module pim | the secret stored encrypted, write-only | a PIM channel | a stored secret is never returned | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/pinelabs/credentials` | authenticated · pinelabs.default | the secret stored encrypted, write-only | an administrator | a stored secret is never returned | none - a repeat is a second command | CONNECTOR_ENABLED_WITHOUT_REHEARSAL / WARNING; CONNECTOR_ENABLE_REFUSED / FAILURE; CONNECTOR_REHEARSED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
+| `POST /api/v1/razorpay/credentials` | admin · admin.integrations | - | - | - | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/shopify/{channel}/credentials` | authenticated · oms.default; module oms | the secret stored encrypted, write-only | a channel of this client | a stored secret is never returned | none - a repeat is a second command | CONNECTOR_ENABLED_WITHOUT_REHEARSAL / WARNING; CONNECTOR_ENABLE_REFUSED / FAILURE; CONNECTOR_REHEARSED / SUCCESS; INTEGRATION / SHOPIFY_CREDENTIALS_SAVED |
 | `POST /api/v1/shopify/{channel}/settings` | authenticated · oms.default; module oms | settings stamp | a channel of this client | sync settings change only through this route | none - a repeat is a second command | INTEGRATION / SHOPIFY_SETTINGS_SAVED; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/unicommerce/credentials` | authenticated · oms.default; module oms | the secret stored encrypted, write-only | an administrator | a stored secret is never returned | none - a repeat is a second command | CONNECTOR_ENABLED_WITHOUT_REHEARSAL / WARNING; CONNECTOR_ENABLE_REFUSED / FAILURE; CONNECTOR_REHEARSED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |

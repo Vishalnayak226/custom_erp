@@ -71,7 +71,7 @@ export async function renderJobWorkTab(container) {
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" data-css="width:${width}px;" ${extra}></div>`;
   form.innerHTML = `<div class="s-d9da29">
       ${field('jw-vendor', 'Job worker', 200)}${field('jw-store', 'From store', 150, `value="${esc(sessionStore())}"`)}${field('jw-due', 'Due back', 150, 'type="date"')}
       <div class="form-group s-116966"><label class="form-label" for="jw-capital">Capital goods</label><select class="form-select s-607468" id="jw-capital"><option>No</option><option>Yes</option></select></div>
@@ -125,7 +125,7 @@ export async function renderJobWorkTab(container) {
     }
     const bal = parse(d.jw_balance).filter(x => open(x) - x.pending_loss > 0);
     const transforms = (x) => x.output_sku && x.output_sku !== x.sku;
-    const inp = (k, i, w = 70, extra = '') => `<input type="number" min="0" step="1" class="form-input" style="width:${w}px;text-align:right;" data-jwr="${k}" data-i="${i}" placeholder="0" ${extra}>`;
+    const inp = (k, i, w = 70, extra = '') => `<input type="number" min="0" step="1" class="form-input" data-css="width:${w}px;text-align:right;" data-jwr="${k}" data-i="${i}" placeholder="0" ${extra}>`;
     pane.innerHTML = `<h3 class="s-df6718">What came back on ${esc(d.code || d.id)}</h3>
       <div class="table-wrapper"><table><thead><tr><th>Line</th><th class="num">Still out</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Scrap</th><th class="num">Loss</th><th class="num">Output made</th><th class="num">Output rejected</th><th class="num">Net wt back</th><th class="num">Fine wt back</th><th>QC / reason</th></tr></thead>
       <tbody>${bal.map((x, i) => `<tr><td>${esc(x.sku)}${transforms(x) ? ` → ${esc(x.output_sku)}` : ''}</td><td class="num">${fmt(open(x) - x.pending_loss)}</td>
@@ -171,7 +171,7 @@ export async function renderJobWorkTab(container) {
   const input = form.querySelector('[data-jw-add-input]');
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
   const draw = () => {
-    const cell = (k, i, w, type = 'number', step = 'any') => `<input type="${type}" ${type === 'number' ? `step="${step}" min="0"` : ''} class="form-input" style="width:${w}px;${type === 'number' ? 'text-align:right;' : ''}" data-jwl="${k}" data-i="${i}" value="${esc(jwLines[i][k] ?? '')}">`;
+    const cell = (k, i, w, type = 'number', step = 'any') => `<input type="${type}" ${type === 'number' ? `step="${step}" min="0"` : ''} class="form-input" data-css="width:${w}px;${type === 'number' ? 'text-align:right;' : ''}" data-jwl="${k}" data-i="${i}" value="${esc(jwLines[i][k] ?? '')}">`;
     form.querySelector('[data-jw-lines]').innerHTML = jwLines.length ? jwLines.map((l, i) => `<tr>
         <td>${esc(l.name || l.sku)}<div class="text-muted s-6cb285">${esc(l.sku)}</div></td>
         <td class="num">${cell('qty', i, 80, 'number', '1')}</td><td>${cell('batch_no', i, 90, 'text')}</td>

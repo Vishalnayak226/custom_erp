@@ -105,3 +105,113 @@ func TestJSONTableAcceptsArrayFromAPI(t *testing.T) {
 		t.Fatal("broken JSON text must still be refused")
 	}
 }
+
+// 55.3 (ask 179): brands, styles and colours are one optional step - waived
+// while none exist, done with any one of them, never the Next step and never
+// flagged for the registers a client does not use.
+func TestStage553RegistersStepIsOptional(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schema := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schema)
+	if _, err := ProvisionTenantSchema(tenantID, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	if _, err := db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype IN ('Brand', 'Style', 'Color')"); err != nil {
+		t.Fatal(err)
+	}
+	registers := func() SetupPathStep {
+		t.Helper()
+		steps, err := GetSetupPath(tenantID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range steps {
+			if s.ID == "registers" {
+				return s
+			}
+		}
+		t.Fatal("no registers step")
+		return SetupPathStep{}
+	}
+	if r := registers(); !r.Optional || r.Done || r.Next || r.State != SetupStateWaived {
+		t.Fatalf("with no brand, style or colour: %+v, want optional, waived, not Next", r)
+	}
+	raw, _ := json.Marshal(map[string]interface{}{"code": "BR-1", "name": "Acme"})
+	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ('BR-1', 'Brand', $1, 'Active', 'system')", raw); err != nil {
+		t.Fatal(err)
+	}
+	r := registers()
+	if !r.Done || r.Count != 1 || r.State != SetupStateReady {
+		t.Fatalf("one brand and no styles or colours: %+v, want done and ready", r)
+	}
+	for _, c := range r.Checks {
+		if !c.Passed {
+			t.Errorf("check %s fails with a brand in use", c.ID)
+		}
+	}
+}
+
+// 47.12.4 (ask 191): each step's owner is the roles that may complete it,
+// read from Settings › Roles - and it agrees with RoleMayOnDoctype, the check
+// a save actually passes.
+func TestStage47124StepOwnersAreTheRolesThatMayCompleteIt(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schema := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schema)
+	if _, err := ProvisionTenantSchema(tenantID, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	if _, err := db.DB.Exec("INSERT INTO " + schema + `.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+		('Setup Clerk 47124', 'LegalEntity', TRUE, TRUE, TRUE, FALSE),
+		('Setup Clerk 47124', 'ItemType', TRUE, TRUE, FALSE, FALSE),
+		('Brand Clerk 47124', 'Brand', TRUE, TRUE, FALSE, FALSE),
+		('Reader 47124', 'LegalEntity', TRUE, FALSE, FALSE, FALSE)`); err != nil {
+		t.Fatal(err)
+	}
+	steps, err := GetSetupPath(tenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owners := map[string]map[string]bool{}
+	for _, s := range steps {
+		owners[s.ID] = map[string]bool{}
+		for _, r := range s.Owners {
+			owners[s.ID][r] = true
+		}
+		if !owners[s.ID][RoleAdmin] || !owners[s.ID][RoleSuperAdmin] {
+			t.Errorf("step %s owners %v: full access always owns a step", s.ID, s.Owners)
+		}
+	}
+	want := map[string]map[string]bool{
+		"entity":     {"Setup Clerk 47124": true, "Brand Clerk 47124": false, "Reader 47124": false},
+		"item-types": {"Setup Clerk 47124": false},                            // ItemType yes, Category no: all of them
+		"registers":  {"Brand Clerk 47124": true, "Setup Clerk 47124": false}, // any one
+		"numbering":  {"Setup Clerk 47124": false},                            // a screen behind full access
+	}
+	for id, roles := range want {
+		for role, is := range roles {
+			if owners[id][role] != is {
+				t.Errorf("step %s: %s owner = %v, want %v", id, role, owners[id][role], is)
+			}
+		}
+	}
+	// Every all-of record step agrees with the check a save passes.
+	for _, s := range steps {
+		if len(s.Doctypes) == 0 || s.ID == "registers" {
+			continue
+		}
+		for _, role := range TenantRoleNames(tenantID) {
+			may := true
+			for _, dt := range s.Doctypes {
+				ok, err := RoleMayOnDoctype(tenantID, role, dt, "create")
+				if err != nil {
+					t.Fatal(err)
+				}
+				may = may && ok
+			}
+			if owners[s.ID][role] != may {
+				t.Errorf("step %s: %s owner = %v, RoleMayOnDoctype says %v", s.ID, role, owners[s.ID][role], may)
+			}
+		}
+	}
+}

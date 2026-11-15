@@ -53,6 +53,7 @@ func TestClassificationTiersMatchExpectedSensitivity(t *testing.T) {
 		{SensitiveCategoryCost, TierConfidential, ""},
 		{DataFlowSigningKey, TierRestricted, ""},
 		{DataFlowAuditEvidence, TierRestricted, PrivacyAudit},
+		{DataFlowDisciplinary, TierRestricted, PrivacyPersonal},
 	}
 	for _, tc := range cases {
 		c, ok := ClassifyCategory(tc.category)
@@ -82,5 +83,16 @@ func TestClassifyDoctypeFieldResolvesThroughSensitiveFields(t *testing.T) {
 	}
 	if _, ok := ClassifyDoctypeField("NoSuchDoctype", "whatever"); ok {
 		t.Error("an unknown doctype must not resolve to a classification")
+	}
+	// 170.20: every field of a disciplinary case is restricted, whole-record.
+	for _, f := range []string{"description", "outcome_notes", "named_people"} {
+		if c, ok := ClassifyDoctypeField(DisciplinaryCaseDoctype, f); !ok || c.Tier != TierRestricted || c.LegalHold != true {
+			t.Errorf("DisciplinaryCase.%s: %+v %v", f, c, ok)
+		}
+	}
+	for doctype, flow := range rowScopedFlows {
+		if _, ok := ClassifyCategory(flow); !ok {
+			t.Errorf("%s maps to %q with no entry in dataClassifications", doctype, flow)
+		}
 	}
 }

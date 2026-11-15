@@ -53,7 +53,10 @@ func findDataQualityProblems(schema string) ([]DataQualityFinding, error) {
 		{"Customer", "dup_email", "Same email as another customer", `NULLIF(lower(trim(COALESCE(data->>'email',''))), '')`},
 		{"Vendor", "dup_gstin", "Same GSTIN as another vendor", `NULLIF(upper(trim(COALESCE(data->>'gstin',''))), '')`},
 		{"Vendor", "dup_name", "Same name as another vendor", `NULLIF(lower(trim(COALESCE(data->>'name',''))), '')`},
-		{"Item", "dup_name", "Same name as another item", `NULLIF(lower(trim(COALESCE(NULLIF(data->>'item_name',''), data->>'name', ''))), '')`},
+		// 199.1: a design's combinations share their item name, so a duplicate
+		// is the same name in the same design with the same values.
+		{"Item", "dup_name", "Same name as another item", `NULLIF(lower(trim(COALESCE(NULLIF(data->>'item_name',''), data->>'name', ''))), '')
+			|| '|' || lower(COALESCE(NULLIF(data->>'family',''), data->>'parent_product_code', '')) || '|' || lower(COALESCE(data->>'variant_option_values', ''))`},
 	}
 	for _, d := range dupes {
 		rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM (SELECT id, %[2]s AS k, COUNT(*) OVER (PARTITION BY %[2]s) AS n

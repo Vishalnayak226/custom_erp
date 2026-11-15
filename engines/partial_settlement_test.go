@@ -238,7 +238,7 @@ func TestStage73PartialSettlement(t *testing.T) {
 	})
 
 	// A PO with 18% GST, a GRN receiving all of it, and the receipt's 2100
-	// credit at taxable cost - what RecordGRNReceiptCosting posts.
+	// credit at taxable cost - what recordGRNReceiptCostingPartTx posts.
 	seedReceipt := func(n string) (poID, grnID string) {
 		t.Helper()
 		poID, grnID = t5510+"PO"+n, t5510+"GRN"+n

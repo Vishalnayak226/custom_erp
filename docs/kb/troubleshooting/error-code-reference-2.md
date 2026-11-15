@@ -2,7 +2,7 @@
 title: Error code reference (part 2)
 section: Troubleshooting
 order: 21
-summary: Error codes for Goods Receipt to PIM, continued from the error code reference.
+summary: Error codes for Global / Common to Order Management, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,18 +20,19 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **305** codes, from
-Goods Receipt to PIM.
+lists every area and explains how to read a code. It holds **276** codes, from
+Global / Common to Order Management.
 
 ## Contents
 
+- [Global / Common](#global-common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 22 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
 - [HR & Payroll](#hr-payroll) - 15 codes
 - [HR / Payroll](#hr-payroll) - 32 codes
 - [Integration / API](#integration-api) - 14 codes
 - [Integrations](#integrations) - 1 codes
-- [Inventory](#inventory) - 23 codes
+- [Inventory](#inventory) - 24 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
 - [Item Master](#item-master) - 4 codes
 - [Manufacturing](#manufacturing) - 7 codes
@@ -42,7 +43,36 @@ Goods Receipt to PIM.
 - [Observability / Incident](#observability-incident) - 3 codes
 - [Omnichannel / OMS](#omnichannel-oms) - 5 codes
 - [Order Management](#order-management) - 12 codes
-- [PIM](#pim) - 55 codes
+
+## Global / Common
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `GLOBAL-0001` | Mandatory value missing | Required value is missing. Please enter {field name} to continue. | Enter the missing value. | Medium | 422 |
+| `GLOBAL-0002` | Invalid format | Invalid format for {field name}. Please enter a valid value. | Correct the field format. | Medium | 422 |
+| `GLOBAL-0003` | Duplicate record | A record with the same {unique key} already exists. Please check and try again. | Use a unique value or open the existing record. | Medium | 409 |
+| `GLOBAL-0004` | Record not found | The selected record was not found or may have been deleted. Please refresh and try again. | Refresh the page and select the record again. | Medium | 404 |
+| `GLOBAL-0005` | Unsaved changes | You have unsaved changes. Save or discard the changes before leaving this page. | Save or discard changes. | Medium | 422 |
+| `GLOBAL-0006` | Concurrent update | This record was updated by another user. Please refresh to view the latest data. | Refresh and reapply changes if required. | Medium | 409 |
+| `GLOBAL-0007` | Attachment too large | The file size exceeds the allowed limit. Please upload a smaller file. | Upload a smaller file. | Medium | 422 |
+| `GLOBAL-0008` | Unsupported file type | This file type is not supported. Please upload an allowed file format. | Upload an allowed file. | Medium | 422 |
+| `GLOBAL-0009` | Session expired | Your session has expired. Please sign in again to continue. | Sign in again. | Medium | 401 |
+| `GLOBAL-0010` | System unavailable | The system is temporarily unavailable. Please try again later or contact support. | Retry later or contact support. | Medium | 503 |
+| `GLOBAL-0011` | Permission denied | You do not have permission to perform this action. Please contact your administrator. | Contact admin for access. | Medium | 403 |
+| `GLOBAL-0012` | Invalid date range | From Date cannot be later than To Date. Please select a valid date range. | Correct the date range. | Medium | 422 |
+| `GLOBAL-0013` | Past/future date blocked | The selected date is outside the allowed posting period. Please select a valid date. | Select valid date or request period opening. | Medium | 409 |
+| `GLOBAL-0014` | Negative value not allowed | Negative values are not allowed for this field. Please enter zero or a positive value. | Enter valid value. | Medium | 422 |
+| `GLOBAL-0015` | Decimal precision exceeded | The value exceeds the allowed decimal precision. Please enter a valid amount or quantity. | Adjust decimal value. | Medium | 422 |
+| `GLOBAL-0016` | Save failed | The record could not be saved. Please review highlighted errors and try again. | Fix highlighted errors and save. | Medium | 503 |
+| `GLOBAL-0017` | Delete blocked by reference | This record cannot be deleted because it is already used in transactions. You may deactivate it instead. | Deactivate record if needed. | Medium | 409 |
+| `GLOBAL-0018` | Inactive record used | The selected record is inactive. Please select an active record. | Select active record. | Medium | 422 |
+| `GLOBAL-0019` | Invalid status transition | This action is not allowed for the current document status. | Check document status and choose allowed action. | Medium | 422 |
+| `GLOBAL-0020` | Cancellation reason missing | Please enter a cancellation reason to continue. | Enter reason. | Medium | 422 |
+| `GLOBAL-0178` | Confirm delete | This action cannot be undone. Do you want to continue? | Review and confirm. | Medium | 200 |
+| `GLOBAL-0295` | Autosuggest no matching master | No matching master record found. Create a new master or change search text. | Create master or change search term. | Medium | 200 |
+| `GLOBAL-0296` | Invalid copied grid data | Copied data contains invalid cells. Please correct highlighted rows. | Correct highlighted grid cells. | Medium | 422 |
+| `GLOBAL-0297` | Required lookup inactive | Selected lookup value is inactive. Please choose an active value. | Select active master value. | Medium | 422 |
+| `GLOBAL-0302` | Unexpected server error | An unexpected error occurred. Please try again, or contact support with the reference ID below if it persists. | Retry the action. If it keeps happening, contact support with the correlation ID shown. | Critical | 500 |
 
 ## Goods Receipt
 
@@ -193,6 +223,7 @@ Goods Receipt to PIM.
 | `STKLOC-0863` | Stock move incomplete or through a location that only transfers / holds change | The stock move is not complete. | Choose the item, a quantity above zero and two different locations the store uses (In-Transit and On Hold change only through transfers and hold codes). | Medium | 422 |
 | `STKLOC-0864` | Stock move larger than the free stock in the from location | There is not enough free stock in that location. | Move no more than the location holds (stock promised to an order is not free). | High | 422 |
 | `STKLOC-0865` | Stock move record written through the generic record API | Stock moves are made from Stock -> Move Stock. | Use Move Stock, which moves the stock and records it in one step. | Medium | 422 |
+| `STORE-0855` | A transfer is created, dispatched or received at a store the user has not been given | This transfer is not at one of your stores. | Ask someone who works at the store, or an administrator to add the store in Users -> Stores. | High | 422 |
 
 ## Inventory / Warehouse
 
@@ -378,64 +409,4 @@ Goods Receipt to PIM.
 | `ORDERM-0471` | Carrier claim step not valid | This claim step cannot be made now. | A claim is filed with the carrier's reference, settled for at most what was claimed, and rejected with a note; only one claim can be open per booking. | Low | 422 |
 | `ORDERM-0970` | Order re-allocated to a store without enough of its owner's own stock | That store does not hold enough of this order owner's own stock. | Pick a store that holds the owner's stock, or leave the store blank so the system sources it on the owner's stock. | Medium | 422 |
 | `ORDERM-0980` | Credit hold released or replaced by hand | This order is on Credit hold, so it cannot be released or held again by hand. | Approve its release request in the approval inbox. | Low | 409 |
-
-## PIM
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `PIM-0321` | Adding an attribute value from the PO that cannot be added | That value could not be added to the product attribute. | Type one value without commas, for an attribute chosen from a list; typed attributes take their value on the design itself. | Low | 422 |
-| `PIM-0690` | Deleting a product attribute that was set up from the attribute library | This attribute was set up for your business and cannot be deleted. | Switch it off instead: open it and set Status to Inactive. Its values can still be removed one by one. | Low | 422 |
-| `PIM-0691` | Creating a new product attribute from a purchase order when the business's attributes are set up for it | New attributes are not created from a purchase order here - your product attributes are set up for your business. | Pick one of the attributes shown, or ask your administrator to add one under Setup -> Item Attribute. | Low | 422 |
-| `PIM-0950` | Saving or testing image drive settings with a field missing or malformed | The image drive settings are not complete. | Fill in the field named in the message: the endpoint (https://...), the bucket name, the access key ID and the secret access key, as your storage provider shows them. | Low | 422 |
-| `PIM-0951` | The client's image drive could not be reached, or refused the keys, bucket or region | The image drive did not accept the request. | Read the reason in the message, correct the endpoint, region, bucket or keys in Settings > Configuration > Integrations > Image drive, and press Test connection. | Medium | 422 |
-| `PIM-0952` | Opening an image stored on the image drive after the drive's settings were removed | This image is stored on the image drive, which is not set up. | Ask your administrator to set the image drive up again in Settings > Configuration > Integrations > Image drive. | Medium | 422 |
-| `PIM-0953` | Loading a marketplace template file that cannot be read or has no columns | The template file could not be read. | Upload the category file as downloaded from the marketplace (.xlsx) and check it has a header row. | Medium | 422 |
-| `PIM-0954` | Saving or loading a marketplace template that is not valid | This marketplace template is not valid. | Fix the field named in the message and save again. | Medium | 422 |
-| `PIM-0955` | Using a marketplace template that does not exist | This marketplace template was not found. | Load the category file again, or choose another template. | Medium | 422 |
-| `PIM-0956` | Saving a feed with a missing or unusable setting | This feed cannot be saved as it is. | Fix the field named in the message: template, product group, format, destination or recipient. | Medium | 422 |
-| `PIM-0957` | Using Ready only on a feed whose template has no channel | Ready only needs a template that belongs to a channel. | Choose a template made for a channel, or turn Ready only off. | Medium | 422 |
-| `PIM-0958` | Running a feed that does not exist or is not active | This feed was not found or is not active. | Open Feeds, make the feed Active, and run it again. | Medium | 422 |
-| `PIM-0959` | Setting design values with no product group or design chosen | Choose a product group or a design first. | Pick a product group or at least one design, then set the value. | Medium | 422 |
-| `PIM-0960` | Setting a design value for an attribute that does not exist | This attribute was not found. | Choose an attribute from the list. | Medium | 422 |
-| `PIM-0961` | Setting a design value on a design that is not an item | This design was not found. | Choose a design from the grid; it must be an existing product. | Medium | 422 |
-| `PIM-0962` | Setting design values on more designs than one bulk set allows | Too many designs for one bulk set. | Choose a smaller product group, or ask your administrator to raise the bulk edit limit. | Medium | 422 |
-| `PIM-0970` | Adding or removing tags in bulk with no action or no tag | Choose add or remove, and enter at least one tag. | Pick the action and type the tags, separated by commas. | Low | 422 |
-| `PIM-0971` | Saving a dynamic product group with an attribute condition that does not fit its attribute | One of the conditions cannot be saved. | Use an operator that fits the attribute (for example between for a number, after for a date) and a value of that type. | Low | 422 |
-| `PIM-0972` | Making a checklist task with no attribute, an unknown attribute, or opening one on a task without a checklist | This checklist cannot be used. | Choose at least one attribute that exists. | Low | 422 |
-| `PIM-0973` | Making a checklist task for something that is not a product or a product group | Choose a product or a product group for this checklist. | Pick the product or product group the attributes are to be filled for. | Low | 422 |
-| `PIM-0980` | Attribute value that does not fit its attribute's type | That value does not fit this attribute. | Use Yes or No, pick from the attribute's list, or give a web address starting http:// or https://, as the attribute's type asks. | Medium | 422 |
-| `PIM-0981` | Product related to itself | A product cannot be related to itself. | Choose a different related item. | Low | 422 |
-| `PIM-0982` | Same product relation entered twice | This relation already exists. | Keep the existing relation, or choose another type or item. | Low | 422 |
-| `PIM-1000` | Product sheet without an id column | The sheet needs an id column. | Add a column named id holding each item code, then upload again. | Medium | 422 |
-| `PIM-9150` | Attribute stewardship request that is incomplete or names an unknown attribute, user or channel | This stewardship entry is not complete. | Fix the field named, then save the request again. | Medium | 422 |
-| `PIM-9151` | Attribute value written from a source other than the attribute's system of record | This value comes from another system. | Write it from the system of record named, or ask for the stewardship entry to change. | Medium | 422 |
-| `PIM-9152` | Image order for a channel that names an unknown channel or an image not on the item | This image order cannot be saved. | Choose a channel and only images of this item. | Medium | 422 |
-| `PIM-9200` | New purchase order line for a Phase-out or End of life item | This item is being phased out. | Buy the substitute item named in the message, or move the item back to Active on its Item screen. | Medium | 422 |
-| `PIM-9201` | Item lifecycle boxes invalid (item is its own substitute, launch date not a date) | The lifecycle details are not valid. | Pick a different substitute item, and give the launch date as YYYY-MM-DD. | Low | 422 |
-| `PIM-9202` | End of life item sold while the refuse setting is on | This item is End of life. | Sell the substitute item named in the message, or ask an administrator to turn the refuse setting off (Configuration > Product Information). | Medium | 422 |
-| `PIM-9203` | Launch item sold before its launch date while the refuse setting is on | This item has not launched yet. | Wait for the launch date, or change the item's launch date or stage on its Item screen. | Medium | 422 |
-| `PIM-9210` | Scheduled item change not allowed (field not on the list, value not valid, date missing or in the past) | That change cannot be scheduled. | Pick selling price, MRP, purchase price, a tax or HSN field or an attribute, give a valid new value, and a date that is today or later. | Low | 422 |
-| `PIM-9211` | Two scheduled changes to the same item field on the same day | That field already has a change on that day. | Cancel the other scheduled change, or pick a different date. | Low | 422 |
-| `PIM-9212` | Scheduled item change edited or cancelled after it was applied or already cancelled | This change is no longer scheduled. | Only a Scheduled change can be cancelled. Schedule a new change if needed. | Low | 422 |
-| `PIM-9240` | New purchase order carrying items outside the store range | These items are outside the store range. | Remove them from the lines, or add them to the store range. | Medium | 422 |
-| `PIM-9241` | Transfer into a store carrying items outside its range | These items are outside the store range. | Remove them from the lines, or add them to the store range. | Medium | 422 |
-| `PIM-9242` | Sale at a store of an item outside its range | This item is not sold at this store. | Add it to the store range, or sell it elsewhere. | Medium | 422 |
-| `PIM-9243` | Channel order line outside the channel range | These items are outside the channel range. | Add them to the channel range, or drop the lines. | Medium | 422 |
-| `PIM-9244` | Range row that is incomplete or inconsistent | This range row is not complete. | Name a store or a channel, one item or category, and valid dates. | Medium | 422 |
-| `PIM-9245` | Bulk range add with no target or no item or category | Choose where to add and what to add. | Pick a store or channel, and a category or items. | Medium | 422 |
-| `PIM-9250` | Markdown plan that is incomplete or inconsistent | This markdown plan is not complete. | Fix the field named, then save again. | Medium | 422 |
-| `PIM-9260` | Listing drift asked for with no channel | Choose a channel. | Pick a channel, then open the report again. | Medium | 422 |
-| `PIM-9300` | Blank value for a category-required attribute | This attribute is required for the item's category. | Enter a value, or ask an admin to change the category rule. | Medium | 422 |
-| `PIM-9301` | Item saved without its category-required attribute values | The item's category needs more attribute values. | Add the values named in the message, then save again. | Medium | 422 |
-| `PIM-9302` | Category attribute rule with an unknown rule | The rule must be Required, Optional or Hidden. | Pick one of the three. | Medium | 422 |
-| `PIM-9303` | Category attribute rule default value refused | That default value does not fit. | Use a value that fits the attribute, or leave it blank. A hidden attribute has none. | Medium | 422 |
-| `PIM-9304` | Second rule for one category and attribute | This category already has a rule for that attribute. | Edit the existing rule instead. | Medium | 422 |
-| `PIM-9305` | Number with a unit typed with text | Type the number only. | The unit is added for you. Remove the letters. | Medium | 422 |
-| `PIM-9306` | Regulated value changed where it cannot wait for approval | A regulated value changes on the item page. | Open the item and change it there; it waits for approval. | Medium | 422 |
-| `PIM-9340` | Myntra market-price collection started while the client switched it off | Collecting Myntra prices is switched off. | Ask an admin to turn it on in Settings, Platform. | Medium | 422 |
-| `PIM-9341` | Myntra run with a missing, too long or too many keywords, a bad category or a bad day | This run cannot start. | Fix the field named, then try again. | Medium | 422 |
-| `PIM-9342` | Myntra run started while another is waiting or running | A Myntra run is already going. | Wait for it to finish, then start the next one. | Medium | 409 |
-| `PIM-9343` | Re-parse of a day with no saved Myntra pages | No saved Myntra pages for that day. | Choose a day that has a run, or start a run first. | Medium | 404 |
-| `PIM-9360` | Copying photos to the image drive while the drive is not switched on | The image drive is not switched on. | Switch it on under Settings, Image drive, then copy the photos. | Medium | 422 |
-| `PIM-9361` | Starting a photo copy to the image drive while one is already running | A copy is already running. | Wait for it to finish, then start it again if photos are left. | Low | 409 |
 

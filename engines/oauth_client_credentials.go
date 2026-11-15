@@ -104,6 +104,12 @@ func OAuthClientFromIssued(issued *IssuedAPICredential) *IssuedOAuthClient {
 // ExchangeClientCredentials is the client_credentials grant. requested may
 // be empty (all of the client's scopes) or any subset of them.
 func ExchangeClientCredentials(tenantID, clientID, clientSecret string, requested []string) (*OAuthAccessToken, *APICredential, error) {
+	if err := requirePublicAPITenantServing(tenantID); err != nil {
+		if errors.Is(err, ErrInvalidAPICredential) {
+			return nil, nil, ErrOAuthInvalidClient
+		}
+		return nil, nil, err
+	}
 	clientID = strings.TrimSpace(clientID)
 	clientSecret = strings.TrimSpace(clientSecret)
 	prefix, err := publicAPIKeyPrefix(clientSecret)
@@ -183,6 +189,9 @@ func IsOAuthAccessToken(bearer string) bool {
 // AuthenticateOAuthAccessToken resolves a bearer token to its client, with the
 // token's own (possibly narrower) scopes. Same single failure as API keys.
 func AuthenticateOAuthAccessToken(tenantID, bearer string) (*APICredential, error) {
+	if err := requirePublicAPITenantServing(tenantID); err != nil {
+		return nil, err
+	}
 	bearer = strings.TrimSpace(bearer)
 	if !IsOAuthAccessToken(bearer) || len(bearer) != len(oauthAccessTokenMarker)+64 {
 		return nil, ErrInvalidAPICredential

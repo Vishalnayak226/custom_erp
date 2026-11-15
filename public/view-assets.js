@@ -423,6 +423,7 @@ async function toggleAssetLifecycle(assetId) {
   const a = lc.asset;
   const acq = lc.acquisition || {};
   const dep = lc.depreciation || {};
+  const adjusted = lc.schedule.some(s => s.adjustment); // ask 176: impairment / revaluation by year
   cell.innerHTML = `
     <div class="s-914395">
       <div><b>Source:</b> ${escapeHTMLText(acq.source || '')}${acq.item_code ? ` (item ${escapeHTMLText(acq.item_code)})` : ''}
@@ -430,9 +431,9 @@ async function toggleAssetLifecycle(assetId) {
         &middot; cost ${fmt(a.cost)} &middot; useful life ${a.useful_life_years || 'not set'} yr
         ${a.capitalisation_date ? ` &middot; capitalised ${escapeHTMLText(a.capitalisation_date)}` : ''}
         ${acq.disposal_type ? ` &middot; disposed (${escapeHTMLText(acq.disposal_type)})` : ''}
-        ${acq.disposal_proceeds != null ? ` on ${escapeHTMLText(acq.disposal_date || '')}: proceeds ${assetMoney(acq.disposal_proceeds)} into ${escapeHTMLText(acq.disposal_received_into || '')}, book value ${assetMoney(acq.disposal_book_value)}, ${escapeHTMLText(assetGainLossText(acq.disposal_gain_loss))}` : ''}</div>
-      ${lc.schedule.length ? `<table><thead><tr><th>Year</th><th>From</th><th>To</th><th>Opening</th><th>Depreciation</th><th>Posted</th><th>To come</th><th>Closing</th></tr></thead><tbody>
-        ${lc.schedule.map(s => `<tr class="${s.current ? 'u-fw7' : ''}"><td>${s.year}${s.current ? ' (now)' : ''}</td><td>${escapeHTMLText(s.from)}</td><td>${escapeHTMLText(s.to)}</td><td>${assetMoney(s.opening)}</td><td>${assetMoney(s.depreciation)}</td><td>${assetMoney(s.posted)}${s.months_posted ? ` (${s.months_posted} of ${s.months} mo)` : ''}</td><td>${assetMoney(s.to_come)}</td><td>${assetMoney(s.closing)}</td></tr>`).join('')}
+        ${acq.disposal_proceeds != null ? ` on ${escapeHTMLText(acq.disposal_date || '')}: proceeds ${assetMoney(acq.disposal_proceeds)} into ${escapeHTMLText(acq.disposal_received_into || '')}, book value ${assetMoney(acq.disposal_book_value)}, ${escapeHTMLText(assetGainLossText(acq.disposal_gain_loss))}` : ''}${acq.disposal_reserve_released ? ` &middot; reserve ${assetMoney(acq.disposal_reserve_released)} to retained earnings` : ''}</div>
+      ${lc.schedule.length ? `<table><thead><tr><th>Year</th><th>From</th><th>To</th><th>Opening</th>${adjusted ? '<th>Adjusted</th>' : ''}<th>Depreciation</th><th>Posted</th><th>To come</th><th>Closing</th></tr></thead><tbody>
+        ${lc.schedule.map(s => `<tr class="${s.current ? 'u-fw7' : ''}"><td>${s.year}${s.current ? ' (now)' : ''}</td><td>${escapeHTMLText(s.from)}</td><td>${escapeHTMLText(s.to)}</td><td>${assetMoney(s.opening)}</td>${adjusted ? `<td>${s.adjustment ? assetMoney(s.adjustment) : ''}</td>` : ''}<td>${assetMoney(s.depreciation)}</td><td>${assetMoney(s.posted)}${s.months_posted ? ` (${s.months_posted} of ${s.months} mo)` : ''}</td><td>${assetMoney(s.to_come)}</td><td>${assetMoney(s.closing)}</td></tr>`).join('')}
         </tbody></table>` : '<div class="s-5872de">No schedule until a useful life is set.</div>'}
       ${dep.total_months ? `<div><b>Depreciation:</b> ${assetMoney(dep.monthly_amount)} a month for ${dep.total_months} months &middot; ${dep.months_posted} month(s) posted, ${assetMoney(dep.posted)}${a.status === 'Capitalised' ? ` &middot; ${dep.months_due} month(s) ended so far, ${assetMoney(dep.due)} due` : ''}</div>` : ''}
       ${(dep.postings || []).length ? `<details><summary>Depreciation posted (${dep.postings.length} month${dep.postings.length === 1 ? '' : 's'})</summary>

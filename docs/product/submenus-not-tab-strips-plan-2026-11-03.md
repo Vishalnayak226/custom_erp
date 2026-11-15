@@ -1,3 +1,20 @@
+---
+doc_id: DOC-PRODUCT-SUBMENUS-PLAN
+title: Every page its own submenu entry plan
+type: reference
+status: draft
+owner: product-owner
+approvers: [product-owner]
+audience: [product, engineering]
+applies_to: docs/micro_checklist.md Stage 155
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-11-14
+review_by: 2027-02-12
+supersedes: none
+superseded_by: none
+---
+
 # Every page its own submenu entry - plan (Stage 155, 2026-11-03)
 
 User, 2026-11-03 (screenshot: Financial Accounting ▸ Finance / GL with the strip *Work to review · Trial Balance · Chart of Accounts · Accounting Periods*): *"I want all the one pager in submenus. Ex- I found in Finance / GL. Scan the pages Guide and prepare the plan."*

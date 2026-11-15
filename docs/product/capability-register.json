@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "status": "draft",
+  "status": "approved",
   "owner": "product-owner",
-  "release": "none accepted yet (draft register; product releases are listed under Control Panel > Releases)",
+  "release": "none accepted yet (register approved by the product owner 2026-11-15, ask 193; product releases are listed under Control Panel > Releases)",
   "configurations": [
     {
       "id": "REF-RETAIL-IN",
@@ -84,6 +84,116 @@
       "module_keys": [
         "sales",
         "sales_incentives"
+      ],
+      "checks": [
+        {
+          "id": "BP-079",
+          "domain": "Sales / POS",
+          "capability": "Pricing",
+          "target": "Price list/rules/server authority",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Client cannot choose unauthorized price",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-082",
+          "domain": "Sales / POS",
+          "capability": "Advance/deposit",
+          "target": "Customer advance and redemption",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Advance liability and final bill reconcile",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-083",
+          "domain": "Sales / POS",
+          "capability": "B2B reference",
+          "target": "PO/customer ref and invoice fields",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Reference persists to invoice/report",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.9"
+          ]
+        },
+        {
+          "id": "BP-085",
+          "domain": "Sales / POS",
+          "capability": "Split tender",
+          "target": "Multiple tender lines",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P0",
+          "acceptance_test": "Refund allocates to original tender",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.6"
+          ]
+        },
+        {
+          "id": "BP-086",
+          "domain": "Sales / POS",
+          "capability": "Hold/resume bill",
+          "target": "Park and recover cart safely",
+          "status": "Missing / benchmark gap",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "No duplicate on resume",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.5"
+          ]
+        },
+        {
+          "id": "BP-089",
+          "domain": "Sales / POS",
+          "capability": "Exchange",
+          "target": "Return + new sale/net settlement",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Tax/tender/loyalty reconcile",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.6"
+          ]
+        },
+        {
+          "id": "BP-090",
+          "domain": "Sales / POS",
+          "capability": "Bill edit/change history",
+          "target": "Controlled post-sale metadata edits",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P1",
+          "acceptance_test": "Before/after/actor/reason report",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.8"
+          ]
+        },
+        {
+          "id": "BP-092",
+          "domain": "Sales / POS",
+          "capability": "Void/cancel/reprint",
+          "target": "Controlled cashier actions",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P1",
+          "acceptance_test": "Reason/authority/audit required",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.8"
+          ]
+        }
       ]
     },
     {
@@ -208,6 +318,46 @@
         "wms",
         "stickers",
         "inventory"
+      ],
+      "checks": [
+        {
+          "id": "BP-073",
+          "domain": "WMS",
+          "capability": "Mixed-owner allocation",
+          "target": "Owner-aware demand/allocation",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Adversarial two-owner lifecycle passes",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-076",
+          "domain": "WMS",
+          "capability": "Cross-docking",
+          "target": "Inbound-to-outbound direct flow",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Build only if DC model needs",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-077",
+          "domain": "WMS",
+          "capability": "RF/mobile certification",
+          "target": "Real scanner/device floor test",
+          "status": "External gate",
+          "gap": "Device",
+          "priority": "P0",
+          "acceptance_test": "Supported hardware matrix signed",
+          "evidence": [],
+          "checklist_ref": [
+            "73.B.11"
+          ]
+        }
       ]
     },
     {
@@ -268,6 +418,254 @@
         "oms",
         "custom_orders",
         "wholesale"
+      ],
+      "checks": [
+        {
+          "id": "BP-113",
+          "domain": "OMS / Marketplace",
+          "capability": "Allocation/sourcing",
+          "target": "Best node and owner-safe source",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Allocation respects stock/owner",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-120",
+          "domain": "OMS / Marketplace",
+          "capability": "Cancellation",
+          "target": "Pre/post allocation cancel rules",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Stock/payment/status reversed correctly",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.15"
+          ]
+        },
+        {
+          "id": "BP-122",
+          "domain": "OMS / Marketplace",
+          "capability": "Customer return/refund",
+          "target": "Return Anywhere/QC/refund",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Full return-to-refund accepted",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.6"
+          ]
+        },
+        {
+          "id": "BP-123",
+          "domain": "OMS / Marketplace",
+          "capability": "Marketplace settlement",
+          "target": "Fees/payout/order recon",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Settlement difference explained",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.16"
+          ]
+        },
+        {
+          "id": "BP-124",
+          "domain": "OMS / Marketplace",
+          "capability": "Notifications",
+          "target": "Template/delivery/retry/status",
+          "status": "Partial",
+          "gap": "Integration",
+          "priority": "P1",
+          "acceptance_test": "No false delivery claim",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.13"
+          ]
+        },
+        {
+          "id": "BP-125",
+          "domain": "OMS / Marketplace",
+          "capability": "Connector replay",
+          "target": "Safe retry/reconciliation",
+          "status": "Partial",
+          "gap": "Integration",
+          "priority": "P0",
+          "acceptance_test": "Provider fixture replay proven",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-126",
+          "domain": "OMS / Marketplace",
+          "capability": "Promise/ATP",
+          "target": "Promised date/service promise",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1/P2",
+          "acceptance_test": "Promise tied to supply/lead time",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        },
+        {
+          "id": "BP-127",
+          "domain": "OMS / Marketplace",
+          "capability": "Payment state",
+          "target": "Authorization/capture/refund/chargeback orchestration",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0/P1",
+          "acceptance_test": "Order state reconciles with payment provider",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-128",
+          "domain": "OMS / Marketplace",
+          "capability": "Backorder/preorder",
+          "target": "Controlled future supply commitment",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Promise and allocation rules explicit",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        },
+        {
+          "id": "BP-129",
+          "domain": "OMS / Marketplace",
+          "capability": "Substitution",
+          "target": "Approved alternate item logic",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Customer consent and price/tax preserved",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        },
+        {
+          "id": "BP-130",
+          "domain": "OMS / Marketplace",
+          "capability": "Customer-service mutation",
+          "target": "Address/item/qty changes before cutoff",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P1",
+          "acceptance_test": "Every mutation revalidates tax/stock/payment and audits",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.15"
+          ]
+        },
+        {
+          "id": "BP-131",
+          "domain": "OMS / Marketplace",
+          "capability": "Exchange/replacement",
+          "target": "Replacement/reship linked to original order",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Inventory/refund/payment lineage reconciles",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.15"
+          ]
+        },
+        {
+          "id": "BP-132",
+          "domain": "OMS / Marketplace",
+          "capability": "Unified order timeline",
+          "target": "All internal/external events in one chronology",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Operator sees authoritative next action",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.14"
+          ]
+        },
+        {
+          "id": "BP-133",
+          "domain": "OMS / Marketplace",
+          "capability": "Exception work queues",
+          "target": "Stuck payment/allocation/fulfillment/carrier/return/settlement",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "No failed order requires DB inspection",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.14"
+          ]
+        },
+        {
+          "id": "BP-134",
+          "domain": "OMS / Marketplace",
+          "capability": "Fraud/order risk",
+          "target": "Order screening/hold",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Build if business requires",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        },
+        {
+          "id": "BP-143",
+          "domain": "Logistics",
+          "capability": "Claims",
+          "target": "Lost/damaged carrier claim",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Claim value and recovery track",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        },
+        {
+          "id": "BP-144",
+          "domain": "Logistics",
+          "capability": "Carrier invoice recon",
+          "target": "Freight invoice vs bookings",
+          "status": "Missing / benchmark gap",
+          "gap": "Finance",
+          "priority": "P2",
+          "acceptance_test": "Freight variance explained",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        },
+        {
+          "id": "BP-145",
+          "domain": "Logistics",
+          "capability": "Route/load planning",
+          "target": "Fleet route/load optimization",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if own-fleet scope",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.2"
+          ]
+        }
       ]
     },
     {
@@ -328,6 +726,258 @@
       "module_keys": [
         "pim",
         "master_data"
+      ],
+      "checks": [
+        {
+          "id": "BP-004",
+          "domain": "Core / MDM",
+          "capability": "Item type taxonomy",
+          "target": "Stock/valuated/non-valuated/non-stock/service/backflush/gift/voucher/asset/RM/WIP/FG",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Each type has correct stock/value/sale/purchase/accounting behavior",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-006",
+          "domain": "Core / MDM",
+          "capability": "Duplicate/merge",
+          "target": "Safe merge with references and balances",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Merge preserves documents, loyalty and audit",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-007",
+          "domain": "Core / MDM",
+          "capability": "Effective dating",
+          "target": "Rules/master versions by valid-from/to",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P1",
+          "acceptance_test": "Future rule activates without rewriting prior transactions",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-008",
+          "domain": "Core / MDM",
+          "capability": "Configuration promotion",
+          "target": "Dev/test/prod config export/import/diff",
+          "status": "Missing / benchmark gap",
+          "gap": "Operations",
+          "priority": "P1",
+          "acceptance_test": "Promote approved config without data overwrite",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-009",
+          "domain": "Core / MDM",
+          "capability": "Setup advisor",
+          "target": "Missing dependency -> guided create/fix path",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Novice completes setup without dead end",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-010",
+          "domain": "Core / MDM",
+          "capability": "Data stewardship",
+          "target": "Owner/steward/quality state/provenance",
+          "status": "Partial",
+          "gap": "Governance",
+          "priority": "P2",
+          "acceptance_test": "Critical masters have steward and quality exception queue",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-153",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Supplier submission",
+          "target": "Vendor-scoped content flow",
+          "status": "Partial",
+          "gap": "Security",
+          "priority": "P1",
+          "acceptance_test": "Real supplier isolation tested",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-156",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Resume partial jobs",
+          "target": "Continue failed bulk job",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "No full re-upload needed",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-157",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Schedule/job ownership",
+          "target": "Persistent publish/import schedules",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Owner and status visible",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-158",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Product lifecycle",
+          "target": "Launch/change/phase-out/EOL",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Retired product rules enforced",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-159",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Assortment/ranging",
+          "target": "Store/channel/cluster assortment",
+          "status": "Missing / benchmark gap",
+          "gap": "Retail depth",
+          "priority": "P2",
+          "acceptance_test": "Sell/stock range governed",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-160",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Markdown lifecycle",
+          "target": "Price markdown calendar",
+          "status": "Missing / benchmark gap",
+          "gap": "Retail depth",
+          "priority": "P2",
+          "acceptance_test": "Effective date and approval",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-161",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Taxonomy/categories",
+          "target": "Hierarchies, classifications and inheritance",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Family/category rules drive consistent attributes",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-162",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Localization",
+          "target": "Language/market/channel content variants",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Fallback and market overrides deterministic",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-163",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Data quality stewardship",
+          "target": "Rule violations/owner/remediation queue",
+          "status": "Partial",
+          "gap": "Governance",
+          "priority": "P1",
+          "acceptance_test": "Owner can bulk remediate and revalidate",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-164",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Duplicate/merge",
+          "target": "Golden product duplicate detection and safe merge",
+          "status": "Missing / benchmark gap",
+          "gap": "Governance",
+          "priority": "P2",
+          "acceptance_test": "References and external IDs survive merge",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-165",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Change management",
+          "target": "Effective-dated product revision/change reason",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Historic transaction keeps old product snapshot",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-166",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Digital shelf monitoring",
+          "target": "Channel publish status/content drift",
+          "status": "Missing / benchmark gap",
+          "gap": "Analytics",
+          "priority": "P2",
+          "acceptance_test": "Detect channel drift and stale external content",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        },
+        {
+          "id": "BP-167",
+          "domain": "PIM / PLM / Merchandising",
+          "capability": "Market intelligence",
+          "target": "Competitor observations/alerts",
+          "status": "Optional / scale-gated",
+          "gap": "Scope",
+          "priority": "P3",
+          "acceptance_test": "Only after explicit scope/terms approval",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.4"
+          ]
+        }
       ]
     },
     {
@@ -387,6 +1037,146 @@
       "module_keys": [
         "procurement",
         "rfq"
+      ],
+      "checks": [
+        {
+          "id": "BP-032",
+          "domain": "Procurement",
+          "capability": "RFQ vendor invitation",
+          "target": "Invite vendors and track response",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Vendor assignment/status visible",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.1"
+          ]
+        },
+        {
+          "id": "BP-033",
+          "domain": "Procurement",
+          "capability": "Supplier quotation",
+          "target": "Unit/UOM/tax/freight/lead time/terms",
+          "status": "Partial",
+          "gap": "Policy",
+          "priority": "P1",
+          "acceptance_test": "Comparable total is unambiguous",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.2"
+          ]
+        },
+        {
+          "id": "BP-034",
+          "domain": "Procurement",
+          "capability": "Quote comparison/award",
+          "target": "Score/compare/select/reject",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Award creates controlled follow-on",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.3"
+          ]
+        },
+        {
+          "id": "BP-036",
+          "domain": "Procurement",
+          "capability": "Blanket/contract",
+          "target": "Outline agreement and release PO",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Consumption against contract tracked",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.1"
+          ]
+        },
+        {
+          "id": "BP-037",
+          "domain": "Procurement",
+          "capability": "Service procurement",
+          "target": "Service PO + service entry sheet",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Invoice cannot exceed accepted service",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.1"
+          ]
+        },
+        {
+          "id": "BP-039",
+          "domain": "Procurement",
+          "capability": "GRN",
+          "target": "Partial/rejected/damaged receipt + QC",
+          "status": "Partial",
+          "gap": "Policy",
+          "priority": "P0",
+          "acceptance_test": "Accepted/rejected/open qty reconcile",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.4"
+          ]
+        },
+        {
+          "id": "BP-042",
+          "domain": "Procurement",
+          "capability": "Supplier onboarding",
+          "target": "Qualification/docs/approval",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Approved vendor only can be sourced",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.1"
+          ]
+        },
+        {
+          "id": "BP-043",
+          "domain": "Procurement",
+          "capability": "Supplier scorecard",
+          "target": "OTIF/quality/price/claims",
+          "status": "Missing / benchmark gap",
+          "gap": "Analytics",
+          "priority": "P2",
+          "acceptance_test": "Score derived from transactions",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.1"
+          ]
+        },
+        {
+          "id": "BP-044",
+          "domain": "Procurement",
+          "capability": "Supplier rebates",
+          "target": "Accrual/settlement of incentives",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if commercial model uses rebates",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.1"
+          ]
+        },
+        {
+          "id": "BP-045",
+          "domain": "Procurement",
+          "capability": "Supplier portal",
+          "target": "Quote/ASN/invoice/status collaboration",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Supplier sees only own records",
+          "evidence": [],
+          "checklist_ref": []
+        }
       ]
     },
     {
@@ -446,6 +1236,62 @@
       "module_keys": [
         "inventory",
         "memo_stock"
+      ],
+      "checks": [
+        {
+          "id": "BP-050",
+          "domain": "Inventory",
+          "capability": "Transfer",
+          "target": "Dispatch/in-transit/receive",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "No duplication; partial discrepancy works",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.7"
+          ]
+        },
+        {
+          "id": "BP-053",
+          "domain": "Inventory",
+          "capability": "Transfer tracked identity",
+          "target": "Batch/serial on transfer",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Tracked item transfer retains identity",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.7"
+          ]
+        },
+        {
+          "id": "BP-054",
+          "domain": "Inventory",
+          "capability": "Cycle count",
+          "target": "Blind count/recount/variance",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Variance approved and posted once",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.8"
+          ]
+        },
+        {
+          "id": "BP-059",
+          "domain": "Inventory",
+          "capability": "Owner stock",
+          "target": "Per-owner inventory slices",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "No cross-owner allocation/movement",
+          "evidence": [],
+          "checklist_ref": []
+        }
       ]
     },
     {
@@ -507,6 +1353,301 @@
         "finance",
         "assets",
         "expenses"
+      ],
+      "checks": [
+        {
+          "id": "BP-016",
+          "domain": "Finance",
+          "capability": "Bank reconciliation",
+          "target": "Statement import/match/exception",
+          "status": "Partial",
+          "gap": "Evidence",
+          "priority": "P0",
+          "acceptance_test": "Bank closing = book +/- explained recon items",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.16"
+          ]
+        },
+        {
+          "id": "BP-018",
+          "domain": "Finance",
+          "capability": "Bank connectivity",
+          "target": "Bank API/SFTP acknowledgment and status",
+          "status": "Missing / benchmark gap",
+          "gap": "Integration",
+          "priority": "P2",
+          "acceptance_test": "External status reconciles to payment",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.3"
+          ]
+        },
+        {
+          "id": "BP-027",
+          "domain": "Finance",
+          "capability": "Period close",
+          "target": "Task/reconciliation/lock/reopen",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P0",
+          "acceptance_test": "Closed period blocks normal posting",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.10"
+          ]
+        },
+        {
+          "id": "BP-028",
+          "domain": "Finance",
+          "capability": "GL actor attribution",
+          "target": "User/service identity on postings",
+          "status": "Partial",
+          "gap": "Audit",
+          "priority": "P0",
+          "acceptance_test": "Every GL row attributable to source actor/command",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.9"
+          ]
+        },
+        {
+          "id": "BP-029",
+          "domain": "Finance",
+          "capability": "Lease accounting",
+          "target": "ROU asset/liability/lease payments",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Lease schedule reconciles to GL if in scope",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.3"
+          ]
+        },
+        {
+          "id": "BP-030",
+          "domain": "Finance",
+          "capability": "Treasury/liquidity",
+          "target": "Cash positioning/forecast/risk",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Build only if treasury scope requires",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.3"
+          ]
+        },
+        {
+          "id": "BP-195",
+          "domain": "Assets / EAM",
+          "capability": "Acquisition",
+          "target": "Create/capitalize from AP/PO",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Cost/source link retained",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-199",
+          "domain": "Assets / EAM",
+          "capability": "Impairment/revaluation",
+          "target": "Accounting adjustments",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Only if policy requires",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.6"
+          ]
+        },
+        {
+          "id": "BP-200",
+          "domain": "Assets / EAM",
+          "capability": "CIP/componentization",
+          "target": "Construction in progress/components",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Build if asset profile requires",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.6"
+          ]
+        },
+        {
+          "id": "BP-202",
+          "domain": "Assets / EAM",
+          "capability": "Maintenance work order",
+          "target": "Corrective task/parts/labour",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Cost and downtime captured",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.6"
+          ]
+        },
+        {
+          "id": "BP-203",
+          "domain": "Assets / EAM",
+          "capability": "Meter/counter",
+          "target": "Usage-based maintenance",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if needed",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.6"
+          ]
+        },
+        {
+          "id": "BP-205",
+          "domain": "Assets / EAM",
+          "capability": "Asset leasing",
+          "target": "ROU/lease liability",
+          "status": "Missing / benchmark gap",
+          "gap": "Finance",
+          "priority": "P2",
+          "acceptance_test": "If material leased assets",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.6"
+          ]
+        },
+        {
+          "id": "BP-232",
+          "domain": "Expenses",
+          "capability": "Expense policy",
+          "target": "Limits/category/rules",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Exception approval visible",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-233",
+          "domain": "Expenses",
+          "capability": "Advance settlement",
+          "target": "Advance and final settlement",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Advance liability reconciles",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-234",
+          "domain": "Expenses",
+          "capability": "Travel request",
+          "target": "Trip authorization/booking",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if needed",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-235",
+          "domain": "Expenses",
+          "capability": "Corporate card",
+          "target": "Card feed/match",
+          "status": "Missing / benchmark gap",
+          "gap": "Integration",
+          "priority": "P3",
+          "acceptance_test": "Only if used",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-322",
+          "domain": "India Localization",
+          "capability": "E-invoice/IRN",
+          "target": "Generate/store/cancel/retry",
+          "status": "External gate",
+          "gap": "Regulatory",
+          "priority": "P0",
+          "acceptance_test": "GSP/IRP sandbox + prod evidence",
+          "evidence": [],
+          "checklist_ref": [
+            "20.30"
+          ]
+        },
+        {
+          "id": "BP-323",
+          "domain": "India Localization",
+          "capability": "E-way bill",
+          "target": "Generate/update/cancel/retry",
+          "status": "External gate",
+          "gap": "Regulatory",
+          "priority": "P0",
+          "acceptance_test": "Live applicability/test evidence",
+          "evidence": [],
+          "checklist_ref": [
+            "20.31",
+            "74.4.6"
+          ]
+        },
+        {
+          "id": "BP-324",
+          "domain": "India Localization",
+          "capability": "GST returns/recon",
+          "target": "GSTR extracts and reconciliation",
+          "status": "Missing / benchmark gap",
+          "gap": "Regulatory",
+          "priority": "P1/P2",
+          "acceptance_test": "If ERP owns statutory return process",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        },
+        {
+          "id": "BP-325",
+          "domain": "India Localization",
+          "capability": "Export/LUT/IGST",
+          "target": "International/export tax treatment",
+          "status": "Partial",
+          "gap": "Regulatory",
+          "priority": "P1",
+          "acceptance_test": "CA-approved scenarios",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        },
+        {
+          "id": "BP-328",
+          "domain": "India Localization",
+          "capability": "Retention/audit",
+          "target": "Statutory retention/legal hold",
+          "status": "Partial",
+          "gap": "Regulatory",
+          "priority": "P1",
+          "acceptance_test": "Qualified retention matrix",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        }
       ]
     },
     {
@@ -565,6 +1706,176 @@
       ],
       "module_keys": [
         "crm_loyalty"
+      ],
+      "checks": [
+        {
+          "id": "BP-093",
+          "domain": "CRM / Loyalty",
+          "capability": "Customer 360",
+          "target": "Unified profile and history",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Tier/points/orders/returns/cases visible",
+          "evidence": [],
+          "checklist_ref": [
+            "73.3.2"
+          ]
+        },
+        {
+          "id": "BP-096",
+          "domain": "CRM / Loyalty",
+          "capability": "Tier admin UI",
+          "target": "Configure thresholds/benefits",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Admin can change without API",
+          "evidence": [],
+          "checklist_ref": [
+            "73.3.1"
+          ]
+        },
+        {
+          "id": "BP-099",
+          "domain": "CRM / Loyalty",
+          "capability": "Redemption value UI",
+          "target": "Configured currency per point",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "UI/server totals identical",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.5"
+          ]
+        },
+        {
+          "id": "BP-100",
+          "domain": "CRM / Loyalty",
+          "capability": "POS redemption fraud",
+          "target": "OTP/velocity/manager approval",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P0",
+          "acceptance_test": "Till path enforces controls",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.4"
+          ]
+        },
+        {
+          "id": "BP-101",
+          "domain": "CRM / Loyalty",
+          "capability": "Return earn reversal",
+          "target": "Reverse points earned",
+          "status": "Missing / benchmark gap",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Partial return reverses pro-rata",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.2"
+          ]
+        },
+        {
+          "id": "BP-102",
+          "domain": "CRM / Loyalty",
+          "capability": "Return redeem restore",
+          "target": "Restore points, not cash",
+          "status": "Missing / benchmark gap",
+          "gap": "Correctness",
+          "priority": "P0",
+          "acceptance_test": "Refund tender matches original funding",
+          "evidence": [],
+          "checklist_ref": [
+            "73.1.3"
+          ]
+        },
+        {
+          "id": "BP-103",
+          "domain": "CRM / Loyalty",
+          "capability": "Voucher POS use",
+          "target": "Issued voucher redeem at till",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Voucher validates/redeems atomically",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.10"
+          ]
+        },
+        {
+          "id": "BP-104",
+          "domain": "CRM / Loyalty",
+          "capability": "Gift card",
+          "target": "Stored value lifecycle",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Liability/balance/refund reconcile",
+          "evidence": [],
+          "checklist_ref": [
+            "72.8"
+          ]
+        },
+        {
+          "id": "BP-105",
+          "domain": "CRM / Loyalty",
+          "capability": "Store credit wallet",
+          "target": "Credit note wallet balance",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Separate from loyalty/gift",
+          "evidence": [],
+          "checklist_ref": [
+            "74.2.2"
+          ]
+        },
+        {
+          "id": "BP-108",
+          "domain": "CRM / Loyalty",
+          "capability": "Loyalty liability",
+          "target": "Outstanding/breakage report + GL",
+          "status": "Partial",
+          "gap": "Finance",
+          "priority": "P0",
+          "acceptance_test": "Ledger liability reconciles",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.12"
+          ]
+        },
+        {
+          "id": "BP-109",
+          "domain": "CRM / Loyalty",
+          "capability": "Manual adjustment",
+          "target": "Controlled point adjustment",
+          "status": "Partial",
+          "gap": "Control",
+          "priority": "P1",
+          "acceptance_test": "Reason/approval required",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.11"
+          ]
+        },
+        {
+          "id": "BP-110",
+          "domain": "CRM / Loyalty",
+          "capability": "History at POS",
+          "target": "Balance/tier/history context",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Cashier sees authorized useful context",
+          "evidence": [],
+          "checklist_ref": [
+            "73.3.2"
+          ]
+        }
       ]
     },
     {
@@ -624,6 +1935,270 @@
       ],
       "module_keys": [
         "hr"
+      ],
+      "checks": [
+        {
+          "id": "BP-207",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Jobs/positions",
+          "target": "Position and reporting structure",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Needed for enterprise HCM",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-208",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Recruitment",
+          "target": "Requisition/candidate/hire",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "If recruiting in scope",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-209",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Onboarding",
+          "target": "Joiner tasks/docs/access",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Joiner checklist and identity link",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-213",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Payroll",
+          "target": "Run/calc/export",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0/P1",
+          "acceptance_test": "Gross-net-bank-GL reconcile",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.17"
+          ]
+        },
+        {
+          "id": "BP-215",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Statutory payroll India",
+          "target": "PF/ESI/PT/LWF/TDS etc.",
+          "status": "Missing / benchmark gap",
+          "gap": "Regulatory",
+          "priority": "P1",
+          "acceptance_test": "Qualified payroll owner acceptance",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-216",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Loans/advances",
+          "target": "Employee loan/advance deduction",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Schedule and payroll reconcile",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-217",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Benefits",
+          "target": "Eligibility/enrolment/plans/deductions",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Employee eligibility and payroll deduction reconcile",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-218",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Compensation review",
+          "target": "Merit/increment/bonus planning and approvals",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Effective-dated approved changes reach payroll",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-219",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Performance/appraisal",
+          "target": "Goals/review/cycle",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Lifecycle accepted",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-220",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Continuous feedback/360",
+          "target": "Feedback/check-ins/360 evaluation",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Build if talent scope requires",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-221",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Succession/talent",
+          "target": "Talent pools/succession/readiness/career moves",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Build if enterprise talent scope requires",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-222",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Skills/competencies",
+          "target": "Skill profile/proficiency/gaps",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2/P3",
+          "acceptance_test": "Feeds learning and role planning",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-223",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Training/learning",
+          "target": "Training program/record/certification",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Completion/expiry/compliance visible",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-224",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Grievance",
+          "target": "Case/decision/privacy",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Restricted evidence",
+          "evidence": [],
+          "checklist_ref": [
+            "73.D.2"
+          ]
+        },
+        {
+          "id": "BP-225",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Disciplinary/HR case",
+          "target": "Restricted employee relations workflow",
+          "status": "Missing / benchmark gap",
+          "gap": "Privacy",
+          "priority": "P2",
+          "acceptance_test": "Need-to-know evidence and audit",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-226",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Onboarding/crossboarding",
+          "target": "Joiner/internal move tasks/docs/equipment",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Checklist complete before lifecycle milestone",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-227",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "Offboarding",
+          "target": "Terminate/clearance/access revoke",
+          "status": "Missing / benchmark gap",
+          "gap": "Security",
+          "priority": "P1",
+          "acceptance_test": "Identity disabled and assets cleared",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-228",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "ESS/MSS",
+          "target": "Employee/manager self-service",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1/P2",
+          "acceptance_test": "Role-safe self-service journeys",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        },
+        {
+          "id": "BP-229",
+          "domain": "HRMS / HCM / Payroll",
+          "capability": "People analytics",
+          "target": "Headcount/attrition/absence/payroll/talent metrics",
+          "status": "Partial",
+          "gap": "Analytics",
+          "priority": "P2",
+          "acceptance_test": "Row-level privacy and metric definitions",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.7"
+          ]
+        }
       ]
     },
     {
@@ -683,6 +2258,238 @@
       "module_keys": [
         "manufacturing",
         "quality"
+      ],
+      "checks": [
+        {
+          "id": "BP-169",
+          "domain": "Manufacturing",
+          "capability": "BOM version/effective date",
+          "target": "Controlled BOM revisions",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Historical order retains version",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-174",
+          "domain": "Manufacturing",
+          "capability": "Operation confirmation",
+          "target": "Qty/time/machine/labour by operation",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Partial confirmation/WIP tracked",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-175",
+          "domain": "Manufacturing",
+          "capability": "Scrap/rework",
+          "target": "Scrap/rework/repair flow",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Stock/cost variance correct",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-176",
+          "domain": "Manufacturing",
+          "capability": "Co/by-product",
+          "target": "Multiple outputs",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Yield/cost allocation defined",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-177",
+          "domain": "Manufacturing",
+          "capability": "WIP accounting",
+          "target": "WIP/variance/settlement",
+          "status": "Partial",
+          "gap": "Finance",
+          "priority": "P1",
+          "acceptance_test": "WIP + variance reconcile GL",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-178",
+          "domain": "Manufacturing",
+          "capability": "Batch genealogy",
+          "target": "Input-to-output lot genealogy",
+          "status": "Partial",
+          "gap": "Traceability",
+          "priority": "P1",
+          "acceptance_test": "Recall trace passes",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-180",
+          "domain": "Manufacturing",
+          "capability": "Alternate BOM/routing",
+          "target": "Substitution/alternate process",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Controlled selection",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-181",
+          "domain": "Manufacturing",
+          "capability": "Finite capacity",
+          "target": "Constraint-based schedule",
+          "status": "Optional / scale-gated",
+          "gap": "Scale",
+          "priority": "P3",
+          "acceptance_test": "Build only if needed",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-184",
+          "domain": "Quality",
+          "capability": "Production inspection",
+          "target": "In-process/final QC",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "QC blocks output release",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-185",
+          "domain": "Quality",
+          "capability": "Return inspection",
+          "target": "Customer return QC",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Disposition controls restock",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-190",
+          "domain": "Quality",
+          "capability": "Sampling",
+          "target": "Sampling plans/AQL",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "If inspection volume needs",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-191",
+          "domain": "Quality",
+          "capability": "Supplier quality",
+          "target": "Vendor quality score/SCAR",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Supplier issues feed score",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-192",
+          "domain": "Quality",
+          "capability": "Calibration",
+          "target": "Inspection equipment calibration",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if regulated measurements",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-193",
+          "domain": "Quality",
+          "capability": "Recall",
+          "target": "Forward/backward lot/serial trace",
+          "status": "Partial",
+          "gap": "Traceability",
+          "priority": "P1",
+          "acceptance_test": "Complete customer/source trace",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.5"
+          ]
+        },
+        {
+          "id": "BP-249",
+          "domain": "Planning",
+          "capability": "Supply proposals",
+          "target": "Purchase/transfer/production recommendations",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P1",
+          "acceptance_test": "Planner approves proposals",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.18"
+          ]
+        },
+        {
+          "id": "BP-252",
+          "domain": "Planning",
+          "capability": "Scenario planning",
+          "target": "What-if versions",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Optional",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-253",
+          "domain": "Planning",
+          "capability": "S&OP",
+          "target": "Consensus demand/supply/finance plan",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if scale warrants",
+          "evidence": [],
+          "checklist_ref": []
+        }
       ]
     },
     {
@@ -743,6 +2550,120 @@
       ],
       "module_keys": [
         "service"
+      ],
+      "checks": [
+        {
+          "id": "BP-237",
+          "domain": "Projects / Service",
+          "capability": "WBS/milestones",
+          "target": "Structured project plan",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "If project business in scope",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-238",
+          "domain": "Projects / Service",
+          "capability": "Project budget",
+          "target": "Budget/forecast/actual",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Variance visible",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-239",
+          "domain": "Projects / Service",
+          "capability": "Resource/timesheet",
+          "target": "Resource assignment/time",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "If services business",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-240",
+          "domain": "Projects / Service",
+          "capability": "Project billing",
+          "target": "T&M/fixed/milestone billing",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Invoice linked to approved basis",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-241",
+          "domain": "Projects / Service",
+          "capability": "Project revenue recognition",
+          "target": "Deferred/accrued project revenue",
+          "status": "Partial",
+          "gap": "Finance",
+          "priority": "P2",
+          "acceptance_test": "Revenue policy reconciles",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-243",
+          "domain": "Projects / Service",
+          "capability": "SLA/escalation",
+          "target": "Service SLA timers/escalation",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Overdue queue/action",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-245",
+          "domain": "Projects / Service",
+          "capability": "Field service",
+          "target": "Schedule/dispatch/parts/time",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P3",
+          "acceptance_test": "Only if field service scope",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        },
+        {
+          "id": "BP-246",
+          "domain": "Projects / Service",
+          "capability": "Knowledge base",
+          "target": "Resolved case -> knowledge",
+          "status": "Missing / benchmark gap",
+          "gap": "UX",
+          "priority": "P3",
+          "acceptance_test": "Optional",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.8"
+          ]
+        }
       ]
     },
     {
@@ -806,6 +2727,540 @@
         "integrations",
         "reports",
         "ai_access"
+      ],
+      "checks": [
+        {
+          "id": "BP-259",
+          "domain": "Reporting / BI",
+          "capability": "Drill-through",
+          "target": "Report row -> source",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Authorized source opens",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.19"
+          ]
+        },
+        {
+          "id": "BP-260",
+          "domain": "Reporting / BI",
+          "capability": "Control totals",
+          "target": "Detail/summary reconciliation",
+          "status": "Partial",
+          "gap": "Correctness",
+          "priority": "P0/P1",
+          "acceptance_test": "Totals match ledger/source",
+          "evidence": [],
+          "checklist_ref": [
+            "73.2.19"
+          ]
+        },
+        {
+          "id": "BP-262",
+          "domain": "Reporting / BI",
+          "capability": "Semantic KPI catalog",
+          "target": "Metric owner/grain/formula",
+          "status": "Missing / benchmark gap",
+          "gap": "Governance",
+          "priority": "P2",
+          "acceptance_test": "One meaning per KPI",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-263",
+          "domain": "Reporting / BI",
+          "capability": "Data mart/read replica",
+          "target": "Separate BI workload",
+          "status": "Optional / scale-gated",
+          "gap": "Scale",
+          "priority": "P3",
+          "acceptance_test": "Only after thresholds",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-268",
+          "domain": "Workflow / Notifications",
+          "capability": "Workflow designer",
+          "target": "Cross-module declarative workflow",
+          "status": "Partial",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Reuse one engine",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-269",
+          "domain": "Workflow / Notifications",
+          "capability": "Delegation/substitution",
+          "target": "Out-of-office approval delegate",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Time-bounded audited delegate",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-270",
+          "domain": "Workflow / Notifications",
+          "capability": "SLA/escalation",
+          "target": "Due dates/escalations",
+          "status": "Missing / benchmark gap",
+          "gap": "Functional depth",
+          "priority": "P2",
+          "acceptance_test": "Escalation deterministic",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-271",
+          "domain": "Workflow / Notifications",
+          "capability": "Task inbox",
+          "target": "Personal/role work queue",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "All pending actions visible",
+          "evidence": [],
+          "checklist_ref": [
+            "73.3.3"
+          ]
+        },
+        {
+          "id": "BP-275",
+          "domain": "Integrations",
+          "capability": "OAuth2 client auth",
+          "target": "Standard delegated/client auth",
+          "status": "Partial",
+          "gap": "Security",
+          "priority": "P2",
+          "acceptance_test": "If enterprise integrations require",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-281",
+          "domain": "Integrations",
+          "capability": "EDI/SFTP batch",
+          "target": "Enterprise batch interface",
+          "status": "Missing / benchmark gap",
+          "gap": "Integration",
+          "priority": "P2",
+          "acceptance_test": "If partner/bank needs",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-282",
+          "domain": "Integrations",
+          "capability": "Provider live acceptance",
+          "target": "Real contract/provider tests",
+          "status": "External gate",
+          "gap": "External",
+          "priority": "P0",
+          "acceptance_test": "Per provider sign-off",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-287",
+          "domain": "Security / GRC / Audit",
+          "capability": "SSO",
+          "target": "OIDC/SAML",
+          "status": "Missing / benchmark gap",
+          "gap": "Security",
+          "priority": "P2",
+          "acceptance_test": "If enterprise clients require",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-288",
+          "domain": "Security / GRC / Audit",
+          "capability": "SCIM/provisioning",
+          "target": "Directory user lifecycle",
+          "status": "Missing / benchmark gap",
+          "gap": "Security",
+          "priority": "P3",
+          "acceptance_test": "If enterprise clients require",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-290",
+          "domain": "Security / GRC / Audit",
+          "capability": "Access recertification",
+          "target": "Periodic review of grants",
+          "status": "Missing / benchmark gap",
+          "gap": "GRC",
+          "priority": "P2",
+          "acceptance_test": "Owner signs access review",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-292",
+          "domain": "Security / GRC / Audit",
+          "capability": "Audit archive/restore",
+          "target": "Archive/legal hold/restore proof",
+          "status": "Partial",
+          "gap": "Security",
+          "priority": "P0",
+          "acceptance_test": "Restore and verify archived evidence",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-293",
+          "domain": "Security / GRC / Audit",
+          "capability": "Security monitoring",
+          "target": "Detection/alert taxonomy",
+          "status": "Partial",
+          "gap": "Operations",
+          "priority": "P1",
+          "acceptance_test": "Injected events detected",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-294",
+          "domain": "Security / GRC / Audit",
+          "capability": "Pentest/DAST",
+          "target": "Independent application/API test",
+          "status": "External gate",
+          "gap": "Security",
+          "priority": "P0",
+          "acceptance_test": "High/critical retested",
+          "evidence": [],
+          "checklist_ref": [
+            "49.10.4",
+            "49.10.7"
+          ]
+        },
+        {
+          "id": "BP-295",
+          "domain": "Security / GRC / Audit",
+          "capability": "Incident response",
+          "target": "Contain/forensics/notification drills",
+          "status": "Partial",
+          "gap": "Operations",
+          "priority": "P1",
+          "acceptance_test": "Tabletop + technical drills",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-296",
+          "domain": "Security / GRC / Audit",
+          "capability": "WAF/edge",
+          "target": "Managed WAF/origin lock",
+          "status": "External gate",
+          "gap": "Security",
+          "priority": "P0",
+          "acceptance_test": "Production edge verified",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-305",
+          "domain": "Platform / Tenancy",
+          "capability": "Feature flags",
+          "target": "Controlled rollout",
+          "status": "Missing / benchmark gap",
+          "gap": "Release",
+          "priority": "P2",
+          "acceptance_test": "Risky feature can be canaried",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-306",
+          "domain": "Platform / Tenancy",
+          "capability": "Config transport",
+          "target": "Promote config across env",
+          "status": "Missing / benchmark gap",
+          "gap": "Operations",
+          "priority": "P1",
+          "acceptance_test": "Diff/review/promote",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.9"
+          ]
+        },
+        {
+          "id": "BP-312",
+          "domain": "Operations / Release",
+          "capability": "Ops alerts",
+          "target": "Real webhook + responder/escalation",
+          "status": "External gate",
+          "gap": "Operations",
+          "priority": "P0",
+          "acceptance_test": "Alert delivery drill",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-314",
+          "domain": "Operations / Release",
+          "capability": "Restore drill",
+          "target": "Isolated restore + reconcile",
+          "status": "Partial",
+          "gap": "Operations",
+          "priority": "P0",
+          "acceptance_test": "RPO/RTO measured",
+          "evidence": [],
+          "checklist_ref": [
+            "49.13.5"
+          ]
+        },
+        {
+          "id": "BP-315",
+          "domain": "Operations / Release",
+          "capability": "WAF/hosting",
+          "target": "Production edge/provider posture",
+          "status": "External gate",
+          "gap": "Operations",
+          "priority": "P0",
+          "acceptance_test": "Signed go-live decision",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-316",
+          "domain": "Operations / Release",
+          "capability": "Performance",
+          "target": "Representative load/device tests",
+          "status": "Partial",
+          "gap": "Scale",
+          "priority": "P1",
+          "acceptance_test": "SLOs met",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-317",
+          "domain": "Operations / Release",
+          "capability": "Business UAT",
+          "target": "Real user sign-off",
+          "status": "External gate",
+          "gap": "Acceptance",
+          "priority": "P0",
+          "acceptance_test": "Defect closure + sign-off",
+          "evidence": [],
+          "checklist_ref": [
+            "74.U.1"
+          ]
+        },
+        {
+          "id": "BP-318",
+          "domain": "Operations / Release",
+          "capability": "Hypercare",
+          "target": "Named owner/rollback triggers",
+          "status": "External gate",
+          "gap": "Operations",
+          "priority": "P0",
+          "acceptance_test": "Pilot support plan active",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-329",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "Responsive UI",
+          "target": "Desktop/tablet/phone layouts",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Reference viewport pass",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-330",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "RF scan UX",
+          "target": "Scan-first WMS",
+          "status": "Partial",
+          "gap": "Device",
+          "priority": "P0/P1",
+          "acceptance_test": "Real RF device pass",
+          "evidence": [],
+          "checklist_ref": [
+            "73.B.11"
+          ]
+        },
+        {
+          "id": "BP-332",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "Offline WMS",
+          "target": "Defined degraded behavior",
+          "status": "Missing / benchmark gap",
+          "gap": "Device",
+          "priority": "P2",
+          "acceptance_test": "If warehouse requires",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-333",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "Silent printing",
+          "target": "Printer bridge/QZ",
+          "status": "Partial",
+          "gap": "External gate",
+          "priority": "P1",
+          "acceptance_test": "Physical printer signed",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-334",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "Barcode scanning",
+          "target": "Code128/QR/device scanner",
+          "status": "Partial",
+          "gap": "Device",
+          "priority": "P1",
+          "acceptance_test": "Real scanner signed",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-335",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "Card terminal",
+          "target": "Mapped terminal/payment settlement",
+          "status": "External gate",
+          "gap": "External",
+          "priority": "P0",
+          "acceptance_test": "Real terminal settlement pass",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-336",
+          "domain": "Mobile / Devices / Accessibility",
+          "capability": "Accessibility",
+          "target": "WCAG 2.2 AA target",
+          "status": "Partial",
+          "gap": "UX",
+          "priority": "P1",
+          "acceptance_test": "Keyboard/screen-reader/zoom evidence",
+          "evidence": [],
+          "checklist_ref": []
+        },
+        {
+          "id": "BP-338",
+          "domain": "Data / Privacy / Migration",
+          "capability": "Migration framework",
+          "target": "Dependency/mapping/recon/cutover",
+          "status": "Partial",
+          "gap": "Governance",
+          "priority": "P1",
+          "acceptance_test": "Counts/qty/value balance",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        },
+        {
+          "id": "BP-342",
+          "domain": "Data / Privacy / Migration",
+          "capability": "Privacy rights - employee/vendor",
+          "target": "Subject rights beyond customer",
+          "status": "Partial",
+          "gap": "Privacy",
+          "priority": "P1",
+          "acceptance_test": "Applicable subjects supported",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        },
+        {
+          "id": "BP-343",
+          "domain": "Data / Privacy / Migration",
+          "capability": "Consent/preferences",
+          "target": "Purpose/channel preference",
+          "status": "Partial",
+          "gap": "Privacy",
+          "priority": "P2",
+          "acceptance_test": "Marketing suppression enforced",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10",
+            "49.6.8"
+          ]
+        },
+        {
+          "id": "BP-344",
+          "domain": "Data / Privacy / Migration",
+          "capability": "Retention/archive",
+          "target": "Policy/hold/archive/restore",
+          "status": "Partial",
+          "gap": "Governance",
+          "priority": "P0/P1",
+          "acceptance_test": "No uncontrolled deletion",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        },
+        {
+          "id": "BP-345",
+          "domain": "Data / Privacy / Migration",
+          "capability": "Test data masking",
+          "target": "Safe non-prod datasets",
+          "status": "Missing / benchmark gap",
+          "gap": "Security",
+          "priority": "P1",
+          "acceptance_test": "No production PII/secrets in test",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        },
+        {
+          "id": "BP-346",
+          "domain": "Data / Privacy / Migration",
+          "capability": "Data quality queue",
+          "target": "Rule violations/owner/remediation",
+          "status": "Missing / benchmark gap",
+          "gap": "Governance",
+          "priority": "P2",
+          "acceptance_test": "Exceptions measurable 15. Reference basis 15.1 Supplied project evidence • README.md - project structure and technical reference index. • current-architecture.md - current topology, trust boundaries, transaction/idempotency caveats and owner isolation limits. • ai_handover.md - latest development/release state and recent committed/uncommitted/deployed work.",
+          "evidence": [],
+          "checklist_ref": [
+            "73.4.10"
+          ]
+        }
       ]
     },
     {
@@ -869,5 +3324,6 @@
   ],
   "common_requirements": [
     "docs/requirements/nonfunctional-requirements.md"
-  ]
+  ],
+  "checks_source": "Enterprise_Business_Platform_Suite_Completion_Blueprint.pdf v1.0, section 14 (346 rows, read 2026-10-17): the 179 rows that are not Built - verify, by the owner's choice (73.0.2, ask 175/178). The 167 Built - verify rows are proven through the journeys (73.J)."
 }

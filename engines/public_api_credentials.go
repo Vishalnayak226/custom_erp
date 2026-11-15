@@ -269,11 +269,33 @@ func ListAPICredentials(tenantID string) ([]APICredential, error) {
 	return out, nil
 }
 
+// requirePublicAPITenantServing (BLD-028) is the lifecycle gate every public API
+// entry point passes: an API key, an OAuth token or a client-credentials
+// exchange of a suspended, trial-over, deprovisioning or purged client is
+// refused with the same single answer as a wrong key. A key is a credential of
+// the client, so it stops and resumes with the client; a database failure stays
+// distinct so the caller retries instead of reading it as a rejection.
+func requirePublicAPITenantServing(tenantID string) error {
+	operational, err := TenantIsOperational(tenantID)
+	switch {
+	case errors.Is(err, ErrTenantNotRegistered):
+		return ErrInvalidAPICredential
+	case err != nil:
+		return err
+	case !operational:
+		return ErrInvalidAPICredential
+	}
+	return nil
+}
+
 // AuthenticateAPICredential always returns the same public error for an
 // unknown prefix, malformed key, revoked key, expired key, or hash mismatch.
 // Callers cannot use the endpoint to enumerate which credential prefixes are
 // real. This is intentionally separate from user/extension-token parsing.
 func AuthenticateAPICredential(tenantID, rawKey string) (*APICredential, error) {
+	if err := requirePublicAPITenantServing(tenantID); err != nil {
+		return nil, err
+	}
 	rawKey = strings.TrimSpace(rawKey)
 	prefix, err := publicAPIKeyPrefix(rawKey)
 	if err != nil {

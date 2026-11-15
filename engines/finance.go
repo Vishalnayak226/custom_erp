@@ -95,6 +95,10 @@ type PostingOptions struct {
 	// belongs to (a caller that posts one call per line). Empty is the whole
 	// document. Rows given through Lines name their own line on the PostingLine.
 	SourceLineID string
+	// Stage 148.4b. ControlChosen says the caller already picked the
+	// receivable / payable account each amount clears (a refund against one
+	// invoice), so the group remap leaves the posting alone.
+	ControlChosen bool
 }
 
 // postedAtSQL is the created_at value of a posting with PostedAt set, as SQL
@@ -234,6 +238,12 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 	}
 	// Stage 148.25: a sales posting in a month whose GSTR-1 is filed, or a period On Hold.
 	if err := checkSalesMonthLockedTx(tx, schema, docType, docID, postingKey, transactionDate); err != nil {
+		return err
+	}
+	// Stage 148.4b: 1300 / 2100 become the party group's receivable / payable
+	// account, or the one the document's invoice or bill already used.
+	debits, credits, opt, err := remapControlAccountsTx(tx, tenantID, schema, docID, debits, credits, opt)
+	if err != nil {
 		return err
 	}
 	// Stage 148.5: every account must be in the chart and not blocked.
@@ -524,22 +534,6 @@ func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter
 	}, nil
 }
 
-// PostGRNFinanceBooking creates dynamic financial postings for warehouse
-// receiving. amount is rupees; converted to paise at this boundary since
-// this function has no caller anywhere in the repo today (dead code) and so
-// no upstream float to convert from instead.
-func PostGRNFinanceBooking(tenantID string, grnID string, amount int) error {
-	if amount <= 0 {
-		return errors.New("GRN transaction value must be positive")
-	}
-
-	amountPaise := RupeesToPaise(float64(amount))
-	debits := map[string]int64{"1200": amountPaise}  // Debit: Inventory Control Account
-	credits := map[string]int64{"2100": amountPaise} // Credit: GRN Suspense Account
-
-	return PostDoubleEntry(tenantID, "GRN", grnID, debits, credits, "", fmt.Sprintf("GRN:%s:RECEIPT", grnID))
-}
-
 // paymentModeClearingAccount maps a POS payment mode to the GL asset
 // account it settles into (Stage 20.9). Unknown/empty modes fall back to
 // 1100 (Cash) - the behavior every payment mode had before this stage.
@@ -650,7 +644,8 @@ func postSalesFinanceBookingRoundedTx(tx *sql.Tx, schema, tenantID, checkoutID s
 		revenueDebits[accountRoundOff] = -roundOff
 	}
 	if salePrice > 0 {
-		if err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID)); err != nil {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID),
+			withSourceLines(schema, nil, revenueDebits, revenueCredits, posCartLineShares(tx, schema, tenantID, checkoutID, false))...); err != nil {
 			return err
 		}
 	}
@@ -664,7 +659,8 @@ func postSalesFinanceBookingRoundedTx(tx *sql.Tx, schema, tenantID, checkoutID s
 		return nil
 	}
 	cogsDebits, cogsCredits := posCOGSAccounts(tx, schema, tenantID, checkoutID, costPrice) // Dr 5100 COGS / Cr 1200 Inventory unless a profile moves an item group
-	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID))
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID),
+		withSourceLines(schema, nil, cogsDebits, cogsCredits, posCartLineShares(tx, schema, tenantID, checkoutID, true))...)
 }
 
 // PostSalesGSTBooking books the output-tax liability split for a completed
@@ -717,7 +713,8 @@ func PostSalesGSTBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, brea
 		credits["2200"] = paiseCGST // GST Output Payable - CGST
 		credits["2201"] = paiseSGST // GST Output Payable - SGST
 	}
-	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID))
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID),
+		withSourceLines(schema, nil, debits, credits, posCartLineShares(tx, schema, tenantID, checkoutID, false))...)
 }
 
 // PostExemptSalesReclass (Stage 26.6.11) is the non-taxable counterpart of
@@ -780,5 +777,6 @@ func PostExemptSalesReclassTx(tx *sql.Tx, schema, tenantID, checkoutID string, b
 	if paiseZeroRated > 0 {
 		credits["4112"] = paiseZeroRated // Zero-Rated Sales Revenue
 	}
-	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_EXEMPT", checkoutID))
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_EXEMPT", checkoutID),
+		withSourceLines(schema, nil, debits, credits, posCartLineShares(tx, schema, tenantID, checkoutID, false))...)
 }

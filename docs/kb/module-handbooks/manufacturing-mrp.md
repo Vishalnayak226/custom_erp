@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 100
 summary: Build a multi-level BOM, run a production order through routing/QC/completion, and let MRP tell you what to build next and what raw materials that would need.
 audience: production planner, plant manager, admin
-last_verified: 2026-09-03
+last_verified: 2026-11-15
 screens: [manufacturing]
 doc_id: DOC-701A5D19A5
 type: procedure
@@ -67,7 +67,7 @@ everything below is edited on the BOM record itself under **Setup**.
   automatically; with no default configured, the most recently created
   Active BOM for that item is used instead — so a tenant with exactly one
   BOM per item behaves exactly as if this feature didn't exist.
-- **QC Required** (Yes/No) and **Standard Cost** are both optional fields on
+- **Quality Inspection Required** (Yes/No) and **Standard Cost per Unit** are both optional fields on
   the BOM that gate/inform later steps — see Quality and Costing below.
 
 ## Running a production order
@@ -109,7 +109,7 @@ everything below is edited on the BOM record itself under **Setup**.
 
 ## Quality gate before completion
 
-If a BOM's **QC Required** is Yes, the *last* unit of a production order
+If a BOM's **Quality Inspection Required** is Yes, the *last* unit of a production order
 cannot complete until a **Quality Inspection** record for that order has
 been submitted and Approved through the ordinary maker-checker approval
 flow. The result recorded on that inspection is what decides the outcome:
@@ -158,7 +158,7 @@ sub-order loop, which is a deliberate scope line, not an oversight.
 
 ## MRP: what to build next
 
-**MRP tab** (`GET /api/v1/manufacturing/mrp-suggestions`, a location + lead
+**MRP Suggestions** tab (`GET /api/v1/manufacturing/mrp-suggestions`, a location + lead
 time + safety stock) reuses the same reorder-point formula the inventory
 replenishment suggestions use — recent sales velocity × lead time, plus
 safety stock — but applied to a manufactured item's *finished-good* stock
@@ -173,7 +173,7 @@ someone acts on it.
 
 ## Production scheduling: finite vs. infinite
 
-**Schedule tab** (`GET /api/v1/manufacturing/production-schedule`) sequences
+**Production Schedule** tab (`GET /api/v1/manufacturing/production-schedule`) sequences
 every open, routed production order's operations against each work center's
 configured capacity, and shows two dates side by side for every operation:
 

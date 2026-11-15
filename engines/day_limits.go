@@ -187,6 +187,9 @@ func runDayLimitJobs(schema string) error {
 	if err := RunPOApprovalReminders(tenantID, schema); err != nil { // Stage 146.4.6(a)
 		log.Printf("[DAYLIMITS] PO approval reminders: %v", err)
 	}
+	if err := RunApprovalReminders(tenantID, schema); err != nil { // 73.4.9 (settings 0 = off)
+		log.Printf("[DAYLIMITS] approval reminders: %v", err)
+	}
 	if err := RunVendorAgreementExpiryAlerts(tenantID, schema); err != nil { // Stage 148.6
 		log.Printf("[DAYLIMITS] vendor agreement expiry alerts: %v", err)
 	}

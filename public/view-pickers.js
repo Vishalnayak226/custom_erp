@@ -9,10 +9,8 @@
 
 // The widgets' styles travel with them, injected once on first load, for the
 // same budget reason (styles.css is part of the cold core).
-if (!document.getElementById('view-pickers-css')) {
-  const style = document.createElement('style');
-  style.id = 'view-pickers-css';
-  style.textContent = `
+// 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
+adoptCss('view-pickers-css', `
 /* Inline quick-create (57.2) opens on top of a form that is already open. */
 .modal-overlay.quick-create-overlay { z-index: 120; }
 .quick-create-overlay .modal-footer { align-items: center; }
@@ -100,9 +98,7 @@ if (!document.getElementById('view-pickers-css')) {
 .value-chip button { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
 .value-chip button:hover { color: var(--danger-color); background: var(--surface-subtle); }
 .value-add { display: flex; gap: 8px; margin-top: 8px; max-width: 420px; }
-`;
-  document.head.appendChild(style);
-}
+`);
 
 // ---------------------------------------------------------------------------
 // One date picker for every date field (Stage 57.6)
@@ -631,7 +627,7 @@ async function openCustomerForm({ id = '', phone = '', name = '', title = '', ne
       const type = n === 'phone' ? 'tel' : n === 'email' ? 'email' : f.fieldtype === 'Date' ? 'date'
         : (f.fieldtype === 'Number' || f.fieldtype === 'Currency') ? 'number' : 'text';
       const extra = n === 'phone' ? 'inputmode="tel"' : n === 'pincode' ? 'inputmode="numeric"'
-        : ['gstin', 'pan', 'code'].includes(n) ? `maxlength="${n === 'pan' ? 10 : 20}" style="text-transform:uppercase"` : type === 'number' ? 'step="any"' : '';
+        : ['gstin', 'pan', 'code'].includes(n) ? `maxlength="${n === 'pan' ? 10 : 20}" data-css="text-transform:uppercase"` : type === 'number' ? 'step="any"' : '';
       input = `<input type="${type}" ${at} class="form-input" value="${v}" autocomplete="off" ${extra}>`;
     }
     return `<div class="form-group"><label class="form-label" for="cf-${escapeHTMLText(n)}">${escapeHTMLText(labelOf(n))}${required.has(n) ? '<span class="required">*</span>' : ''}${n === 'gstin' ? ' <span class="txn-hint">(makes it a GST bill)</span>' : ''}</label>${input}</div>`;

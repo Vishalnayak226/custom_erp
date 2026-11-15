@@ -220,3 +220,247 @@ func grnInventoryDebits(tenantID, grnID, poID string, lines []groupLine, total i
 	out, _ := accountsByItemGroup(tenantID, PostingEventGRNReceipt, "debit", "1200", total, ctx, lines)
 	return out
 }
+
+// Stage 148.4b: receivables and payables by party group. A receivable_control
+// / payable_control profile names the account a customer group's receivables
+// (a vendor group's payables) sit on in place of 1300 / 2100. The remap is one
+// step in PostDoubleEntryTx, so no caller changes. A posting that touches
+// 1300 or 2100 takes
+//  1. the control account its own document, or a document it names (an *_id
+//     field), already used - so a receipt, payment, note or reversal clears
+//     the account the invoice or bill went to, even after the party changed
+//     group;
+//  2. else the account the profile gives the party's group;
+//  3. else 1300 / 2100.
+//
+// With no profile for the event nothing more is read and the journal is the
+// same as before. A document's own data keeps 1300 / 2100 as the logical key
+// (open legs, payment basis); only gl_postings carries the group's account.
+type controlKind struct {
+	base, event, partyDoctype, groupField string
+	partyFields                           []string
+}
+
+var controlKinds = []controlKind{
+	{base: "1300", event: PostingEventReceivableControl, partyDoctype: "Customer", groupField: "customer_group", partyFields: []string{"customer", "customer_id"}},
+	{base: "2100", event: PostingEventPayableControl, partyDoctype: "Vendor", groupField: "vendor_group", partyFields: []string{"vendor", "vendor_id", "supplier_id", "supplier"}},
+}
+
+func controlKindForEvent(event string) (controlKind, bool) {
+	for _, k := range controlKinds {
+		if k.event == event {
+			return k, true
+		}
+	}
+	return controlKind{}, false
+}
+
+type rowsQueryer interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}
+
+// ControlAccounts is the receivable (base "1300") or payable ("2100") control
+// accounts: the base and every account a profile for it ever named, whatever
+// the profile's status now - a report or check reads them all.
+func ControlAccounts(q rowsQueryer, schema, base string) []string {
+	out := []string{base}
+	var k controlKind
+	for _, c := range controlKinds {
+		if c.base == base {
+			k = c
+		}
+	}
+	if k.event == "" {
+		return out
+	}
+	rows, err := q.Query(fmt.Sprintf(`
+		SELECT DISTINCT a FROM (
+		  SELECT NULLIF(TRIM(data->>'debit_account'), '') AS a FROM %[1]s.documents WHERE doctype = 'PostingProfile' AND data->>'event' = $1
+		  UNION ALL
+		  SELECT NULLIF(TRIM(data->>'credit_account'), '') FROM %[1]s.documents WHERE doctype = 'PostingProfile' AND data->>'event' = $1) s
+		 WHERE a IS NOT NULL AND a <> $2 ORDER BY a`, schema), k.event, base)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var a string
+		if rows.Scan(&a) == nil {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// ControlAccountsArray is ControlAccounts as a Postgres text[] literal, for
+// "account_code = ANY($n)".
+func ControlAccountsArray(q rowsQueryer, schema, base string) string {
+	return pqStringArray(ControlAccounts(q, schema, base))
+}
+
+// controlAccountsIn is ControlAccounts as a SQL subquery, for a reader's
+// "account_code IN <it>". base is one of the two constants, never input.
+func controlAccountsIn(schema, base string) string {
+	event := ""
+	for _, k := range controlKinds {
+		if k.base == base {
+			event = k.event
+		}
+	}
+	if event == "" {
+		return "('" + base + "')"
+	}
+	return fmt.Sprintf(`(SELECT '%[2]s' UNION SELECT NULLIF(TRIM(cp.data->>'debit_account'), '') FROM %[1]s.documents cp WHERE cp.doctype = 'PostingProfile' AND cp.data->>'event' = '%[3]s'
+		UNION SELECT NULLIF(TRIM(cp.data->>'credit_account'), '') FROM %[1]s.documents cp WHERE cp.doctype = 'PostingProfile' AND cp.data->>'event' = '%[3]s')`, schema, base, event)
+}
+
+// ControlAccountForDocsTx is the control account the first of docIDs that
+// posted to one already used (base when none did) - for a caller that clears
+// several invoices in one posting, or one it does not name in its data.
+func ControlAccountForDocsTx(tx *sql.Tx, schema, base string, docIDs ...string) (string, error) {
+	set := ControlAccounts(tx, schema, base)
+	if len(set) < 2 {
+		return base, nil
+	}
+	acct, found, err := usedControlAccountTx(tx, schema, set, docIDs)
+	if err != nil || !found {
+		return base, err
+	}
+	return acct, nil
+}
+
+// usedControlAccountTx: the first id in ids (in order) with a posting on one
+// of set, and the account it used.
+func usedControlAccountTx(tx *sql.Tx, schema string, set, ids []string) (string, bool, error) {
+	var acct string
+	err := tx.QueryRow(fmt.Sprintf(`
+		SELECT account_code FROM %s.gl_postings
+		 WHERE document_id = ANY($1::text[]) AND account_code = ANY($2::text[])
+		 ORDER BY array_position($1::text[], document_id::text), created_at, posting_id LIMIT 1`, schema),
+		pqStringArray(ids), pqStringArray(set)).Scan(&acct)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	return acct, err == nil, err
+}
+
+// remapControlAccountsTx moves 1300 / 2100 in a posting to the control account
+// chosen as the comment above says. The caller's maps are never changed.
+func remapControlAccountsTx(tx *sql.Tx, tenantID, schema, docID string, debits, credits map[string]int64, opt PostingOptions) (map[string]int64, map[string]int64, PostingOptions, error) {
+	if opt.ControlChosen {
+		return debits, credits, opt, nil
+	}
+	var data map[string]interface{}
+	loaded := false
+	for _, k := range controlKinds {
+		if !postingUsesAccount(k.base, debits, credits, opt.Lines) {
+			continue
+		}
+		set := ControlAccounts(tx, schema, k.base)
+		if len(set) < 2 {
+			continue
+		}
+		if !loaded {
+			data, loaded = postingDocDataTx(tx, schema, docID), true
+		}
+		ids := []string{docID}
+		for key, v := range data {
+			if s, ok := v.(string); ok && strings.HasSuffix(key, "_id") && strings.TrimSpace(s) != "" && strings.TrimSpace(s) != docID {
+				ids = append(ids, strings.TrimSpace(s))
+			}
+		}
+		acct, found, err := usedControlAccountTx(tx, schema, set, ids)
+		if err != nil {
+			return nil, nil, opt, err
+		}
+		if !found {
+			acct = groupControlAccount(tenantID, k, data)
+		}
+		if acct == k.base {
+			continue
+		}
+		debits, credits = moveAccount(debits, k.base, acct), moveAccount(credits, k.base, acct)
+		opt.TransactionDebits, opt.TransactionCredits = moveAccount(opt.TransactionDebits, k.base, acct), moveAccount(opt.TransactionCredits, k.base, acct)
+		if len(opt.Lines) > 0 {
+			lines := append([]PostingLine(nil), opt.Lines...)
+			for i := range lines {
+				if lines[i].Account == k.base {
+					lines[i].Account = acct
+				}
+			}
+			opt.Lines = lines
+		}
+	}
+	return debits, credits, opt, nil
+}
+
+func postingUsesAccount(acct string, debits, credits map[string]int64, lines []PostingLine) bool {
+	if debits[acct] != 0 || credits[acct] != 0 {
+		return true
+	}
+	for _, l := range lines {
+		if l.Account == acct {
+			return true
+		}
+	}
+	return false
+}
+
+// postingDocDataTx is the posting document's data, nil when it is not stored
+// (yet).
+func postingDocDataTx(tx *sql.Tx, schema, docID string) map[string]interface{} {
+	var raw string
+	if tx.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE id = $1 AND deleted_at IS NULL LIMIT 1`, schema), docID).Scan(&raw) != nil {
+		return nil
+	}
+	var data map[string]interface{}
+	_ = json.Unmarshal([]byte(raw), &data)
+	return data
+}
+
+// groupControlAccount: the account the profile gives the group of the party
+// the document names (a goods receipt with no vendor of its own takes its
+// order's); the base when there is none.
+func groupControlAccount(tenantID string, k controlKind, data map[string]interface{}) string {
+	party := ""
+	for _, f := range k.partyFields {
+		if party = strings.TrimSpace(strField(data, f)); party != "" {
+			break
+		}
+	}
+	if party == "" && k.base == "2100" {
+		if po := strings.TrimSpace(firstNonEmpty(strField(data, "po_id"), strField(data, "purchase_order_id"))); po != "" {
+			if p, _, err := fetchDocData(tenantID, "PurchaseOrder", po); err == nil {
+				party = strings.TrimSpace(firstNonEmpty(strField(p, "vendor_id"), strField(p, "vendor")))
+			}
+		}
+	}
+	group := partyGroup(tenantID, k.partyDoctype, k.groupField, party)
+	if group == "" {
+		return k.base
+	}
+	ctx := PostingContext{CustomerGroup: group}
+	if k.partyDoctype == "Vendor" {
+		ctx = PostingContext{VendorGroup: group}
+	}
+	r := ResolvePostingAccounts(tenantID, k.event, ctx, k.base, k.base)
+	if r.Debit != k.base {
+		return r.Debit
+	}
+	return r.Credit
+}
+
+// moveAccount returns m with from's amount under to (m itself when from is
+// not in it).
+func moveAccount[V int64 | float64](m map[string]V, from, to string) map[string]V {
+	if _, ok := m[from]; !ok {
+		return m
+	}
+	out := make(map[string]V, len(m))
+	for k, v := range m {
+		out[k] += v
+	}
+	out[to] += out[from]
+	delete(out, from)
+	return out
+}

@@ -173,6 +173,16 @@ func statutoryReturnBy(sent string, capitalGoods bool) string {
 	return t.AddDate(years, 0, 0).Format("2006-01-02")
 }
 
+// jobWorkStatutoryDue is the ITC-04 limit for an order: Section 143 counts it
+// from the job worker's receipt when goods go direct to the job worker (the
+// optional "Received by job worker on" date), otherwise from the send date.
+func jobWorkStatutoryDue(sent, receivedByJobWorker string, capitalGoods bool) string {
+	if _, err := time.ParseInLocation("2006-01-02", receivedByJobWorker, time.Local); err == nil {
+		return statutoryReturnBy(receivedByJobWorker, capitalGoods)
+	}
+	return statutoryReturnBy(sent, capitalGoods)
+}
+
 // SendJobWork raises the order's delivery challan and dispatches it. An order
 // whose challan waits for approval is "Challan Pending"; sending it again
 // once the challan is approved dispatches it.
@@ -190,7 +200,7 @@ func SendJobWork(tenantID, id, userID, role string, transport ChallanDispatch) (
 			return status, err
 		}
 		data["sent_date"] = BusinessToday()
-		data["statutory_due"] = statutoryReturnBy(strField(data, "sent_date"), truthy(data["capital_goods"]))
+		data["statutory_due"] = jobWorkStatutoryDue(strField(data, "sent_date"), strField(data, "job_worker_received_on"), truthy(data["capital_goods"]))
 		return "Sent", saveSubcontractOrder(tenantID, id, data, "Sent")
 	}
 	if status != "Draft" {
@@ -248,7 +258,7 @@ func SendJobWork(tenantID, id, userID, role string, transport ChallanDispatch) (
 		}
 		newStatus = "Sent"
 		data["sent_date"] = BusinessToday()
-		data["statutory_due"] = statutoryReturnBy(strField(data, "sent_date"), truthy(data["capital_goods"]))
+		data["statutory_due"] = jobWorkStatutoryDue(strField(data, "sent_date"), strField(data, "job_worker_received_on"), truthy(data["capital_goods"]))
 	}
 	if err := saveSubcontractOrder(tenantID, id, data, newStatus); err != nil {
 		return newStatus, err
@@ -480,11 +490,12 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 		}
 		posting := fmt.Sprintf("RECEIVE:%d:%d", receipt, c.line.LineNo)
 		if err := writeJobWorkLedgerTx(tx, schema, location, id, userID, posting,
-			[]PostedStockLine{{SKU: c.line.SKU, Qty: -c.consumed, BatchNo: c.line.BatchNo}}); err != nil {
+			[]PostedStockLine{{SKU: c.line.SKU, Qty: -c.consumed, BatchNo: c.line.BatchNo, stockLineSnapshot: stockLineSnapshot{ValuationRate: b.UnitCost}}}); err != nil { // 49.5.5b.9
 			return status, err
 		}
 		if out := c.output + c.outRej; out > 0 {
-			outLine := []interface{}{map[string]interface{}{"sku": c.line.OutputSKU, "qty": float64(out)}}
+			// 49.5.5b.9: the output at the material it was made from, as its cost below.
+			outLine := []interface{}{map[string]interface{}{"sku": c.line.OutputSKU, "qty": float64(out), ledgerKeyValuationRate: b.UnitCost * float64(c.consumed) / float64(out)}}
 			markStockLineBatch(outLine, c.named.BatchNo)
 			_, ledger, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, outLine, false)
 			if err != nil {
@@ -799,17 +810,26 @@ func JobWorkOverdue(tenantID string, notify func(event, id string, vars map[stri
 	today := todayDate().Format("2006-01-02")
 	soon := todayDate().AddDate(0, 0, 30).Format("2006-01-02")
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, COALESCE(data->>'due_date', ''), COALESCE(data->>'statutory_due', ''),
-		COALESCE(data->>'overdue_flagged_on', ''), COALESCE(data->>'statutory_flagged_on', '')
+		COALESCE(data->>'overdue_flagged_on', ''), COALESCE(data->>'statutory_flagged_on', ''),
+		COALESCE(data->>'sent_date', ''), COALESCE(data->>'job_worker_received_on', ''), COALESCE(data->>'capital_goods', '')
 		FROM %s.documents WHERE doctype = 'SubcontractOrder' AND deleted_at IS NULL AND status IN ('Sent', 'Partly Received')`, schema))
 	if err != nil {
 		return err
 	}
 	type flag struct{ id, key, event string }
 	var flags []flag
+	type fix struct{ id, due string }
+	var fixes []fix
 	for rows.Next() {
-		var id, due, stat, overdueOn, statOn string
-		if rows.Scan(&id, &due, &stat, &overdueOn, &statOn) != nil {
+		var id, due, stat, overdueOn, statOn, sent, recv, capital string
+		if rows.Scan(&id, &due, &stat, &overdueOn, &statOn, &sent, &recv, &capital) != nil {
 			continue
+		}
+		// A receipt date entered after sending moves the statutory limit.
+		if want := jobWorkStatutoryDue(sent, recv, truthy(capital)); want != "" && want != stat {
+			fixes = append(fixes, fix{id, want})
+			stat = want
+			statOn = ""
 		}
 		if due != "" && due < today && overdueOn == "" {
 			flags = append(flags, flag{id, "overdue_flagged_on", "Job Work Overdue"})
@@ -819,6 +839,11 @@ func JobWorkOverdue(tenantID string, notify func(event, id string, vars map[stri
 		}
 	}
 	rows.Close()
+	for _, f := range fixes {
+		if err := mergeDocData(schema, "SubcontractOrder", f.id, map[string]interface{}{"statutory_due": f.due, "statutory_flagged_on": ""}); err != nil {
+			return err
+		}
+	}
 	for _, f := range flags {
 		if err := mergeDocData(schema, "SubcontractOrder", f.id, map[string]interface{}{f.key: today}); err != nil {
 			return err

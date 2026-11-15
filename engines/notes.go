@@ -30,7 +30,7 @@ func creditNoteDebitsPaise(tx *sql.Tx, schema, invoiceID, noteID string, notePai
 	}
 	var totalPaise int64
 	if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit), 0) FROM %s.gl_postings
-		WHERE document_type = 'SalesInvoice' AND document_id = $1 AND account_code = '1300'`, schema), invoiceID).Scan(&totalPaise); err != nil {
+		WHERE document_type = 'SalesInvoice' AND document_id = $1 AND account_code IN %s`, schema, controlAccountsIn(schema, "1300")), invoiceID).Scan(&totalPaise); err != nil {
 		return nil, err
 	}
 	if totalPaise <= 0 {

@@ -59,52 +59,6 @@ func fetchPIMCatalogData(tenantID, catalogID string) (canonicalID string, data m
 	return canonicalID, data, nil
 }
 
-// PIMCatalogInfo is the list-facing view - never carries share_token_hash,
-// the same "the digest itself has no business on a list screen" posture
-// PIMImportScheduleInfo already takes.
-type PIMCatalogInfo struct {
-	ID           string `json:"id"`
-	Code         string `json:"code"`
-	Name         string `json:"name"`
-	ProductGroup string `json:"product_group"`
-	ExpiryDate   string `json:"expiry_date,omitempty"`
-	HasShareLink bool   `json:"has_share_link"`
-	LastSharedAt string `json:"last_shared_at,omitempty"`
-	Status       string `json:"status"`
-}
-
-// ListPIMCatalogs backs the Catalogs authoring screen.
-func ListPIMCatalogs(tenantID string) ([]PIMCatalogInfo, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data, status FROM %s.documents
-		WHERE doctype = 'PIMCatalog' AND deleted_at IS NULL ORDER BY COALESCE(data->>'name', id)`, schema))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []PIMCatalogInfo{}
-	for rows.Next() {
-		var id, raw, status string
-		if sErr := rows.Scan(&id, &raw, &status); sErr != nil {
-			return nil, sErr
-		}
-		var data map[string]interface{}
-		if uErr := json.Unmarshal([]byte(raw), &data); uErr != nil {
-			continue
-		}
-		out = append(out, PIMCatalogInfo{
-			ID: id, Code: pimString(data["code"]), Name: pimString(data["name"]),
-			ProductGroup: pimString(data["product_group"]), ExpiryDate: pimString(data["expiry_date"]),
-			HasShareLink: pimString(data["share_token_hash"]) != "", LastSharedAt: pimString(data["last_shared_at"]),
-			Status: status,
-		})
-	}
-	return out, rows.Err()
-}
-
 // RotatePIMCatalogShareToken mints a fresh 256-bit token, stores only its
 // SHA-256 digest, and returns the raw token exactly once. Rotating
 // immediately invalidates whatever link was shared before it - the correct

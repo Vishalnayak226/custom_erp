@@ -226,6 +226,9 @@ func handleIssueProductionMaterial(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
+		return
+	}
 	var req struct {
 		OrderID string `json:"order_id"`
 	}
@@ -246,6 +249,9 @@ func handleCompleteProductionOrder(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
 		return
 	}
 	var req struct {

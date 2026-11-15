@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-08-11 to 2026-10-17, continued from the release notes.
+summary: Earlier releases, 2026-08-16 to 2026-10-18, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,11 +19,37 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **99** earlier entries, 2026-08-11 to 2026-10-17.
+This page continues the [release notes](release-notes.md) with **94** earlier entries, 2026-08-16 to 2026-10-18.
 
 Older still: [part 3](release-notes-3.md).
 
+## 2026-10-18
+
+**Stage 79 — Number boxes take only numbers; PO record form pickers and status; Roles screen rebuilt** *(code + docs, NOT COMMITTED)*
+
+Four messages from the user on the deployed build, all on screens reached from GRN → "create the PO" and Settings → Roles. Full detail in `micro_checklist.md` Stage 79.
+
 ## 2026-10-17
+
+**71.8 multi-page prints, PO / GRN rules pinned, Stage 78 day limits** *(code + docs, NOT COMMITTED)*
+
+Three of the user's messages in one session; full detail in `micro_checklist.md` 71.8, the 65.2 re-check note and Stage 78.
+
+**Stage 73 batch C — OMS, platform, shared shell, masters: truthful notifications, exception queues and one order timeline, order changes after release, one task inbox, OAuth2 client credentials** *(code + docs, NOT COMMITTED)*
+
+One of four parallel batches over Stage 73 / 55. Detail and verification notes are on each item in **micro_checklist.md**.
+
+**Stage 73 batch D — Finance, HR, expenses, assets, reports: posting attribution, signed close with controlled reopen, bank workbench, payroll reconciliation, control totals** *(code + docs, NOT COMMITTED)*
+
+One of four parallel batches over Stage 73 (decision D09: corrections by reversal only; reopen through maker-checker). Detail and verification notes are on each item in **micro_checklist.md**.
+
+**Stage 72 — Item & Material Master: independent classification, packaging backflush at the POS, gifts with purchase, gift cards as stored value** *(code + docs; committed `0845470`, deployed 2026-10-17)*
+
+From two PDFs of the user's: *Backflush vs Non-Sellable Items in Retail ERP/POS* (*"Build this also for pos"*) and the 41-page *Enterprise Item & Material Master Module - Build Blueprint* that grew out of it (*"Read and update checklist and build"*). The blueprint's rule - one item-type list cannot answer what an item is, whether stock is kept, whether it is valued, whether the till sells it, how it is consumed and where its cost goes - is now how the item master works: the Stage 60 **Item Type became the reusable profile** with eight independent dimensions (+ expense account) that any Item may override, resolved in one place (`engines/item_policy.go`), checked on every save against the blueprint's compatibility rules and frozen once an item has stock history. At the till (`ResolvePOSQuote`, the one pricing path): packaging and other non-sellable items are refused, promo-only gifts ring at zero only when a new **Gift With Purchase** offer earns them, and a stored-value item cannot be a bill line. **Backflush Rules** consume the store's usual box and butter paper with every sale, inside the sale's transaction, with a **Packaging** override for the cashier, a short-stock policy (default never blocks - the user's decision) and an **Item Exception** queue. Items that keep no stock (services, non-stock expense) and non-valuated stock now behave distinctly at GRN, at the till and on transfers; **virtual kits** issue their components at the POS. **Gift cards** are stored value: registered numbers, funded only when payment and liability posting commit, redeemed as a tender inside checkout, append-only ledger, masked everywhere, block / release / cancel. **Consumption Entry** posts periodic counts and manual issues. Nine section-20 reports. Found and fixed on the way: the POS screen had refused every zero-priced line since Stage 60.4, so no gift or free item could ever be billed. Full detail and verification: `micro_checklist.md` Stage 72; decisions still needed (item release maker-checker, effective-dated versions, posted-bill cancellation, per-store item policy, editor + reason in the audit trail, negative stock per profile, gift returns, gift-card refunds / transfer): 72.D.
+
+**Stage 69 — Create and history on separate pages, everywhere** *(code + docs, NOT COMMITTED)*
+
+From the user's HR Attendance screenshot: *"All txn where there is create and history both will be different page … Make it standard practice how it is in best erp being followed."* Every screen that records something now opens on its **list** (count beside the title) with **+ New …** top right; the form is a page of its own with a breadcrumb back, and saving returns to the list - the Odoo / ERPNext / Zoho shape. One shared mechanism in `public/txn-screen.js` (outside the cold core, `app.js` untouched): each page is a browser history entry on the same address, so Back / Forward move between list and form without a re-render and keep half-typed work, and `history.state` decides which page a re-render shows. Applied to the five Stage 65.8 / 68 screens that had New-first tabs (PO, GRN, Purchase Return, Stock Transfer, Journal Vouchers) and to sixteen more: HR (Attendance, Leave, Payroll, Loans/Advances, My Requests with three New pages), Expenses, Fixed Assets, Manufacturing orders + BOM, ASN, RFQ and its quotes, Order Management's manual order, Marketplace's three sections, Payment Proposals, Yard Board, Sticker Printing's Print tab, and Location Movement - which had no history of moves at all and now lists the completed Move warehouse tasks, each of which now records its batch and reason (`engines/wms_bin_move.go`). Guides, SOP and UAT checklist updated. Full detail and verification: checklist Stage 69.
 
 **Stage 71 — Transaction prints follow the company's standard print-format pack** *(code + docs; committed `0845470`, deployed 2026-10-17)*
 
@@ -456,58 +482,4 @@ Asked to start building from the open parity backlog, whose first row is **Stage
 **Stage 42.1 — the traceability foundation: batch, FEFO and recall** *(code + schema + docs)*
 
 Asked to start building Stage 42 (WMS parity), which had been planning-only since 2026-08-11. The plan is unusually emphatic about where to begin — Phase 42.1, "start here, nothing else first" — because grep-verified there was **no lot/batch concept anywhere in the tree**: no `batch_no`, no `expiry`, no shelf life in `engines/` or `db/`. That absence is what made FEFO, expiry blocking and recall unbuildable, and it is why this WMS could not be sold into food, pharma, cosmetics or electronics. Six of the phase's eleven items are now closed (42.1.1–42.1.6) plus the recall traceability the plan asked for as proof the model is right. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-15
-
-**Stage 36.2 — the PIM task & workflow engine, the biggest PIM gap** *(code + schema + docs)*
-
-Asked to start building the open parity work, top of the list being **36 — PIM parity**, whose first named item is the task/workflow engine. It was also the thing 36.1.3 explicitly deferred ("task assignment: it follows 36.2's task engine, which does not exist yet"), so it is the item that unblocks the rest of Stage 36. Full item-by-item detail in `micro_checklist.md` Stage 36.2. A concurrent session held Stage 35.4 in the same tree throughout — see the note at the end.
-
-**Stage 35.4 — the outbound document chain, and the pack object that made it possible** *(code + schema)*
-
-Asked to start building Stages 35/36/37. That span is ~30-45 sessions by the parity plan's own sizing, so it was worked in the plan's dependency order rather than scaffolded shallowly across three stages: R1 was already done, and **R2's head item, 35.4**, is what this section covers. (A concurrent session picked up 36.2 in the same window — see the note at the end.)
-
-## 2026-08-14
-
-**Stage 44 — per-tenant hostnames, and the domain that unblocked go-live** *(code + schema + proxy config + docs)*
-
-User registered **wholeops.in** and asked to close the domain-gated items. Two things came out of it: the go-live path was unblocked, and the URL scheme they described turned out not to exist.
-
-## 2026-08-13
-
-**The dev cluster converted to UTF-8, closing the 20.6 defect** *(database + one test + docs)*
-
-User asked for the three defects §96 recorded to be fixed. Two were already fixed in the tree and were re-verified rather than re-asserted: the SPA's relative asset paths (no relative `src`/`href` remains in `index.html`, no relative `fetch` in `app.js`) and the OpenAPI dynamic-schema trap (the paged envelope is inlined per endpoint, `PublicPage` is not a cached component). The third was real and outstanding.
-
-## 2026-08-12
-
-**Stages 35.3.7 / 36 / 37.1.2 / 38 / 39 — the platform layer: public API, Knowledge Center, multi-currency** *(code + schema + docs)*
-
-User handed over a ranked gap list and an explicit build order, deduplicated across the two: finish 36.1.3 and 36.7.2, build 38.3/38.5/38.9 together, open the first read-only 38.1 routes, build 38.8, land 39.2-39.7 as one safe unit, then 37.1.2 — plus 35.3.7, the correctness gap they ranked first. All eight built. Item-by-item detail in `micro_checklist.md`.
-
-**Stage 43 — Go-live blocker sweep: the buildable half of the parked items** *(code + docs)*
-
-User handed back eight parked items from `go_live_decisions.md` — escalation contacts and the alert webhook, connector/GSP/e-way/payment-terminal credentials, Cloudflare zone access, a pen-test vendor, UAT participants and hypercare sign-off, real QZ Tray printer verification, the competitor-scraping legal call, and the data mart — with "build from this which is possible… skip which needs decision for now."
-
-## 2026-08-11
-
-**Stage 38/39 foundations — scoped API identities and safe Markdown rendering** *(code + one unapplied migration + docs)*
-
-User asked to start Platform & Extensibility and the Knowledge Center while the shared tree still contained concurrent Stage 35-42 work. Both starts were therefore taken at dependency foundations that add no live surface: external credentials before public routes, and a renderer before generated static help.
-
-**Stage 35 release train R1 — the OMS becomes a real product** *(code + schema + docs)*
-
-User asked to work the open plan phase by phase. The open plan is the Parity Master Plan's Stages 35-39, and its own sequencing puts release train **R1 = 35.1 + 35.2 + 35.3** first, because those three items exist to clear the three structural debts everything downstream assumes are gone. All three are now closed. Full item-by-item detail in `micro_checklist.md` Stage 35.
-
-**Stage 36.1 / 37.1 foundations — Product Groups and effective-dated currency rates** *(code + schema + docs)*
-
-User explicitly asked to start both Stage 36 and Stage 37 while protecting the ongoing session and partially completed work. The implementation therefore begins at each stage's dependency foundation, is additive, avoids `public/app.js`, and leaves both new migrations unapplied. This request also resolves parity-plan decisions D6 and D7: multi-currency, multi-entity, Projects and Service are real build scope, to be taken in plan order rather than skipped as speculative.
-
-**Stage 42 — WMS parity plan against SAP EWM and Infor WMS** *(planning only, no code)*
-
-User request: review the WMS module of SAP EWM and Infor WMS thoroughly, prepare a plan, update the checklist. Both benchmark URLs were supplied. Output is `docs/archive/legacy/wms-parity-plan.md` (the source of detail) plus the Stage 42 tracker skeleton in `micro_checklist.md` — the same two-file relationship Stages 35-39 have to `parity_master_plan.md`. **No source, schema or config was touched.**
-
-**Tracker reconciliation — 23.11 and 26.1.3** *(docs only)*
-
-Two checklist entries mixed completed engineering decisions with nonexistent or externally gated work. **23.11 is now closed as not applicable, not implemented**: the catalog's one-row inline-grid style has no paste-into-grid product surface or roadmap item, so leaving it unchecked permanently misreported an already-settled scope decision as unfinished work. Stage 23 is fully closed and moved to the closed-stage archive.
 

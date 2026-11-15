@@ -241,7 +241,7 @@ func GetCohortRetention(tenantID string) ([]CohortRow, error) {
 }
 
 // ReceiveCleverTapSegmentSync (26.7.11): the inbound half of "two-way"
-// segment sync - LogCustomerEventToCleverTap (Stage 26.7.4) already pushes
+// segment sync - logCleverTapEventInSchema (Stage 26.7.4) already pushes
 // events out; this receives a segment-membership push back in, verified
 // against the same clevertap_credentials.passcode SaveCleverTapCredential
 // stores, same "per-tenant shared-secret header" shape

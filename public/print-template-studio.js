@@ -461,7 +461,7 @@ function renderOverlay() {
   const k = scale() * T.PX_PER_MM;
   const table = S.layout.elements.find(el => el.type === 'table');
   overlay.innerHTML = S.layout.elements.map(el => `
-    <div class="pts-hit${el.id === S.sel ? ' sel' : ''}" data-id="${esc(el.id)}" data-type="${esc(el.type)}" style="left:${el.x * k}px;top:${el.y * k}px;width:${Math.max(4, el.w * k)}px;height:${Math.max(4, el.h * k)}px;">
+    <div class="pts-hit${el.id === S.sel ? ' sel' : ''}" data-id="${esc(el.id)}" data-type="${esc(el.type)}" data-css="left:${el.x * k}px;top:${el.y * k}px;width:${Math.max(4, el.w * k)}px;height:${Math.max(4, el.h * k)}px;">
       <span class="pts-tag">${esc(TYPE_LABEL[el.type] || el.type)}${el.key ? ` · ${esc(el.key)}` : ''} · ${PAGES_LABEL[T.printsOn(el, table)]}</span>
       ${el.id === S.sel ? '<span class="pts-handle" data-h="e"></span><span class="pts-handle" data-h="s"></span><span class="pts-handle" data-h="se"></span>' : ''}
     </div>`).join('');

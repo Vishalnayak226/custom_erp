@@ -448,6 +448,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					declaredFilterFields[f.Fieldname] = true
 				}
 			}
+			var hiddenFilterFields map[string]bool
 			for key, vals := range r.URL.Query() {
 				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || key == "q_fields" || len(vals) == 0 {
 					continue
@@ -456,7 +457,22 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Invalid filter parameter name: %q", key))
 					return
 				}
-				if len(declaredFilterFields) > 2 && !declaredFilterFields[key] {
+				// Stage 49.3.4: a field this role cannot read is no filter
+				// either - an equality on it would tell which records hold a
+				// value the response itself hides (cost_price=4321 for a
+				// cashier). It answers like a field the doctype lacks.
+				if hiddenFilterFields == nil {
+					hiddenFilterFields = map[string]bool{}
+					hidden, hiddenErr := engines.HiddenFieldsForRole(tenantID, role, doctype)
+					if hiddenErr != nil {
+						writeAPIErrorGeneric(w, r, http.StatusInternalServerError, hiddenErr.Error())
+						return
+					}
+					for _, f := range hidden {
+						hiddenFilterFields[f] = true
+					}
+				}
+				if (len(declaredFilterFields) > 2 && !declaredFilterFields[key]) || hiddenFilterFields[key] {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Unknown filter %q: not a field of %s", key, doctype))
 					return
 				}
@@ -481,47 +497,81 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// hidden field either. Searching the raw column without this
 			// exclusion would turn "does this document show up for this
 			// search term" into an oracle for a redacted field's content.
+			//
+			// Stage 47.10 (ask 192): on the big masters the search also uses
+			// a trigram index, pins an exact id / code / barcode match first
+			// and, over 100k rows, covers the identity fields - all in
+			// handlers_core_list_search.go.
+			estimateWhere, estimateArgs := "", []interface{}(nil)
+			var exactFirst []string
 			if searchQuery != "" {
 				hiddenFields, hiddenErr := engines.HiddenFieldsForRole(tenantID, role, doctype)
 				if hiddenErr != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, hiddenErr.Error())
 					return
 				}
-				keyExclusion := ""
-				if len(hiddenFields) > 0 {
-					placeholders := make([]string, len(hiddenFields))
-					for i, f := range hiddenFields {
-						placeholders[i] = fmt.Sprintf("$%d", argIndex)
-						args = append(args, f)
-						argIndex++
-					}
-					keyExclusion = fmt.Sprintf("kv.key NOT IN (%s) AND ", strings.Join(placeholders, ","))
+				hidden := map[string]bool{}
+				for _, f := range hiddenFields {
+					hidden[f] = true
 				}
+				baseWhere := whereClause
+				// The term is bound first, so the count's estimate (which
+				// stops at it) needs no other search argument.
+				termArg := argIndex
+				args = append(args, "%"+searchQuery+"%")
+				argIndex++
 				// Stage 94.24: q_fields=name,code limits the match to those
 				// fields, so a picker typing "a" finds names with an "a" rather
 				// than every row whose status reads "Active". Opt-in, like
 				// sort=recent - every other caller keeps the any-field search.
+				var fields []string // nil: every field
 				if v := r.URL.Query().Get("q_fields"); v != "" {
 					// Stage 127.7: @identity is the doctype's own identifying
 					// fields - what every link picker now asks for.
 					if strings.TrimSpace(v) == "@identity" {
 						v = strings.Join(engines.SearchIdentityFields(tenantID, doctype), ",")
 					}
-					var placeholders []string
 					for _, f := range strings.Split(v, ",") {
 						if f = strings.TrimSpace(f); f != "" {
-							placeholders = append(placeholders, fmt.Sprintf("$%d", argIndex))
+							fields = append(fields, f)
+						}
+					}
+				} else if masterSearchIsBig(schema, doctype) {
+					fields = masterSearchFields[doctype]
+				}
+				var searchClause, prefilter string
+				var visible []string
+				if fields == nil {
+					keyExclusion := ""
+					if len(hiddenFields) > 0 {
+						placeholders := make([]string, len(hiddenFields))
+						for i, f := range hiddenFields {
+							placeholders[i] = fmt.Sprintf("$%d", argIndex)
 							args = append(args, f)
 							argIndex++
 						}
+						keyExclusion = fmt.Sprintf("kv.key NOT IN (%s) AND ", strings.Join(placeholders, ","))
 					}
-					if len(placeholders) > 0 {
-						keyExclusion += fmt.Sprintf("kv.key IN (%s) AND ", strings.Join(placeholders, ","))
+					searchClause = fmt.Sprintf("EXISTS (SELECT 1 FROM jsonb_each_text(data) kv WHERE %skv.value ILIKE $%d)", keyExclusion, termArg)
+				} else {
+					// A field this role cannot read is never searched: a match
+					// on it would reveal what the response hides.
+					seen := map[string]bool{}
+					for _, f := range fields {
+						if !hidden[f] && !seen[f] {
+							seen[f] = true
+							visible = append(visible, f)
+						}
+					}
+					if len(visible) == 0 {
+						searchClause = "FALSE"
+					} else {
+						searchClause = fieldsSearchClause(visible, termArg, &args, &argIndex)
+						if prefilter = masterSearchPrefilter(doctype, visible, searchQuery, termArg); prefilter != "" {
+							searchClause = "(" + prefilter + " AND " + searchClause + ")"
+						}
 					}
 				}
-				searchClause := fmt.Sprintf("EXISTS (SELECT 1 FROM jsonb_each_text(data) kv WHERE %skv.value ILIKE $%d)", keyExclusion, argIndex)
-				args = append(args, "%"+searchQuery+"%")
-				argIndex++
 				// Stage 76.6: an old long master code, typed from an old
 				// printout, finds the record it was cleaned to.
 				if renamed := engines.RenamedMasterCode(tenantID, doctype, strings.TrimSpace(searchQuery)); renamed != "" {
@@ -530,6 +580,20 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					argIndex++
 				}
 				whereClause += " AND " + searchClause
+				if prefilter != "" {
+					estimateWhere, estimateArgs = baseWhere+" AND "+prefilter, args[:termArg]
+				}
+				if searchClause != "FALSE" {
+					// The filters before the search only: the page query
+					// below keeps the whole where, so pinning just reorders,
+					// and the search is not run a second time here.
+					ids, exactErr := masterExactMatchIDs(schema, doctype, baseWhere, args[:termArg-1], visible, hidden, searchQuery)
+					if exactErr != nil {
+						writeAPIErrorGeneric(w, r, http.StatusInternalServerError, exactErr.Error())
+						return
+					}
+					exactFirst = ids
+				}
 			}
 
 			// BLD-034: an exact total (over every filter above, before
@@ -548,13 +612,21 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// typeaheads firing on every keystroke chief among them - for a
 			// number none of them read.
 			if r.URL.Query().Get("count") == "true" {
-				countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s.documents%s", schema, whereClause)
-				var totalCount int
-				if err := db.DB.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
+				// Stage 47.10 (4): counting stops past 10k matches; the total
+				// is then the planner's estimate, flagged by
+				// X-Total-Count-Estimated so the pager says "about".
+				if estimateWhere == "" {
+					estimateWhere, estimateArgs = whereClause, args
+				}
+				totalCount, estimated, err := cappedListCount(schema, whereClause, args, estimateWhere, estimateArgs)
+				if err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
 				}
-				w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
+				w.Header().Set("X-Total-Count", strconv.FormatInt(totalCount, 10))
+				if estimated {
+					w.Header().Set("X-Total-Count-Estimated", "true")
+				}
 			}
 
 			// Pagination: bounds the response even when the caller doesn't ask for a
@@ -575,10 +647,21 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			query := fmt.Sprintf("SELECT id, data, status, updated_at FROM %s.documents%s", schema, whereClause)
+			// Stage 47.10 (1): an exact id / code / barcode match leads.
+			orderLead := ""
+			if len(exactFirst) > 0 {
+				placeholders := make([]string, len(exactFirst))
+				for i, id := range exactFirst {
+					placeholders[i] = fmt.Sprintf("$%d", argIndex)
+					args = append(args, id)
+					argIndex++
+				}
+				orderLead = fmt.Sprintf("(id IN (%s)) DESC, ", strings.Join(placeholders, ","))
+			}
 			if sortRecent {
-				query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+				query += fmt.Sprintf(" ORDER BY %supdated_at DESC LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
 			} else {
-				query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+				query += fmt.Sprintf(" ORDER BY %sid LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
 			}
 			args = append(args, limit, offset)
 
@@ -720,11 +803,25 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// by the form's next type-ahead search. This is deliberately before
 		// metadata validation because code is a mandatory field that is supplied
 		// here for a new record.
+		//
+		// 57.26(d): a number drawn here or by the series below goes back when
+		// the save is then refused, so a rejected save leaves no hole.
+		docWritten := false
+		var numberDraws []*engines.NumberDraw
+		defer func() {
+			if !docWritten {
+				for _, d := range numberDraws {
+					d.Release()
+				}
+			}
+		}()
 		if doctype == "PurchaseRequisition" {
-			if err := engines.PreparePurchaseRequisition(tenantID, location, id == "", payload); err != nil {
+			draw, err := engines.DrawPurchaseRequisition(tenantID, location, id == "", payload)
+			if err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
+			numberDraws = append(numberDraws, draw)
 		}
 		// Stage 57.3: an HSN catalogue record's code (and id) is derived from
 		// its number, for the same before-validation reason as PR's above.
@@ -745,10 +842,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Ordered before ValidateDocument for the same reason PR's is - the
 		// fields it fills are mandatory, so they must be populated before the
 		// mandatory-field check runs.
-		if err := engines.PrepareDocumentNumber(tenantID, location, doctype, id == "", payload); err != nil {
+		numberDraw, err := engines.DrawDocumentNumber(tenantID, location, doctype, id == "", payload)
+		if err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
+		numberDraws = append(numberDraws, numberDraw)
 		// Stage 62: a design created from a PO's Add design arrives with no
 		// code - number it from its Design/... series here (a code someone
 		// typed is kept), since the master-code endpoint is admin-only.
@@ -780,7 +879,6 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if codeAfter, _ := payload["code"].(string); strings.TrimSpace(codeBefore) == "" && codeAfter != "" {
 			masterNumbered = codeAfter
 		}
-		docWritten := false
 		defer func() {
 			if masterNumbered != "" && !docWritten {
 				engines.ReleaseMasterNumber(tenantID, doctype, masterNumbered)
@@ -930,6 +1028,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// Item 201.1: an Item Name's or Item's printed alias - made from the
+		// name when blank or still the made one, a typed one kept (14 max).
+		// Judged on the merged record, so an update that renames follows.
+		if err := engines.PrepareItemAlias(tenantID, doctype, writeTarget, payload); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
 		// Stage 49.5.6c: a key only the document's own action writes (a
 		// production order's BOM-change acceptance) is not set, changed or
 		// cleared by a save - the action-only statuses' rule, for a field.
@@ -946,6 +1051,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			engines.LogAuditEvent(tenantID, userID, "GLOBAL-0011", "Error", fmt.Sprintf("[GLOBAL-0011] save of %s naming store %s refused - session store %q", doctype, named, location))
 			writeAPIErrorDetail(w, r, "GLOBAL-0011", "", engines.LocationOutOfScopeMessage(named, location))
 			return
+		}
+
+		// Item 193.3: a transfer is saved only by someone who works at its
+		// source or destination store (full-access roles pass).
+		if doctype == "TransferOrder" {
+			if err := engines.CheckTransferStoreAccess(tenantID, userID, "create", fmt.Sprint(payload["from_warehouse"]), fmt.Sprint(payload["to_warehouse"])); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
 		}
 
 		engines.StampStewardshipSource(doctype, payload, "ERP", userID) // 47.13.4
@@ -981,6 +1095,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin or Store Manager can create or edit a Universal column profile")
 				return
 			}
+		}
+
+		// 57.26(c): a journal voucher is a finance posting. Its own route
+		// already needs finance.post (140.12.9); the generic save asked only
+		// for the doctype grant, which the shipped seed gives a Store Manager.
+		if doctype == "JournalVoucher" && !engines.HasFullAccess(role) && !engines.RoleHasCapability(role, "finance.post") {
+			writeAPIErrorDetail(w, r, "GLOBAL-0011", "", "Journal vouchers are saved by a finance role.")
+			return
 		}
 
 		// Expense claim controls (Stage 13.13c, MB 16.2): date window and
@@ -1310,7 +1432,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// an unreviewed value. No-op (zero network calls) when no hook is
 		// registered for this doctype, which is the overwhelmingly common
 		// case for every tenant that hasn't set one up.
-		if errHook := engines.InvokeBeforeSaveHooks(tenantID, doctype, docID, payload); errHook != nil {
+		if errHook := engines.InvokeBeforeSaveHooks(tenantID, r.Header.Get("Resolved-User-ID"), doctype, docID, payload); errHook != nil {
 			writeEngineError(w, r, errHook, http.StatusBadGateway)
 			return
 		}
@@ -1339,6 +1461,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// as replays). Refused here, at the write, so two creates at once
 		// cannot both get through either.
 		createOverGRN := id == "" && doctype == "GRN"
+		// 57.26(j): a create never replaces a live record of its own type -
+		// a typed code (or id) someone already uses is refused, not upserted
+		// over it. Every screen edits through /{id}; the two PIM records keyed
+		// by what they are about (item + attribute, item + language) are set
+		// by saving them again, so they keep the upsert. A deleted record's
+		// id still brings it back (2026-10-10).
+		createOverLive := id == "" && !createSetsByKey[doctype]
 		query := fmt.Sprintf(`
 			INSERT INTO %s.documents (id, doctype, data, status, created_by, version)
 			VALUES ($1, $2, $3, $4, $5, 1)
@@ -1352,8 +1481,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				deleted_at = CASE WHEN $7::bool THEN NULL ELSE %s.documents.deleted_at END
 			WHERE %s.documents.doctype = EXCLUDED.doctype
 			  AND ($6::int IS NULL OR %s.documents.version = $6)
-			  AND NOT $9::bool`, schema, schema, schema, schema, schema)
-		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason), createOverGRN)
+			  AND NOT $9::bool
+			  AND NOT ($10::bool AND %s.documents.deleted_at IS NULL)`, schema, schema, schema, schema, schema, schema)
+		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason), createOverGRN, createOverLive)
 		if err != nil {
 			if dup := engines.DuplicateKeyRefusal(tenantID, doctype, err); dup != nil { // 140.14.1
 				writeEngineError(w, r, dup, http.StatusConflict)
@@ -1367,6 +1497,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeAPIErrorGeneric(w, r, http.StatusConflict, "This document was modified by someone else since you last loaded it - please refresh and try again")
 			} else if createOverGRN {
 				writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf("%q already exists - open that record to change it, or use a different number.", docID))
+			} else if createOverLive && recordIsOfType(schema, docID, doctype) {
+				writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf("%q already exists - open that record to change it, or use a different code.", docID))
 			} else {
 				writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf("%q is already used by a different kind of record. Use a different code.", docID))
 			}
@@ -1375,6 +1507,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		docWritten = true
 		crmSave.Commit(docID, id == "")
 		engines.AuditFlowBlock(tenantID, doctype, priorData, payload, userID) // Stage 146.3.14, once the save is in
+		// 201.2: items printing an item name's old alias print the new one.
+		if doctype == "ItemName" {
+			engines.FollowItemNameAlias(tenantID, docID, priorData, payload)
+		}
 
 		if doctype == "GRN" && id == "" { // Stage 146.3.8: the gate entry now has its receipt
 			_ = engines.LinkGateEntryToGRN(tenantID, docID, func() string { s, _ := payload["gate_entry_id"].(string); return s }())
@@ -1383,7 +1519,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Extension after_save hooks (Stage 14.17-14.20): fired async - the
 		// save already committed, so a notification/sync hook's failure
 		// can't roll it back and shouldn't slow down the response.
-		engines.InvokeAfterSaveHooksAsync(tenantID, doctype, docID, payload)
+		engines.InvokeAfterSaveHooksAsync(tenantID, r.Header.Get("Resolved-User-ID"), doctype, docID, payload)
 
 		// Stage 130.9 (72.D a): the new item goes to its approver at once.
 		if doctype == "Item" && id == "" && statusVal == "Draft" && engines.ItemReleaseApprovalOn(tenantID) {
@@ -2144,6 +2280,19 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 // same list the bulk edit and the import are held to (Stage 49.3.5).
 var approvalOnlyStatuses = engines.ApprovalDecidedStatuses
 
+// createSetsByKey (57.26 j) are the record types whose id is what the record
+// is about - a product's attribute value (item::attribute), its content in
+// one language (item::language) - so the PIM screens set one by creating it
+// again. Every other create refuses a live record's id with 409.
+var createSetsByKey = map[string]bool{"ProductAttributeValue": true, "ProductContent": true}
+
+// recordIsOfType reports whether id is a record of doctype, live or deleted.
+func recordIsOfType(schema, id, doctype string) bool {
+	var existing string
+	err := db.DB.QueryRow(fmt.Sprintf(`SELECT doctype FROM %s.documents WHERE id = $1`, schema), id).Scan(&existing)
+	return err == nil && existing == doctype
+}
+
 // actionOnlyStatuses (Stage 132.17) are set only by the document's own action
 // endpoint - the one that moves the stock or money the status stands for -
 // never by a plain save.
@@ -2166,6 +2315,14 @@ var actionOnlyStatuses = map[string][]string{
 	"ServiceEntrySheet": {"Accepted"},         // /procurement/service-entry/{id}/accept
 	// Ask 170.5: a lease is Active only once its opening entry is booked.
 	"Lease": {"Active", "Closed"}, // /assets/leases/{id}/activate; Closed by the lease worker
+	// 57.26(a): a ticket saved as Closed skipped its contract's visit count,
+	// a maintenance order saved as Completed skipped its parts and cost, a
+	// challan saved as Dispatched or Returned skipped its stock, and a rebate
+	// saved as Settled had no debit note.
+	"ServiceTicket":     {"Assigned", "InProgress", "Resolved", "Closed", "Cancelled"}, // /service/ticket/{id}/assign, start, resolve, close, cancel
+	"MaintenanceOrder":  {"InProgress", "Completed"},                                   // /quality/maintenance-order/{id}/start, complete
+	"DeliveryChallan":   {"Dispatched", "Partly Returned", "Returned", "Closed"},       // /inventory/challans/{id}/dispatch, return
+	"VendorRebateClaim": {"Settled"},                                                   // /procurement/vendor-rebates/{id}/settle
 }
 
 func isActionOnlyStatus(doctype, s string) bool {
@@ -2392,11 +2549,4 @@ func handleGetIndustryLock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(lock)
-}
-
-// changedFieldNames (Stage 130.9) lists, sorted, the fields an edit changed:
-// a value that differs, or one added or removed. 49.5.4 (b): the rule lives
-// in engines.ChangedFieldNames, shared with the import.
-func changedFieldNames(before, after map[string]interface{}) []string {
-	return engines.ChangedFieldNames(before, after)
 }

@@ -7,13 +7,16 @@
 //
 // Run (scratch server and scratch DB only):
 //   node docs/qa/bld041-print-paths.cjs <evidence-dir> <scratch-origin> <token-file> [fixture.json]
+//   B41_ONLY=credit-note,debit-note (environment) runs only the named checks.
 //
 // Without a fixture file it first seeds what each path needs through the real
 // API, as the app's own screens do (masters B41-*, a PO -> GRN for stock, a
 // posted and a draft Sales Invoice with a part receipt, OMS orders picked,
 // packed, billed and booked, a Loaded WMS load, a POS sale and its return, a
 // purchase return, notes, a POS advance, a transfer order and a delivery
-// challan), and writes the ids to <evidence-dir>/fixture.json. Masters are
+// challan; since 50.14 also a received transfer, a vendor payment, two GRNs
+// that raise a debit and a vendor credit note, and a job-work order sent on
+// its challan), and writes the ids to <evidence-dir>/fixture.json. Masters are
 // reused; documents are new each run. The browser part then writes like a
 // user would too (one POS sale, one load departure, one OMS pack/bill/book,
 // print-log rows). The token file holds a scratch Super Admin bearer token;
@@ -223,6 +226,45 @@ async function seed() {
   fx.dc = (await must('delivery challan', '/api/v1/doc/DeliveryChallan', 'POST', { code: `DC-B41-${RUN}`, purpose: 'Repair', location: STORE, party_type: 'Vendor', party_name: 'B41 Vendor', party_state: state,
     items: JSON.stringify([{ sku: SKU2, item_name: 'B41 Polo', qty: 1, rate: 100 }]), amount: 100, status: 'Draft' })).id;
   await approve('DeliveryChallan', fx.dc);
+
+  // 50.14 (ask 191): the four paths the 2026-10-26 pass left unseeded.
+  // Transfer In: a second order, dispatched and received at HO.
+  fx.toIn = (await must('transfer order (in)', '/api/v1/doc/TransferOrder', 'POST', { transfer_number: `TI-B41-${RUN}`, from_warehouse: STORE, to_warehouse: 'HO', status: 'Draft', items: JSON.stringify([{ sku: SKU, qty: 1 }]) })).id;
+  await approve('TransferOrder', fx.toIn);
+  await must('dispatch transfer', '/api/v1/transfer/dispatch', 'POST', { transfer_order_id: fx.toIn });
+  await must('receive transfer', '/api/v1/transfer/receive', 'POST', { transfer_order_id: fx.toIn, received_items: [{ sku: SKU, qty: 1 }] });
+  // Payment voucher: one payment on the vendor bill the first GRN raised.
+  fx.bill = ((await api(`/api/v1/doc/GRN/${enc(fx.grn)}`)).body || {}).vendor_bill_id;
+  fx.payRef = `B41-PAY-${RUN}`;
+  await must('pay vendor', `${G}/pay`, 'POST', { amount: 500, mode: 'bank', reference: fx.payRef, date: localDay() });
+  // GRN price notes: billed at 100 and agreed at 90 raises a debit note;
+  // billed at 90 below the PO's 100 and taken at 100 raises a vendor credit note.
+  const noteGRN = async (tag, invoiceRate, grnPrice) => {
+    const p = await must(`PO (${tag})`, '/api/v1/doc/PurchaseOrder', 'POST', { vendor: fx.vendor, vendor_id: fx.vendor, location: STORE, target_warehouse: STORE,
+      items: JSON.stringify([{ sku: SKU2, qty: 2, rate: 100, mrp: 299 }]), gst_mode: 'Exclusive', expected_delivery_date: localDay(), interstate: false, interstate_override: false, total_amount: 0, status: 'Draft' });
+    await approve('PurchaseOrder', p.id);
+    const g = await must(`GRN (${tag})`, '/api/v1/doc/GRN', 'POST', { flow: 'steps', po_id: p.id, po_ids: p.id, location: STORE, vendor_invoice_no: `B41-${tag}-${RUN}`, vendor_invoice_date: localDay(),
+      vendor_invoice_amount: Math.round(2 * invoiceRate * 105) / 100,
+      received_items: JSON.stringify([{ po_id: p.id, sku: SKU2, qty: 2, accepted_qty: 2, rejected_qty: 0, damaged_qty: 0, mrp: 299, invoice_rate: invoiceRate }]) });
+    const GG = `/api/v1/grn-steps/${enc(g.id)}`;
+    let v = (await api(GG)).body || {};
+    if (Math.abs(Number(v.invoice_unexplained) || 0) >= 1) v = await must(`GRN receive (${tag})`, `${GG}/receive`, 'POST', { vendor_invoice_amount: v.invoice_lines_total, reason: 'BLD-041: match the lines' });
+    const ln = ((v.lines || [])[0] || {}).line_no || 1;
+    v = await must(`GRN verify (${tag})`, `${GG}/verify`, 'POST', { lines: [{ line_no: ln, grn_price: grnPrice }], reason: 'BLD-041: price agreed with the vendor' });
+    v = await must(`GRN price (${tag})`, `${GG}/price`, 'POST', {});
+    for (const ch of v.children || []) {
+      const mrp = {}; for (const l of (v.lines || []).filter(l => l.child === ch.key)) mrp[String(l.line_no)] = 299;
+      v = await must(`GRN post (${tag})`, `${GG}/post/${enc(ch.key)}`, 'POST', { mrp });
+    }
+    return (await api(`/api/v1/doc/GRN/${enc(g.id)}`)).body || {};
+  };
+  fx.grnDn = (await noteGRN('DN', 100, 90)).debit_note_id;
+  fx.grnVcn = (await noteGRN('VCN', 90, 100)).vendor_credit_note_id;
+  if (!fx.grnDn || !fx.grnVcn) throw new Error(`seed: GRN price notes not raised (debit ${fx.grnDn}, credit ${fx.grnVcn})`);
+  // Job work: one piece sent to the vendor on its delivery challan.
+  fx.jw = (await must('job work order', '/api/v1/doc/SubcontractOrder', 'POST', { code: `JW-B41-${RUN}`, vendor_id: fx.vendor, location: STORE, status: 'Draft', due_date: localDay(),
+    lines: JSON.stringify([{ sku: SKU, qty: 1 }]) })).id;
+  await must('send job work', '/api/v1/manufacturing/subcontract-order/send', 'POST', { id: fx.jw });
   return fx;
 }
 
@@ -234,6 +276,8 @@ async function main() {
   if (fixtureFile) {
     fx = JSON.parse(fs.readFileSync(fixtureFile, 'utf8'));
     if (fx.store) await switchStore(fx.store);
+    // A gift card is issued once: a re-run issues a fresh one.
+    fx.giftCard = ((await must('register gift card', '/api/v1/stored-value/cards', 'POST', { profile: 'Standard Gift Card', generate: 1, numbers: [] })).numbers || [])[0] || fx.giftCard;
   } else {
     fx = await seed();
     fs.writeFileSync(path.join(evidence, 'fixture.json'), JSON.stringify(fx, null, 2) + '\n');
@@ -323,6 +367,9 @@ async function main() {
 
   // A check: reset counters, run the clicks, settle, then record what printed.
   async function check(name, screen, docId, run, expect) {
+    // B41_ONLY=name,name re-runs just those checks on a fixture (each check
+    // that stands on its own fixture ids; the POS ones need pos-receipt's bill).
+    if (process.env.B41_ONLY && !process.env.B41_ONLY.split(',').includes(name)) return;
     await headroom();
     const marks = { pe: pageErrors.length, ce: consoleErrors.length, br: badResponses.length, pr: await prints(), qz: await page.evaluate(() => window.__b41.qzConnects) };
     const record = { name, screen, docId, ok: false, notes: [] };
@@ -370,7 +417,9 @@ async function main() {
       record.missingFromScreen.length && `missingOnScreen=${JSON.stringify(record.missingFromScreen)}`, record.pageErrors.length && `pageErrors=${JSON.stringify(record.pageErrors)}`,
       record.consoleErrors.length && `consoleErrors=${JSON.stringify(record.consoleErrors)}`, record.httpErrors.length && `http=${JSON.stringify(record.httpErrors)}`].filter(Boolean).join(' ');
     process.stdout.write(`${record.ok ? 'PASS' : 'FAIL'} ${name} [${record.docId}]: prints=${record.printCalls} qz=${record.qzConnectAttempts} ${extra}\n`);
+    // A preview left open (the till's slip preview included) would block every later check.
     await page.evaluate(() => document.querySelectorAll('.td-overlay, #shipping-label-modal').forEach(el => el.remove()));
+    await page.evaluate(() => document.querySelectorAll('.modal-overlay.open').forEach(el => { if (el.querySelector('[data-vp]')) el.remove(); }));
   }
 
   // The shared print dialog (trade-docs.js): wait for its live preview, press Print.
@@ -452,9 +501,9 @@ async function main() {
       rec.screenText = (await page.locator('#pos-completed-sale').innerText()).replace(/\s+/g, ' ');
       bill = (/Bill (\S+)/.exec(rec.screenText) || [])[1] || '';
       rec.docId = bill;
-      const before = await prints();
+      // Stage 143.4: Print Receipt shows the bill first; Print there prints it.
       await page.locator('#pos-print-receipt-btn').click();
-      await waitPrints(before + 1);
+      await printViaDialog(rec);
     }, rec => ({ printCalls: 1, sheetHas: [rec.docId || '(bill)', 'B41 Retail Pvt Ltd', 'B41 Tee', '299.00', 'B41 Trade Buyer', 'Paid: Cash 299.00'] }));
 
     await check('pos-gst-invoice', 'pos', bill, async (rec) => {
@@ -462,11 +511,16 @@ async function main() {
       await printViaDialog(rec);
     }, { printCalls: 1, sheetHas: [bill || '(bill)', 'B41 Tee', 'B41 Trade Buyer', fx.b2bGstin] });
 
-    // 2a. Preview beside Print Receipt: its own Print prints the bill.
-    await check('pos-receipt-preview-print', 'pos', bill, async (rec) => {
-      await page.locator('#pos-preview-receipt-btn').click();
-      await printViaDialog(rec);
-    }, { printCalls: 1, sheetHas: [bill || '(bill)', 'B41 Retail Pvt Ltd', 'B41 Tee', 'B41 Trade Buyer'] });
+    // 2a. The receipt preview's Close prints nothing (Stage 143.4 folded the
+    // old Preview button into Print Receipt).
+    await check('pos-receipt-preview-close', 'pos', bill, async (rec) => {
+      await page.locator('#pos-print-receipt-btn').click();
+      const overlay = page.locator('.td-overlay').last();
+      await overlay.locator('.td-preview .td-preview-page').first().waitFor({ state: 'attached', timeout: 30000 });
+      rec.screenText = (await overlay.innerText()).replace(/\s+/g, ' ').slice(0, 400);
+      await overlay.locator('[data-td="close"]').first().click();
+      await overlay.waitFor({ state: 'detached', timeout: 15000 });
+    }, { printCalls: 0, screenHas: ['Receipt preview', bill || '(bill)', 'B41 Tee'] });
 
     // 2b. The till's older plain receipt (view-pos-extras.js printPOSReceipt):
     // what Print Receipt prints when the server cannot build the roll bill.
@@ -493,8 +547,13 @@ async function main() {
       await dlg.locator('[data-gc="amount"]').fill('500');
       await dlg.locator('[data-gc="mode"]').selectOption('Cash');
       await page.locator('#custom-dialog-ok-btn').click();
-      const popupP = page.waitForEvent('popup', { timeout: 30000 });
       await page.locator('#custom-dialog-container:not(.hidden) #custom-dialog-ok-btn').click(); // "Load 500.00 on card ending ...?"
+      // Stage 143.4: the slip is shown first; its Print prints it.
+      const preview = page.locator('.modal-overlay.open').filter({ has: page.locator('[data-vp="print"]') });
+      await preview.locator('.vp-slip').waitFor({ state: 'visible', timeout: 30000 });
+      rec.previewText = (await preview.locator('.vp-slip').innerText()).replace(/\s+/g, ' ').slice(0, 400);
+      const popupP = page.waitForEvent('popup', { timeout: 30000 });
+      await preview.locator('[data-vp="print"]').click();
       const popup = await popupP;
       popup.on('pageerror', e => pageErrors.push(`popup: ${e.message}`));
       await popup.waitForFunction(() => document.body && /GIFT CARD/.test(document.body.innerText), null, { timeout: 15000 });
@@ -623,17 +682,16 @@ async function main() {
       await printViaDialog(rec);
     }, { printCalls: 1, sheetHas: [fx.siDraft, 'B41 Customer'] });
 
-    // 10. Finance notes: customer credit note and vendor debit note.
-    await check('credit-note', 'finance-notes', fx.cn, async (rec) => {
-      await open('finance-notes');
-      await page.locator('#view-root .txn-tab', { hasText: 'Customer credit notes' }).click();
+    // 10. Finance notes: customer credit note and vendor debit note. Stage
+    // 155.2: each note book is its own page ("finance-notes:<book>").
+    await check('credit-note', 'finance-notes:customer-credit', fx.cn, async (rec) => {
+      await open('finance-notes:customer-credit');
       await page.locator(`#view-root [data-act="printTransactionDocument"]${argsHas(fx.cn)}`).first().click();
       await printViaDialog(rec);
     }, { printCalls: 1, sheetHas: [fx.cn, 'B41 Customer', '50.00'] });
 
-    await check('debit-note', 'finance-notes', fx.dn, async (rec) => {
-      await open('finance-notes');
-      await page.locator('#view-root .txn-tab', { hasText: 'Debit notes' }).click(); // the screen reopens on the last tab used
+    await check('debit-note', 'finance-notes:debit', fx.dn, async (rec) => {
+      await open('finance-notes:debit');
       await page.locator(`#view-root [data-act="printTransactionDocument"]${argsHas(fx.dn)}`).first().click();
       await printViaDialog(rec);
     }, { printCalls: 1, sheetHas: [fx.dn, 'B41 Vendor', '40.00'] });
@@ -662,12 +720,17 @@ async function main() {
     }, { printCalls: 1, sheetHas: ['B41 Vendor', 'B41 Polo'] });
 
     // 14. POS > Advance: the advance receipt voucher slip (receipt-print-area).
-    await check('pos-advance-voucher', 'pos (Advance tab)', fx.adv, async () => {
+    await check('pos-advance-voucher', 'pos (Advance tab)', fx.adv, async (rec) => {
       await open('pos');
       await page.locator('#pos-screen .txn-tab', { hasText: 'Advance' }).click();
       await quiet();
       const before = await prints();
       await page.locator(`[data-adv-print="${fx.adv}"]`).click();
+      // Stage 143.4: the slip is shown first; its Print prints it.
+      const preview = page.locator('.modal-overlay.open').filter({ has: page.locator('[data-vp="print"]') });
+      await preview.locator('.vp-slip').waitFor({ state: 'visible', timeout: 30000 });
+      rec.previewText = (await preview.locator('.vp-slip').innerText()).replace(/\s+/g, ' ').slice(0, 400);
+      await preview.locator('[data-vp="print"]').click();
       await waitPrints(before + 1);
     }, { printCalls: 1, sheetHas: ['ADVANCE RECEIPT VOUCHER', fx.adv, 'B41 Customer', '500.00'] });
 
@@ -680,6 +743,35 @@ async function main() {
       await printViaDialog(rec);
       await page.evaluate(() => window.closeDynamicModal?.());
     }, { printCalls: 1, sheetHas: [fx.cn, '50'] });
+
+    // 16-19 (50.14, ask 191): Transfer In, the payment voucher, the GRN's
+    // price-note links and the job-work challan.
+    await check('transfer-in', 'transfers', fx.toIn, async (rec) => {
+      await open('transfers');
+      await page.locator(`#view-root [data-act="printTransactionDocument"]${argsHas(fx.toIn)}`).first().click();
+      await printViaDialog(rec);
+    }, { printCalls: 1, sheetHas: [fx.toIn, SKU, 'Received Qty', 'To location'] });
+
+    await check('vendor-payment-voucher', 'vendor-invoices', fx.bill, async (rec) => {
+      await open('vendor-invoices');
+      await page.locator(`#view-root [data-pay-hist-toggle="${fx.bill}"]`).first().click();
+      await page.locator(`#view-root [data-pay-print="PaymentVoucher"][data-pay-id="${fx.bill}~${fx.payRef}"]`).first().click();
+      await printViaDialog(rec);
+    }, { printCalls: 1, sheetHas: ['Payment Voucher', 'B41 Vendor', '500.00'] });
+
+    for (const [name, id] of [['grn-debit-note-link', fx.grnDn], ['grn-vendor-credit-note-link', fx.grnVcn]]) {
+      await check(name, 'grn (Price Notes)', id, async (rec) => {
+        await open('grn');
+        await page.locator(`#view-root [data-act="printTransactionDocument"]${argsHas(id)}`).first().click();
+        await printViaDialog(rec);
+      }, { printCalls: 1, sheetHas: [id, 'B41 Vendor'] });
+    }
+
+    await check('job-work-challan', 'manufacturing:subcontracting', fx.jw, async (rec) => {
+      await open('manufacturing:subcontracting');
+      await page.locator(`#view-root [data-jw-act="print"][data-id="${fx.jw}"]`).click();
+      await printViaDialog(rec);
+    }, { printCalls: 1, sheetHas: ['B41 Vendor', SKU] });
   } finally {
     const failed = result.checks.filter(c => !c.ok);
     result.summary = { checks: result.checks.length, passed: result.checks.length - failed.length, failed: failed.map(c => c.name) };

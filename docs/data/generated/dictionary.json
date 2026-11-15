@@ -17508,6 +17508,71 @@
   },
   "reports": [
     {
+      "id": "own-approval-decisions",
+      "label": "Own approval decisions",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "decided_at",
+          "label": "Decided",
+          "sensitive": false
+        },
+        {
+          "key": "doctype",
+          "label": "Document type",
+          "sensitive": false
+        },
+        {
+          "key": "document_id",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "decision",
+          "label": "Decision",
+          "sensitive": false
+        },
+        {
+          "key": "decided_by",
+          "label": "Decided by",
+          "sensitive": false
+        },
+        {
+          "key": "role",
+          "label": "Role",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9062"
+    },
+    {
       "id": "backorder-list",
       "label": "Back orders",
       "category": "Procurement",
@@ -20287,6 +20352,187 @@
       "number": "R5171"
     },
     {
+      "id": "card-lines-unmatched",
+      "label": "Card lines not matched",
+      "category": "Expenses",
+      "module_key": "expenses",
+      "columns": [
+        {
+          "key": "card",
+          "label": "Card",
+          "sensitive": false
+        },
+        {
+          "key": "holder",
+          "label": "Card holder",
+          "sensitive": false
+        },
+        {
+          "key": "txn_date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "possible_claims",
+          "label": "Claims that fit",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5175"
+    },
+    {
+      "id": "travel-requests",
+      "label": "Travel requests",
+      "category": "Expenses",
+      "module_key": "expenses",
+      "columns": [
+        {
+          "key": "code",
+          "label": "Request",
+          "sensitive": false
+        },
+        {
+          "key": "employee_id",
+          "label": "Employee",
+          "sensitive": false
+        },
+        {
+          "key": "destination",
+          "label": "Destination",
+          "sensitive": false
+        },
+        {
+          "key": "from_date",
+          "label": "From",
+          "sensitive": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "estimated",
+          "label": "Estimated",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "advance_paid",
+          "label": "Advance paid",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "claimed",
+          "label": "Claimed",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "left",
+          "label": "Left of estimate",
+          "sensitive": true,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "options": ",Draft,Pending Approval,Approved,Rejected",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5174"
+    },
+    {
+      "id": "cash-position",
+      "label": "Cash position",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "section",
+          "label": "Section",
+          "sensitive": false
+        },
+        {
+          "key": "item",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "now",
+          "label": "Now",
+          "sensitive": true
+        },
+        {
+          "key": "w1",
+          "label": "Week 1",
+          "sensitive": true
+        },
+        {
+          "key": "w2",
+          "label": "Week 2",
+          "sensitive": true
+        },
+        {
+          "key": "w3",
+          "label": "Week 3",
+          "sensitive": true
+        },
+        {
+          "key": "w4",
+          "label": "Week 4",
+          "sensitive": true
+        },
+        {
+          "key": "later",
+          "label": "Later",
+          "sensitive": true
+        },
+        {
+          "key": "total",
+          "label": "Total",
+          "sensitive": true
+        }
+      ],
+      "params": [
+        {
+          "key": "as_of",
+          "label": "As of",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5173"
+    },
+    {
       "id": "profit-and-loss",
       "label": "Profit \u0026 Loss",
       "category": "Finance",
@@ -21726,8 +21972,13 @@
           "sensitive": false
         },
         {
+          "key": "doc_type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
           "key": "doc_number",
-          "label": "Invoice",
+          "label": "Number",
           "sensitive": false
         },
         {
@@ -21747,7 +21998,7 @@
         },
         {
           "key": "bill_id",
-          "label": "Vendor bill",
+          "label": "Bill / note",
           "sensitive": false
         },
         {
@@ -21820,6 +22071,65 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R9022"
+    },
+    {
+      "id": "certificate-expiry",
+      "label": "Certificate Expiry",
+      "category": "HR",
+      "module_key": "hr",
+      "columns": [
+        {
+          "key": "employee_id",
+          "label": "Employee ID",
+          "sensitive": false
+        },
+        {
+          "key": "employee_name",
+          "label": "Employee",
+          "sensitive": false
+        },
+        {
+          "key": "department",
+          "label": "Department",
+          "sensitive": false
+        },
+        {
+          "key": "program",
+          "label": "Training",
+          "sensitive": false
+        },
+        {
+          "key": "certificate_no",
+          "label": "Certificate",
+          "sensitive": false
+        },
+        {
+          "key": "valid_until",
+          "label": "Valid until",
+          "sensitive": false
+        },
+        {
+          "key": "days_left",
+          "label": "Days left",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "days",
+          "label": "Days ahead (optional)",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R8019"
     },
     {
       "id": "inspection-lots",
@@ -23914,6 +24224,60 @@
       "number": "R7968"
     },
     {
+      "id": "declaration-gaps",
+      "label": "Declaration gaps",
+      "category": "PIM",
+      "module_key": "pim",
+      "columns": [
+        {
+          "key": "item_code",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "item_name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "category",
+          "label": "Category",
+          "sensitive": false
+        },
+        {
+          "key": "pack",
+          "label": "Pack",
+          "sensitive": false
+        },
+        {
+          "key": "channel",
+          "label": "Channel",
+          "sensitive": false
+        },
+        {
+          "key": "missing",
+          "label": "Missing",
+          "sensitive": false
+        },
+        {
+          "key": "record",
+          "label": "Turned on by",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "category",
+          "label": "Category",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9063"
+    },
+    {
       "id": "listing-drift",
       "label": "Listing drift",
       "category": "PIM",
@@ -25333,6 +25697,66 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R7970"
+    },
+    {
+      "id": "calibration-due",
+      "label": "Instruments due for calibration",
+      "category": "Quality",
+      "module_key": "quality",
+      "columns": [
+        {
+          "key": "code",
+          "label": "Instrument",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "kept_at",
+          "label": "Kept at",
+          "sensitive": false
+        },
+        {
+          "key": "last_calibrated",
+          "label": "Last calibrated",
+          "sensitive": false
+        },
+        {
+          "key": "result",
+          "label": "Result",
+          "sensitive": false
+        },
+        {
+          "key": "next_due",
+          "label": "Next due",
+          "sensitive": false
+        },
+        {
+          "key": "days_overdue",
+          "label": "Days overdue",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "State",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "show",
+          "label": "Show",
+          "type": "select",
+          "options": "Due and overdue,All",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R7971"
     },
     {
       "id": "lot-trace",
@@ -48289,6 +48713,11 @@
           "sensitive": false
         },
         {
+          "key": "uom",
+          "label": "UOM",
+          "sensitive": false
+        },
+        {
           "key": "running_balance",
           "label": "Running Balance",
           "sensitive": false
@@ -48301,6 +48730,21 @@
         {
           "key": "voucher_id",
           "label": "Voucher ID",
+          "sensitive": false
+        },
+        {
+          "key": "valuation_rate",
+          "label": "Unit Cost",
+          "sensitive": false
+        },
+        {
+          "key": "sale_rate",
+          "label": "Unit Price",
+          "sensitive": false
+        },
+        {
+          "key": "tax_rate",
+          "label": "Tax %",
           "sensitive": false
         },
         {

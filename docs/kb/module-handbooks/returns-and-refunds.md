@@ -9,7 +9,7 @@ audience: cashier, store manager, returns operator
 applies_to: source release 0.1.0; Stage 47.4 return workflow
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-08
+last_verified: 2026-11-15
 review_by: 2026-10-08
 supersedes: none
 superseded_by: none
@@ -44,7 +44,7 @@ administrator to check access; it is not a reason to borrow another login.
 ## Raise the return at the till
 
 1. In **Process a Return**, enter **Original Bill / Cart Number** and choose
-   **Look Up Bill**.
+   **Find Bill**.
 2. Read **Sold**, **Already Returned** and **Still Returnable** for each line.
    The price comes from the original bill. You cannot replace it with today's
    price or type a different refund amount.

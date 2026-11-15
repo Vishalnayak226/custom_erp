@@ -32,6 +32,7 @@ Think of this system as one big digital notebook that your whole business shares
 4. **The first time you sign in** — and the first time after an administrator has reset your password — you are asked to **Set your own password**: type the password you were given, then your new one twice. Nothing else in the system opens until you have done this, so the password your administrator knows never stays in use. If you forget your password later, ask your administrator to reset it; you will be asked to choose a new one again.
 5. Only administrator accounts (Admin and Super Admin) are asked for a **6-digit code** from an authenticator app on their phone. This is called **MFA** (Multi-Factor Authentication) — an extra lock on the door, on top of the password. Everyone else signs in with username and password only. On your own computer you can tick **Remember this device** to skip the code there for a while (see below).
 6. If you type your password wrong too many times in a row, the system will temporarily lock your account to keep it safe. Wait a bit and try again, or ask an admin for help.
+7. **Forgot your password?** Click **Forgot password?** under **Sign In**, type your username or e-mail and click **Send reset link**. The e-mail's link opens **Set a new password**: type it twice and click **Set password**, then sign in with it. The link works once and for a limited time (your administrator sets how long). No e-mail on your account? Ask an administrator to reset the password instead.
 
 ### If your role uses MFA: your recovery codes
 
@@ -62,6 +63,16 @@ Do this *before* you get rid of an old phone if you can, but it also works after
 5. Your old device stops working at that moment, and you are given a **fresh set of recovery codes** — save these too; the old set no longer works. Any browser you had ticked **Remember this device** on asks for the new code at its next sign-in.
 
 Your old authenticator keeps working the whole time until step 4 succeeds, so it is safe to start this and change your mind.
+
+### Signing in with a passkey instead of a code
+
+A passkey uses your phone, laptop or security key (with its PIN, fingerprint or face) in place of the 6-digit code. It cannot be used on a look-alike site, so it is the safest second step.
+
+1. Sign in and open **My Profile**. Under **Passkeys**, click **Add a passkey**, name it (for example *Office laptop*) and approve it on your device.
+2. Next time, after your password, click **Use a passkey** and approve on the device. The 6-digit code and recovery codes still work.
+3. To stop using one, click **Remove** next to it. If you lose the device, ask your administrator to reset your two-factor sign-in: it removes your passkeys as well.
+
+You can keep up to ten passkeys. The button shows only if your browser supports passkeys and you have added one.
 
 The same panel shows **how many recovery codes you have left** and lets you generate a new set at any time (which immediately cancels the old set). If it says you have none, generate some now — with no codes and no phone, only an administrator can get you back in.
 
@@ -134,18 +145,20 @@ On a phone, a group such as **Inbound** opens under its own row instead of besid
 
 ### Home, your landing screen
 
-Home is where you land right after signing in (and the "Home" link at the top of the sidebar, or a click on the Wholeops logo, always takes you back there). It is built from your own role, not a generic list, so it stays short and relevant:
+Home is where you land right after signing in (and the "Home" link at the top of the sidebar, or a click on the Wholeops logo, always takes you back there). Home is for dashboards, not shortcuts. It is built from your own role:
 
-- **Your quick actions** — a grid of the screens where you record or process work (transactions only — lists such as Vendors or Customers are in their modules and in Setup), each one click away: **Point of Sale** for a cashier, **Purchase Orders** for buying, the **Warehouse Cockpit** for a floor operator, **Work to review** for an accountant, and so on. A screen you have no access to simply is not a tile — never a greyed-out one you can click and get refused.
-- **What's waiting on you** — a count of approvals needing your sign-off, when Approvals is something you use.
-- **Recent** — the records you most recently created or touched, for the one task type you use most, so you can jump straight back into something you were just working on.
+- **Finish setting up** (administrators only) — how many setup steps are left and which one is next.
+- **Your role's dashboard** — the custom dashboard set as your role's Home (see **9.2 Custom dashboards** in the [reports and orders guide](user-guide-reports-and-orders.md)), with **Open in Dashboards** to work with it in full. If none is set, this part is simply absent.
+- **What's waiting on you** — a count of approvals needing your sign-off, when Approvals is something you use. Click it to open Approvals.
 - **Get started** — while your company is still setting things up, this names the first master record (a Vendor, an Item, a Location…) you need before the rest of the screen has anything to show, with a link straight to creating it.
+
+Home has no shortcut tiles and no list of recent records. To reach a screen, use the sidebar, or press **Ctrl+K** and pick from **Favourites** or type its name. To get back to a record you opened, press **Ctrl+K**: its **Recent** list holds the last screens, reports and documents you opened.
 
 From your second visit onward you land back on whichever screen you were last using instead of Home, so you can pick up where you left off — click **Home** in the sidebar any time you want to return to it on purpose. Refreshing the browser (F5) works the same way: you stay on the same screen, the menu stays scrolled where it was, and the page comes back at the same scroll position — also after you have read a Help article and moved on.
 
 **The store you are working at is at the top right**, beside Refresh. Everything you do — a sale, a purchase order, a transfer — is done at that store, and the lists you see are its records. If you have been given more than one store, click it and pick another (type to find it in a long list); the screen reloads for that store. With a till session open you cannot switch until you close it. Which stores you can pick is set by an administrator (Users → Stores, Roles → Stores).
 
-**All stores (administrators).** If you may see every store's records, the list starts with **All stores**, and that is where you start: the lists show every store's documents, and new documents are made at your own store. Pick a store and every transaction list - purchase orders, goods receipts, transfers (sent and received), returns, bills, stock moves - shows only that store's documents; the button then names the store. Pick **All stores** again to see everything. Picking your own store while on All stores narrows the lists without moving you. Setup lists (vendors, items, employees) always show everything, and finding a bill by mobile number for a return still searches every store (§4.7). Everyone else always sees the lists of the store they are working at.
+**All stores (administrators).** If you may see every store's records, the list starts with **All stores**, and that is where you start: the lists show every store's documents, and new documents are made at your own store. Pick a store and every transaction list - purchase orders, goods receipts, transfers (sent and received), returns, bills, stock moves, and the OMS Pick, Pack and Ship worklists - shows only that store's documents; the button then names the store. Pick **All stores** again to see everything. Picking your own store while on All stores narrows the lists without moving you. Setup lists (vendors, items, employees) always show everything, and finding a bill by mobile number for a return still searches every store (§4.7). Everyone else always sees the lists of the store they are working at.
 
 > **If you are a supplier**, your account is deliberately narrow: you sign in to the same app as everyone else, but the only screen you can reach is **Supplier Submissions**, and within it you see only the submissions filed under your own company — never another supplier's. Fill in the product details you want to propose (the product, the language, a title, and whatever descriptions, tags or image URL you have), save it, then use **Submit for Approval**. A reviewer at the company approves or rejects it; a rejection always carries a written reason, which you can read on the submission itself. Approved text does **not** go live automatically — it becomes a draft that the company still reviews and publishes on its own schedule. If the app tells you your account is not linked to a vendor yet, that's a setup step your contact at the company needs to finish.
 
@@ -238,60 +251,177 @@ A code, number or document opens only if your role can open it from the menu; on
 
 The same codes work for every company. A code shows only if your role has the screen.
 
+Your administrator can switch codes off for the company (**Configuration ▸ Navigation ▸ Short codes**); screens are then found by name, and keys, favourites and report numbers still work.
+
 | Area | Code | Opens |
 |---|---|---|
 | Go to | `HOME` | Home |
 | Go to | `INB` | My work and approvals |
 | Go to | `RPT` | Reports |
+| Go to | `RSC` | Report Schedules |
 | Go to | `HELP` | Knowledge Center |
 | Sales | `POS` | POS / Billing |
+| Sales | `POSP` | POS Profiles |
+| Sales | `OFR` | Offline Sync Review |
+| Sales | `OFG` | Offline Queue Gaps |
+| Sales | `OFS` | Offline Sales |
 | Sales | `SO` | Sales Order |
+| Sales | `PEND` | Pending Orders |
 | Sales | `SI` | Sales Invoice |
 | Sales | `SR` | Sales Return |
 | Sales | `CN` | Credit Note |
 | Sales | `DN` | Debit Note |
 | Sales | `EI` | E-Invoice (IRN) |
-| Sales | `CUS` | Customers |
-| Sales | `CRM` | CRM |
-| Sales | `LOY` | Loyalty |
+| Sales | `EIS` | E-Invoice Settings |
+| Sales | `STL` | Settlements |
+| Sales | `FRT` | Freight |
+| CRM | `CRM` | CRM |
+| CRM | `CUS` | Customers |
+| CRM | `SEG` | Segments |
+| CRM | `CTPL` | CRM Templates |
+| CRM | `CMP` | Campaigns |
+| CRM | `JRN` | Journeys |
+| CRM | `MSG` | Messages |
+| CRM | `CINB` | CRM Inbox |
+| CRM | `TKT` | CRM Tickets |
+| CRM | `FBK` | Feedback |
+| CRM | `WKL` | Worklist |
+| CRM | `PIPE` | Pipeline |
+| CRM | `CRMS` | CRM Settings |
+| CRM | `VCH` | Vouchers |
+| CRM | `SVT` | Service Tickets |
+| CRM | `LOY` | Loyalty |
+| CRM | `TIER` | Loyalty Tiers |
+| CRM | `PTS` | Points Movement |
+| CRM | `LOF` | Loyalty Vouchers & Campaigns |
 | Buying | `PRQ` | Purchase Requisition |
 | Buying | `RFQ` | Request for Quotation |
 | Buying | `PO` | Purchase Order |
+| Buying | `PCON` | Purchase Contracts |
+| Buying | `SES` | Service Entry |
 | Buying | `ASN` | Advance Shipment Notice |
+| Buying | `GE` | Gate Entry |
 | Buying | `GRN` | Goods Receipt |
 | Buying | `PR` | Purchase Return |
 | Buying | `VI` | Vendor Invoice |
 | Buying | `VEN` | Vendors |
+| Stock | `INV` | Inventory Dashboard |
 | Stock | `SOH` | Stock on Hand |
 | Stock | `SL` | Inventory Ledger |
 | Stock | `TO` | Stock Movement (Transfer Order) |
+| Stock | `ALC` | Transfer Allocation |
 | Stock | `SA` | Stock Adjustment |
 | Stock | `MRP` | MRP Change |
 | Stock | `MI` | Material Issue |
 | Stock | `DC` | Delivery Challan |
 | Stock | `MS` | Move Stock |
+| Stock | `LOC` | Stock Locations |
+| Stock | `LOCS` | Locations by Store |
+| Stock | `LOCT` | Locations by Transaction |
 | Stock | `CC` | Cycle Count |
 | Stock | `STK` | Sticker Printing |
 | Stock | `ITM` | Items |
+| Warehouse | `WMS` | Warehouse Cockpit |
+| Warehouse | `LAB` | Labour |
+| Warehouse | `WBIL` | Warehouse Billing |
+| Warehouse | `APT` | Appointment Calendar |
+| Warehouse | `DOCK` | Dock Doors |
+| Warehouse | `YARD` | Yard Board |
+| Warehouse | `TRL` | Trailers |
+| Warehouse | `RFR` | RF Receiving |
 | Warehouse | `PUT` | Putaway |
+| Warehouse | `XD` | Cross-Dock Plans |
+| Warehouse | `BIN` | Bins |
+| Warehouse | `BINC` | Bin Conditions |
+| Warehouse | `BING` | Bin Generator |
+| Warehouse | `LPN` | LPN / Cartons / Pallets |
+| Warehouse | `REPL` | Bin Replenishment |
+| Warehouse | `LOCM` | Location Movement |
+| Warehouse | `RFL` | RF Lot & Serial |
+| Warehouse | `HOLD` | Holds |
+| Warehouse | `PLH` | Place Hold |
+| Warehouse | `HREL` | Hold Release Requests |
+| Warehouse | `WVS` | Waves |
 | Warehouse | `PICK` | Pick |
 | Warehouse | `PACK` | Pack |
 | Warehouse | `SHIP` | Ship |
 | Warehouse | `WAVE` | Wave / Batch Picking |
+| Warehouse | `MPK` | Mobile Picking |
+| Warehouse | `SORT` | Sortation / Put-Wall |
+| Warehouse | `LOAD` | Loading |
 | Money | `GL` | Work to review |
+| Money | `TB` | Trial Balance |
+| Money | `COA` | Chart of Accounts |
+| Money | `PER` | Accounting Periods |
 | Money | `JV` | Journal Voucher |
+| Money | `VCN` | Vendor Credit Notes |
 | Money | `PAY` | Payment Proposal |
 | Money | `BR` | Bank Reconciliation |
 | Money | `EXP` | Expense Claim |
 | Money | `FA` | Fixed Assets |
 | Making | `PRO` | Production Order |
+| Making | `PSC` | Production Schedule |
 | Making | `JW` | Job Work |
+| Making | `PLAN` | MRP Suggestions |
+| Making | `SPR` | Supply Proposals |
 | Making | `QI` | Quality Inspection |
+| Making | `CERT` | Certificates |
+| Making | `NCR` | Non-conformance |
+| Making | `MNT` | Maintenance Orders |
+| Products | `PIM` | PIM Dashboard |
+| Products | `PWB` | PIM Workbench |
+| Products | `PMW` | PIM My Work |
+| Products | `MED` | Media Library |
+| Products | `SUBM` | Supplier Submissions |
+| Products | `CTLG` | Catalogs |
+| Products | `PTPL` | PIM Templates |
+| Products | `FEED` | Feeds |
+| Products | `DVAL` | Design Values |
+| Products | `STW` | Stewardship |
+| Products | `RNG` | Range |
+| Products | `MKD` | Markdowns |
+| Products | `DRFT` | Listing Drift |
+| Products | `CATR` | Category Rules |
+| Products | `CHK` | Checklists |
+| Products | `PRPT` | PIM Reports |
 | People | `HR` | HR |
+| People | `ATT` | Attendance |
+| People | `LV` | Leave |
+| People | `ROS` | Shift Roster |
+| People | `PRL` | Payroll |
+| People | `PRX` | Payroll Export |
+| People | `PTAX` | Tax & Benefits |
+| People | `LOAN` | Loans / Advances |
+| People | `ONB` | Onboarding / Offboarding |
+| People | `APPR` | Appraisals |
+| People | `CAL` | Calibration |
+| People | `TRN` | Training |
+| People | `GRV` | Grievances |
+| People | `EMP` | People |
+| Admin | `CFG` | Configuration |
+| Admin | `CRED` | Credentials |
+| Admin | `DGOV` | Data governance |
+| Admin | `DQ` | Data quality |
 | Admin | `USR` | Users |
 | Admin | `ROLE` | Roles |
-| Admin | `CFG` | Configuration |
+| Admin | `RULE` | Approval Rules |
 | Admin | `NUM` | Number series (Prefix Configs) |
+| Admin | `LBL` | Dynamic Labels |
+| Admin | `SCHM` | Database Schema Design |
+| Admin | `HOOK` | Extension Hooks |
+| Admin | `API` | API access |
+| Admin | `SUBS` | Subscription |
+| Admin | `LOG` | Activity Log |
+| Admin | `ERR` | System Errors |
+| Admin | `IPL` | Integration Payloads |
+| Admin | `JOBS` | Async Jobs |
+| Admin | `SEC` | Security Events |
+| Admin | `PRIV` | Privacy approvals |
+| Admin | `SYS` | System Status |
+| Admin | `CP` | Control Panel |
+| Admin | `ENT` | Tenant Entitlements |
+| Admin | `USG` | Tenant Usage |
+| Admin | `DCON` | Data Console |
 
 ### 3A.4 Report numbers
 
@@ -335,7 +465,8 @@ The bar closes by itself after 15 seconds, or with **×**.
 - **Copy a record:** the **Copy** icon on a record-list row, **Copy** on a Purchase Order in the PO list, or **Copy** in the after-save bar. You get a New form with the same details; the number, status and dates are not copied. Check it and save.
 - **Your last choice comes back:** a drop-down for store, location, warehouse, counter, salesman, cost centre or payment mode starts on what you last picked on that screen, in this browser. It is highlighted so you can see it was filled for you; change it if needed.
 - **Unsaved work is kept:** if the tab closes (or the computer restarts) while a New form has details in it, the form offers **Restore** or **Discard** next time. Only the form's own boxes are kept, not the rows of a line table.
-- **The columns of a record list:** a list shows up to eight of the record's main columns - its code, name and status first, then the required fields - so it opens quickly. Line tables and long notes stay off the list. Open the record to see every field; the search box above the table still searches every field you may see.
+- **The columns of a record list:** a list shows up to eight of the record's main columns - its code, name and status first, then the required fields - so it opens quickly. Line tables and long notes stay off the list. Open the record to see every field; the search box above the table still searches every field you may see (on a very long item, customer or vendor list, the identifying ones - next point).
+- **Very long lists:** a record whose code, ID or barcode is exactly what you typed comes first. Over 10,000 matches the count is an estimate (*1-50 of about 250,000*) and **Next** works until the last page. On an item, customer or vendor list of over 100,000 records the box searches the identifying fields - code, name, barcode, phone, e-mail, GSTIN and the like - so it stays fast.
 - **Saved views:** on a record list, type a search in the box above the table, then pick **Save this search as a view…** in the views drop-down beside it. Pick the view later to run the same search; **Delete this view** removes it. Views are yours and follow you to any computer.
-- **Ticked rows on a record list:** tick rows (or the box in the heading for the whole page; **Space** ticks the row you are on). A bar shows how many are ticked, with **Export** (a CSV of the ticked rows), **Submit for approval** (where the list has that action) and **Delete**. Submit and Delete do up to 40 rows a run; anything that cannot be done is named in the message.
+- **Ticked rows on a record list:** tick rows (or the box in the heading for the whole page; **Space** ticks the row you are on). A bar at the bottom right of the window shows how many are ticked (it floats there, so the list never moves), with **Export** (a CSV of the ticked rows), **Submit for approval** (where the list has that action) and **Delete**. Submit and Delete do up to 40 rows a run; anything that cannot be done is named in the message.
 - **Approvals:** on **My work → Approvals**, tick rows and click **Approve ticked** or **Reject ticked** (one reason for all). Each is decided exactly as if you had clicked its own button. A password reset is always decided on its own.

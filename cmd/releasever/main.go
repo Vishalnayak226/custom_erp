@@ -4,7 +4,7 @@
 //
 // -previous and -since are the live build's version and commit (deploy.ps1
 // reads them from the box's /api/v1/version). The commits since then, up to
-// HEAD, go through engines.NextReleaseVersion: a feat commit bumps MINOR,
+// HEAD, go through releasever.Next (internal/releasever): a feat commit bumps MINOR,
 // anything else PATCH. The version goes to stdout, the reason to stderr.
 package main
 
@@ -15,7 +15,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"custom_erp/engines"
+	"custom_erp/internal/releasever"
 )
 
 func main() {
@@ -39,7 +39,7 @@ func main() {
 			subjects = append(subjects, line)
 		}
 	}
-	next, reason, err := engines.NextReleaseVersion(*previous, subjects)
+	next, reason, err := releasever.Next(*previous, subjects)
 	if err != nil {
 		fail(err.Error())
 	}

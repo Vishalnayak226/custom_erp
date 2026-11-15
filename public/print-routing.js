@@ -49,12 +49,14 @@ let computerName = null;
 export async function printComputer() {
   if (computerName) return computerName;
   let name = '';
+  // 203.5: a name this browser already uses wins, so the printers chosen
+  // under it stay chosen when PrintBridge (0.3.0 on) starts telling its own.
+  try { name = localStorage.getItem(COMPUTER_KEY) || ''; } catch (_) { /* storage blocked */ }
   // Stage 127.2: only a connected tray is asked, so a computer whose tray is
   // down still knows its name (and its printers) without waiting on it.
-  if (window.QZPrint?.isConnected?.()) {
+  if (!name && window.QZPrint?.isConnected?.()) {
     try { name = String(await window.QZPrint.hostname() || '').trim(); } catch (_) { /* old tray */ }
   }
-  if (!name) { try { name = localStorage.getItem(COMPUTER_KEY) || ''; } catch (_) { /* storage blocked */ } }
   if (!name) name = 'PC-' + Math.random().toString(36).slice(2, 8).toUpperCase();
   try { localStorage.setItem(COMPUTER_KEY, name); } catch (_) { /* storage blocked */ }
   computerName = name;
@@ -81,14 +83,17 @@ function autoPick(kind, printers, def) {
   return only(printers.filter(plain));
 }
 
-// Stage 133.4: ZPL only for a printer named as a Zebra. Other label printers
-// (TSC, TVS, Xprinter, Gprinter, the 4-inch Y468BT kind) mostly speak TSPL,
-// and a TSPL printer sent ZPL feeds blank tags. The Printer record shows the
-// pick and is one edit away.
+// Stage 133.4: ZPL only for a printer named as a Zebra; a TSPL printer sent
+// ZPL feeds blank tags. 184.1: TSPL only for the brands known to take it
+// (TSC, TVS, Xprinter, Gprinter, the 4-inch Y468BT kind). Any other label
+// printer gets PDF - its own Windows driver - which prints on anything with a
+// driver installed (the LD0801 takes neither ZPL nor TSPL). The Printer record
+// shows the pick and is one edit away.
 const ZEBRA_RE = /(zebra|zdesigner|\bz[dt]\d|\bg[kxt]\d|\btlp ?\d|\blp ?28)/i;
+const TSPL_RE = /(\btsc\b|\bttp[- ]?\d|\bte\d{3}|\bda\d{3}|\btvs\b|xprinter|\bxp[- ]?\d|gprinter|\bgp[- ]?\d|y468)/i;
 function languageFor(kind, name) {
   if (kind === 'Receipt') return 'ESC-POS';
-  if (kind === 'Sticker') return ZEBRA_RE.test(name) ? 'ZPL' : 'TSPL';
+  if (kind === 'Sticker') return ZEBRA_RE.test(name) ? 'ZPL' : TSPL_RE.test(name) ? 'TSPL' : 'PDF';
   return 'PDF';
 }
 
@@ -222,6 +227,83 @@ export function explainFailure(kind, reason, setup = false) {
   });
 }
 
+// 203.1 (user, 2026-11-15): "Once I go print, one time it should ask to
+// install. & Thats all for lifetime." The first print on a Windows computer
+// that has never reached PrintBridge offers it, once per browser: Install
+// downloads it and the print waits until it answers, then goes out silently.
+// Not now prints through the browser; Print Setup keeps the download.
+const OFFERED_KEY = 'erp_printbridge_offered';
+const SETUP_URL = '/downloads/printbridge-setup.exe';
+let offeredNow = false;
+
+function shouldOffer() {
+  if (offeredNow || !window.QZPrint || window.QZPrint.isConnected?.()) return false;
+  const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '';
+  if (!/\bwin/i.test(platform)) return false;
+  try { return !localStorage.getItem(OFFERED_KEY) && !localStorage.getItem('erp_printbridge_seen'); } catch (_) { return false; }
+}
+
+// offerInstall resolves true once PrintBridge answers, false when the user
+// prints through the browser instead.
+function offerInstall() {
+  offeredNow = true;
+  try { localStorage.setItem(OFFERED_KEY, String(Date.now())); } catch (_) { /* storage blocked */ }
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    if (!backdrop) { resolve(false); return; }
+    const title = document.getElementById('custom-dialog-title');
+    const message = document.getElementById('custom-dialog-message');
+    const ok = document.getElementById('custom-dialog-ok-btn');
+    const cancel = document.getElementById('custom-dialog-cancel-btn');
+    const okText = ok.textContent, cancelText = cancel.textContent;
+    let polling = 0, finished = false;
+    title.textContent = 'Install PrintBridge';
+    message.textContent = 'One-time install. Prints then go straight to the printer.';
+    ok.textContent = 'Install';
+    cancel.textContent = 'Not now';
+    cancel.style.display = '';
+    backdrop.classList.remove('hidden');
+    ok.focus();
+    const done = (value) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(polling);
+      backdrop.classList.add('hidden');
+      ok.style.display = '';
+      ok.textContent = okText;
+      cancel.textContent = cancelText;
+      ['custom-dialog-ok-btn', 'custom-dialog-cancel-btn', 'custom-dialog-close-btn'].forEach(id => {
+        const b = document.getElementById(id);
+        b.replaceWith(b.cloneNode(true));
+      });
+      resolve(value);
+    };
+    const started = Date.now();
+    const poll = async () => {
+      if (finished) return;
+      let up = false;
+      try { up = await window.QZPrint.connect(); } catch (_) { /* not yet */ }
+      if (up) { done(true); return; }
+      if (Date.now() - started > 10 * 60 * 1000) { done(false); return; }
+      polling = setTimeout(poll, 2000);
+    };
+    ok.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = SETUP_URL;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      message.textContent = 'Open the downloaded file. Printing starts by itself.';
+      ok.style.display = 'none';
+      cancel.textContent = 'Print with the browser';
+      poll();
+    });
+    cancel.addEventListener('click', () => done(false));
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => done(false));
+  });
+}
+
 // printNoDialog is every print's way out (Stage 127.2). trySilent(why) prints
 // through PrintBridge and returns true, or false with why.reason set;
 // browserPrint opens the browser's print. Returns false only when the user
@@ -233,7 +315,10 @@ export async function printNoDialog(kind, location, trySilent, browserPrint) {
     let printed = false;
     try { printed = await trySilent(why); } catch (e) { why.reason = why.reason || (e && e.message) || String(e); }
     if (printed) { lastPrint.channel = 'qz'; return true; }
-    if (!await silentSetUp(kind, location)) { lastPrint.channel = 'browser'; await browserPrint(); return true; }
+    if (!await silentSetUp(kind, location)) {
+      if (shouldOffer() && await offerInstall()) continue; // 203.1: installed - print silently now
+      lastPrint.channel = 'browser'; await browserPrint(); return true;
+    }
     const choice = await explainFailure(printKindFor(kind), why.reason || '', why.setup);
     if (choice === 'retry') continue;
     if (choice === 'browser') { lastPrint.channel = 'browser'; await browserPrint(); return true; }

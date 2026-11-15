@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **965** of them,
+Every refusal in this application carries a code. There are **983** of them,
 across **83** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -39,7 +39,7 @@ open the right page.
 ## Contents
 
 - [Admin / Configuration](#admin-configuration) - 21 codes
-- [Approvals / Workflow](#approvals-workflow) - 4 codes
+- [Approvals / Workflow](#approvals-workflow) - 6 codes
 - [Audit & Compliance](#audit-compliance) - 2 codes
 - [Backup / DR](#backup-dr) - 4 codes
 - [CRM](#crm) - 1 codes
@@ -57,7 +57,7 @@ open the right page.
 - [CRM / Referrals](#crm-referrals) - 1 codes
 - [CRM / Segments](#crm-segments) - 1 codes
 - [CRM / Senders](#crm-senders) - 1 codes
-- [CRM / Service](#crm-service) - 1 codes
+- [CRM / Service](#crm-service) - 3 codes
 - [CRM / Templates](#crm-templates) - 1 codes
 - [CRM / Vouchers](#crm-vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
@@ -66,21 +66,21 @@ open the right page.
 - [Data Import / Excel Upload](#data-import-excel-upload) - 16 codes
 - [Deployment / Release](#deployment-release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
-- [Expense Management](#expense-management) - 11 codes
+- [Expense Management](#expense-management) - 15 codes
 - [Extension Hooks / Customization](#extension-hooks-customization) - 4 codes
 - [Finance](#finance) - 7 codes
-- [Finance & Accounting](#finance-accounting) - 102 codes
-- [Fixed Assets](#fixed-assets) - 19 codes
+- [Finance & Accounting](#finance-accounting) - 104 codes
+- [Fixed Assets](#fixed-assets) - 20 codes
 - [GST](#gst) - 9 codes
 - [Global](#global) - 22 codes
-- [Global / Common](#global-common) - 25 codes
+- [Global / Common](error-code-reference-2.md#global-common) - 25 codes
 - [Goods Receipt](error-code-reference-2.md#goods-receipt) - 22 codes
 - [Goods Receipt / GRN](error-code-reference-2.md#goods-receipt-grn) - 8 codes
 - [HR & Payroll](error-code-reference-2.md#hr-payroll) - 15 codes
 - [HR / Payroll](error-code-reference-2.md#hr-payroll) - 32 codes
 - [Integration / API](error-code-reference-2.md#integration-api) - 14 codes
 - [Integrations](error-code-reference-2.md#integrations) - 1 codes
-- [Inventory](error-code-reference-2.md#inventory) - 23 codes
+- [Inventory](error-code-reference-2.md#inventory) - 24 codes
 - [Inventory / Warehouse](error-code-reference-2.md#inventory-warehouse) - 29 codes
 - [Item Master](error-code-reference-2.md#item-master) - 4 codes
 - [Manufacturing](error-code-reference-2.md#manufacturing) - 7 codes
@@ -91,9 +91,9 @@ open the right page.
 - [Observability / Incident](error-code-reference-2.md#observability-incident) - 3 codes
 - [Omnichannel / OMS](error-code-reference-2.md#omnichannel-oms) - 5 codes
 - [Order Management](error-code-reference-2.md#order-management) - 12 codes
-- [PIM](error-code-reference-2.md#pim) - 55 codes
+- [PIM](error-code-reference-3.md#pim) - 57 codes
 - [PIM / Product Publishing](error-code-reference-3.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-3.md#pos-billing) - 42 codes
+- [POS / Billing](error-code-reference-3.md#pos-billing) - 44 codes
 - [POS / Offline & Cash Drawer](error-code-reference-3.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-3.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-3.md#payments) - 7 codes
@@ -104,19 +104,19 @@ open the right page.
 - [Purchase Requisition](error-code-reference-3.md#purchase-requisition) - 6 codes
 - [Purchase Return](error-code-reference-3.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-3.md#purchase-return-rtv) - 5 codes
-- [Quality](error-code-reference-3.md#quality) - 6 codes
+- [Quality](error-code-reference-3.md#quality) - 8 codes
 - [Quality & Maintenance](error-code-reference-3.md#quality-maintenance) - 12 codes
 - [RFQ](error-code-reference-3.md#rfq) - 6 codes
 - [Reports](error-code-reference-3.md#reports) - 3 codes
 - [Reports & Exports](error-code-reference-3.md#reports-exports) - 8 codes
 - [SaaS / Multi-Tenant](error-code-reference-3.md#saas-multi-tenant) - 8 codes
-- [Sales / POS](error-code-reference-3.md#sales-pos) - 40 codes
-- [Sales Return](error-code-reference-3.md#sales-return) - 9 codes
-- [Security](error-code-reference-3.md#security) - 9 codes
-- [Security / AI assistant access](error-code-reference-3.md#security-ai-assistant-access) - 10 codes
-- [Security / Rate Limit](error-code-reference-3.md#security-rate-limit) - 6 codes
-- [Stock Transfer](error-code-reference-3.md#stock-transfer) - 17 codes
-- [Tax / GST / E-Invoice](error-code-reference-3.md#tax-gst-e-invoice) - 15 codes
+- [Sales / POS](error-code-reference-4.md#sales-pos) - 40 codes
+- [Sales Return](error-code-reference-4.md#sales-return) - 9 codes
+- [Security](error-code-reference-4.md#security) - 9 codes
+- [Security / AI assistant access](error-code-reference-4.md#security-ai-assistant-access) - 10 codes
+- [Security / Rate Limit](error-code-reference-4.md#security-rate-limit) - 6 codes
+- [Stock Transfer](error-code-reference-4.md#stock-transfer) - 17 codes
+- [Tax / GST / E-Invoice](error-code-reference-4.md#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](error-code-reference-4.md#user-access-security) - 9 codes
 - [Vendor Invoice / AP](error-code-reference-4.md#vendor-invoice-ap) - 17 codes
 - [WMS](error-code-reference-4.md#wms) - 5 codes
@@ -156,6 +156,8 @@ open the right page.
 | `APPROV-0158` | Approval already completed | This approval action is already completed. Please refresh the page. | Correct details or retry. Contact admin if repeated. | High | 409 |
 | `APPROV-0159` | Reject reason missing | Rejection reason is required. | Correct details or retry. Contact admin if repeated. | High | 422 |
 | `APPROV-0840` | Approver is the person who submitted the document | You cannot approve or reject a document you submitted. | Ask another approver with the required role to decide it, or ask an admin to change Who can approve their own documents (Settings > Configuration > Security). | Medium | 422 |
+| `APPROV-0841` | Asker tries to decide a document that always needs a second person (a Super Admin's password reset, an item treatment correction, or a dual-control request) | Someone else must decide this document. | Ask another admin, or another approver with the required role, to decide it. No setting lets the person who asked decide it. | Medium | 422 |
+| `APPROV-0842` | Submitter decides their own document above the amount set in Own decisions above this amount need a reason, with no written reason | Write why you are deciding your own document. | Add a reason of at least 10 characters in the comment, or ask another approver to decide it. | Medium | 422 |
 
 ## Audit & Compliance
 
@@ -275,6 +277,8 @@ open the right page.
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `CRMPLT-1114` | Ticket action not valid in its state | The ticket can't do that in its current state. | Check the ticket's state; resolve needs a note of what was done. | Low | 422 |
+| `CRMPLT-1131` | Service ticket names a help article that is not published, or an article published with no text | That help article cannot be used. | Publish the article, with its text, before a ticket names it. | Low | 422 |
+| `CRMPLT-1132` | Service visit refused (ticket closed or not found, no engineer, time not readable, check-out before check-in, Done without check-out or the customer's name, or a Done visit edited) | This visit cannot be saved. | Pick an open ticket and an engineer. Check out after check-in. A Done visit needs a check-out and the name of who signed it off, and cannot be changed. | Medium | 422 |
 
 ## CRM / Templates
 
@@ -385,6 +389,10 @@ open the right page.
 | `EXP-1700` | Expense claim over the limit set on its category or the claimant's grade (refuse mode) | The claim is over the limit for its category. | Lower the amount, split it into valid claims, or ask an administrator about the category limit. | Medium | 422 |
 | `EXP-1701` | Employee advance not found, or missing its employee or amount, when paid | This advance cannot be paid. | Check the employee and an amount above zero on the advance, then pay it again. | Medium | 422 |
 | `EXP-1702` | Employee advance paid again or paid after it was settled or cancelled | This advance is already paid. | Only a Draft advance can be paid. Open the advance to see its status. | Medium | 422 |
+| `EXP-1703` | Travel request refused (no employee, purpose or destination, dates out of order, cost not above zero, advance above the cost, or an approved request edited) | This travel request cannot be saved. | Give the employee, purpose, destination, From and To dates and an estimated cost above 0. The advance cannot be more than the cost. An approved request cannot be changed. | Medium | 422 |
+| `EXP-1704` | Advance or expense claim names a travel request that is not approved or belongs to another employee | That travel request cannot be used here. | Pick an Approved travel request of the same employee. | Medium | 422 |
+| `EXP-1705` | Corporate card refused (last 4 digits not four digits, or the card holder not found) | This card cannot be saved. | Enter only the last 4 digits of the card and pick the card holder. | Medium | 422 |
+| `EXP-1706` | Card statement line refused (no card, date or description, amount not above zero) or the claim named does not fit it | This card line cannot be saved. | Give the card, date, description and an amount above 0. A claim must be the card holder's, for the same amount, and not on another line. | Medium | 422 |
 
 ## Extension Hooks / Customization
 
@@ -445,6 +453,7 @@ open the right page.
 | `FIN-0522` | Credit note names a foreign-currency sales invoice that is still open | This credit note cannot be applied to a foreign-currency invoice. | Settle that invoice in full, or remove the invoice from the note and post it as a refund. | Medium | 422 |
 | `FIN-0841` | Pay with TDS on a bill in a foreign currency | TDS cannot be worked out on a bill in a foreign currency. | Pay the bill with Pay, which converts at the payment rate; record any withholding on a foreign payment separately. | Medium | 422 |
 | `FIN-0842` | Matching a vendor bill that is paid, part-paid or awaiting approval | This bill can no longer be matched. | A bill is matched once, before it is paid. Check its payments under Supplier bills; a wrong bill is corrected with a debit or credit note. | Medium | 422 |
+| `FIN-0843` | Journal voucher lines refused (unreadable, unbalanced, or an amount with more than two decimals) | These voucher lines cannot be saved. | Give each line a debit or a credit of up to two decimals, and make the debits equal the credits. | Medium | 422 |
 | `FIN-0844` | Changing the amounts of a document that has posted to the accounts | The amounts of a posted document cannot be changed. | Correct it with a credit or debit note, or reverse it; other details of the document can still be edited. | High | 422 |
 | `FIN-0850` | A sale names a piece or batch it cannot sell | This piece or batch cannot be sold here. Check the code and the store. | Scan the piece or batch again, or sell it from the store that holds it. | Medium | 422 |
 | `FIN-0851` | A credit note names a piece it cannot bring back | This piece cannot be brought back on this note. | Check that the piece was sold on this invoice and has not already come back. | Medium | 422 |
@@ -501,6 +510,7 @@ open the right page.
 | `FIN-1723` | Project budget refused (no lines, unknown cost type, negative or repeated line) or the report asked without a project | The project budget is not valid. | Add each cost type once (Labour, Materials, Expenses or Other) with an amount, and pick a project for the report. | Low | 422 |
 | `FIN-1724` | Project revenue run refused (setting off, bad month, or cost-to-complete project with no estimated cost) | Project revenue cannot be recognised. | Turn on project revenue recognition in Settings, enter the month like 2026-11, and set an estimated cost on cost-to-complete projects. | Medium | 422 |
 | `FIN-1725` | Service SLA setting not valid (hours text or escalation target) | That SLA setting is not valid. | Write hours like Low=24,Medium=8,High=4,Critical=1 and the target as user:<id> or role:<name>. | Low | 422 |
+| `FIN-1726` | Payment link refused: Razorpay not set up or refused, invoice not posted, nothing owed or not in rupees | A payment link could not be made. | Check the reason shown. An administrator saves the Razorpay keys under Settings → Integrations; a link is for a posted rupee invoice with a balance. | Medium | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -537,6 +547,7 @@ open the right page.
 | `ASSET-1727` | Meter reading below the last one | The reading is below the last one. | Enter a reading at or above the last, or fix the earlier one. | Medium | 422 |
 | `ASSET-1728` | Maintenance cost cannot be posted (part store, quantity or stock) | The parts cannot be taken from stock. | Choose a store with enough stock for each part. | Medium | 422 |
 | `ASSET-1729` | Asset already leased out on another active lease | This asset is already leased out. | Close the other lease first. | Medium | 409 |
+| `ASSET-1730` | Revaluation reserve cannot be released at disposal (3100 missing or not Equity) | Retained earnings is not set up. | Add account 3100 Retained Earnings as Equity, then dispose again. | Medium | 422 |
 
 ## GST
 
@@ -578,34 +589,4 @@ open the right page.
 | `GLOBAL-9116` | Scope decision on a record that cannot be set out of scope | That cannot be set out of scope. | Pick an existing entity, location or cost centre, and give a reason. | Medium | 422 |
 | `GLOBAL-9117` | Reconciliation accepted while the books do not tie | The books do not tie yet. | Fix the difference first. | Medium | 422 |
 | `GLOBAL-9118` | Sign-off of a pack already signed (or signed a moment ago by someone else) | Already signed. | Nothing to do; reopen a check if it must be signed again. | Medium | 422 |
-
-## Global / Common
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `GLOBAL-0001` | Mandatory value missing | Required value is missing. Please enter {field name} to continue. | Enter the missing value. | Medium | 422 |
-| `GLOBAL-0002` | Invalid format | Invalid format for {field name}. Please enter a valid value. | Correct the field format. | Medium | 422 |
-| `GLOBAL-0003` | Duplicate record | A record with the same {unique key} already exists. Please check and try again. | Use a unique value or open the existing record. | Medium | 409 |
-| `GLOBAL-0004` | Record not found | The selected record was not found or may have been deleted. Please refresh and try again. | Refresh the page and select the record again. | Medium | 404 |
-| `GLOBAL-0005` | Unsaved changes | You have unsaved changes. Save or discard the changes before leaving this page. | Save or discard changes. | Medium | 422 |
-| `GLOBAL-0006` | Concurrent update | This record was updated by another user. Please refresh to view the latest data. | Refresh and reapply changes if required. | Medium | 409 |
-| `GLOBAL-0007` | Attachment too large | The file size exceeds the allowed limit. Please upload a smaller file. | Upload a smaller file. | Medium | 422 |
-| `GLOBAL-0008` | Unsupported file type | This file type is not supported. Please upload an allowed file format. | Upload an allowed file. | Medium | 422 |
-| `GLOBAL-0009` | Session expired | Your session has expired. Please sign in again to continue. | Sign in again. | Medium | 401 |
-| `GLOBAL-0010` | System unavailable | The system is temporarily unavailable. Please try again later or contact support. | Retry later or contact support. | Medium | 503 |
-| `GLOBAL-0011` | Permission denied | You do not have permission to perform this action. Please contact your administrator. | Contact admin for access. | Medium | 403 |
-| `GLOBAL-0012` | Invalid date range | From Date cannot be later than To Date. Please select a valid date range. | Correct the date range. | Medium | 422 |
-| `GLOBAL-0013` | Past/future date blocked | The selected date is outside the allowed posting period. Please select a valid date. | Select valid date or request period opening. | Medium | 409 |
-| `GLOBAL-0014` | Negative value not allowed | Negative values are not allowed for this field. Please enter zero or a positive value. | Enter valid value. | Medium | 422 |
-| `GLOBAL-0015` | Decimal precision exceeded | The value exceeds the allowed decimal precision. Please enter a valid amount or quantity. | Adjust decimal value. | Medium | 422 |
-| `GLOBAL-0016` | Save failed | The record could not be saved. Please review highlighted errors and try again. | Fix highlighted errors and save. | Medium | 503 |
-| `GLOBAL-0017` | Delete blocked by reference | This record cannot be deleted because it is already used in transactions. You may deactivate it instead. | Deactivate record if needed. | Medium | 409 |
-| `GLOBAL-0018` | Inactive record used | The selected record is inactive. Please select an active record. | Select active record. | Medium | 422 |
-| `GLOBAL-0019` | Invalid status transition | This action is not allowed for the current document status. | Check document status and choose allowed action. | Medium | 422 |
-| `GLOBAL-0020` | Cancellation reason missing | Please enter a cancellation reason to continue. | Enter reason. | Medium | 422 |
-| `GLOBAL-0178` | Confirm delete | This action cannot be undone. Do you want to continue? | Review and confirm. | Medium | 200 |
-| `GLOBAL-0295` | Autosuggest no matching master | No matching master record found. Create a new master or change search text. | Create master or change search term. | Medium | 200 |
-| `GLOBAL-0296` | Invalid copied grid data | Copied data contains invalid cells. Please correct highlighted rows. | Correct highlighted grid cells. | Medium | 422 |
-| `GLOBAL-0297` | Required lookup inactive | Selected lookup value is inactive. Please choose an active value. | Select active master value. | Medium | 422 |
-| `GLOBAL-0302` | Unexpected server error | An unexpected error occurred. Please try again, or contact support with the reference ID below if it persists. | Retry the action. If it keeps happening, contact support with the correlation ID shown. | Critical | 500 |
 

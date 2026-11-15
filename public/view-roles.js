@@ -10,10 +10,8 @@
 
 const { txnPageTitle, txnNewButton, txnRestorePane, txnPageOf } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
-if (!document.getElementById('view-roles-css')) {
-  const style = document.createElement('style');
-  style.id = 'view-roles-css';
-  style.textContent = `
+// 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
+adoptCss('view-roles-css', `
 .roles-list-table tbody tr { cursor: pointer; }
 .roles-list-table .roles-muted, .roles-count { color: var(--text-muted); font-weight: 400; }
 .roles-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--success-soft-bg); color: var(--success-strong); }
@@ -38,9 +36,7 @@ if (!document.getElementById('view-roles-css')) {
 .roles-risk { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); cursor: help; }
 .roles-matrix td.roles-col.roles-del-on { background: var(--warning-soft-bg); }
 .roles-risk-line { padding: 8px 16px; font-size: 13px; color: var(--warning-strong); border-bottom: 1px solid var(--border-color); }
-`;
-  document.head.appendChild(style);
-}
+`);
 
 const SCREEN = 'roles-screen';
 const COLS = [['r', 'Read'], ['c', 'Create'], ['u', 'Update'], ['d', 'Delete']];

@@ -241,6 +241,25 @@ func TestCertificateReminderStampsOnce(t *testing.T) {
 	if !found {
 		t.Fatal("expiring certificate missing from the list")
 	}
+	// 170.21: the Certificate Expiry report names the employee and the program.
+	insertHRJourneyDoc(t, schema, t170Prefix+"EMP", "Employee", "Active", map[string]interface{}{"code": t170Prefix + "EMP", "name": "Asha T", "department": "Stores"})
+	insertHRJourneyDoc(t, schema, t170Prefix+"PRG", "TrainingProgram", "Active", map[string]interface{}{"name": "Forklift"})
+	insertHRJourneyDoc(t, schema, t170Prefix+"TR2", "TrainingRecord", "Active", map[string]interface{}{"employee_id": t170Prefix + "EMP", "program_id": t170Prefix + "PRG",
+		"certificate_no": "FL-9", "valid_until": time.Now().AddDate(0, 0, -3).Format("2006-01-02")})
+	rows, err := certificateExpiryReport(tenantID, map[string]string{"days": "30"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]map[string]interface{}{}
+	for _, r := range rows {
+		got[r["record_id"].(string)] = r
+	}
+	if r := got[t170Prefix+"TR2"]; r == nil || r["employee_name"] != "Asha T" || r["department"] != "Stores" || r["program"] != "Forklift" || r["status"] != "Expired" {
+		t.Fatalf("lapsed certificate row: %+v", r)
+	}
+	if r := got[t170Prefix+"TR"]; r == nil || r["status"] != "Expiring" {
+		t.Fatalf("expiring certificate row: %+v", r)
+	}
 	if err := RunCertificateReminders(tenantID, schema); err != nil {
 		t.Fatal(err)
 	}

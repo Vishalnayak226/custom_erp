@@ -61,6 +61,17 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 195.1: once Guide's key is set, a browser driven by automation signs in
+	// only with that key. Without it the caller gets the same generic failure
+	// as a bad password, like the two checks above; why is told to the admin
+	// in the audit log, never to the caller.
+	if automatedSignInRefused(r) {
+		// LOGIN, not LOGIN_ABUSE: that action fires the Urgent "password spray" detection.
+		engines.LogAuditEventCtx(r.Context(), tenantID, "system", "LOGIN", "AUTOMATED_SIGN_IN_REFUSED", fmt.Sprintf("address %s: an automated browser without Guide's key tried to sign in as %q", clientIP(r), req.Username))
+		writeAPIError(w, r, "USERAC-0021", "")
+		return
+	}
+
 	// 134.5 (login_abuse.go): inside a backoff wait the password is not even
 	// checked. Keyed by the name as typed, so it says nothing about the name.
 	addr := clientIP(r)
@@ -244,9 +255,11 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		challengeToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_challenge", 5*time.Minute)
 		engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "MFA_CHALLENGE_ISSUED", "Password correct; awaiting TOTP code")
+		passkeyIDs, _ := engines.PasskeyCredentialIDs(tenantID, u.ID) // 49.2.3
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"mfa_required":    true,
-			"challenge_token": challengeToken,
+			"mfa_required":      true,
+			"passkey_available": len(passkeyIDs) > 0,
+			"challenge_token":   challengeToken,
 			// Stage 125.8: 0 hides "Remember this device".
 			"remember_days": engines.MFARememberDays(tenantID),
 		})
@@ -411,7 +424,10 @@ func handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// reuses the request's own Origin when present (same-origin frontend,
 	// the only deployment shape this app has today) and falls back to the
 	// relative path otherwise.
-	resetLinkBase := "/reset-password.html"
+	// 186.2: the sign-in page's own reset step (app.js showResetForm). The
+	// token rides in the hash, so it never reaches a server or proxy log;
+	// "/reset-password.html" never existed.
+	resetLinkBase := "/#password_reset"
 	if origin := r.Header.Get("Origin"); origin != "" {
 		resetLinkBase = origin + resetLinkBase
 	}

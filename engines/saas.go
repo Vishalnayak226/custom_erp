@@ -337,8 +337,9 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		}
 	}
 	// Stage 49.3.7a: the copied seed, narrowed to the role templates where it
-	// gave more (a Store Manager posting journals, for one).
-	if err = narrowNewClientSeedGrantsTx(tx, schemaName); err != nil {
+	// gave more (a Store Manager posting journals, for one); 55.5a: Cashier
+	// written from its template, Store Manager able to add a customer.
+	if err = fitNewClientSeedGrantsTx(tx, schemaName); err != nil {
 		return "", err
 	}
 	// Stage 49.10.6b (2): a new client starts with self-approval off; 162.19:

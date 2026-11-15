@@ -267,9 +267,9 @@ func TestEverySecurityCriticalEnvVarIsChecked(t *testing.T) {
 	}
 	// Everything after the securityCriticalEnvVars declaration block, so the
 	// list itself does not count as its own coverage.
-	body := string(src)
-	if _, after, found := strings.Cut(body, "func SecurityCriticalEnvVars()"); found {
-		body = after
+	_, body, found := strings.Cut(string(src), "func configurationFindings()")
+	if !found {
+		t.Fatal("security_baseline.go has no configurationFindings; point this test at the function that reads the variables")
 	}
 	for _, name := range securityCriticalEnvVars {
 		if !strings.Contains(body, `"`+name+`"`) {

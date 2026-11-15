@@ -245,6 +245,13 @@ body {
   display: none;
 }
 
+/* 55.5a: a menu whose entries are hidden partly by role and partly by
+   product is empty too; syncFlyoutHeadings() marks it. */
+.menu-item-container.empty-hidden,
+.menu-flyout li.empty-hidden {
+  display: none;
+}
+
 .menu-item {
   display: flex;
   align-items: center;
@@ -746,6 +753,8 @@ body {
   /* 157: wider content scrolls, never cut */
   overflow-x: auto;
   overflow-anchor: none;
+  /* 200.1: keep the scrollbar's room, so a page growing past the window never narrows every box */
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: var(--view-gap);
@@ -975,81 +984,6 @@ body {
   max-width: 280px;
 }
 
-/* Home (BLD-033) quick-action tiles - a NEW grid, deliberately not named
-   .dashboard-grid/.dashboard-card (the retired Dashboard's own classes,
-   removed 2026-08-01 with that screen - see app.js's DEFAULT_VIEW comment
-   for why this is not the same thing). Reuses .card-title/.card-desc above
-   and the .table-panel/border/shadow tokens every other panel already uses. */
-.home-action-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.home-action-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-  background-color: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-  cursor: pointer;
-  font: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.home-action-card:hover,
-.home-action-card:focus-visible {
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
-  outline: none;
-}
-
-.home-recent-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.home-recent-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  text-align: left;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border-color);
-  padding: 10px 4px;
-  cursor: pointer;
-  font: inherit;
-  color: var(--text-main);
-}
-
-.home-recent-item:first-child {
-  border-top: none;
-}
-
-.home-recent-item:hover,
-.home-recent-item:focus-visible {
-  color: var(--primary-color);
-  outline: none;
-}
-
-/* A text-color change alone is not a visible focus indicator for keyboard
-   users (WCAG 2.4.7/1.4.11) - found during the BLD-038 sweep of this new
-   (BLD-033) surface. box-shadow alone does not survive forced-colors
-   (Windows High Contrast - verified live, same as .stat-card[role="button"]
-   above), so this pairs it with a real outline rather than relying on the
-   ring for both cases. */
-.home-recent-item:focus-visible {
-  box-shadow: inset 0 0 0 2px rgba(68, 84, 106, 0.35);
-  outline: 2px solid var(--primary-color);
-  outline-offset: -2px;
-  border-radius: 4px;
-}
-
 /* Data Table Panel */
 .table-panel {
   background-color: var(--panel-bg);
@@ -1111,6 +1045,25 @@ body {
   font-size: 13px;
   color: var(--text-muted);
 }
+/* 200.2: ticked rows' actions float at the window's foot, so ticking a row never
+   pushes the list down (#_ in :is() only lifts this over the screens' padding classes) */
+:is(.table-panel, .table-controls, #_) > .bulk-edit-bar {
+  position: fixed;
+  right: 24px;
+  bottom: 20px;
+  z-index: 90;
+  max-width: calc(100vw - 48px);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--text-main);
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+/* room for it is kept from the first paint: added on tick, it shrank a panel that fills the window */
+.page-container:has(.bulk-edit-bar) { padding-bottom: 80px; }
 
 /* 157: a wide table scrolls in its panel (contain: paint below clips) */
 .table-wrapper,
@@ -1400,6 +1353,7 @@ tr:hover td {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable; /* 200.1 */
 }
 
 .modal-footer {
@@ -2828,12 +2782,18 @@ input.form-input.num {
    Now the incoming view rises 8px and fades in over one frame budget's worth
    of time. Because it is transform+opacity only, the table underneath is
    never re-laid-out, so long lists do not judder as they arrive. */
+/* 200.2: backwards, not both - a held transform made each screen box the frame
+   for its position:fixed parts (bulk bars, menus) instead of the window */
 #view-root > * {
-  animation: view-enter var(--duration-view) var(--ease-emphasized) both;
+  animation: view-enter var(--duration-view) var(--ease-emphasized) backwards;
 }
 /* 152: a redraw or F5 repaint does not animate in. */
 #view-root.view-steady > * { animation: none; }
 #view-root[aria-busy] { pointer-events: none; }
+/* 50.13: a section reloading in place stays readable, dimmed, until it is replaced.
+   !important because a direct child of #view-root (the Warehouse Cockpit body)
+   carries view-enter, whose opacity outranks normal rules while it runs. */
+#view-root [aria-busy]:not(button) { opacity: .55 !important; pointer-events: none; transition: opacity .15s; }
 /* 152.5: the last list panel fills the window; its table scrolls inside. */
 @media (min-width: 821px) and (min-height: 521px) {
   #view-root > .txn-paged.txn-on-landing:last-child,
@@ -2986,6 +2946,24 @@ td.num {
 
 .setup-hint.visible {
   display: block;
+}
+
+/* 200.1: the on-focus "add more" line floats under its field instead of pushing
+   every box below it down; the amber "missing" line stays in the flow, as it is
+   there before anyone clicks. */
+:where(:has(> .setup-hint)) { position: relative; }
+.setup-hint.visible:not(.setup-hint-missing) {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  margin-top: 2px;
+  padding: 6px 10px;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
 }
 
 .setup-hint-text {

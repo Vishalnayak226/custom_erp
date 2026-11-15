@@ -58,6 +58,9 @@ export const SHORTCUT_KEYS = [
 let codes = [];
 const codesReady = fetch(`/shortcut-codes.json${V}`).then(r => (r.ok ? r.json() : {})).then(j => { codes = j.codes || []; }).catch(() => {});
 const codeFor = c => codes.find(x => x.code === String(c || '').toUpperCase());
+// 202.2: Configuration ▸ Navigation ▸ Short codes. Off hides the codes and
+// stops typed ones; the list stays loaded so the after-save next step works.
+const codesOn = () => !state.modules?.nav?.no_codes;
 // A code shows only where its screen does: the sidebar entry's own permission
 // and module filtering decide, so a code never opens what a menu would not.
 function codeOpen(c) {
@@ -238,9 +241,43 @@ const LIMIT = 12;
 
 // Every sidebar destination (flyout entries included) and every record type,
 // as before; a screen with a code carries it as its tag.
+// 162.5 (ask 193): the index is built once and kept until what it reads changes (the
+// sidebar's entries or which are hidden, the record types, the report catalog, the
+// codes, the labels). Rebuilding it on every keystroke walked the whole sidebar and
+// matched every entry's code: ~350 ms a key on a 4x-throttled laptop. Each entry also
+// carries its lower-cased text, so matching a key does no string work per entry.
+let gsIndex = null, gsDirty = true, gsWatch = null;
+const gsHiddenRe = /(^|\s)(perm-hidden|module-hidden)(\s|$)/;
 function buildGlobalSearchIndex() {
+  const menu = document.querySelector('.sidebar-menu');
+  if (menu && !gsWatch) {
+    gsWatch = new MutationObserver(recs => {
+      if (gsDirty) return;
+      for (const r of recs) {
+        if (r.type !== 'attributes' || gsHiddenRe.test(r.oldValue || '') !== gsHiddenRe.test(r.target.getAttribute('class') || '')) { gsDirty = true; return; }
+      }
+    });
+    gsWatch.observe(menu, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  }
+  const on = codesOn();
+  if (gsIndex && !gsDirty && gsWatch && gsIndex.dt === state.activeDoctypes && gsIndex.rep === reports && gsIndex.codes === codes && gsIndex.on === on && gsIndex.labels === state.labels && gsIndex.nLabels === Object.keys(state.labels || {}).length) return gsIndex.entries;
+  const entries = computeGlobalSearchIndex();
+  entries.forEach(e => { e._l = e.label.toLowerCase(); e._h = `${e._l} ${e.context} ${e.raw || ''} ${String(e.tag || '').toLowerCase()}`.toLowerCase(); });
+  if (gsWatch) gsWatch.takeRecords(); // the Setup rows it just filled are not a change
+  gsDirty = false;
+  gsIndex = { entries, dt: state.activeDoctypes, rep: reports, codes, on, labels: state.labels, nLabels: Object.keys(state.labels || {}).length };
+  return entries;
+}
+function computeGlobalSearchIndex() {
+  window.fillSetupMenuRows?.(); // 162.5: Setup's module lists are written on first open
   const entries = [];
   const seen = new Set();
+  // First code per menu id (one without a doctype wins) and per setup doctype, as the find() calls picked them.
+  const codeByMenuOnly = new Map(), codeByMenu = new Map(), codeBySetup = new Map();
+  codes.forEach(c => {
+    if (c.menu) { if (!c.doctype && !codeByMenuOnly.has(c.menu)) codeByMenuOnly.set(c.menu, c); if (!codeByMenu.has(c.menu)) codeByMenu.set(c.menu, c); }
+    if (c.setup && !codeBySetup.has(c.setup)) codeBySetup.set(c.setup, c);
+  });
   const hidden = el => el.classList.contains('perm-hidden') || el.classList.contains('module-hidden');
   document.querySelectorAll('.sidebar-menu .menu-item-container').forEach(li => {
     if (hidden(li)) return;
@@ -262,8 +299,8 @@ function buildGlobalSearchIndex() {
       if (seen.has(key)) return;
       seen.add(key);
       seen.add('label:' + label.toLowerCase());
-      const code = codes.find(c => c.menu && c.menu === a.id && !c.doctype) || codes.find(c => c.menu && c.menu === a.id);
-      entries.push({ kind: 'Screen', label, context: moduleLabel, el: a, tag: code ? code.code : '', code });
+      const code = codeByMenuOnly.get(a.id) || codeByMenu.get(a.id);
+      entries.push({ kind: 'Screen', label, context: moduleLabel, el: a, tag: code && codesOn() ? code.code : '', code });
     });
   });
   (state.activeDoctypes || []).forEach(d => {
@@ -272,8 +309,8 @@ function buildGlobalSearchIndex() {
     const label = window.getDoctypeLabel(d.name);
     if (seen.has('label:' + label.toLowerCase()) || seen.has('doc:' + d.name)) return;
     seen.add('doc:' + d.name);
-    const code = codes.find(c => c.setup === d.name);
-    entries.push({ kind: 'Record type', label, context: d.module || '', raw: d.name, dest: { t: 'setup', doctype: d.name }, tag: code ? code.code : '', code });
+    const code = codeBySetup.get(d.name);
+    entries.push({ kind: 'Record type', label, context: d.module || '', raw: d.name, dest: { t: 'setup', doctype: d.name }, tag: code && codesOn() ? code.code : '', code });
   });
   (reports || []).forEach(r => entries.push({ kind: 'Report', label: r.label, context: r.category || '', tag: r.number || '', dest: { t: 'view', route: `reports:${r.id}` } }));
   return entries;
@@ -284,9 +321,9 @@ function matchEntries(entries, query) {
   if (!needle) return [];
   const scored = [];
   entries.forEach(entry => {
-    const label = entry.label.toLowerCase();
+    const label = entry._l ?? entry.label.toLowerCase();
     const tag = String(entry.tag || '').toLowerCase();
-    const hay = `${label} ${entry.context} ${entry.raw || ''} ${tag}`.toLowerCase();
+    const hay = entry._h ?? `${label} ${entry.context} ${entry.raw || ''} ${tag}`.toLowerCase();
     const hayIdx = hay.indexOf(needle);
     if (hayIdx < 0) return;
     const labelIdx = label.indexOf(needle);
@@ -306,7 +343,7 @@ function commandEntries(query) {
   const out = [];
   const m = q.match(/^([A-Za-z]{2,4})(\+|\s+(\S.*))?$/);
   const c = m && codeFor(m[1]);
-  if (c && codeOpen(c)) {
+  if (c && codesOn() && codeOpen(c)) {
     if (m[2] === '+') {
       out.push(codeCanNew(c)
         ? { kind: 'New', label: `New ${c.name}`, context: c.area, tag: `${c.code}+`, run: () => openCode(c, { fresh: true }) }
@@ -402,8 +439,15 @@ function setupBar(inputEl) {
         const row = document.createElement('div');
         row.className = 'typeahead-item global-search-item';
         row.setAttribute('role', 'option');
-        row.innerHTML = `<span class="global-search-label">${esc(entry.label)}${entry.tag ? `<span class="sc-tag">${esc(entry.tag)}</span>` : ''}</span>`
-          + `<span class="global-search-meta">${esc(entry.context ? `${entry.kind} · ${entry.context}` : entry.kind)}</span>`;
+        // 162.5 (ask 193): nodes, not innerHTML - same markup, no HTML parse (and no Trusted Types report) per row.
+        const lab = document.createElement('span');
+        lab.className = 'global-search-label';
+        lab.append(entry.label);
+        if (entry.tag) { const tg = document.createElement('span'); tg.className = 'sc-tag'; tg.textContent = entry.tag; lab.append(tg); }
+        const meta = document.createElement('span');
+        meta.className = 'global-search-meta';
+        meta.textContent = entry.context ? `${entry.kind} · ${entry.context}` : entry.kind;
+        row.append(lab, meta);
         row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(entry); });
         menu.appendChild(row);
       });
@@ -431,7 +475,7 @@ function setupBar(inputEl) {
     if (!query.trim()) {
       const sections = await emptyEntries();
       if (mine !== seq || document.activeElement !== inputEl || inputEl.value.trim()) return;
-      draw(sections, 'Type a screen, a code (PO), a report number (R1001) or a document number.');
+      draw(sections, codesOn() ? 'Type a screen, a code (PO), a report number (R1001) or a document number.' : 'Type a screen, a report number (R1001) or a document number.');
       return;
     }
     const commands = commandEntries(query);
@@ -495,8 +539,8 @@ function findButton(kind, root) {
   if (!root) return null;
   const re = BUTTONS[kind];
   const hits = [...root.querySelectorAll('button, a.btn, input[type="submit"]')].filter(b =>
-    !b.disabled && shown(b) && !b.closest('.sc-keys, #sc-saved, .sc-star')
-    && (re.test(btnText(b)) || (kind === 'new' && (b.id === 'doc-create-button' || /:new"/.test(b.dataset.actArgs || '')))));
+    !b.disabled && (re.test(btnText(b)) || (kind === 'new' && (b.id === 'doc-create-button' || /:new"/.test(b.dataset.actArgs || ''))))
+    && !b.closest('.sc-keys, #sc-saved, .sc-star') && shown(b));
   return hits.find(b => b.classList.contains('btn-primary')) || hits[0] || null;
 }
 // Save from inside a form prefers that form's own submit button, whatever it
@@ -682,17 +726,22 @@ function openKeys() {
     box.addEventListener('mousedown', (e) => { if (e.target === box) closeKeys(); });
     document.body.appendChild(box);
   }
-  const visibleCodes = codes.filter(codeOpen);
+  const on = codesOn();
+  const visibleCodes = on ? codes.filter(codeOpen) : [];
   const areas = [...new Set(visibleCodes.map(c => c.area))];
+  // Off: drop the typed-code rows (PO, PO+, PO 42), keep report and document numbers.
+  const codeKeys = new Set(['PO', 'PO+', 'PO 42']);
+  const keyGroups = on ? SHORTCUT_KEYS : SHORTCUT_KEYS.map(([area, rows]) => [area, rows.filter(([key]) => !codeKeys.has(key))
+    .map(([key, what]) => [key, what.replace('screens, codes,', 'screens,').replace('keys and codes', 'keys')])]);
   box.innerHTML = `<div class="sc-keys-panel">
     <div class="sc-keys-head"><h2 id="sc-keys-title">Keyboard shortcuts</h2>
       <span><button type="button" class="btn btn-outline btn-sm" data-sc="reports">Report numbers</button>
       <a class="btn btn-outline btn-sm" href="/help/keyboard-shortcuts" target="_blank" rel="noopener">Guide</a>
       <button type="button" class="btn btn-outline btn-sm" data-sc="print">Print</button>
       <button type="button" class="btn btn-outline btn-sm" data-sc="close" aria-label="Close">Esc</button></span></div>
-    <div class="sc-keys-grid">${SHORTCUT_KEYS.map(([area, rows]) => `<section><h3>${esc(area)}</h3><dl>${rows.map(([key, what]) =>
+    <div class="sc-keys-grid">${keyGroups.map(([area, rows]) => `<section><h3>${esc(area)}</h3><dl>${rows.map(([key, what]) =>
       `<dt><kbd>${esc(key)}</kbd></dt><dd>${esc(what)}</dd>`).join('')}</dl></section>`).join('')}</div>
-    <h3 class="sc-keys-sub">Codes</h3>
+    ${on ? '<h3 class="sc-keys-sub">Codes</h3>' : ''}
     <div class="sc-keys-grid">${areas.map(area => `<section><h3>${esc(area)}</h3><dl>${visibleCodes.filter(c => c.area === area).map(c =>
       `<dt><kbd>${esc(c.code)}</kbd></dt><dd>${esc(c.name)}</dd>`).join('')}</dl></section>`).join('')}</div>
     <div class="sc-keys-reports" hidden></div></div>`;
@@ -902,6 +951,14 @@ async function placeViews(fresh = false) {
   if (!search) { document.querySelectorAll('#view-root .sc-views').forEach(v => v.remove()); return; }
   const doctype = currentDoctype;
   if (fresh || !viewCache.has(doctype)) {
+    // 200.2: hold the box's place while its list loads, so nothing beside it moves when it fills.
+    if (!document.querySelector('#view-root .sc-views')) {
+      const hold = document.createElement('select');
+      hold.className = 'form-select sc-views';
+      hold.setAttribute('aria-label', 'Saved views');
+      hold.innerHTML = '<option value="">All records</option>';
+      search.insertAdjacentElement('afterend', hold);
+    }
     const res = await window.apiFetch(`/api/v1/doc/UserShortcut?owner=${encodeURIComponent(user())}&kind=List%20view&target=${encodeURIComponent(doctype)}&limit=100`).catch(() => null);
     if (!res || !res.ok) return;
     viewCache.set(doctype, await res.json());
@@ -966,7 +1023,8 @@ function afterRender() {
   if (favs) placeStar();
   // 162.5: the saved-views box too, when its list is already cached - it no
   // longer arrives 300 ms after the rest of the screen.
-  if (favs && currentView === 'doctype-table' && viewCache.has(currentDoctype)) placeViews();
+  // 200.2: on a first visit too - the box takes its place now and fills in when its list arrives.
+  if (favs && currentView === 'doctype-table') placeViews();
   clearTimeout(afterTimer);
   afterTimer = setTimeout(async () => {
     const root = document.getElementById('view-root');
@@ -1096,6 +1154,17 @@ export async function copyRecord(doctype, id) {
 // ---------------------------------------------------------------------------
 
 setupBar(document.getElementById('global-search'));
+// 162.5 (ask 193): the Ctrl+K index is built once the page is idle (waits for the record types; a few tries), so the first key
+// typed does not pay for it. A key typed sooner builds it then, as before.
+{
+  let tries = 0;
+  const warm = () => codesReady.then(() => {
+    if (state.activeDoctypes?.length) buildGlobalSearchIndex();
+    else if (++tries < 5) idle(warm);
+  });
+  const idle = fn => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 6000 }) : setTimeout(fn, 3000));
+  idle(warm);
+}
 window.addEventListener('keydown', onKey);
 const viewRoot = document.getElementById('view-root');
 if (viewRoot) new MutationObserver(afterRender).observe(viewRoot, { childList: true });

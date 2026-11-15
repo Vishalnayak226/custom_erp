@@ -506,6 +506,15 @@ function showError(msg) {
   el.scrollIntoView({ block: 'nearest' });
 }
 
+// FA-20261005-05: a posting toast says what went into stock and what stayed out,
+// so the receipt reconciles with the stock ledger (only accepted units post).
+function stockNote(data, child) {
+  const ls = ((data && data.lines) || []).filter(l => !child || l.child === child);
+  const sum = k => ls.reduce((t, l) => t + (num(l[k]) ?? 0), 0);
+  const out = sum('rejected_qty') + sum('damaged_qty');
+  return `${sum('accepted_qty')} available to sell${out ? `, ${out} rejected or damaged set aside` : ''}`;
+}
+
 async function send(path, body, okMsg) {
   const res = await apiFetch(`/api/v1/grn-steps/${encodeURIComponent(gs.id)}/${path}`, { method: 'POST', body: JSON.stringify(body || {}) });
   if (!res) return null;
@@ -523,7 +532,7 @@ async function send(path, body, okMsg) {
     return null;
   }
   const data = await res.json();
-  if (okMsg) showToast(okMsg, { variant: 'success' });
+  if (okMsg) showToast(typeof okMsg === 'function' ? okMsg(data) : okMsg, { variant: 'success' });
   gs.onChanged();
   return data;
 }
@@ -565,7 +574,7 @@ async function onClick(e) {
       }
       case 'post-all': {
         if (!(await showCustomConfirm('Everything matches. Verify, price-check and post this receipt now? Stock goes in at the invoice price with the current MRPs.', 'Post all'))) break;
-        const data = await send('post-all', {}, 'Posted.');
+        const data = await send('post-all', {}, d => `Posted - ${stockNote(d)}.`);
         if (data) setView(data, 'pay');
         break;
       }
@@ -586,7 +595,7 @@ async function onClick(e) {
         v.lines.filter(l => l.child === key).forEach(l => { const m = num(gs.mrp[l.line_no]); if (m != null) mrp[String(l.line_no)] = m; });
         const below = v.lines.filter(l => l.child === key && num(gs.mrp[l.line_no]) != null && num(gs.mrp[l.line_no]) / (1 + (Number(l.gst_rate) || 0) / 100) < l.grn_price);
         if (below.length && !(await showCustomConfirm(`The MRP of ${below.map(l => l.sku).join(', ')} is below its cost. Post anyway?`, 'MRP below cost'))) break;
-        const data = await send(`post/${encodeURIComponent(key)}`, { mrp }, `${v.code}/${key} posted - stock is in.`);
+        const data = await send(`post/${encodeURIComponent(key)}`, { mrp }, d => `${v.code}/${key} posted - ${stockNote(d, key)}.`);
         if (data) setView(data, data.step === 'Posted' ? 'pay' : 'post');
         break;
       }

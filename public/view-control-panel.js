@@ -231,12 +231,23 @@ async function renderControlPanelView(container) {
         <thead><tr><th>Statement</th><th class="num">Calls</th><th class="num">Mean ms</th><th class="num">Max ms</th><th class="num">Total ms</th><th class="num">Buffers</th><th class="num">Change</th></tr></thead>
         <tbody>
           ${sqRows.length === 0 ? '<tr><td colspan="7" class="s-5872de">None.</td></tr>' : ''}
-          ${sqRows.map(q => `<tr><td class="s-cf38ca">${escapeHTMLText(q.query)}</td>
+          ${sqRows.map(q => `<tr><td class="s-cf38ca" data-cp-plan-sql="${escapeHTMLText(q.query)}">${escapeHTMLText(q.query)}</td>
             <td class="num">${q.calls}</td><td class="num">${Math.round(q.mean_ms)}</td><td class="num">${Math.round(q.max_ms)}</td><td class="num">${Math.round(q.total_ms)}</td>
             <td class="num">${q.shared_blocks ? q.shared_blocks : '<span class="text-muted">&mdash;</span>'}</td>
             <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span class="${q.change_pct > 20 ? 'u-bad u-fw6' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
         </tbody>
       </table>
+    </div>
+    <div class="s-d9eeed">
+      <h3 class="s-b3b643">Query plan</h3>
+      <select class="form-input" id="cp-plan-client" aria-label="Client">
+        ${clients.map(c => `<option value="${escapeHTMLText(c.tenant_id)}"${c.tenant_id === cp.operator_tenant ? ' selected' : ''}>${escapeHTMLText(c.name || c.tenant_id)}</option>`).join('')}
+      </select>
+      <button class="btn btn-outline" id="cp-plan-run" type="button">Explain</button>
+    </div>
+    <div class="s-644e5e">
+      <textarea class="form-input s-41f41e s-fc459a" id="cp-plan-sql" rows="4" maxlength="20000" placeholder="SELECT ..." aria-label="Statement"></textarea>
+      <pre id="cp-plan-out" hidden></pre>
     </div>
   `;
   container.appendChild(sqEl);
@@ -245,6 +256,29 @@ async function renderControlPanelView(container) {
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'Could not save the baseline'); return; }
     renderView('control-panel');
+  });
+  // Stage 47.9.3d: EXPLAIN (ANALYZE, BUFFERS) for one read-only SELECT; a statement row fills the box.
+  const planSql = sqEl.querySelector('#cp-plan-sql');
+  const planOut = sqEl.querySelector('#cp-plan-out');
+  sqEl.querySelectorAll('[data-cp-plan-sql]').forEach(td => td.addEventListener('click', () => {
+    planSql.value = td.dataset.cpPlanSql;
+    planSql.focus();
+  }));
+  const planRun = sqEl.querySelector('#cp-plan-run');
+  planRun.addEventListener('click', async () => {
+    const client = sqEl.querySelector('#cp-plan-client').value;
+    if (!client || !planSql.value.trim()) { planSql.focus(); return; }
+    planRun.disabled = true;
+    try {
+      const r = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(client)}/query-plan`, { method: 'POST', body: JSON.stringify({ statement: planSql.value }) });
+      if (!r) return;
+      if (!r.ok) { await showApiError(r, 'Could not explain the statement'); return; }
+      const p = await r.json();
+      planOut.textContent = (p.plan || []).join('\n');
+      planOut.hidden = false;
+    } finally {
+      planRun.disabled = false;
+    }
   });
 
   // Stage 47.17.5: capability maturity, per configuration.
@@ -333,7 +367,8 @@ async function renderControlPanelView(container) {
     '', action === 'pause' ? 'Pause client' : 'Resume client');
     if (reason === null) return;
     if (!reason.trim()) { await showCustomAlert('A reason is required.', action === 'pause' ? 'Pause client' : 'Resume client'); return; }
-    await change(c, 'status', { action, reason: reason.trim() }, `Failed to ${action} ${name}.`);
+    if (action === 'pause' && !await showCustomConfirm(`Pause ${name}?`, 'Pause client', { typed: name })) return;
+    await change(c, 'status', { action, reason: reason.trim() },`Failed to ${action} ${name}.`);
   }));
   panel.querySelectorAll('[data-cp-trial]').forEach(btn => btn.addEventListener('click', async () => {
     const c = clients[Number(btn.getAttribute('data-cp-trial'))];

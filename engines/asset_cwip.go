@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -75,6 +76,34 @@ func cwipChargeOK(tenantID, assetID string, line int) error {
 	}
 	if status != "CWIP" {
 		return cwipRefused(cwipChargeCode, "CWIP asset", "Line %d: asset %s is not in CWIP (it is %s).", line, assetID, status)
+	}
+	return nil
+}
+
+// cwipLockForChargeTx re-checks, inside the transaction that posts a bill,
+// that every CWIP asset its lines charge is still in CWIP, and holds a share
+// lock on each until that transaction ends. Capitalisation locks the asset
+// FOR UPDATE, so the two queue: a bill that posts first is in the capitalised
+// total; one that comes after (or is approved after) is refused. Ask 176.
+func cwipLockForChargeTx(tx *sql.Tx, schema string, rows []expenseLineRow) error {
+	seen := map[string]bool{}
+	for i, r := range rows {
+		id := strings.TrimSpace(r.CwipAsset)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		var status string
+		err := tx.QueryRow(fmt.Sprintf(`SELECT status FROM %s.documents WHERE doctype = 'Asset' AND id = $1 AND deleted_at IS NULL FOR SHARE`, schema), id).Scan(&status)
+		if err == sql.ErrNoRows {
+			return cwipRefused(cwipChargeCode, "CWIP asset", "Line %d: asset %s is not on file.", i+1, id)
+		}
+		if err != nil {
+			return err
+		}
+		if status != "CWIP" {
+			return cwipRefused(cwipChargeCode, "CWIP asset", "Line %d: asset %s is not in CWIP (it is %s).", i+1, id, status)
+		}
 	}
 	return nil
 }

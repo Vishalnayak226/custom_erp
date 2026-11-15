@@ -26,10 +26,9 @@ import (
 // Enforcement is one check in apiMiddleware (MFATiersForAction names the tiers
 // an action belongs to), so a new route in a tier needs no code of its own.
 //
-// Not built: phishing-resistant passkeys / WebAuthn for privileged roles. That
-// needs a reviewed dependency and a browser-compatibility design first; see
-// docs/security/mfa-assurance-tiers.md. TOTP plus single-use hashed recovery
-// codes is what exists.
+// Passkeys (49.2.3, engines/webauthn.go) are an optional second factor on the
+// MFA challenge; TOTP plus single-use hashed recovery codes remain the base.
+// See docs/security/mfa-assurance-tiers.md.
 
 // SettingMFATierPolicy is the client's switch.
 const SettingMFATierPolicy = "security.mfa_tier_policy"
@@ -48,6 +47,7 @@ const (
 	MFATierConnectorSecret = "connector_secrets"
 	MFATierBulkExport      = "bulk_export"
 	MFATierBreakGlass      = "break_glass"
+	MFATierPrivilegeChange = "privilege_change" // 49.3.6
 )
 
 // MFATier describes one tier for the guide and the security pane.
@@ -64,6 +64,7 @@ var MFATiers = []MFATier{
 	{MFATierConnectorSecret, "Connector secrets"},
 	{MFATierBulkExport, "Bulk export"},
 	{MFATierBreakGlass, "Break-glass"},
+	{MFATierPrivilegeChange, "Privilege change"},
 }
 
 // MFATierAuditAction is the audit action of a report/refusal row.
@@ -103,6 +104,11 @@ func MFATiersForAction(pattern, capability string, bulkExport bool) []string {
 		pattern == "POST /api/v1/admin/security/sign-out-all",
 		pattern == "POST /api/v1/admin/users/reset-mfa":
 		add(MFATierBreakGlass)
+	}
+	// 49.3.6: changing what a role may do is step-up work like the rest.
+	switch pattern {
+	case "POST /api/v1/admin/role-permissions", "POST /api/v1/admin/role-permissions/rollback":
+		add(MFATierPrivilegeChange)
 	}
 	if capability == "hr.payroll" {
 		add(MFATierPayroll)

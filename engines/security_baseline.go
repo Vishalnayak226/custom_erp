@@ -101,14 +101,6 @@ var securityCriticalEnvVars = []string{
 	"TRUST_PROXY",
 }
 
-// SecurityCriticalEnvVars returns a copy for the 49.1.1 surface inventory and
-// the baseline test.
-func SecurityCriticalEnvVars() []string {
-	out := make([]string, len(securityCriticalEnvVars))
-	copy(out, securityCriticalEnvVars)
-	return out
-}
-
 // configurationFindings runs every environment/filesystem check. It never
 // touches the database, so it is safe to call before db.InitDB and safe to
 // call from a test with t.Setenv.

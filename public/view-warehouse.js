@@ -143,7 +143,8 @@ async function renderPutawayView(container) {
   if (putawayFromGRN && putawayFromGRN.location) inboundLocation = putawayFromGRN.location;
   if (inboundLocation) waitLoc.value = inboundLocation;
   waitLoc.addEventListener('change', () => { inboundLocation = waitLoc.value.trim(); loadPutawayWaiting(); });
-  loadPutawayWaiting();
+  // 200.2: the list is in before the screen shows, so the panels below it never move down.
+  await loadPutawayWaiting();
 
   // Cross-dock is a different decision from shelving: kept, but folded away
   // as an explicit variant rather than two more blank forms beside this one.
@@ -594,7 +595,11 @@ async function renderYardBoardView(container) {
 async function loadYardBoard(liveBody = null) {
   const body = liveBody?.isConnected ? liveBody : document.getElementById('yard-board-body');
   if (!body) return;
-  body.innerHTML = '<div class="table-panel s-ddaf9e">Loading yard status…</div>';
+  const done = holdSectionWhileLoading(body, '<div class="table-panel s-ddaf9e">Loading yard status…</div>');
+  try { await fillYardBoard(body); } finally { done(); }
+}
+
+async function fillYardBoard(body) {
   const res = await apiFetch('/api/v1/doc/YardCheckIn');
   if (!res) return;
   if (!res.ok) {
@@ -908,7 +913,7 @@ async function loadAppointmentCalendar() {
         const leftPct = Math.max(0, (startMin - rangeStart) / (rangeEnd - rangeStart) * 100);
         const widthPct = Math.max(2, (endMin - startMin) / (rangeEnd - rangeStart) * 100);
         html += `<div title="${escapeHTMLText(a.carrier || '')} ${escapeHTMLText(a.trailer_no || '')} ${escapeHTMLText(a.start_time)}-${escapeHTMLText(a.end_time)}"
-          style="position:absolute; left:${leftPct}%; width:${widthPct}%; top:2px; bottom:2px; background:var(--accent, #4f46e5); color:#fff; font-size:10px; border-radius:3px; overflow:hidden; padding:2px 4px; white-space:nowrap;">
+          data-css="position:absolute; left:${leftPct}%; width:${widthPct}%; top:2px; bottom:2px; background:var(--accent, #4f46e5); color:#fff; font-size:10px; border-radius:3px; overflow:hidden; padding:2px 4px; white-space:nowrap;">
           ${escapeHTMLText(a.appointment_type === 'Outbound' ? 'OUT' : 'IN')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
       }
       html += '</div></div>';
@@ -927,7 +932,7 @@ function timeToMinutes(hhmm) {
 
 function apptChip(a) {
   const color = a.appointment_type === 'Outbound' ? '#9333ea' : '#4f46e5';
-  return `<div style="background:${color}; color:#fff; font-size:10px; border-radius:3px; padding:2px 4px; margin-bottom:3px;">${escapeHTMLText(a.start_time || '')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
+  return `<div data-css="background:${color}; color:#fff; font-size:10px; border-radius:3px; padding:2px 4px; margin-bottom:3px;">${escapeHTMLText(a.start_time || '')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
 }
 
 async function submitNewAppointment() {
@@ -1728,7 +1733,11 @@ async function loadWarehouseCockpit(liveBody = null) {
     body.innerHTML = `<div class="table-panel s-b98465">Enter a Location and click Refresh.</div>`;
     return;
   }
-  body.innerHTML = `<div class="table-panel s-b98465">Loading...</div>`;
+  const done = holdSectionWhileLoading(body, `<div class="table-panel s-b98465">Loading...</div>`);
+  try { await fillWarehouseCockpit(body, location); } finally { done(); }
+}
+
+async function fillWarehouseCockpit(body, location) {
   const res = await apiFetch(`/api/v1/wms/cockpit?location_code=${encodeURIComponent(location)}`);
   if (!res) return;
   if (!res.ok) {

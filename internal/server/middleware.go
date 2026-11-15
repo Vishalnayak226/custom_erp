@@ -224,6 +224,18 @@ type tenantConcurrencyLimiter struct {
 	mu       sync.Mutex
 	inFlight map[string]int
 	heavy    map[string]int
+	total    int // BLD-029: requests in flight across every client
+}
+
+// Once this fraction (3/4) of the server-wide cap is in use, a client at or
+// over its fair share waits while a client under its share is still admitted.
+const globalFairShareNum, globalFairShareDen = 3, 4
+
+// globalMaxConcurrentRequests is the registered server-wide cap on requests
+// in flight (BLD-029), read from the default client like the other
+// platform-wide settings.
+func globalMaxConcurrentRequests() int {
+	return engines.GetSettingInt("default", "platform.global_max_concurrent_requests")
 }
 
 var tenantConcurrency = &tenantConcurrencyLimiter{inFlight: make(map[string]int), heavy: make(map[string]int)}
@@ -326,7 +338,8 @@ const lightAdmissionWait = 1500 * time.Millisecond
 // every client's sign-in and health check stalled behind it.
 func (l *tenantConcurrencyLimiter) acquireClassWait(done <-chan struct{}, tenantID string, heavy, priority bool, wait time.Duration) bool {
 	limit := perTenantMaxConcurrentRequestsFor(tenantID)
-	if l.acquireClassLimit(tenantID, heavy, priority, limit) {
+	globalCap := globalMaxConcurrentRequests()
+	if l.acquireClassGlobal(tenantID, heavy, priority, limit, globalCap) {
 		return true
 	}
 	if heavy || wait <= 0 {
@@ -341,7 +354,7 @@ func (l *tenantConcurrencyLimiter) acquireClassWait(done <-chan struct{}, tenant
 			return false
 		case <-tick.C:
 		}
-		if l.acquireClassLimit(tenantID, heavy, priority, limit) {
+		if l.acquireClassGlobal(tenantID, heavy, priority, limit, globalCap) {
 			return true
 		}
 		if time.Now().After(deadline) {
@@ -360,12 +373,22 @@ func (l *tenantConcurrencyLimiter) acquire(tenantID string, heavy bool) bool {
 // acquireClass is acquire with the priority lane: a priority request may go
 // up to the cap plus priorityReserve.
 func (l *tenantConcurrencyLimiter) acquireClass(tenantID string, heavy, priority bool) bool {
-	return l.acquireClassLimit(tenantID, heavy, priority, perTenantMaxConcurrentRequestsFor(tenantID))
+	return l.acquireClassGlobal(tenantID, heavy, priority, perTenantMaxConcurrentRequestsFor(tenantID), globalMaxConcurrentRequests())
 }
 
 // acquireClassLimit is acquireClass against a cap the caller already read;
 // nothing under the lock touches the database.
 func (l *tenantConcurrencyLimiter) acquireClassLimit(tenantID string, heavy, priority bool, limit int) bool {
+	return l.acquireClassGlobal(tenantID, heavy, priority, limit, 0)
+}
+
+// acquireClassGlobal adds the server-wide guard (BLD-029). With globalCap > 0
+// ordinary requests of all clients together hold at most globalCap slots (the
+// shared pool minus a reserve); once 3/4 of it is in use a client at or over
+// its fair share (globalCap / clients with work) is refused while a client
+// under its share is still admitted. The priority lane is never blocked by
+// it. globalCap 0 turns the guard off. Nothing here touches the database.
+func (l *tenantConcurrencyLimiter) acquireClassGlobal(tenantID string, heavy, priority bool, limit, globalCap int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	capFor := limit
@@ -375,6 +398,20 @@ func (l *tenantConcurrencyLimiter) acquireClassLimit(tenantID string, heavy, pri
 	if l.inFlight[tenantID] >= capFor {
 		return false
 	}
+	if globalCap > 0 && !priority {
+		if l.total >= globalCap {
+			return false
+		}
+		if l.total >= globalCap*globalFairShareNum/globalFairShareDen {
+			active := len(l.inFlight)
+			if l.inFlight[tenantID] == 0 {
+				active++
+			}
+			if l.inFlight[tenantID] >= max(1, globalCap/active) {
+				return false
+			}
+		}
+	}
 	if heavy {
 		if l.heavy[tenantID] >= max(1, limit/2) {
 			return false
@@ -382,12 +419,16 @@ func (l *tenantConcurrencyLimiter) acquireClassLimit(tenantID string, heavy, pri
 		l.heavy[tenantID]++
 	}
 	l.inFlight[tenantID]++
+	l.total++
 	return true
 }
 
 func (l *tenantConcurrencyLimiter) release(tenantID string, heavy bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.total > 0 {
+		l.total--
+	}
 	if heavy {
 		if l.heavy[tenantID] > 1 {
 			l.heavy[tenantID]--
@@ -435,7 +476,7 @@ func (l *tenantConcurrencyLimiter) snapshot() map[string]int {
 // 49.2.8); a purpose not listed may call nothing.
 var purposeTokenRoutes = map[string]map[string]bool{
 	"mfa_enroll":    {"/api/v1/auth/mfa/enroll": true, "/api/v1/auth/mfa/activate": true},
-	"mfa_challenge": {"/api/v1/auth/mfa/verify": true},
+	"mfa_challenge": {"/api/v1/auth/mfa/verify": true, "/api/v1/auth/passkey/options": true, "/api/v1/auth/passkey/verify": true},
 }
 
 var passwordChangeAllowedPaths = map[string]bool{
@@ -496,7 +537,8 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// interactive browsing alone. Combined with the per-session keying
 		// below, one user can no longer consume a shared site's whole budget.
 		return "report", 60
-	case strings.HasPrefix(path, "/api/v1/integration/shopify/") || strings.HasPrefix(path, "/api/v1/integration/courier/"):
+	case strings.HasPrefix(path, "/api/v1/integration/shopify/") || strings.HasPrefix(path, "/api/v1/integration/courier/") ||
+		strings.HasPrefix(path, "/api/v1/integration/razorpay/"):
 		// Webhook API: bursts from the external platform are expected and
 		// legitimate, so this gets a higher budget than login/reports.
 		return "webhook", 30
@@ -662,6 +704,10 @@ var publicRoutes = map[string]bool{
 	"/api/v1/integration/courier/shiprocket/tracking": true,
 	// Stage 99: Shopify's webhooks, proven by the channel's own HMAC secret.
 	"/api/v1/integration/shopify/webhook": true,
+	// 185.3: Razorpay's payment-link webhooks, proven by the client's webhook secret.
+	"/api/v1/integration/razorpay/webhook": true,
+	// 50.12: Razorpay subscription webhooks for the platform's own account, same HMAC proof.
+	"/api/v1/integration/razorpay/subscription-webhook": true,
 	// Stage 39.6: the Knowledge Center is authenticated by default. These three
 	// serve only articles whose own frontmatter says `public: true` - the
 	// integration/API subset an integrator needs before they have a login. The
@@ -758,11 +804,16 @@ func generateUUID() string {
 // page errors; every one of the 128 data-act reference sites resolves to a
 // real function.
 //
-// style-src keeps 'unsafe-inline': the templates still set style="..."
-// attributes in many places, and that is a separate migration with no
-// script-execution consequence. The report-only header stays, now as the
-// next candidate (strict style-src), so the same mechanism carries the next
-// step. frame-ancestors 'none' keeps clickjacking protection.
+// style-src is 'self' too (49.4.3, ask 191): run-time styles go through the
+// CSSOM (data-css applied by applyDataCss, constructed sheets by adoptCss in
+// public/app.js), which the policy allows; a style="..." attribute or a
+// <style> element in markup is refused. Flipped the same way as script-src:
+// a crawl of all 74 menu views and 323 doctype lists and New forms against
+// the report-only candidate logged zero style-src violations and zero page
+// errors, and the 35 print paths passed with it enforced.
+// TestPublicStylesGoThroughTheCSSOM keeps new markup styles out. The
+// report-only header now carries the Trusted Types trial alone.
+// frame-ancestors 'none' keeps clickjacking protection.
 func securityHeaders(next http.Handler) http.Handler {
 	// Stage 40.4: style-src/font-src used to carve out Google Fonts, because
 	// public/styles.css @imported fonts.googleapis.com. That import is gone -
@@ -772,7 +823,7 @@ func securityHeaders(next http.Handler) http.Handler {
 	// strictly tighter: nothing outside this origin can be fetched at all.
 	const csp = "default-src 'self'; " +
 		"script-src 'self'; " +
-		"style-src 'self' 'unsafe-inline'; " +
+		"style-src 'self'; " +
 		"font-src 'self'; " +
 		// blob: (not just data:) is required for the PIM media gallery
 		// (Stage 15.2/26.4.4): images/thumbnails are fetched as authenticated
@@ -789,8 +840,10 @@ func securityHeaders(next http.Handler) http.Handler {
 		// the same way as the img-src exception above: without this,
 		// `connect-src 'self'` silently blocked all 8 of QZ Tray's candidate
 		// ports and one-click printing fell back to the browser dialog on
-		// every single job, with no visible error anywhere.
-		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
+		// every single job, with no visible error anywhere. 203.2 made the
+		// plain socket 127.0.0.1 (the agent listens there only), which
+		// `localhost` does not match in CSP, so both names are allowed (193).
+		"connect-src 'self' ws://localhost:* ws://127.0.0.1:* wss://localhost.qz.io:*; " +
 		// Stage 137.5: a hidden frame opens printbridge://wake to start
 		// PrintBridge when it is not answering (public/qz-print.js). Only
 		// that scheme; a frame of any other site stays refused.
@@ -799,16 +852,16 @@ func securityHeaders(next http.Handler) http.Handler {
 		"base-uri 'self'; " +
 		"form-action 'self'; " +
 		"frame-ancestors 'none'"
-	// The report-only candidate moves on to the next exception to retire:
-	// inline style attributes. Reported, not enforced, for exactly the reason
-	// script-src was reported first - the violations have to be seen in real
-	// browser journeys before the policy can refuse them.
+	// The report-only candidate is the enforced policy plus the next step,
+	// Trusted Types. Reported, not enforced, for exactly the reason script-src
+	// and style-src were reported first - the violations have to be seen in
+	// real browser journeys before the policy can refuse them.
 	const cspReportOnly = "default-src 'self'; " +
 		"script-src 'self'; " +
 		"style-src 'self'; " +
 		"font-src 'self'; " +
 		"img-src 'self' data: blob:; " +
-		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
+		"connect-src 'self' ws://localhost:* ws://127.0.0.1:* wss://localhost.qz.io:*; " +
 		"frame-src 'self' printbridge:; " +
 		"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; " +
 		// 49.4.3: the Trusted Types trial - every string-to-DOM sink (innerHTML, insertAdjacentHTML, ...) that is not
@@ -1084,6 +1137,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// and a short device summary, for every security event this request
 		// writes - set here so a refusal before sign-in records them too.
 		r = r.WithContext(engines.WithRequestSource(r.Context(), clientIP(r), r.UserAgent()))
+		// 195.1: Guide's key is checked and taken off the request here, before
+		// anything below can log or echo it (security_automation_key.go).
+		r = takeAutomationKey(r)
 
 		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
@@ -1092,14 +1148,16 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if originAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID")
+			// 195.1: X-ERP-Automated too, so an automated browser on a
+			// separately-hosted front end gets the wrong-password answer, not a CORS error.
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID, X-ERP-Automated")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			// BLD-034: X-Total-Count (the generic doc-list endpoint's real
 			// result count) isn't one of the CORS-safelisted response headers
 			// a cross-origin fetch() can read by default - without this, a
 			// separately-hosted frontend origin would see the header on the
 			// wire but response.headers.get() would always return null.
-			w.Header().Set("Access-Control-Expose-Headers", "X-Total-Count")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Count-Estimated")
 		}
 
 		if r.Method == "OPTIONS" {
@@ -1143,6 +1201,10 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			if category == "default" {
 				limit = signedInDefaultLimit
 			}
+		}
+		// 195.1: Guide's key lifts every per-minute budget except sign-in's.
+		if category != "login" && hasAutomationKey(r) {
+			limit = automationKeyLimit
 		}
 		if !globalLimiter.Allow(limiterKey, limit, time.Minute) {
 			if wait := globalLimiter.RetryAfter(limiterKey, time.Minute); wait > 0 {

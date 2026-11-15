@@ -1082,4 +1082,11 @@ var reportNumbers = map[string]string{
 	"project-budget-vs-actual":                                 "R5172",
 	"aql-sample-plan":                                          "R7970",
 	"lot-trace":                                                "R4050",
+	"certificate-expiry":                                       "R8019",
+	"cash-position":                                            "R5173",
+	"travel-requests":                                          "R5174",
+	"card-lines-unmatched":                                     "R5175",
+	"calibration-due":                                          "R7971",
+	"own-approval-decisions":                                   "R9062",
+	"declaration-gaps":                                         "R9063",
 }

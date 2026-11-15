@@ -117,7 +117,10 @@ occasion it's cleared, or when a new CI-only tool/action is added:
    `security_budget`, `license_budget`, `migration_rollback`, `removal_plan`
    and `date`. "Enterprise systems normally use it" is not evidence and fails
    the test. Entries that were here when the gate opened say `grandfathered`;
-   that list is frozen in `internal/supplychain/gate.go`.
+   that list is frozen in `internal/supplychain/gate.go`. **The product owner
+   approves every exception** (owner, 2026-11-14, ask 178). An exception
+   stands only once the owner's yes is written in its tracker item, and its
+   `date` is the day of that yes.
 7. **Pin it.** A Go module is already pinned by `go.sum`'s content hash. A
    GitHub Action must be pinned to the full commit SHA behind the release
    tag you intend to use (`git ls-remote https://github.com/<owner>/<repo>

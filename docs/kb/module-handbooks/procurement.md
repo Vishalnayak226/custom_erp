@@ -468,6 +468,13 @@ handbook rather than being folded in here. The tolerance that decides
 auto-match vs hold is `procurement.vendor_invoice_tolerance_percent`
 (**Settings → Configuration**, default 2%).
 
+## Contracts, services and the supplier portal
+
+- Buying at a vendor contract's rates and cap, and paying for services only
+  for work you accepted: [Purchase contracts and service entries](purchase-contracts-and-service-entries.md).
+- What a supplier sees when it signs in, and how it sends a delivery notice:
+  [The supplier portal](supplier-portal.md).
+
 ## Reports
 
 Reached from **Reports** in the sidebar; all export/schedule like any other

@@ -388,7 +388,12 @@ func setOffClearingAccount(q docQuerier, schema string) (string, error) {
 	if acct == "" {
 		return "", setOffErr(setOffClearingCode, "choose the set-off clearing account in Settings first")
 	}
-	if acct == "1300" || acct == "2100" || acct == "1500" {
+	// 148.4b: a group's receivable / payable account is a control account too.
+	var control bool
+	if err := q.QueryRow(fmt.Sprintf(`SELECT COALESCE($1 IN %s OR $1 IN %s, FALSE)`, controlAccountsIn(schema, "1300"), controlAccountsIn(schema, "2100")), acct).Scan(&control); err != nil {
+		return "", err
+	}
+	if control || acct == "1500" {
 		return "", setOffErr(setOffClearingCode, "the clearing account cannot be a receivable or payable account")
 	}
 	var blocked bool

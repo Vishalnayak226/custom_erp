@@ -185,6 +185,14 @@ func TestBulkPurchaseMakesPOsAndNothingTwice(t *testing.T) {
 	if designNo != "" {
 		t.Fatalf("the client's label %q was stored as the design number", designNo)
 	}
+	// 199.1: a combination is named by its item name (Category + Type); its
+	// colour stays in its values.
+	var comboName, comboValues string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'name', ''), COALESCE(data->>'variant_option_values', '') FROM %s.documents
+		WHERE doctype = 'Item' AND (id = $1 OR data->>'code' = $1)`, schema), po.Lines[0].SKU).Scan(&comboName, &comboValues)
+	if want := engines.ItemNameForSchema(schema, category, "Earring"); comboName != want || !strings.Contains(comboValues, "Red") {
+		t.Fatalf("combination named %q with values %q, want the item name %q and Red in its values", comboName, comboValues, want)
+	}
 
 	// The same file again (the bills filled in later): found, nothing made.
 	again := bpRunFile(t, c, file, true)

@@ -153,13 +153,25 @@ a file the product owner approved by name, such as a byte-identical copy or a pr
 never took effect. Audits, UAT, incidents, restore drills, decisions and required legal
 versions are retained.
 
+Before deleting an approved file (Stage 48.10.3), check five things and write them in
+the change: why the deletion is safe (no legal or operational need to keep it); where its
+unique content now lives, if any; that every link to it in code, docs, the KB and published
+pages is rewritten; that the doc checks (`doclint`, `update-docs.ps1 -Check`,
+`update-brain.ps1 -Check`) pass; and the release-note line. Delete by an explicit list of
+paths, never a wildcard or a recursive delete (48.10.4); git history keeps the commit
+before it.
+
 Stage 48.0/48.1 implement the first foundation. Later Stage 48 gates own support approval,
 requirements rebuild, full migration, live walkthroughs and final strict enforcement.
 
 The Content pipeline also validates and generates the capability catalog and requirement
 traceability from `docs/product/capability-register.json`. It rejects unsupported maturity
 values, missing references and structurally incomplete Production/Certified claims. Qualified
-reviewers still verify approval authenticity and results. Search output is compact JSON;
+reviewers still verify approval authenticity and results. Each capability also carries its
+`checks`: the blueprint's capability rows (`BP-nnn`), each with a status, priority, acceptance
+test, evidence and the checklist items that own it. A row is Verified only with evidence
+attached, and every checklist item it names must exist in the tracker or its archive. One
+register, not two: new work names the row it closes. Search output is compact JSON;
 publication enforces its 250 KiB budget and the combined embedded KB 2 MiB budget.
 
 ## Curated manuals and screenshots

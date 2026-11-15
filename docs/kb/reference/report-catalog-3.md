@@ -21,14 +21,14 @@ screens: [reports]
 # Report catalog (part 3)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **103** reports, from
+every category and explains how to run a report. It holds **104** reports, from
 Procurement to Stock Transfer.
 
 ## Contents
 
 - [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement-grn) - 27 reports
-- [Quality](#quality) - 3 reports
+- [Quality](#quality) - 4 reports
 - [Sales](#sales) - 14 reports
 - [Sales & POS](#sales-pos) - 22 reports
 - [Service](#service) - 1 reports
@@ -788,6 +788,18 @@ Procurement to Stock Transfer.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Inspection · Store · Rule · Age · Age from · Outcome · Markdown · Due · Days left · Status
+
+**Drill-down:** no.
+
+### R7971 Instruments due for calibration
+
+**Report id:** `calibration-due`
+
+**Parameters:**
+
+- **Show** (`show`) - select, optional, one of: Due and overdue,All
+
+**Columns:** Instrument · Name · Kept at · Last calibrated · Result · Next due · Days overdue · State
 
 **Drill-down:** no.
 

@@ -224,7 +224,7 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 
 		// Stage 72.9: a service or non-stock expense item keeps no stock -
 		// the receipt books its value straight to its expense account
-		// (RecordGRNReceiptCosting) and posts nothing to a store.
+		// (recordGRNReceiptCostingPartTx) and posts nothing to a store.
 		if policy, _, known := ItemPolicyForSKU(tenantID, sku); known && !policy.Tracked() {
 			if accepted > 0 {
 				expenseOnly = append(expenseOnly, map[string]interface{}{"sku": sku, "qty": accepted})
@@ -312,6 +312,9 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 			if batchNo != "" {
 				acceptedLine["batch_no"] = batchNo
 			}
+			if r, ok := m["gst_rate"]; ok && r != nil && fmt.Sprint(r) != "" { // 49.5.5b.4
+				acceptedLine[ledgerKeyTaxRate] = numFromInterface(r)
+			}
 			acceptedItems = append(acceptedItems, acceptedLine)
 		}
 		if rejected > 0 || damaged > 0 {
@@ -354,6 +357,7 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 	// GRN's, Stage 135.21.)
 	var negativeEvents []NegativeStockEvent
 	if len(acceptedItems) > 0 {
+		markGRNLedgerRates(tenantID, schema, grnID, acceptedItems) // 49.5.5b.4
 		events, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, locationCode, acceptedItems, false)
 		if err != nil {
 			return events, nil, err

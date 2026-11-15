@@ -208,7 +208,7 @@ async function crmOverview(host) {
     ${setup.length ? `<div class="crm-note"><strong>To finish setting up</strong><ul>${setup.map(s => `<li>${crmEsc(s)}</li>`).join('')}</ul></div>` : ''}
     <h3 class="crm-section">Customers by lifecycle</h3>
     <div class="crm-bars">${lc.map(l => `<button type="button" class="crm-bar" data-life="${crmEsc(l.state)}"><span class="crm-bar-label">${crmEsc(l.state)}</span>
-      <span class="crm-bar-track"><span style="width:${Math.round(100 * l.count / max)}%"></span></span><span class="crm-bar-n">${l.count}</span></button>`).join('')}</div>
+      <span class="crm-bar-track"><span data-css="width:${Math.round(100 * l.count / max)}%"></span></span><span class="crm-bar-n">${l.count}</span></button>`).join('')}</div>
     <p class="text-muted crm-small">Counted now, in ${crmEsc(d.time_zone)} time.</p>`;
   body.querySelectorAll('[data-go-tab]').forEach(b => b.addEventListener('click', () => crmGo(b.dataset.goTab)));
   body.querySelectorAll('[data-life]').forEach(b => b.addEventListener('click', () => crmGo('customers', '', { lifecycle: b.dataset.life })));
@@ -556,7 +556,7 @@ async function crmSegmentEdit(host, id) {
   body.querySelector('#sg-why').addEventListener('click', async () => {
     const r = await crmApi('segments/explain', { method: 'POST', body: { definition: def, customer_id: whyPick() } });
     if (r) body.querySelector('#sg-why-out').innerHTML = `<p><b>${r.matched ? 'In the segment' : 'Not in the segment'}</b></p><ul class="crm-why">${(r.rules || []).map(x =>
-      `<li style="margin-left:${x.depth * 14}px">${x.matched ? '✓' : '✗'} ${crmEsc(x.text)}</li>`).join('')}</ul>`;
+      `<li data-css="margin-left:${x.depth * 14}px">${x.matched ? '✓' : '✗'} ${crmEsc(x.text)}</li>`).join('')}</ul>`;
   });
   body.querySelector('#sg-save')?.addEventListener('click', async () => {
     const r = await crmApi(id ? 'segments/' + encodeURIComponent(id) : 'segments', { method: id ? 'PUT' : 'POST', body: { name: crmVal(body, 'sg-name'), description: crmVal(body, 'sg-desc'), definition: def } });

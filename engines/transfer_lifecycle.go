@@ -144,6 +144,9 @@ type TransferReceiptRequest struct {
 	// approvedHold (74.1.1) is the approved TransferLossHold this receipt is
 	// replaying; only the engine sets it, never a caller's JSON.
 	approvedHold string
+	// internal marks a run the engine composes itself (centralised returns);
+	// the store check (193.3) is for a person's own receipt.
+	internal bool
 }
 
 // TransferReturnLine is one line sent back to the source.
@@ -386,6 +389,11 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 	toWarehouse, _ := data["to_warehouse"].(string)
 	if toWarehouse == "" {
 		return nil, fmt.Errorf("transfer order is missing to_warehouse")
+	}
+	if !req.internal && req.approvedHold == "" { // 193.3: receipt needs the destination store
+		if err := checkTransferStoreAccess(tenantID, userID, transferStepReceive, "", toWarehouse); err != nil {
+			return nil, err
+		}
 	}
 	fromWarehouse, _ := data["from_warehouse"].(string)
 	balances, err := loadTransferBalances(data)

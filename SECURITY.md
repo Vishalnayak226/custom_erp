@@ -39,13 +39,11 @@ regenerated with every release so it cannot drift from the evidence it quotes.
 **Preferred: GitHub private vulnerability reporting.**
 [Report a vulnerability](https://github.com/Vishalnayak226/custom_erp/security/advisories/new)
 opens a private advisory visible only to the repository owner — no public issue, no
-public commit history leak. **Status: not yet enabled on this repository**
+public commit history leak. **Status: enabled on 2026-11-15**
 (`gh api repos/Vishalnayak226/custom_erp/private-vulnerability-reporting` returns
-`"enabled": false` as of 2026-09-13) — **[needs decision: org owner]** to turn on in
-Settings → Security → "Private vulnerability reporting". The link above will 404
-until then.
+`"enabled": true`; owner decision, ask 193).
 
-**Fallback until that is enabled:** open a GitHub issue containing *only* "I have a
+**Fallback if the link does not work:** open a GitHub issue containing *only* "I have a
 security report, please advise a private channel" — no technical detail, no proof of
 concept — and the owner (`@Vishalnayak226`) will follow up with a private channel.
 Do not put exploit details, credentials, or real customer data in a public issue.

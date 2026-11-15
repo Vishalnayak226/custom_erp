@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -93,4 +94,66 @@ func RunCertificateReminders(tenantID, schema string) error {
 			"valid_until": c.ValidUntil, "days_left": strconv.Itoa(c.DaysLeft)})
 	}
 	return nil
+}
+
+// certificateExpiryReport is the same list as a report, with the employee's
+// name and department and the program's name (170.21).
+func certificateExpiryReport(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+	days, _ := strconv.Atoi(strings.TrimSpace(params["days"]))
+	list, err := ListExpiringCertificates(tenantID, days)
+	if err != nil || len(list) == 0 {
+		return []map[string]interface{}{}, err
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	names := map[string][2]string{} // Employee id or code -> name, department; TrainingProgram id -> name
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT doctype, id, COALESCE(data->>'code', ''),
+		COALESCE(NULLIF(data->>'name', ''), NULLIF(data->>'description', ''), ''), COALESCE(data->>'department', '')
+		FROM %s.documents WHERE doctype IN ('Employee', 'TrainingProgram') AND deleted_at IS NULL`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var doctype, id, code, name, dept string
+		if err := rows.Scan(&doctype, &id, &code, &name, &dept); err != nil {
+			return nil, err
+		}
+		names[doctype+":"+id] = [2]string{name, dept}
+		if code != "" {
+			names[doctype+":"+code] = [2]string{name, dept}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, len(list))
+	for _, c := range list {
+		emp, prog := names["Employee:"+c.EmployeeID], names["TrainingProgram:"+c.ProgramID]
+		state := "Expiring"
+		if c.DaysLeft < 0 {
+			state = "Expired"
+		}
+		out = append(out, map[string]interface{}{"employee_id": c.EmployeeID, "employee_name": emp[0], "department": emp[1],
+			"program": firstNonEmpty(prog[0], c.ProgramID), "certificate_no": c.CertificateNo, "valid_until": c.ValidUntil,
+			"days_left": c.DaysLeft, "status": state, "record_id": c.RecordID})
+	}
+	return out, nil
+}
+
+func init() {
+	RegisterReport(ReportDefinition{
+		ID: "certificate-expiry", Label: "Certificate Expiry", Category: "HR",
+		Columns: []ReportColumn{
+			{Key: "employee_id", Label: "Employee ID"}, {Key: "employee_name", Label: "Employee"}, {Key: "department", Label: "Department"},
+			{Key: "program", Label: "Training"}, {Key: "certificate_no", Label: "Certificate"}, {Key: "valid_until", Label: "Valid until"},
+			{Key: "days_left", Label: "Days left"}, {Key: "status", Label: "Status"},
+		},
+		Params: []ReportParam{
+			{Key: "days", Label: "Days ahead (optional)", Type: "text"},
+		},
+		Run: certificateExpiryReport,
+	})
 }

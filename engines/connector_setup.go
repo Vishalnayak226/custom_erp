@@ -52,6 +52,13 @@ var connectorSetupGuides = map[string]connectorSetupGuide{
 		{Key: "app_id", Label: "Application ID", Where: "Flipkart Seller Hub → Developer access → self-access application"},
 		{Key: "app_secret", Label: "Application secret", Where: "shown with the application ID"},
 	}, steps: []string{"Create a self-access application in Seller Hub's developer access, then save its ID and secret here.", "Set the store that ships Flipkart orders - Flipkart needs one."}},
+	"Unicommerce": {fields: []ConnectorSetupField{
+		{Key: "tenant", Label: "Uniware tenant", Where: "the part before .unicommerce.com in your Uniware address"},
+		{Key: "username", Label: "Uniware user", Where: "a Uniware admin user (email) with access to the facilities"},
+		{Key: "password", Label: "Uniware password", Where: "that user's password"},
+		{Key: "facility_code", Label: "Facility codes", Where: "Uniware → Settings → Facilities; comma separated for several"},
+		{Key: "shelf_code", Label: "Stock shelf", Where: "the Uniware shelf code the ERP stock is set on"},
+	}, steps: []string{"Use a dedicated Uniware admin user for the ERP, then save the tenant, user, password, facility codes and shelf here.", "Orders come in at the facility Uniware assigns; stock goes out per facility. Pick, invoice and dispatch stay in Uniware."}},
 	"WooCommerce": {fields: []ConnectorSetupField{
 		{Key: "base_url", Label: "Store address", Where: "your site's address, e.g. https://shop.example.com"},
 		{Key: "consumer_key", Label: "Consumer key", Where: "WooCommerce → Settings → Advanced → REST API → Add key (Read/Write)"},

@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-08-10, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-15, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,61 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **27** earlier entries, 2026-07-27 to 2026-08-10.
+This page continues the [release notes](release-notes.md) with **38** earlier entries, 2026-07-27 to 2026-08-15.
+
+## 2026-08-15
+
+**Stage 36.2 — the PIM task & workflow engine, the biggest PIM gap** *(code + schema + docs)*
+
+Asked to start building the open parity work, top of the list being **36 — PIM parity**, whose first named item is the task/workflow engine. It was also the thing 36.1.3 explicitly deferred ("task assignment: it follows 36.2's task engine, which does not exist yet"), so it is the item that unblocks the rest of Stage 36. Full item-by-item detail in `micro_checklist.md` Stage 36.2. A concurrent session held Stage 35.4 in the same tree throughout — see the note at the end.
+
+**Stage 35.4 — the outbound document chain, and the pack object that made it possible** *(code + schema)*
+
+Asked to start building Stages 35/36/37. That span is ~30-45 sessions by the parity plan's own sizing, so it was worked in the plan's dependency order rather than scaffolded shallowly across three stages: R1 was already done, and **R2's head item, 35.4**, is what this section covers. (A concurrent session picked up 36.2 in the same window — see the note at the end.)
+
+## 2026-08-14
+
+**Stage 44 — per-tenant hostnames, and the domain that unblocked go-live** *(code + schema + proxy config + docs)*
+
+User registered **wholeops.in** and asked to close the domain-gated items. Two things came out of it: the go-live path was unblocked, and the URL scheme they described turned out not to exist.
+
+## 2026-08-13
+
+**The dev cluster converted to UTF-8, closing the 20.6 defect** *(database + one test + docs)*
+
+User asked for the three defects §96 recorded to be fixed. Two were already fixed in the tree and were re-verified rather than re-asserted: the SPA's relative asset paths (no relative `src`/`href` remains in `index.html`, no relative `fetch` in `app.js`) and the OpenAPI dynamic-schema trap (the paged envelope is inlined per endpoint, `PublicPage` is not a cached component). The third was real and outstanding.
+
+## 2026-08-12
+
+**Stages 35.3.7 / 36 / 37.1.2 / 38 / 39 — the platform layer: public API, Knowledge Center, multi-currency** *(code + schema + docs)*
+
+User handed over a ranked gap list and an explicit build order, deduplicated across the two: finish 36.1.3 and 36.7.2, build 38.3/38.5/38.9 together, open the first read-only 38.1 routes, build 38.8, land 39.2-39.7 as one safe unit, then 37.1.2 — plus 35.3.7, the correctness gap they ranked first. All eight built. Item-by-item detail in `micro_checklist.md`.
+
+**Stage 43 — Go-live blocker sweep: the buildable half of the parked items** *(code + docs)*
+
+User handed back eight parked items from `go_live_decisions.md` — escalation contacts and the alert webhook, connector/GSP/e-way/payment-terminal credentials, Cloudflare zone access, a pen-test vendor, UAT participants and hypercare sign-off, real QZ Tray printer verification, the competitor-scraping legal call, and the data mart — with "build from this which is possible… skip which needs decision for now."
+
+## 2026-08-11
+
+**Stage 38/39 foundations — scoped API identities and safe Markdown rendering** *(code + one unapplied migration + docs)*
+
+User asked to start Platform & Extensibility and the Knowledge Center while the shared tree still contained concurrent Stage 35-42 work. Both starts were therefore taken at dependency foundations that add no live surface: external credentials before public routes, and a renderer before generated static help.
+
+**Stage 35 release train R1 — the OMS becomes a real product** *(code + schema + docs)*
+
+User asked to work the open plan phase by phase. The open plan is the Parity Master Plan's Stages 35-39, and its own sequencing puts release train **R1 = 35.1 + 35.2 + 35.3** first, because those three items exist to clear the three structural debts everything downstream assumes are gone. All three are now closed. Full item-by-item detail in `micro_checklist.md` Stage 35.
+
+**Stage 36.1 / 37.1 foundations — Product Groups and effective-dated currency rates** *(code + schema + docs)*
+
+User explicitly asked to start both Stage 36 and Stage 37 while protecting the ongoing session and partially completed work. The implementation therefore begins at each stage's dependency foundation, is additive, avoids `public/app.js`, and leaves both new migrations unapplied. This request also resolves parity-plan decisions D6 and D7: multi-currency, multi-entity, Projects and Service are real build scope, to be taken in plan order rather than skipped as speculative.
+
+**Stage 42 — WMS parity plan against SAP EWM and Infor WMS** *(planning only, no code)*
+
+User request: review the WMS module of SAP EWM and Infor WMS thoroughly, prepare a plan, update the checklist. Both benchmark URLs were supplied. Output is `docs/archive/legacy/wms-parity-plan.md` (the source of detail) plus the Stage 42 tracker skeleton in `micro_checklist.md` — the same two-file relationship Stages 35-39 have to `parity_master_plan.md`. **No source, schema or config was touched.**
+
+**Tracker reconciliation — 23.11 and 26.1.3** *(docs only)*
+
+Two checklist entries mixed completed engineering decisions with nonexistent or externally gated work. **23.11 is now closed as not applicable, not implemented**: the catalog's one-row inline-grid style has no paste-into-grid product surface or roadmap item, so leaving it unchecked permanently misreported an already-settled scope decision as unfinished work. Stage 23 is fully closed and moved to the closed-stage archive.
 
 ## 2026-08-10
 

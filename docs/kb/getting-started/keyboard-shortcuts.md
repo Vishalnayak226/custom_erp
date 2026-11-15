@@ -95,60 +95,177 @@ In a picker or a notes box, Enter still picks or starts a new line.
 The same codes work for every company. A code shows only if your role has the
 screen.
 
+Your administrator can switch codes off for the company (**Configuration ▸ Navigation ▸ Short codes**); screens are then found by name, and keys, favourites and report numbers still work.
+
 | Area | Code | Opens |
 |---|---|---|
 | Go to | `HOME` | Home |
 | Go to | `INB` | My work and approvals |
 | Go to | `RPT` | Reports |
+| Go to | `RSC` | Report Schedules |
 | Go to | `HELP` | Knowledge Center |
 | Sales | `POS` | POS / Billing |
+| Sales | `POSP` | POS Profiles |
+| Sales | `OFR` | Offline Sync Review |
+| Sales | `OFG` | Offline Queue Gaps |
+| Sales | `OFS` | Offline Sales |
 | Sales | `SO` | Sales Order |
+| Sales | `PEND` | Pending Orders |
 | Sales | `SI` | Sales Invoice |
 | Sales | `SR` | Sales Return |
 | Sales | `CN` | Credit Note |
 | Sales | `DN` | Debit Note |
 | Sales | `EI` | E-Invoice (IRN) |
-| Sales | `CUS` | Customers |
-| Sales | `CRM` | CRM |
-| Sales | `LOY` | Loyalty |
+| Sales | `EIS` | E-Invoice Settings |
+| Sales | `STL` | Settlements |
+| Sales | `FRT` | Freight |
+| CRM | `CRM` | CRM |
+| CRM | `CUS` | Customers |
+| CRM | `SEG` | Segments |
+| CRM | `CTPL` | CRM Templates |
+| CRM | `CMP` | Campaigns |
+| CRM | `JRN` | Journeys |
+| CRM | `MSG` | Messages |
+| CRM | `CINB` | CRM Inbox |
+| CRM | `TKT` | CRM Tickets |
+| CRM | `FBK` | Feedback |
+| CRM | `WKL` | Worklist |
+| CRM | `PIPE` | Pipeline |
+| CRM | `CRMS` | CRM Settings |
+| CRM | `VCH` | Vouchers |
+| CRM | `SVT` | Service Tickets |
+| CRM | `LOY` | Loyalty |
+| CRM | `TIER` | Loyalty Tiers |
+| CRM | `PTS` | Points Movement |
+| CRM | `LOF` | Loyalty Vouchers & Campaigns |
 | Buying | `PRQ` | Purchase Requisition |
 | Buying | `RFQ` | Request for Quotation |
 | Buying | `PO` | Purchase Order |
+| Buying | `PCON` | Purchase Contracts |
+| Buying | `SES` | Service Entry |
 | Buying | `ASN` | Advance Shipment Notice |
+| Buying | `GE` | Gate Entry |
 | Buying | `GRN` | Goods Receipt |
 | Buying | `PR` | Purchase Return |
 | Buying | `VI` | Vendor Invoice |
 | Buying | `VEN` | Vendors |
+| Stock | `INV` | Inventory Dashboard |
 | Stock | `SOH` | Stock on Hand |
 | Stock | `SL` | Inventory Ledger |
 | Stock | `TO` | Stock Movement (Transfer Order) |
+| Stock | `ALC` | Transfer Allocation |
 | Stock | `SA` | Stock Adjustment |
 | Stock | `MRP` | MRP Change |
 | Stock | `MI` | Material Issue |
 | Stock | `DC` | Delivery Challan |
 | Stock | `MS` | Move Stock |
+| Stock | `LOC` | Stock Locations |
+| Stock | `LOCS` | Locations by Store |
+| Stock | `LOCT` | Locations by Transaction |
 | Stock | `CC` | Cycle Count |
 | Stock | `STK` | Sticker Printing |
 | Stock | `ITM` | Items |
+| Warehouse | `WMS` | Warehouse Cockpit |
+| Warehouse | `LAB` | Labour |
+| Warehouse | `WBIL` | Warehouse Billing |
+| Warehouse | `APT` | Appointment Calendar |
+| Warehouse | `DOCK` | Dock Doors |
+| Warehouse | `YARD` | Yard Board |
+| Warehouse | `TRL` | Trailers |
+| Warehouse | `RFR` | RF Receiving |
 | Warehouse | `PUT` | Putaway |
+| Warehouse | `XD` | Cross-Dock Plans |
+| Warehouse | `BIN` | Bins |
+| Warehouse | `BINC` | Bin Conditions |
+| Warehouse | `BING` | Bin Generator |
+| Warehouse | `LPN` | LPN / Cartons / Pallets |
+| Warehouse | `REPL` | Bin Replenishment |
+| Warehouse | `LOCM` | Location Movement |
+| Warehouse | `RFL` | RF Lot & Serial |
+| Warehouse | `HOLD` | Holds |
+| Warehouse | `PLH` | Place Hold |
+| Warehouse | `HREL` | Hold Release Requests |
+| Warehouse | `WVS` | Waves |
 | Warehouse | `PICK` | Pick |
 | Warehouse | `PACK` | Pack |
 | Warehouse | `SHIP` | Ship |
 | Warehouse | `WAVE` | Wave / Batch Picking |
+| Warehouse | `MPK` | Mobile Picking |
+| Warehouse | `SORT` | Sortation / Put-Wall |
+| Warehouse | `LOAD` | Loading |
 | Money | `GL` | Work to review |
+| Money | `TB` | Trial Balance |
+| Money | `COA` | Chart of Accounts |
+| Money | `PER` | Accounting Periods |
 | Money | `JV` | Journal Voucher |
+| Money | `VCN` | Vendor Credit Notes |
 | Money | `PAY` | Payment Proposal |
 | Money | `BR` | Bank Reconciliation |
 | Money | `EXP` | Expense Claim |
 | Money | `FA` | Fixed Assets |
 | Making | `PRO` | Production Order |
+| Making | `PSC` | Production Schedule |
 | Making | `JW` | Job Work |
+| Making | `PLAN` | MRP Suggestions |
+| Making | `SPR` | Supply Proposals |
 | Making | `QI` | Quality Inspection |
+| Making | `CERT` | Certificates |
+| Making | `NCR` | Non-conformance |
+| Making | `MNT` | Maintenance Orders |
+| Products | `PIM` | PIM Dashboard |
+| Products | `PWB` | PIM Workbench |
+| Products | `PMW` | PIM My Work |
+| Products | `MED` | Media Library |
+| Products | `SUBM` | Supplier Submissions |
+| Products | `CTLG` | Catalogs |
+| Products | `PTPL` | PIM Templates |
+| Products | `FEED` | Feeds |
+| Products | `DVAL` | Design Values |
+| Products | `STW` | Stewardship |
+| Products | `RNG` | Range |
+| Products | `MKD` | Markdowns |
+| Products | `DRFT` | Listing Drift |
+| Products | `CATR` | Category Rules |
+| Products | `CHK` | Checklists |
+| Products | `PRPT` | PIM Reports |
 | People | `HR` | HR |
+| People | `ATT` | Attendance |
+| People | `LV` | Leave |
+| People | `ROS` | Shift Roster |
+| People | `PRL` | Payroll |
+| People | `PRX` | Payroll Export |
+| People | `PTAX` | Tax & Benefits |
+| People | `LOAN` | Loans / Advances |
+| People | `ONB` | Onboarding / Offboarding |
+| People | `APPR` | Appraisals |
+| People | `CAL` | Calibration |
+| People | `TRN` | Training |
+| People | `GRV` | Grievances |
+| People | `EMP` | People |
+| Admin | `CFG` | Configuration |
+| Admin | `CRED` | Credentials |
+| Admin | `DGOV` | Data governance |
+| Admin | `DQ` | Data quality |
 | Admin | `USR` | Users |
 | Admin | `ROLE` | Roles |
-| Admin | `CFG` | Configuration |
+| Admin | `RULE` | Approval Rules |
 | Admin | `NUM` | Number series (Prefix Configs) |
+| Admin | `LBL` | Dynamic Labels |
+| Admin | `SCHM` | Database Schema Design |
+| Admin | `HOOK` | Extension Hooks |
+| Admin | `API` | API access |
+| Admin | `SUBS` | Subscription |
+| Admin | `LOG` | Activity Log |
+| Admin | `ERR` | System Errors |
+| Admin | `IPL` | Integration Payloads |
+| Admin | `JOBS` | Async Jobs |
+| Admin | `SEC` | Security Events |
+| Admin | `PRIV` | Privacy approvals |
+| Admin | `SYS` | System Status |
+| Admin | `CP` | Control Panel |
+| Admin | `ENT` | Tenant Entitlements |
+| Admin | `USG` | Tenant Usage |
+| Admin | `DCON` | Data Console |
 
 ## Report numbers
 

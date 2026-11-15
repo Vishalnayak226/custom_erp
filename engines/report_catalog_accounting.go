@@ -247,7 +247,10 @@ var catSalesInvoiceAcct = &catSource{Label: "Sales Invoice", Doctype: "SalesInvo
 
 // The party ledgers: GRN suspense (2100) and receivables (1300) lines.
 func partyLedgerRows(account string) func(tenantID, schema string, p map[string]string) ([]*catRow, error) {
-	return glRows("p.account_code = '" + account + "'")
+	// 148.4b: with every group's receivable / payable account.
+	return func(tenantID, schema string, p map[string]string) ([]*catRow, error) {
+		return glRows("p.account_code IN "+controlAccountsIn(schema, account))(tenantID, schema, p)
+	}
 }
 
 var partyLedgerCols = mergeCols(glCols, map[string]catFn{

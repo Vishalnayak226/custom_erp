@@ -556,6 +556,13 @@ func resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sour
 			label.Category = v
 		}
 		label.Fields = stickerItemFields(item)
+		// Item 201.3: the item name on a sticker is the item alias (14
+		// characters at most); the full name stays printable as full_name.
+		label.Fields["full_name"] = label.Name
+		if alias := ItemAliasForItem(schema, item); alias != "" {
+			label.Name = alias
+			label.Fields["item_alias"] = alias
+		}
 		// Stage 89 (D3): a receipt's batch carries what was asked at its GRN -
 		// this piece's weight and purity print, not the item master's blank.
 		code, _ := item["code"].(string)

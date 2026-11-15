@@ -52,17 +52,23 @@ func ReceivablesVsLedger(tenantID string, mismatchesOnly bool) ([]ReceivableLedg
 		return nil, err
 	}
 	out := []ReceivableLedgerRow{}
+	accountsIn := controlAccountsIn(schema, "1300")
 
 	// Each invoice: its book (what it says is owed) and its 1300 balance -
-	// its own postings (the sale, receipts) plus its credit notes'.
+	// its own postings (the sale, receipts) plus its credit notes', plus its
+	// share of each Receipt-screen receipt (176.8). A receipt posts one credit
+	// per control account for all the invoices it settles, so its invoices
+	// list says how much of that credit each invoice took.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		WITH links AS (
 			SELECT g.document_id AS invoice_id, g.debit, g.credit FROM %[1]s.gl_postings g
-			 WHERE g.account_code = '1300' AND g.document_type = 'SalesInvoice'
+			 WHERE g.account_code IN %[3]s AND g.document_type = 'SalesInvoice'
 			UNION ALL
 			SELECT cn.data->>'sales_invoice_id', g.debit, g.credit FROM %[1]s.gl_postings g
 			  JOIN %[1]s.documents cn ON cn.doctype = 'CreditNote' AND cn.id = g.document_id
-			 WHERE g.account_code = '1300' AND g.document_type = 'CreditNote' AND COALESCE(cn.data->>'sales_invoice_id', '') <> ''
+			 WHERE g.account_code IN %[3]s AND g.document_type = 'CreditNote' AND COALESCE(cn.data->>'sales_invoice_id', '') <> ''
+			UNION ALL
+			SELECT l.invoice_id, 0, l.paise FROM %[4]s l
 		), gl AS (
 			SELECT invoice_id, SUM(debit) - SUM(credit) AS net, COUNT(*) AS n FROM links GROUP BY invoice_id
 		)
@@ -78,7 +84,7 @@ func ReceivablesVsLedger(tenantID string, mismatchesOnly bool) ([]ReceivableLedg
 		 WHERE i.doctype = 'SalesInvoice'
 		   AND ((i.deleted_at IS NULL AND i.status IN ('Approved', 'Paid')) OR COALESCE(gl.n, 0) > 0)
 		 ORDER BY i.created_at, i.id
-		 LIMIT %[2]d`, schema, receivablesLedgerLimit))
+		 LIMIT %[2]d`, schema, receivablesLedgerLimit, accountsIn, receiptInvoiceLinesSQL(schema, accountsIn)))
 	if err != nil {
 		return nil, err
 	}
@@ -122,19 +128,32 @@ func ReceivablesVsLedger(tenantID string, mismatchesOnly bool) ([]ReceivableLedg
 	}
 	rows.Close()
 
-	// The 1300 postings no invoice accounts for, by kind.
+	// The 1300 postings no invoice accounts for, by kind. A receipt counts
+	// here only for what its postings hold beyond its invoices' lines.
 	rows, err = db.DB.Query(fmt.Sprintf(`
-		SELECT g.document_type, COUNT(DISTINCT g.document_id), SUM(g.debit) - SUM(g.credit), COUNT(*),
-		       array_to_string((array_agg(DISTINCT g.document_id))[1:5], ', ')
-		  FROM %[1]s.gl_postings g
-		 WHERE g.account_code = '1300'
-		   AND NOT (g.document_type = 'SalesInvoice'
-		            AND EXISTS (SELECT 1 FROM %[1]s.documents i WHERE i.doctype = 'SalesInvoice' AND i.id = g.document_id))
-		   AND NOT (g.document_type = 'CreditNote'
-		            AND EXISTS (SELECT 1 FROM %[1]s.documents cn JOIN %[1]s.documents i ON i.doctype = 'SalesInvoice' AND i.id = cn.data->>'sales_invoice_id'
-		                         WHERE cn.doctype = 'CreditNote' AND cn.id = g.document_id))
-		 GROUP BY g.document_type
-		 ORDER BY g.document_type`, schema))
+		WITH receipt_lines AS (
+			SELECT receipt_id, SUM(paise) AS paise FROM %[3]s l GROUP BY receipt_id
+		), unaccounted AS (
+			SELECT g.document_type, g.document_id, g.debit - g.credit AS net FROM %[1]s.gl_postings g
+			 WHERE g.account_code IN %[2]s
+			   AND NOT (g.document_type = 'SalesInvoice'
+			            AND EXISTS (SELECT 1 FROM %[1]s.documents i WHERE i.doctype = 'SalesInvoice' AND i.id = g.document_id))
+			   AND NOT (g.document_type = 'CreditNote'
+			            AND EXISTS (SELECT 1 FROM %[1]s.documents cn JOIN %[1]s.documents i ON i.doctype = 'SalesInvoice' AND i.id = cn.data->>'sales_invoice_id'
+			                         WHERE cn.doctype = 'CreditNote' AND cn.id = g.document_id))
+			   AND NOT (g.document_type = 'CustomerReceipt' AND g.document_id IN (SELECT receipt_id FROM receipt_lines))
+			UNION ALL
+			SELECT 'CustomerReceipt', g.document_id, SUM(g.debit) - SUM(g.credit) + MAX(rl.paise)
+			  FROM %[1]s.gl_postings g JOIN receipt_lines rl ON rl.receipt_id = g.document_id
+			 WHERE g.account_code IN %[2]s AND g.document_type = 'CustomerReceipt'
+			 GROUP BY g.document_id
+			HAVING SUM(g.debit) - SUM(g.credit) + MAX(rl.paise) <> 0
+		)
+		SELECT document_type, COUNT(DISTINCT document_id), SUM(net)::bigint, COUNT(*),
+		       array_to_string((array_agg(DISTINCT document_id))[1:5], ', ')
+		  FROM unaccounted
+		 GROUP BY document_type
+		 ORDER BY document_type`, schema, accountsIn, receiptInvoiceLinesSQL(schema, accountsIn)))
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +185,8 @@ func ReceivablesVsLedger(tenantID string, mismatchesOnly bool) ([]ReceivableLedg
 			r.Hint = "marketplace sales owed by the marketplace and cleared by its settlements - not customer invoices, so the ageing does not show them"
 		case docType == "JournalVoucher":
 			r.Hint = "a journal posted straight to receivables - no invoice carries it"
+		case docType == "CustomerReceipt":
+			r.Hint = "a receipt whose ledger entry is not what it says it paid on its invoices - check the receipt's postings"
 		default:
 			r.Hint = "posted to receivables by something that is not a customer invoice"
 		}
@@ -175,6 +196,21 @@ func ReceivablesVsLedger(tenantID string, mismatchesOnly bool) ([]ReceivableLedg
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// receiptInvoiceLinesSQL is a subquery of each Receipt-screen receipt's
+// invoice lines (receipt_id, invoice_id, paise): only receipts that reached
+// the control accounts, and only invoices whose record exists - a line for
+// an invoice that is gone stays in the receipt's unaccounted remainder.
+func receiptInvoiceLinesSQL(schema, accountsIn string) string {
+	return fmt.Sprintf(`(SELECT r.id AS receipt_id, l.value->>'ref' AS invoice_id,
+		        ROUND(COALESCE(NULLIF(l.value->>'amount', '')::numeric, 0) * 100)::bigint AS paise
+		   FROM %[1]s.documents r
+		  CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(r.data->'invoices') = 'array' THEN r.data->'invoices' ELSE '[]'::jsonb END) l
+		  WHERE r.doctype = 'CustomerReceipt' AND COALESCE(l.value->>'ref', '') <> ''
+		    AND EXISTS (SELECT 1 FROM %[1]s.documents i WHERE i.doctype = 'SalesInvoice' AND i.id = l.value->>'ref')
+		    AND EXISTS (SELECT 1 FROM %[1]s.gl_postings g WHERE g.document_type = 'CustomerReceipt' AND g.document_id = r.id AND g.account_code IN %[2]s))`,
+		schema, accountsIn)
 }
 
 func init() {

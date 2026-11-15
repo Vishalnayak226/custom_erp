@@ -18,6 +18,16 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 > Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
 
+| Adoption record (47.15.5) | Filled in by the customer |
+|---|---|
+| Customer | |
+| Release in use | |
+| Roles this SOP covers | |
+| Steps changed for this customer | |
+| Evidence the steps were walked | |
+| Accountable owner (name, role) | |
+| Approved on | |
+
 # Admin SOP — Step-by-Step Procedures
 
 This is the deep companion to **[admin-guide.md](admin-guide.md)**. The Guide covers getting the system running (Part A), the operator/platform level (Part C), and developer/CTO level (Part D) as a reference manual. This SOP picks up where its Part B leaves off and gives literal, click-by-click procedures for **every admin-only screen** (the **Settings** sidebar module) and **every maker-checker / approval-gated workflow** in the system — the two categories the task that produced this doc specifically asked to cover in depth.
@@ -108,7 +118,7 @@ Sidebar: **Settings** → **Activity Log** (internally still called "Log Hub"). 
 1. **Audit Logs** (default tab): every logged user action — who, what action, details, and timestamp. Read-only, no filters beyond what's on screen.
 2. **System Errors**: every recovered panic/error the server has caught, with severity, module, and message. Click any row to see its full **stack trace** in a dialog — use this when investigating a "Something Went Wrong" screen a user reported, especially if they gave you a correlation ID.
 3. **Integration Payloads**: every outbound webhook/integration event, its status (Dispatched/Success/Failed/etc.), attempt count, and payload preview. A **Failed** row shows a **Retry** button — click it, confirm, and the event is re-queued for delivery.
-4. **Test Panic Recovery** button (top right, next to the page title): deliberately triggers a backend panic to verify the recovery middleware is catching panics and the server stays up. Use this after any deployment change you're unsure about, not routinely — it's a diagnostic tool, not something to click during normal operation. A response (even an error response) means recovery worked; only a dropped connection means it didn't.
+4. There is no button to test panic recovery on this screen. On a development or test server a developer calls `/api/v1/debug/panic` directly; production does not have that route.
 
 ### A.7 Industry — choosing the active industry profile
 
@@ -177,7 +187,7 @@ Sidebar: **Settings** → **Extension Hooks**. For a client's own hired develope
 
 1. **To register a hook**: fill in the **Hook Point** (which event), the **Doctype** it applies to, the **Target URL** (must be `https://`), and a **Timeout (ms)**. Click **Register Hook**.
 2. The table lists every registered hook with whether it's **Enabled**, its timeout, and who created it when.
-3. **View Log** opens that hook's **Hook Call Log** — the most recent 100 calls, with what was sent and what came back. This is the first place to look when a developer says "the webhook isn't firing".
+3. **View Log** opens that hook's **Hook Call Log** — the most recent 100 calls, with what was sent and what came back. This is the first place to look when a developer says "the webhook isn't firing". Each call names who the save acts for (`actor`: the signed-in user, or `system:<worker>` for background work). A save that names no one calls no before-save hook and is refused.
 4. **Delete** removes a hook after confirmation.
 5. **Issue Token** mints a scoped token for an external caller: pick the **Scope Doctype** and a **TTL** in minutes (maximum 1440, i.e. one day). **The token is shown once.** Copy it then; it cannot be retrieved afterwards.
 
@@ -298,14 +308,21 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/v1/approval/rules
 
 | Choice | What it means |
 |---|---|
-| **Anyone who can approve it** (as shipped for a client created before 49.10.6b) | The person who submitted a PO, requisition, voucher, transfer... may approve or reject it themselves, as long as their role is the one the amount band names (§B.9) or they are an admin. One person can run the whole purchasing flow alone. |
+| **Anyone who can approve it (owner-run, sandbox)** (as shipped for a client created before 49.10.6b, and where every sandbox client starts) | The person who submitted a PO, requisition, voucher, transfer... may approve or reject it themselves, as long as their role is the one the amount band names (§B.9) or they are an admin. One person can run the whole purchasing flow alone. |
 | **Admins only** | Only a Super Admin may decide their own; everyone else needs a second person. |
-| **Nobody - someone else always decides** (where a new client starts, 49.10.6b) | Strict maker-checker: whoever submits can never decide it, at any role or amount. |
+| **Nobody - someone else always decides (controlled business)** (where a new client starts, 49.10.6b) | Strict maker-checker: whoever submits can never decide it, at any role or amount. |
 
-Two things hold whatever you choose:
+**Pick the profile that fits the business (47.12.5):**
 
-- **Every own decision is marked.** The approval history shows the comment starting *"[decided by the submitter]"* and the Activity Log has an **APPROVAL_SELF_DECISION** entry, so an auditor can list them.
-- **Two flows always need a second admin**: a Super Admin's password reset (§A.1) and an item treatment correction while *A second admin approves item treatment corrections* is on. Trying your own gives *"... this one always needs a second admin"* (APPROV-0840).
+- **Controlled business** - more than one person can approve: choose *Nobody*.
+- **Owner-run** - the owner raises and approves alone: choose *Anyone*, set **Own decisions above this amount need a reason** (same screen) to the value above which you want a written why, and read **Reports → Own approval decisions** (R9062) once a month for the period you choose.
+- **Sandbox** - a trial client starts at *Anyone* so one person can try every flow.
+
+Three things hold whatever you choose:
+
+- **Every own decision is marked.** The approval history shows the comment starting *"[decided by the submitter]"* and the Activity Log has an **APPROVAL_SELF_DECISION** entry. **Reports → Own approval decisions** lists them with the amount and the reason, by date.
+- **Above the reason amount, a reason is required.** With **Own decisions above this amount need a reason** above 0, an own decision on a document worth more than that needs a comment of at least 10 characters, or the screen says *"Write why you are deciding your own document"* (APPROV-0842). 0 (as shipped) asks for none.
+- **Two flows always need a second admin**: a Super Admin's password reset (§A.1) and an item treatment correction while *A second admin approves item treatment corrections* is on. Trying your own gives *"Someone else must decide this document"* (APPROV-0841): ask another admin. The same code stops the asker of a request that always needs a second person (such as a client reset or purge, an e-invoice cancellation or an access change); no setting lifts it.
 
 When the setting stops you, the screen says *"You cannot approve or reject a document you submitted"* (APPROV-0840): another approver with the required role must decide it, or an admin changes the setting.
 
@@ -376,7 +393,7 @@ It is kept here as a correction rather than deleted, because anyone working from
 **Genuinely still API-only**, verified while rewriting this section — a short list, and none of it is a routine administrative task:
 
 - **Tenant provisioning and module entitlement changes** beyond what **Settings → Tenant Entitlements** exposes (creating a tenant itself is a control-plane operation — ADMIN_GUIDE §A).
-- **Direct `documents` upserts by explicit id.** The generic API still honours a caller-supplied `id` as an upsert; no screen does this, deliberately (see the numbering note in §B.3.2).
+- **Changing a record by re-creating it.** A create that reuses the code of a live record of the same type is refused (409, "already exists"); open the record and edit it instead. A deleted record's code can be re-created, which brings it back. Product attribute values and product content are the two exceptions: their screens save them again by key (57.26(j); see the numbering note in §B.3.2).
 
 If you find something else in this SOP that doesn't match the app, the doc is what's wrong. Re-drive it and fix it here.
 

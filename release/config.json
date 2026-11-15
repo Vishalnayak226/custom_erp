@@ -11,5 +11,7 @@
   "pgUser": "postgres",
   "quietMinutes": 10,
   "testTimeout": "70m",
-  "flakyReruns": 2
+  "flakyReruns": 2,
+  "testsOn": "github",
+  "_testsOn": "github (item 177): build, vet and the full tests run on GitHub after the push to candidate/<version>; main moves only when they pass. local: run them on this laptop (Release.cmd -LocalTests does the same for one run)."
 }

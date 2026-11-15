@@ -45,18 +45,21 @@ function Run-Go([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "Documentation generator failed ($($Arguments[1]))" }
 }
 function Tree-State {
+    # Size and last-write time of every input: any write changes them. Item 177.5
+    # dropped a SHA-256 of each file from this: 2,500 files took 12 s a pass
+    # against under 1 s, and the release takes four passes.
     $state = [ordered]@{}
     foreach ($dir in @('docs', 'cmd', 'engines', 'internal', 'public')) {
         Get-ChildItem -LiteralPath (Join-Path $repoRoot $dir) -Recurse -File |
             Where-Object { $_.FullName -notmatch '[\\/]dist[\\/]' } |
             Sort-Object FullName | ForEach-Object {
                 $rel = [IO.Path]::GetRelativePath($repoRoot, $_.FullName).Replace('\', '/')
-                $state[$rel] = "$($_.Length):$($_.LastWriteTimeUtc.Ticks):$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)"
+                $state[$rel] = "$($_.Length):$($_.LastWriteTimeUtc.Ticks)"
             }
     }
     foreach ($rel in @('go.mod', 'go.sum', 'graphify-out/graph.json')) {
         $path = Join-Path $repoRoot $rel
-        if (Test-Path -LiteralPath $path) { $state[$rel] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
+        if (Test-Path -LiteralPath $path) { $f = Get-Item -LiteralPath $path; $state[$rel] = "$($f.Length):$($f.LastWriteTimeUtc.Ticks)" }
     }
     return ($state | ConvertTo-Json -Compress -Depth 3)
 }

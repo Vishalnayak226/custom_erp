@@ -18,6 +18,16 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 > Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
 
+| Adoption record (47.15.5) | Filled in by the customer |
+|---|---|
+| Customer | |
+| Release in use | |
+| Roles this SOP covers | |
+| Steps changed for this customer | |
+| Evidence the steps were walked | |
+| Accountable owner (name, role) | |
+| Approved on | |
+
 # User SOP — Step-by-Step Procedures
 
 This is the deep companion to **[user-guide.md](user-guide.md)**. The Guide explains *what the system is* and walks through two examples (Making a Sale, Moving Stock) in full click-by-click detail. This SOP gives that same literal, click-by-click depth for **every** screen in the sidebar — one section per screen, in the order it appears in the menu. If a term isn't explained here, check the Guide's glossary (§13) first; new terms this SOP introduces are collected in §30 below.
@@ -584,6 +594,8 @@ Each HR page is its own entry in the **HRM** flyout: **My Requests**, **Attendan
 ### 23.4 Employee records
 
 Employees themselves are a Master-type record, so they're created and edited under **Setup** (§28), not on this HR screen — look for **Employee** in that dropdown.
+
+On the Employee form, **Department** and **Location** are picked from their lists. **Reporting Manager (Employee ID)** is picked from the employees: type a name or code, the box shows the name, and the record keeps the employee ID. **Designation** offers the titles of your **Position** records; you can still type one that isn't listed. A value typed before these became pickers saves unchanged (57.26(g)).
 
 ---
 

@@ -35,7 +35,7 @@ export async function renderEWBView(container) {
   el.querySelector('[data-ewb-irn]').addEventListener('click', () => renderView('einvoice'));
   el.querySelectorAll('[data-ewb-tab]').forEach(b => b.addEventListener('click', () => { ewbTab = b.dataset.ewbTab; renderView('einvoice:ewb'); }));
   const pane = el.querySelector('[data-ewb-pane]');
-  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" style="width:${width}px;" ${extra}></div>`;
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" data-css="width:${width}px;" ${extra}></div>`;
   const send = async (r, action, body, ok) => {
     const res = await apiFetch(`/api/v1/gst/ewaybills/${encodeURIComponent(r.doctype)}/${encodeURIComponent(r.doc_id)}/${action}`, { method: 'POST', body: JSON.stringify(body) });
     if (!res) return;

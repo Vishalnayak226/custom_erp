@@ -86,10 +86,22 @@ async function qzRefreshStatus() {
       fetch('/downloads/printbridge-version.txt').then(r => (r.ok ? r.text() : '')).catch(() => '')
     ]);
     const older = latest && versionBelow(have || '0.1.0', latest.trim());
-    el.textContent = older
-      ? `${have ? `PrintBridge ${have}` : 'An older PrintBridge'} is running. ${latest.trim()} is out: Download PrintBridge and run it.`
-      : `PrintBridge${have ? ' ' + have : ''} is running - printing is silent on this computer.`;
-    el.style.color = older ? 'var(--color-warning, #b45309)' : 'var(--color-success, #15803d)';
+    // 203.3: from 0.3.0 PrintBridge replaces itself; only an older one needs
+    // the download, once.
+    // A failed update (bad download, or the same installer already run three
+    // times) is shown, with the agent's reason on hover, not "updating".
+    const upd = window.QZPrint.updateStatus ? window.QZPrint.updateStatus() : null;
+    const stuck = older && upd && upd.status === 'failed';
+    const selfUpdating = older && have && !versionBelow(have, '0.3.0') && !stuck;
+    el.title = stuck ? String(upd.error || '') : '';
+    el.textContent = !older
+      ? `PrintBridge${have ? ' ' + have : ''} is running - printing is silent on this computer.`
+      : selfUpdating
+        ? `PrintBridge ${have} is running - updating to ${latest.trim()} by itself.`
+        : stuck
+          ? `PrintBridge ${have} could not update itself to ${latest.trim()}. Download PrintBridge and run it once.`
+          : `${have ? `PrintBridge ${have}` : 'An older PrintBridge'} is running. ${latest.trim()} is out: Download PrintBridge and run it once - it updates itself after that.`;
+    el.style.color = older && !selfUpdating ? 'var(--color-warning, #b45309)' : 'var(--color-success, #15803d)';
   } else {
     el.textContent = qzLastError + ' Download PrintBridge and run it once; until then prints open the browser dialog.';
     el.style.color = 'var(--color-warning, #b45309)';
@@ -458,6 +470,8 @@ function stickerStartPrinter(printers, kept) {
 // loads that document with only its SKU and lot ticked; a scanned row goes to
 // the scan list. The template follows today's rules, so a reprint matches a
 // fresh print; it can still be changed before printing.
+// 194.2: Reprint opens the preview at once, so its Print is click 2. The
+// reason box stays optional (a blank reason is accepted), so it is not asked.
 async function reprintStickerRow(h) {
   if (!h) return;
   window.txnShowPane('sticker-print:new');
@@ -469,26 +483,28 @@ async function reprintStickerRow(h) {
     doctypeSelect.value = h.source_doctype;
     doctypeSelect.dispatchEvent(new Event('change'));
     document.getElementById('sticker-source-doc').value = h.source_doc_id;
-    await loadStickerSourcePreview();
-    let found = false;
+    stickerSourceChosen = h.source_doc_id;
+    if (!(await loadStickerSourcePreview())) return;
+    const picked = [];
     stickerSourceLines.forEach((l, i) => {
       const match = String(l.sku) === h.sku && (l.batch_no || '') === (h.batch_no || '');
       stickerSourceSelected[i] = match;
-      if (match) { stickerSourceCopies[i] = copies; found = true; }
+      if (match) { stickerSourceCopies[i] = copies; picked.push(i); }
     });
     renderStickerSourceLines();
-    if (!found && stickerSourceLines.length) {
+    if (picked.length) { previewSourceThenPrint(picked); return; }
+    if (stickerSourceLines.length) {
       const errorEl = document.getElementById('sticker-source-error');
       errorEl.textContent = `${h.sku}${h.batch_no ? ` (lot ${h.batch_no})` : ''} is no longer on ${h.source_doc_id}. Tick the line to print, or scan the item below.`;
       errorEl.classList.remove('hidden');
     }
-  } else {
-    stickerSKUs = [h.sku];
-    document.getElementById('sticker-copies').value = copies;
-    document.getElementById('sticker-print-on-scan').checked = false;
-    renderStickerSKUList();
+    return;
   }
-  document.getElementById('sticker-reprint-reason').focus();
+  stickerSKUs = [h.sku];
+  document.getElementById('sticker-copies').value = copies;
+  document.getElementById('sticker-print-on-scan').checked = false;
+  renderStickerSKUList();
+  previewStickers();
 }
 
 // Stage 52: "Print from Transaction" - load a GRN/Transfer Order's own lines
@@ -660,7 +676,7 @@ async function loadStickerTemplateChoices() {
   const docs = tplRes && tplRes.ok ? await tplRes.json() : [];
   stickerEngineSync = E;
   return [
-    ...docs.filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id, shape: E.rollShape(E.templateFromDoc(t)) })),
+    ...docs.filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id, shape: E.rollShape(E.templateFromDoc(t)), is_default: t.is_default === true || t.is_default === 'true' })),
     ...E.unsavedDesigns(docs).map(d => ({ id: `design:${d.id}`, name: `${d.label} (built-in)`, shape: E.rollShape(E.designTemplate(d)), design: d }))
   ];
 }
@@ -727,9 +743,14 @@ async function openPrinterPreset() {
             <label class="form-label" for="stk-preset-${k}">${label}</label>
             <input type="number" step="any" id="stk-preset-${k}" class="form-input" placeholder="${hint}" value="${escapeHTMLText(printer[k] ?? '')}"></div>`).join('')}
         </div>
+        <div class="form-group" id="stk-lineup-pick" hidden>
+          <span class="form-label">Best row</span>
+          <div class="flex-row-gap">${E.LINE_UP_STEPS_MM.map((s, i) => `<button type="button" class="btn btn-outline" data-pick="${i}">${String.fromCharCode(65 + i)}</button>`).join('')}</div>
+        </div>
         <div id="stk-preset-error" class="login-error hidden s-4bb900"></div>
       </div>
       <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-p="lineup">Line up</button>
         <button type="button" class="btn btn-outline" data-p="test">Test alignment</button>
         <button type="button" class="btn btn-outline" data-p="calibrate">Calibrate roll</button>
         <button type="button" class="btn btn-outline" data-p="close">Cancel</button>
@@ -759,24 +780,44 @@ async function openPrinterPreset() {
     if (p.skew_deg !== '' && Math.abs(p.skew_deg) > 5) return 'Skew is at most 5° either way.';
     return '';
   };
+  // 194.1: with no roll set, the template a print falls back to (the one
+  // ticked Default, else the only label-roll template), not the built-in
+  // 50 x 25 - a 50 x 25 page on a 100 mm tag feeds the roll wrongly.
   const rollTemplate = async (id) => {
+    if (!id) {
+      const saved = stickerTemplateChoices.filter(t => !t.design);
+      const rolls = saved.filter(t => !t.shape.sheet);
+      id = ((saved.find(t => t.is_default) || (rolls.length === 1 ? rolls[0] : null)) || {}).id;
+    }
     const choice = stickerTemplateChoices.find(t => t.id === id);
     if (!choice) return null;
     if (choice.design) return E.designTemplate(choice.design);
     const res = await apiFetch(`/api/v1/doc/StickerTemplate/${encodeURIComponent(id)}`);
     return res && res.ok ? E.templateFromDoc(await res.json()) : null;
   };
+  // 194.1: the rows the last Line up printed; tapping a letter saves its shift.
+  let lineRows = null;
+  const pickRow = overlay.querySelector('#stk-lineup-pick');
   overlay.addEventListener('click', async (e) => {
-    const act = e.target.closest('[data-p]')?.dataset.p;
+    const pick = e.target.closest('[data-pick]');
+    const act = pick && lineRows ? 'save' : e.target.closest('[data-p]')?.dataset.p;
     if (!act) return;
     if (act === 'close') { close(); return; }
+    if (pick) overlay.querySelector('#stk-preset-shift_right_mm').value = lineRows[Number(pick.dataset.pick)].shift_right_mm;
     const p = read();
     say(problem(p));
     if (problem(p)) return;
+    if (pick && !may) { say('Your role cannot change printers.'); return; }
     const btn = e.target.closest('button');
     btn.disabled = true;
     try {
-      if (act === 'test') {
+      if (act === 'lineup') {
+        const roll = await rollTemplate(p.sticker_template);
+        if (roll && roll.settings.sheet.mode === 'a4') { say('Line up is for label rolls.'); return; }
+        lineRows = await E.printLineUp(roll, Object.assign({}, printer, p));
+        pickRow.hidden = !lineRows;
+        if (lineRows) pickRow.querySelectorAll('[data-pick]').forEach((b, i) => { b.title = `Shift right ${lineRows[i].shift_right_mm} mm`; });
+      } else if (act === 'test') {
         // Stage 143.4: the test label shows first; Print there prints it.
         await E.printAlignmentTest(await rollTemplate(p.sticker_template), Object.assign({}, printer, p));
       } else if (act === 'calibrate') {
@@ -793,12 +834,12 @@ async function openPrinterPreset() {
         close();
         renderStickerPresetButton();
         renderStickerSourceLines();
-        window.showToast?.('Printer preset saved.', { variant: 'success' });
+        window.showToast?.(pick ? `Row ${pick.textContent} saved: shift right ${p.shift_right_mm} mm.` : 'Printer preset saved.', { variant: 'success' });
       }
     } catch (err) {
       say(err.message || String(err));
     } finally {
-      btn.disabled = act === 'save' && !may;
+      btn.disabled = act === 'save' && !pick && !may;
     }
   });
 }
@@ -1221,13 +1262,13 @@ function renderStickerElementHTML(el, label) {
   const baseStyle = `position:absolute; left:${el.x_mm || 0}mm; top:${el.y_mm || 0}mm; width:${el.w_mm || 0}mm; height:${el.h_mm || 0}mm; overflow:hidden;`;
   if (el.field === 'barcode') {
     const content = label.barcode_svg || escapeHTMLText(label.barcode || '');
-    return `<div class="sticker-el sticker-el-barcode" style="${baseStyle}">${content}</div>`;
+    return `<div class="sticker-el sticker-el-barcode" data-css="${baseStyle}">${content}</div>`;
   }
   const text = stickerFieldText(el.field, el.text, label);
   if (!text) return '';
   const align = el.align === 'center' ? 'center' : el.align === 'right' ? 'right' : 'left';
   const style = `${baseStyle} font-size:${el.font_size_mm || 3.5}mm; text-align:${align}; font-weight:${el.bold ? 700 : 400};`;
-  return `<div class="sticker-el" style="${style}">${escapeHTMLText(text)}</div>`;
+  return `<div class="sticker-el" data-css="${style}">${escapeHTMLText(text)}</div>`;
 }
 
 // renderPrintSheet is the browser @media print fallback for both the manual
@@ -1261,7 +1302,7 @@ async function fillStickerReprintCodes() {
   const reasons = picker ? await picker.loadReasons('Reprint') : null;
   if (!reasons || !(reasons.codes || []).length || !sel.isConnected) return;
   const value = reasons.codes.some(c => c.code === stickerReprintCodeWanted) ? stickerReprintCodeWanted : '';
-  sel.outerHTML = picker.reasonSelectHTML(reasons, { value, attrs: 'id="sticker-reprint-code" style="max-width: 240px;"', label: 'Reprint reason code' });
+  sel.outerHTML = picker.reasonSelectHTML(reasons, { value, attrs: 'id="sticker-reprint-code" data-css="max-width: 240px;"', label: 'Reprint reason code' });
   document.getElementById('sticker-reprint-reason').placeholder = 'note (optional)';
 }
 

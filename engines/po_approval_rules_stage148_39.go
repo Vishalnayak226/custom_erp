@@ -161,36 +161,94 @@ func requiredApproverRoleFor(tenantID, doctype string, data map[string]interface
 	return role, err
 }
 
-// mayAlsoDecide says a role other than the required one may still decide a PO:
-// the role its rule escalated to, or a user covering an approver of that role
-// today. The maker-checker rules run before this and are untouched; a cover
-// also never decides what they raised or sent for approval themselves, whatever
-// approvals.self_approval says for the approver's own role.
+// mayAlsoDecide says a role other than the required one may still decide a
+// document: the role a PO's rule escalated it to, the role
+// approvals.escalate_to_role names once any other document has waited past
+// approvals.escalation_hours, or a user covering an approver of the required
+// role today (73.4.9: every approval, not only POs). The maker-checker rules
+// run before this and are untouched; a cover also never decides what they
+// raised or sent for approval themselves, whatever approvals.self_approval says
+// for the approver's own role. A document that always needs a second admin, or
+// dual control, is never covered.
 func mayAlsoDecide(tenantID, doctype, docID string, data map[string]interface{}, createdBy, actorUserID, actorRole, requiredRole string) bool {
-	if doctype != "PurchaseOrder" {
+	return mayAlsoDecideWith(tenantID, doctype, docID, data, createdBy, actorUserID, actorRole, requiredRole, nil)
+}
+
+// approvalCoverFacts are what My work has already read for every row
+// (task_inbox_batch.go), so mayAlsoDecideWith asks the database nothing more
+// per document. nil means read them here.
+type approvalCoverFacts struct {
+	covers      map[string]bool // roles of the approvers the viewer covers today
+	waitedHours int64
+	made        bool
+}
+
+func mayAlsoDecideWith(tenantID, doctype, docID string, data map[string]interface{}, createdBy, actorUserID, actorRole, requiredRole string, facts *approvalCoverFacts) bool {
+	if secondAdminDoctypes[doctype] || isDualControlDoctype(doctype) {
 		return false
 	}
-	if esc := strField(data, "escalated_to_role"); esc != "" && esc == actorRole {
-		return true
+	if doctype == "PurchaseOrder" {
+		if esc := strField(data, "escalated_to_role"); esc != "" && esc == actorRole {
+			return true
+		}
+	} else if hours := approvalEscalationHoursFor(tenantID, actorRole); hours > 0 {
+		if facts != nil {
+			if facts.waitedHours >= int64(hours) {
+				return true
+			}
+		} else if approvalWaitedHours(tenantID, doctype, docID) >= int64(hours) {
+			return true
+		}
+	}
+	if actorUserID == "" || actorUserID == createdBy || requiredRole == "" {
+		return false
+	}
+	covers := map[string]bool(nil)
+	if facts != nil {
+		covers = facts.covers
+	} else {
+		covers = rolesCoveredToday(tenantID, actorUserID)
+	}
+	if !covers[requiredRole] {
+		return false
+	}
+	if facts != nil {
+		return !facts.made
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return false
 	}
-	if actorUserID == createdBy {
-		return false
+	made, err := madeApprovalRound(db.DB, schema, doctype, docID, actorUserID)
+	return err == nil && !made
+}
+
+// rolesCoveredToday is the roles of the active approvers this user covers
+// today, by an Active ApprovalDelegate row whose dates include today. The
+// delegate is named by user id or username, as the form allows.
+func rolesCoveredToday(tenantID, actorUserID string) map[string]bool {
+	out := map[string]bool{}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil || actorUserID == "" {
+		return out
 	}
-	if made, err := madeApprovalRound(db.DB, schema, doctype, docID, actorUserID); err != nil || made {
-		return false
-	}
-	var n int
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %[1]s.documents d JOIN %[1]s.users u
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT u.role FROM %[1]s.documents d JOIN %[1]s.users u
 		ON (u.id::text = d.data->>'approver_user' OR LOWER(u.username) = LOWER(d.data->>'approver_user'))
 		WHERE d.doctype = 'ApprovalDelegate' AND d.deleted_at IS NULL AND COALESCE(d.data->>'status', 'Active') = 'Active'
 		  AND (d.data->>'delegate_user' = $1 OR LOWER(d.data->>'delegate_user') = LOWER(COALESCE((SELECT username FROM %[1]s.users WHERE id::text = $1), '')))
-		  AND d.data->>'from_date' <= $2 AND d.data->>'to_date' >= $2 AND u.role = $3 AND u.status = 'Active'`, schema),
-		actorUserID, BusinessToday(), requiredRole).Scan(&n)
-	return err == nil && n > 0
+		  AND d.data->>'from_date' <= $2 AND d.data->>'to_date' >= $2 AND u.status = 'Active'`, schema),
+		actorUserID, BusinessToday())
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var role string
+		if rows.Scan(&role) == nil {
+			out[role] = true
+		}
+	}
+	return out
 }
 
 // RunPORuleEscalations stamps escalated_to_role on a PO that has waited longer

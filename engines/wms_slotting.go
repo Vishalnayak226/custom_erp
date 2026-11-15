@@ -52,13 +52,35 @@ func init() {
 		},
 		Params: []ReportParam{{Key: "location_code", Label: "Location", Type: "text", Required: true}},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
-			rows, err := GetSlottingSuggestions(tenantID, params["location_code"])
+			rows, err := slottingSuggestionsV2(tenantID, params["location_code"])
 			if err != nil {
 				return nil, err
 			}
 			return structsToRows(rows)
 		},
 	})
+}
+
+// slottingSuggestionsV2 is the slotting screen's list (103.4.1, 42.5.4): a
+// fast mover's move into a pick face only where the bin really has room
+// (GetDimensionAwareSlottingSuggestions), and a slow mover's move out of one
+// as GetSlottingSuggestions finds it.
+func slottingSuggestionsV2(tenantID, locationCode string) ([]SlottingSuggestion, error) {
+	in, err := GetDimensionAwareSlottingSuggestions(tenantID, locationCode)
+	if err != nil {
+		return nil, err
+	}
+	all, err := GetSlottingSuggestions(tenantID, locationCode)
+	if err != nil {
+		return nil, err
+	}
+	out := append([]SlottingSuggestion{}, in...)
+	for _, s := range all {
+		if s.Action == "Move to Reserve" {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 func GetSlottingSuggestions(tenantID, locationCode string) ([]SlottingSuggestion, error) {

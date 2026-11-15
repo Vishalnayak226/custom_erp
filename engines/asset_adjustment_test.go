@@ -123,3 +123,61 @@ func TestAssetAdjustmentRefusesAnAssetNotCapitalised(t *testing.T) {
 		t.Fatalf("draft asset: %v", err)
 	}
 }
+
+// Ask 176: disposing of a revalued asset moves what is left of its reserve to
+// retained earnings (Dr 3500 / Cr 3100) once; the lifecycle schedule carries
+// the revaluation in its year so the last closing is nought.
+func TestAssetDisposalReleasesTheReserveAndTheScheduleCarriesAdjustments(t *testing.T) {
+	db.InitDB(testConnStr())
+	schema, _ := db.GetTenantSchema("default")
+	cleanupAssetAdjustmentTest(schema)
+	t.Cleanup(func() { cleanupAssetAdjustmentTest(schema) })
+
+	capitalisedTestAsset(t, schema, "T170A-4", 2400, 2, monthsAgo(6)) // book value 1800
+	if _, err := AdjustAsset("default", "T170A-4", "t", AssetAdjustmentInput{Kind: "Revaluation", NewValue: 2100, Reason: "Valuer's report"}); err != nil {
+		t.Fatalf("revalue: %v", err)
+	}
+	lc, err := GetAssetLifecycle("default", "T170A-4")
+	if err != nil || len(lc.Schedule) == 0 {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if !adjNear(lc.Schedule[0].Opening, 2400) {
+		t.Fatalf("the schedule must open at the cost before revaluation: %+v", lc.Schedule[0])
+	}
+	var adj float64
+	for _, s := range lc.Schedule {
+		adj += s.Adjustment
+	}
+	if !adjNear(adj, 300) {
+		t.Fatalf("the schedule carries %.2f of adjustment, want 300", adj)
+	}
+	if last := lc.Schedule[len(lc.Schedule)-1]; !adjNear(last.Closing, 0) {
+		t.Fatalf("the last year must close at nought: %+v", last)
+	}
+
+	preview, err := PreviewAssetDisposal("default", "T170A-4", 0, "")
+	if err != nil || !adjNear(preview.ReserveReleased, 300) {
+		t.Fatalf("preview: %+v %v", preview, err)
+	}
+	res, err := DisposeAssetWithProceeds("default", "T170A-4", "Scrap", 0, "")
+	if err != nil || !adjNear(res.ReserveReleased, 300) {
+		t.Fatalf("dispose: %+v %v", res, err)
+	}
+	gl := assetGLNet(t, schema, "T170A-4")
+	if gl["3500"][0] != 30000 || gl["3500"][1] != 30000 || gl["3100"][1] != 30000 {
+		t.Fatalf("the reserve must move to 3100 once: %v", gl)
+	}
+	if gl["1400"][0]-gl["1400"][1] != 0 || gl["1410"][0]-gl["1410"][1] != 0 {
+		t.Fatalf("disposal left balances: %v", gl)
+	}
+	if _, err := DisposeAssetWithProceeds("default", "T170A-4", "Scrap", 0, ""); err == nil {
+		t.Fatal("a second disposal must be refused")
+	}
+	if gl2 := assetGLNet(t, schema, "T170A-4"); gl2["3100"][1] != 30000 {
+		t.Fatalf("the release posted twice: %v", gl2)
+	}
+	data, _, _ := fetchAssetData("default", "T170A-4")
+	if numFromInterface(data["revaluation_reserve_paise"]) != 0 || !adjNear(numFromInterface(data["disposal_reserve_released"]), 300) {
+		t.Fatalf("asset data after release: reserve %v released %v", data["revaluation_reserve_paise"], data["disposal_reserve_released"])
+	}
+}

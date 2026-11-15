@@ -1,3 +1,20 @@
+---
+doc_id: DOC-PRODUCT-SHORTCUTS-PLAN
+title: ERP shortcuts plan
+type: reference
+status: approved
+owner: product-owner
+approvers: [product-owner]
+audience: [product, engineering]
+applies_to: docs/micro_checklist.md Stage 139
+authority: historical
+confidentiality: internal
+last_verified: 2026-11-14
+review_by: 2027-02-12
+supersedes: none
+superseded_by: none
+---
+
 # ERP shortcuts: plan (Stage 139, 2026-10-26)
 
 User, 2026-10-26: *"We have to build erp shorcuts. Think and propose easy and best practice to follow. & Need report number as wel & Tell what else can be done for trasaction and access transaction to make user's life easy"*.

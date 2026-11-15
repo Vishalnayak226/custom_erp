@@ -206,7 +206,8 @@ async function loadFields() {
   const base = E.BUILTIN_FIELDS.map(f => ({ key: f.key, label: f.label, type: 'builtin', sample: f.sample, group: 'Label' }));
   // Stage 146.3.4b: a bin label's own fields (the Bin record).
   const bin = E.BIN_FIELDS.map(f => ({ key: f.key, label: f.label, type: 'builtin', sample: f.sample, group: 'Bin' }));
-  const known = new Set(base.concat(bin).map(f => f.key));
+  // item_alias is what the built-in 'name' prints (201.3), so not listed twice.
+  const known = new Set(base.concat(bin).map(f => f.key).concat('item_alias'));
   const extra = [];
   try {
     const res = await window.apiFetch('/api/v1/doc/Item/meta');
@@ -222,7 +223,7 @@ async function loadFields() {
   } catch (e) { /* the built-in fields still work */ }
   extra.sort((a, b) => a.label.localeCompare(b.label));
   S.fields = base.concat(extra, bin);
-  const sampleFields = {};
+  const sampleFields = Object.assign({}, E.SAMPLE_LABEL.fields);
   for (const f of extra.concat(bin)) sampleFields[f.key] = sampleFor(f);
   S.label = Object.assign({}, E.SAMPLE_LABEL, { fields: sampleFields });
 }
@@ -597,7 +598,7 @@ function renderOverlay() {
   let html = '';
   for (const el of S.t.elements) {
     const cls = ['stk-el', S.sel.has(el.id) ? 'is-sel' : '', el.locked ? 'is-locked' : '', el.hidden ? 'is-hidden' : ''].join(' ');
-    html += `<div class="${cls}" data-id="${esc(el.id)}" style="left:${el.x_mm * z}px; top:${el.y_mm * z}px; width:${el.w_mm * z}px; height:${el.h_mm * z}px;">`;
+    html += `<div class="${cls}" data-id="${esc(el.id)}" data-css="left:${el.x_mm * z}px; top:${el.y_mm * z}px; width:${el.w_mm * z}px; height:${el.h_mm * z}px;">`;
     if (single && single.id === el.id && !el.locked) {
       for (const h of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) html += `<span class="stk-h stk-h-${h}" data-h="${h}"></span>`;
       html += `<span class="stk-size-tag">${round2(el.w_mm)} × ${round2(el.h_mm)}</span>`;
@@ -906,7 +907,7 @@ function affixHTML(el) {
 
 function fontSelect(current, scope = 'el', key = 'font_family') {
   const inherit = scope === 'el' ? `<option value="" ${!current ? 'selected' : ''}>Template default (${esc(S.t.settings.font_family)})</option>` : '';
-  return `<label class="stk-field"><span>Font</span><select data-${scope}="${key}" data-type="text">${inherit}${E.FONT_FAMILIES.map(f => `<option value="${esc(f.id)}" ${current === f.id ? 'selected' : ''} style="font-family:${esc(f.css)}">${esc(f.label)}</option>`).join('')}</select></label>`;
+  return `<label class="stk-field"><span>Font</span><select data-${scope}="${key}" data-type="text">${inherit}${E.FONT_FAMILIES.map(f => `<option value="${esc(f.id)}" ${current === f.id ? 'selected' : ''} data-css="font-family:${esc(f.css)}">${esc(f.label)}</option>`).join('')}</select></label>`;
 }
 
 function typographyHTML(el) {
@@ -1290,7 +1291,7 @@ function showStarter() {
         const across = p.per_row || 1, down = p.per_col || 1;
         const k = 56 / Math.max(cw * across, ch * down * 1.6);
         return `<button class="stk-starter-opt" data-preset="${p.id}">
-          <span class="stk-starter-shape"${down > 1 ? ' style="flex-direction: column;"' : ''}>${Array.from({ length: across * down }, () => `<i style="width:${Math.max(4, cw * k)}px; height:${Math.max(4, ch * k)}px"></i>`).join('')}</span>
+          <span class="stk-starter-shape"${down > 1 ? ' data-css="flex-direction: column;"' : ''}>${Array.from({ length: across * down }, () => `<i data-css="width:${Math.max(4, cw * k)}px; height:${Math.max(4, ch * k)}px"></i>`).join('')}</span>
           <span>${esc(p.label)}</span></button>`;
       }).join('')}</div>`).join('')}
       <div class="stk-starter-foot">
@@ -1373,8 +1374,8 @@ function nearest(values, targets, thr) {
 function showGuides(gx, gy) {
   const overlay = S.root.querySelector('.stk-overlay');
   overlay.querySelectorAll('.stk-guide').forEach(g => g.remove());
-  for (const x of gx) overlay.insertAdjacentHTML('beforeend', `<div class="stk-guide stk-guide-v" style="left:${x * S.zoom}px"></div>`);
-  for (const y of gy) overlay.insertAdjacentHTML('beforeend', `<div class="stk-guide stk-guide-h" style="top:${y * S.zoom}px"></div>`);
+  for (const x of gx) overlay.insertAdjacentHTML('beforeend', `<div class="stk-guide stk-guide-v" data-css="left:${x * S.zoom}px"></div>`);
+  for (const y of gy) overlay.insertAdjacentHTML('beforeend', `<div class="stk-guide stk-guide-h" data-css="top:${y * S.zoom}px"></div>`);
 }
 
 // The canvas takes keyboard focus away from any inspector field: pointerdown

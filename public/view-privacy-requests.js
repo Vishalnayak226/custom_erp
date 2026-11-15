@@ -145,7 +145,7 @@ export async function openPrivacyRequests(subjectId, doctype = 'Customer') {
       if (out) { showToast(approve ? 'Approved.' : 'Rejected.', { variant: 'success' }); showList(); } else decide.disabled = false;
     } else if (run) {
       const type = run.dataset.prType;
-      if ((type === 'erasure' || type === 'anonymize') && !(await showCustomConfirm(`Remove this ${doctype.toLowerCase()}'s personal data? This cannot be undone.`, 'Run request'))) return;
+      if ((type === 'erasure' || type === 'anonymize') && !(await showCustomConfirm(`Remove this ${doctype.toLowerCase()}'s personal data? This cannot be undone.`, 'Run request', { typed: subjectId }))) return;
       run.disabled = true;
       const out = await prJson(`/api/v1/admin/privacy/requests/${encodeURIComponent(run.dataset.prId)}/execute`, { method: 'POST', body: '{}' }, 'Not run.');
       if (out) {

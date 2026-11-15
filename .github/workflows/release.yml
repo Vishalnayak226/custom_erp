@@ -1,0 +1,184 @@
+name: Release
+
+# Item 177.1 (user, 2026-11-14: "i need is 1 min all should be done", "with
+# accuracy"): the release click no longer runs the test suite on the laptop.
+# It commits the release and pushes it to a candidate/<version> branch. This
+# run tests that exact commit on GitHub's machines: the whole suite, split
+# into shards by each test's time in the last run (release/test-times.json,
+# the same split the laptop's G10 used). Only when every job passes does it
+# move main to that commit - a fast-forward, never a force. The Deploy click
+# deploys origin/main, so it can only ship a commit this run passed.
+
+on:
+  push:
+    # candidate/<version>: a release, promoted to main when it passes.
+    # trial/<anything>: the same run without the promotion, to try a change on GitHub.
+    branches: ['candidate/**', 'trial/**']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Asia/Kolkata # the zone the suite has always run in (the laptop's)
+  DATABASE_URL: postgres://postgres@localhost:5435/custom_erp?sslmode=disable
+  TEST_DATABASE_URL: postgres://postgres@localhost:5435/custom_erp?sslmode=disable
+
+jobs:
+  # 177.7: the guard tests (release/guard-tests.txt) read the code and the
+  # registers and take seconds. They run in their own job; when one fails, this
+  # job cancels the whole run, so a missed registration stops the release in a
+  # few minutes instead of when the last shard ends.
+  guards:
+    name: Guard tests first
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write # only to cancel this run when a guard fails
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: custom_erp
+          POSTGRES_HOST_AUTH_METHOD: trust
+          TZ: Asia/Kolkata
+        ports: ['5435:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
+        with:
+          go-version: '1.27.4'
+      # 177.6: this database is thrown away when the job ends, so it need not
+      # survive a crash - no flush to disk on each commit or checkpoint.
+      - name: Database tuned for a throwaway run
+        run: docker exec "${{ job.services.postgres.id }}" psql -U postgres -c "ALTER SYSTEM SET fsync = off" -c "ALTER SYSTEM SET synchronous_commit = off" -c "ALTER SYSTEM SET full_page_writes = off" -c "SELECT pg_reload_conf()"
+      # The Release click regenerates the catalog spec only when its inputs ship
+      # (177.5); this catches a stale one committed any other way.
+      - name: Report catalog spec is current
+        run: go run ./cmd/gencatalog -check
+      - name: Migrate an empty database
+        run: go build -o /tmp/erp-server ./cmd/server && /tmp/erp-server -migrate
+      - name: Guard tests
+        shell: pwsh
+        run: ./release/scripts/Invoke-GuardTests.ps1
+      - name: Stop the run
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+
+  checks:
+    name: Build, vet, other packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: custom_erp
+          POSTGRES_HOST_AUTH_METHOD: trust
+          TZ: Asia/Kolkata
+        ports: ['5435:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
+        with:
+          go-version: '1.27.4'
+      # 177.6: this database is thrown away when the job ends, so it need not
+      # survive a crash - no flush to disk on each commit or checkpoint.
+      - name: Database tuned for a throwaway run
+        run: docker exec "${{ job.services.postgres.id }}" psql -U postgres -c "ALTER SYSTEM SET fsync = off" -c "ALTER SYSTEM SET synchronous_commit = off" -c "ALTER SYSTEM SET full_page_writes = off" -c "SELECT pg_reload_conf()"
+      - name: Migrate an empty database
+        run: go build -o /tmp/erp-server ./cmd/server && /tmp/erp-server -migrate
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Tests outside engines and internal/server
+        run: |
+          set -euo pipefail
+          pkgs=$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v -x -e custom_erp/engines -e custom_erp/internal/server)
+          go test -p 1 -count=1 -timeout 40m $pkgs
+
+  tests:
+    name: Tests ${{ matrix.shard }}/16
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false # every failing test is reported in one run, not only the first
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: custom_erp
+          POSTGRES_HOST_AUTH_METHOD: trust
+          TZ: Asia/Kolkata
+        ports: ['5435:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
+        with:
+          go-version: '1.27.4'
+      # 177.6: this database is thrown away when the job ends, so it need not
+      # survive a crash - no flush to disk on each commit or checkpoint.
+      - name: Database tuned for a throwaway run
+        run: docker exec "${{ job.services.postgres.id }}" psql -U postgres -c "ALTER SYSTEM SET fsync = off" -c "ALTER SYSTEM SET synchronous_commit = off" -c "ALTER SYSTEM SET full_page_writes = off" -c "SELECT pg_reload_conf()"
+      - name: Migrate an empty database
+        run: go build -o /tmp/erp-server ./cmd/server && /tmp/erp-server -migrate
+      - name: Compile the test programs
+        run: go test -c -o /tmp/engines.test ./engines && go test -c -o /tmp/server.test ./internal/server
+      - name: engines share
+        shell: pwsh
+        run: ./release/scripts/Invoke-TestShard.ps1 -Exe /tmp/engines.test -Dir engines -Shard ${{ matrix.shard }} -Shards 16 -OutDir /tmp/shard
+      - name: internal/server share
+        if: success() || failure()
+        shell: pwsh
+        run: ./release/scripts/Invoke-TestShard.ps1 -Exe /tmp/server.test -Dir internal/server -Shard ${{ matrix.shard }} -Shards 16 -OutDir /tmp/shard
+      - name: Keep test times and logs
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.2 (pinned)
+        with:
+          name: shard-${{ matrix.shard }}
+          path: /tmp/shard/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  promote:
+    name: Move main to this commit
+    needs: [guards, checks, tests]
+    if: startsWith(github.ref, 'refs/heads/candidate/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # the one job that writes: a fast-forward of main, never a force
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
+      - name: Fast-forward main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # ahead: main is an ancestor of this commit, so the push is a fast-forward.
+          # identical/behind: main already holds it. diverged: someone pushed main
+          # meanwhile - stop; the release must be cut again from the new main.
+          status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq .status)
+          case "$status" in
+            ahead) git push origin "${GITHUB_SHA}:refs/heads/main" ;;
+            identical|behind) echo "main already holds ${GITHUB_SHA}" ;;
+            *) echo "::error::main and ${GITHUB_SHA} have diverged ($status) - run Release.cmd again from the new main"; exit 1 ;;
+          esac
+          git push origin --delete "${GITHUB_REF_NAME}" || true
+          echo "main holds ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"

@@ -35,6 +35,33 @@ async function getJSON(url, fallback) {
   try { return await res.json(); } catch (_) { return fallback; }
 }
 
+// 186.3: a step's list by the statuses it shows. The old load took the first
+// 500 records by id, so newer ones dropped off once a client passed 500. A
+// list filter is one equality, so each status is its own request; it matches
+// the record's own status (a manifested booking still reads AWB Assigned).
+// A status can itself hold more than the server's 500-row page (a 650-parcel
+// day), so a full page asks for the next one, up to 10 pages; a capped read
+// (extra holds its own limit, e.g. "the newest 50") is one request.
+async function byStatus(doctype, statuses, extra = 'limit=500') {
+  const paged = extra === 'limit=500';
+  const one = async (s) => {
+    const base = `/api/v1/doc/${doctype}?status=${encodeURIComponent(s)}&${extra}`;
+    if (!paged) return getJSON(base, null);
+    const all = [];
+    for (let page = 0; page < 10; page++) {
+      const rows = await getJSON(`${base}&offset=${page * 500}`, null);
+      if (!rows) return null;
+      all.push(...rows);
+      if (rows.length < 500) break;
+    }
+    return all;
+  };
+  const parts = await Promise.all(statuses.map(one));
+  return parts.some(p => !p) ? null : parts.flat();
+}
+// Bookings that still hold their parcel's task: booked, manifested, with the courier.
+const LIVE_BOOKING_STATES = ['AWB Assigned', 'Handed Over', 'In-Transit'];
+
 // post returns the response body, or { error } with the server's message -
 // the step chains below report a failed step in place rather than in a dialog.
 async function post(url, body) {
@@ -55,7 +82,8 @@ const packLeft = (t) => taskItems(t).reduce((n, it) => n + Math.max(0, num(it.pi
 const taskID = (t) => t.code || t.id;
 
 async function ordersByID() {
-  const rows = await getJSON('/api/v1/doc/SalesOrder?limit=500', []);
+  // Last changed first (186.3): the orders on a step are the ones in flight.
+  const rows = await getJSON('/api/v1/doc/SalesOrder?sort=recent&limit=500', []);
   const out = {};
   // A task holds the order's id; the order's code is its printed number.
   (rows || []).forEach(o => { out[o.id] = o; if (o.code) out[o.code] = o; });
@@ -242,6 +270,29 @@ async function renderOnHold(container) {
   }));
 }
 
+// 197.3: the store a typed task or order's task is at, when that is not the
+// top-bar store the lists follow (Stage 106.6) - so a miss can say where it is.
+// Task and order ids keep a lower-case tail, so the id lookup takes the text as typed.
+async function elsewhereStore(typed) {
+  const here = window.erpWorkingStore && window.erpWorkingStore.code;
+  if (!here || window.erpStoreViewAll) return '';
+  const v = typed.toUpperCase();
+  const same = (s) => String(s || '').trim().toUpperCase() === v;
+  // The order search first: it answers a task number with an empty list, where the task
+  // lookup would answer an order number with a 404.
+  const found = await getJSON(`/api/v1/oms/orders/search?q=${encodeURIComponent(typed)}&limit=10`, null);
+  const o = ((found && found.results) || []).find(r => same(r.order_id) || same(r.order_number) || same(r.channel_order_id));
+  let loc = '';
+  if (o) {
+    const d = await getJSON(`/api/v1/oms/orders/${encodeURIComponent(o.order_id)}`, null);
+    const t = ((d && d.fulfillment_tasks) || []).find(x => x.detail && !['Rejected', 'Cancelled'].includes(x.status));
+    loc = t ? t.detail : '';
+  } else {
+    loc = ((await getJSON(`/api/v1/doc/FulfillmentTask/${encodeURIComponent(typed)}`, null)) || {}).location_code || '';
+  }
+  return loc && loc !== here ? loc : '';
+}
+
 // 142.2: open a task by scanning or typing what the picker holds - the pick
 // list number (the task), the order number or the channel's order number.
 function loadOrderBox(container, step, tasks, orders, open) {
@@ -258,7 +309,8 @@ function loadOrderBox(container, step, tasks, orders, open) {
   const msg = box.querySelector('[data-load-msg]');
   box.querySelector('[data-load-form]').addEventListener('submit', async e => {
     e.preventDefault();
-    const v = input.value.trim().toUpperCase();
+    const typed = input.value.trim();
+    const v = typed.toUpperCase();
     if (!v) return;
     input.value = '';
     const same = (s) => String(s || '').trim().toUpperCase() === v;
@@ -267,7 +319,9 @@ function loadOrderBox(container, step, tasks, orders, open) {
       return same(taskID(t)) || same(t.id) || same(t.order_id) || same(o.code) || same(o.channel_order_id);
     });
     if (!hit) {
-      msg.textContent = `${v} is not on this list. A ${step === 'pick' ? 'pick' : 'pack'} task appears here ${step === 'pick' ? 'once its order is accepted on Pending Orders' : 'once every line is picked on Pick'}.`;
+      const at = await elsewhereStore(typed);
+      msg.textContent = at ? `${v} is at ${at}. Switch the store at the top to ${step} it.`
+        : `${v} is not on this list. A ${step === 'pick' ? 'pick' : 'pack'} task appears here ${step === 'pick' ? 'once its order is accepted on Pending Orders' : 'once every line is picked on Pick'}.`;
       msg.classList.add('oms-scan-bad');
       input.focus();
       return;
@@ -344,7 +398,7 @@ async function setOrderOwner(orderID) {
 async function pickData() {
   const [queue, tasks, orders] = await Promise.all([
     getJSON('/api/v1/oms/pick-queue', null),
-    getJSON('/api/v1/doc/FulfillmentTask?limit=500', []),
+    byStatus('FulfillmentTask', ['Pending', 'Picking']).then(r => r || []),
     ordersByID()
   ]);
   const byID = {};
@@ -427,6 +481,13 @@ async function showScanPanel(step, host, id, orders) {
       <form class="oms-scan-row" data-scan-form>
         <input class="form-input" data-scan-input autocomplete="off" placeholder="${isPick && binCodes.size ? 'Scan the bin, then the item' : 'Scan or type the barcode / SKU'}" aria-label="Scan">
         <button type="submit" class="btn btn-primary">${isPick ? 'Pick' : 'Pack'}</button>
+        <button type="button" class="btn btn-outline" data-noscan-open>Without barcode</button>
+      </form>
+      <form class="oms-scan-row hidden" data-noscan-form>
+        <input class="form-input" data-noscan-sku autocomplete="off" placeholder="SKU" aria-label="SKU">
+        <input class="form-input oms-input-sm" data-noscan-qty type="number" min="1" step="1" placeholder="Qty" aria-label="Quantity">
+        <button type="submit" class="btn btn-primary">${isPick ? 'Pick' : 'Pack'}</button>
+        <button type="button" class="btn btn-outline" data-noscan-cancel>Cancel</button>
       </form>
       <div class="oms-scan-msg" data-scan-msg role="status"></div>
       <div data-scan-lines></div>
@@ -465,6 +526,36 @@ async function showScanPanel(step, host, id, orders) {
     if (fresh) draw(fresh);
     input.focus();
   });
+  // 197.1: no barcode on the piece - type its SKU (Combination ID) and how
+  // many; blank Qty takes all the line has left. The scan box stays the default.
+  const noscan = host.querySelector('[data-noscan-form]');
+  const skuIn = noscan.querySelector('[data-noscan-sku]');
+  const qtyIn = noscan.querySelector('[data-noscan-qty]');
+  const closeNoscan = () => { noscan.classList.add('hidden'); skuIn.value = ''; qtyIn.value = ''; input.focus(); };
+  host.querySelector('[data-noscan-open]').addEventListener('click', () => { noscan.classList.remove('hidden'); skuIn.focus(); });
+  noscan.querySelector('[data-noscan-cancel]').addEventListener('click', closeNoscan);
+  // A quantity is many scans at once: a second click while one is on its way is dropped.
+  noscan.addEventListener('submit', e => {
+    e.preventDefault();
+    return guardAgainstDoubleSubmit(noscan.querySelector('button[type=submit]'), isPick ? 'Picking...' : 'Packing...', noscanSubmit);
+  });
+  const noscanSubmit = async () => {
+    const typed = skuIn.value.trim();
+    if (!typed) { skuIn.focus(); return; }
+    const t = await loadTask(id);
+    const it = t && taskItems(t).find(x => String(x.sku).toLowerCase() === typed.toLowerCase());
+    if (!it) { say(`${typed} is not on this task.`, true); skuIn.focus(); return; }
+    const left = isPick ? lineLeft(it) : Math.max(0, num(it.picked_qty) - num(it.packed_qty));
+    if (left === 0) { say(`${it.sku}: nothing left to ${isPick ? 'pick' : 'pack'}.`, true); return; }
+    const qty = qtyIn.value.trim() === '' ? left : Math.floor(num(qtyIn.value));
+    if (qty < 1 || qty > left) { say(`${it.sku}: enter 1 to ${left}.`, true); qtyIn.focus(); return; }
+    const r = await post(`/api/v1/wms/${isPick ? 'pick' : 'pack'}-scan`, { task_id: id, scan: it.sku, qty });
+    if (r.error) { say(r.error, true); return; }
+    say(`${r.sku}: ${isPick ? `picked ${r.picked_qty}` : `packed ${r.packed_qty}`}.`);
+    closeNoscan();
+    const fresh = await loadTask(id);
+    if (fresh) draw(fresh);
+  };
   draw(task);
   host.scrollIntoView({ block: 'start' });
   input.focus();
@@ -533,8 +624,8 @@ async function renderPack(container) {
   container.appendChild(scanHost);
   const host = panel(container);
   const [tasks, bookings, orders] = await Promise.all([
-    getJSON('/api/v1/doc/FulfillmentTask?limit=500', null),
-    getJSON('/api/v1/doc/LogisticsBooking?limit=500', []),
+    byStatus('FulfillmentTask', ['Pending', 'Picking', 'Packed']),
+    byStatus('LogisticsBooking', LIVE_BOOKING_STATES).then(r => r || []),
     ordersByID()
   ]);
   if (!tasks) { renderErrorPanel(host, 'Failed to load the pack worklist.', () => again('pack')); return; }
@@ -720,14 +811,22 @@ function courierStepCells(b) {
 
 async function renderShip(container) {
   await stepBar(container, 'Ship', 'ship');
-  const [tasks, bookings, manifests, passes, orders] = await Promise.all([
-    getJSON('/api/v1/doc/FulfillmentTask?limit=500', null),
-    getJSON('/api/v1/doc/LogisticsBooking?limit=500', []),
-    getJSON('/api/v1/doc/Manifest?limit=200', []),
+  const [tasks, live, done, openM, recentM, passes, orders] = await Promise.all([
+    // Packed only: both uses below need just those (a booked parcel's task
+    // stays Packed until its manifest dispatches it), and the first 500 tasks
+    // by id dropped newer packed parcels once a tenant passed 500 (186.3).
+    byStatus('FulfillmentTask', ['Packed']),
+    byStatus('LogisticsBooking', LIVE_BOOKING_STATES),
+    // Delivered and returned only feed "the last 50", so the 50 changed last.
+    byStatus('LogisticsBooking', ['Delivered', 'RTO'], 'sort=recent&limit=50'),
+    byStatus('Manifest', ['Open']),
+    getJSON('/api/v1/doc/Manifest?sort=recent&limit=40', []),
     getJSON('/api/v1/oms/gate-passes', []),
     ordersByID()
   ]);
-  if (!tasks) { renderErrorPanel(panel(container), 'Failed to load shipments.', () => again('ship')); return; }
+  if (!tasks || !live) { renderErrorPanel(panel(container), 'Failed to load shipments.', () => again('ship')); return; }
+  const bookings = [...live, ...(done || []).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))];
+  const manifests = [...(openM || []), ...(recentM || []).filter(m => m.status !== 'Open')];
   const taskByID = {};
   tasks.forEach(t => { taskByID[taskID(t)] = t; });
   const bookedTasks = new Set(bookings.filter(liveBooking).map(b => b.fulfillment_task_id));
@@ -760,7 +859,12 @@ async function renderShip(container) {
     showToast(`Booked as ${r.booking_id}. Print its label next.`, { variant: 'success' });
     again('ship');
   }));
-  if (context) book.querySelector(`[data-book-row="${CSS.escape(context.fulfillment_task_id || '')}"]`)?.scrollIntoView({ block: 'center' });
+  // 57.26(h): the order's own task row, pincode filled, cursor in its Courier box.
+  if (context) {
+    const row = book.querySelector(`[data-book-row="${CSS.escape(context.fulfillment_task_id || '')}"]`);
+    row?.scrollIntoView({ block: 'center' });
+    row?.querySelector('[data-book-carrier]')?.focus({ preventScroll: true });
+  }
 
   // Booked parcels, grouped as a manifest groups them: one courier at one location.
   const awaiting = bookings.filter(b => b.status === 'AWB Assigned' && !b.manifest_id);
@@ -811,7 +915,7 @@ async function renderShip(container) {
   const passFor = {};
   (passes || []).filter(p => p.status !== 'Discarded').forEach(p => { if (p.manifest_id && !passFor[p.manifest_id]) passFor[p.manifest_id] = p; });
   const openManifests = manifests.filter(m => m.status === 'Open');
-  const handed = manifests.filter(m => m.status !== 'Open').slice(-20).reverse();
+  const handed = manifests.filter(m => m.status !== 'Open').slice(0, 20); // newest first
   const manifestRow = (m) => {
     const id = m.code || m.id, gp = passFor[id];
     const pass = gp ? `${esc(gp.status)} · ${esc(gp.vehicle_number || 'no vehicle')}${gp.status === 'Draft' ? ` <button type="button" class="action-btn" data-gp-issue="${esc(gp.id)}">Issue</button>` : ''}`
@@ -834,7 +938,7 @@ async function renderShip(container) {
 
   // On the way: tracking until delivered or returned.
   const moving = bookings.filter(b => ['Handed Over', 'In-Transit'].includes(b.status));
-  const closed = bookings.filter(b => ['Delivered', 'RTO'].includes(b.status)).slice(-50).reverse();
+  const closed = bookings.filter(b => ['Delivered', 'RTO'].includes(b.status)).slice(0, 50); // newest first
   const trackRow = (b, actions) => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td>${esc(b.carrier || '')}</td><td class="oms-mono">${esc(b.awb_number || '')}</td>
     <td><span class="badge ${b.status === 'RTO' ? 'badge-danger' : b.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${esc(b.status)}</span></td><td class="oms-step-actions">${actions}</td></tr>`;
   const thead = '<thead><tr><th>Booking</th><th>Order</th><th>Courier</th><th>AWB</th><th>Status</th><th></th></tr></thead>';

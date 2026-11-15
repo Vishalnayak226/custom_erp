@@ -382,7 +382,7 @@ func hashPayload(payload []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-func buildHookPayload(tenantID, hookPoint, doctype, documentID string, data map[string]interface{}) []byte {
+func buildHookPayload(tenantID, actor, hookPoint, doctype, documentID string, data map[string]interface{}) []byte {
 	payload, _ := json.Marshal(map[string]interface{}{
 		// 47.11.7: one version is served today; a breaking v2 builds one payload per version.
 		"api_version": HookAPIVersion,
@@ -390,7 +390,10 @@ func buildHookPayload(tenantID, hookPoint, doctype, documentID string, data map[
 		"doctype":     doctype,
 		"document_id": documentID,
 		"tenant_id":   tenantID,
-		"data":        data,
+		// 49.3.2: who the save acts for - the signed-in user, or system:<worker> for
+		// background work. Inside the signed body, so a receiver can trust it.
+		"actor": actor,
+		"data":  data,
 	})
 	return payload
 }
@@ -402,12 +405,17 @@ func buildHookPayload(tenantID, hookPoint, doctype, documentID string, data map[
 // let the save silently proceed with an unreviewed value. No hooks matching
 // is the overwhelmingly common case and returns immediately with no
 // network call.
-func InvokeBeforeSaveHooks(tenantID, doctype, documentID string, data map[string]interface{}) error {
+func InvokeBeforeSaveHooks(tenantID, actor, doctype, documentID string, data map[string]interface{}) error {
 	hooks, err := matchingHooks(tenantID, "document.before_save", doctype)
 	if err != nil || len(hooks) == 0 {
 		return nil
 	}
-	payload := buildHookPayload(tenantID, "document.before_save", doctype, documentID, data)
+	// 49.3.2: a hook is never called without the user or worker it acts for -
+	// no default actor. Only a caller bug reaches this, and the save stops.
+	if strings.TrimSpace(actor) == "" {
+		return fmt.Errorf("before_save hook not called: the save names no actor")
+	}
+	payload := buildHookPayload(tenantID, actor, "document.before_save", doctype, documentID, data)
 	payloadHash := hashPayload(payload)
 
 	for _, hook := range hooks {
@@ -437,12 +445,16 @@ func InvokeBeforeSaveHooks(tenantID, doctype, documentID string, data map[string
 // can't roll back an already-valid save, so there's nothing useful for the
 // HTTP response to wait on. Each call still goes through the same
 // recover()-wrapped, timeout-bounded path as before_save for process safety.
-func InvokeAfterSaveHooksAsync(tenantID, doctype, documentID string, data map[string]interface{}) {
+func InvokeAfterSaveHooksAsync(tenantID, actor, doctype, documentID string, data map[string]interface{}) {
 	hooks, err := matchingHooks(tenantID, "document.after_save", doctype)
 	if err != nil || len(hooks) == 0 {
 		return
 	}
-	payload := buildHookPayload(tenantID, "document.after_save", doctype, documentID, data)
+	if strings.TrimSpace(actor) == "" { // 49.3.2: as before_save - no default actor
+		log.Printf("[EXTENSIONS] after_save hooks for %s %s not called: the save names no actor", doctype, documentID)
+		return
+	}
+	payload := buildHookPayload(tenantID, actor, "document.after_save", doctype, documentID, data)
 	payloadHash := hashPayload(payload)
 
 	for _, hook := range hooks {

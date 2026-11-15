@@ -147,20 +147,6 @@ func HasChannelCredential(tenantID, channelCode string) (bool, error) {
 	return exists, err
 }
 
-// GetChannelWebhookSecret returns a channel's stored "webhook_secret"
-// credential field, for inbound webhook signature verification (Stage
-// 16.3 onward). Unlike getChannelCredential (package-private, full
-// payload), this is intentionally exported but returns only the one field
-// a webhook handler legitimately needs - never the full credential map,
-// and never the outbound API access token.
-func GetChannelWebhookSecret(tenantID, channelCode string) (string, error) {
-	fields, err := getChannelCredential(tenantID, channelCode)
-	if err != nil {
-		return "", err
-	}
-	return fields["webhook_secret"], nil
-}
-
 // ReencryptChannelCredentials (Stage 49.6.5 - "old-ciphertext migration") is
 // the operator step that actually completes a key rotation: every stored
 // credential is decrypted under whichever key wrote it (legacy or any

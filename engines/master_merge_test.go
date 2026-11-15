@@ -138,3 +138,116 @@ func TestStage47135MergeAndUnmergeMasters(t *testing.T) {
 		t.Errorf("customers merge elsewhere; MergeMasters should refuse them")
 	}
 }
+
+// Stage 47.13.5 (ask 179): a merge request waits in Approvals where a
+// MasterMerge rule exists; nothing moves until a second admin approves it,
+// a rejection moves nothing, a merge that can no longer be done when approved
+// is recorded on the request, and with no rule the merge is done at once.
+func TestStage47135MergeGoesThroughApproval(t *testing.T) {
+	db.InitDB(testConnStr())
+	var registered bool
+	if err := db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM tenant_default.doctype_meta WHERE name = 'MasterMerge')`).Scan(&registered); err != nil || !registered {
+		t.Skip("migrations_stage47_13_5b_master_merge_approval.sql is not applied to this database")
+	}
+	tenantID, schema := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schema)
+	if _, err := ProvisionTenantSchema(tenantID, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	insert := func(id, doctype, status string, data map[string]interface{}) {
+		t.Helper()
+		raw, _ := json.Marshal(data)
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, $4, 'system')", id, doctype, raw, status); err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+	read := func(id, key string) string {
+		t.Helper()
+		var v string
+		_ = db.DB.QueryRow("SELECT COALESCE(CASE WHEN $2 = 'status' THEN status ELSE data->>$2 END, '') FROM "+schema+".documents WHERE id = $1", id, key).Scan(&v)
+		return v
+	}
+	if _, err := db.DB.Exec("INSERT INTO " + schema + ".approval_rules (doctype, min_amount, max_amount, required_role) SELECT 'MasterMerge', 0, NULL, 'HR/Admin' WHERE NOT EXISTS (SELECT 1 FROM " + schema + ".approval_rules WHERE doctype = 'MasterMerge')"); err != nil {
+		t.Fatal(err)
+	}
+	insert("V-KEEP", "Vendor", "Active", map[string]interface{}{"code": "V-KEEP", "name": "Sharma Textiles"})
+	insert("V-DUP", "Vendor", "Active", map[string]interface{}{"code": "V-DUP", "name": "Sharma Textiles Pvt Ltd"})
+	insert("PO-1", "PurchaseOrder", "Draft", map[string]interface{}{"vendor": "V-DUP"})
+
+	req, err := RequestMasterMerge(tenantID, "Vendor", "V-KEEP", "V-DUP", "same GSTIN", "admin1", "HR/Admin")
+	if err != nil || req.Status != "Pending Approval" || req.Merge != nil {
+		t.Fatalf("request: %v %+v, want Pending Approval and nothing merged", err, req)
+	}
+	if read("PO-1", "vendor") != "V-DUP" || read("V-DUP", "status") != "Active" {
+		t.Fatalf("a merge waiting for approval already moved: PO-1 %q, duplicate %q", read("PO-1", "vendor"), read("V-DUP", "status"))
+	}
+	if _, err := RequestMasterMerge(tenantID, "Vendor", "V-KEEP", "V-DUP", "again", "admin2", "HR/Admin"); err == nil || !strings.Contains(err.Error(), "already waiting") {
+		t.Errorf("a second request for the same duplicate: %v, want a refusal", err)
+	}
+	if _, err := RequestMasterMerge(tenantID, "Vendor", "V-DUP", "V-KEEP", "", "admin2", "HR/Admin"); err == nil {
+		t.Errorf("the reverse merge of a pair already waiting was accepted")
+	}
+	// a new client starts with nobody deciding their own request
+	if err := DecideApproval(tenantID, MasterMergeDoctype, req.ID, "admin1", "HR/Admin", "", "Approved", ""); err == nil {
+		t.Errorf("the requester approved their own merge")
+	}
+	if err := DecideApproval(tenantID, MasterMergeDoctype, req.ID, "admin2", "HR/Admin", "", "Approved", "checked"); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if read(req.ID, "status") != "Merged" || read(req.ID, "merge_record") == "" || read("PO-1", "vendor") != "V-KEEP" || read("V-DUP", "status") != "Merged" {
+		t.Fatalf("after approval: request %q record %q, PO-1 %q, duplicate %q - want Merged, a record, V-KEEP, Merged",
+			read(req.ID, "status"), read(req.ID, "merge_record"), read("PO-1", "vendor"), read("V-DUP", "status"))
+	}
+	var by string
+	_ = db.DB.QueryRow("SELECT merged_by FROM "+schema+".master_merges WHERE id = $1", read(req.ID, "merge_record")).Scan(&by)
+	if by != "admin2" {
+		t.Errorf("merge record merged_by = %q, want the approver admin2", by)
+	}
+
+	// rejected: nothing moves
+	insert("V-DUP2", "Vendor", "Active", map[string]interface{}{"code": "V-DUP2", "name": "Sharma Tex"})
+	insert("PO-2", "PurchaseOrder", "Draft", map[string]interface{}{"vendor": "V-DUP2"})
+	rej, err := RequestMasterMerge(tenantID, "Vendor", "V-KEEP", "V-DUP2", "", "admin1", "HR/Admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := DecideApproval(tenantID, MasterMergeDoctype, rej.ID, "admin2", "HR/Admin", "", "Rejected", "different branch"); err != nil {
+		t.Fatal(err)
+	}
+	if read(rej.ID, "status") != "Rejected" || read("PO-2", "vendor") != "V-DUP2" || read("V-DUP2", "status") != "Active" {
+		t.Errorf("after rejection: request %q, PO-2 %q, duplicate %q", read(rej.ID, "status"), read("PO-2", "vendor"), read("V-DUP2", "status"))
+	}
+
+	// stock taken while the request waited: the approval records why it was not merged
+	insert("STORE-MM", "Location", "Active", map[string]interface{}{"code": "STORE-MM", "name": "Store MM", "type": "Store", "sellable": "Yes"})
+	insert("ITEM-KEEP", "Item", "Active", map[string]interface{}{"code": "ITEM-KEEP", "name": "Kurta"})
+	insert("ITEM-DUP", "Item", "Active", map[string]interface{}{"code": "ITEM-DUP", "name": "Kurta "})
+	late, err := RequestMasterMerge(tenantID, "Item", "ITEM-KEEP", "ITEM-DUP", "", "admin1", "HR/Admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PostInventoryLedger(tenantID, "STORE-MM", []interface{}{map[string]interface{}{"sku": "ITEM-DUP", "qty": 2.0}}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := DecideApproval(tenantID, MasterMergeDoctype, late.ID, "admin2", "HR/Admin", "", "Approved", ""); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if read(late.ID, "status") != "Approved" || !strings.Contains(read(late.ID, "merge_error"), "stock") || read("ITEM-DUP", "status") != "Active" {
+		t.Errorf("approved after the item took stock: request %q error %q item %q, want Approved, a stock error, Active",
+			read(late.ID, "status"), read(late.ID, "merge_error"), read("ITEM-DUP", "status"))
+	}
+
+	// no rule: done at once, as before
+	if _, err := db.DB.Exec("DELETE FROM " + schema + ".approval_rules WHERE doctype = 'MasterMerge'"); err != nil {
+		t.Fatal(err)
+	}
+	insert("V-DUP3", "Vendor", "Active", map[string]interface{}{"code": "V-DUP3", "name": "Sharma T"})
+	insert("PO-3", "PurchaseOrder", "Draft", map[string]interface{}{"vendor": "V-DUP3"})
+	now, err := RequestMasterMerge(tenantID, "Vendor", "V-KEEP", "V-DUP3", "", "admin1", "HR/Admin")
+	if err != nil || now.Status != "Merged" || now.Merge == nil || now.Merge.Moved != 1 || read("PO-3", "vendor") != "V-KEEP" {
+		t.Fatalf("with no rule: %v %+v, PO-3 %q - want Merged at once, 1 moved", err, now, read("PO-3", "vendor"))
+	}
+	if _, err := RequestMasterMerge(tenantID, "Customer", "C1", "C2", "", "admin1", "HR/Admin"); err == nil {
+		t.Errorf("a customer merge request was accepted here")
+	}
+}

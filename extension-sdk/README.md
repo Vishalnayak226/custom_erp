@@ -62,9 +62,14 @@ to this repository.
   "doctype": "PurchaseOrder",
   "document_id": "PO-2026-0001",
   "tenant_id": "acme-corp",
+  "actor": "u-1042",
   "data": { "...": "the full document payload being saved" }
 }
 ```
+
+`actor` is who the save acts for: the signed-in user's id, or
+`system:<worker>` for background work. It sits inside the signed body, so you
+can trust it once the signature checks out.
 
 Headers:
 - `Content-Type: application/json`

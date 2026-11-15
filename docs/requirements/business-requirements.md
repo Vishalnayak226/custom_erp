@@ -2,24 +2,23 @@
 doc_id: DOC-REQ-BRD
 title: Business requirements
 type: normative
-status: draft
+status: approved
 owner: product-owner
 approvers: [product-owner, finance-process-owner, operations-owner]
 audience: [business-owners, process-owners, engineering, QA]
 applies_to: proposed reference configurations
-authority: proposed-policy
+authority: canonical
 confidentiality: internal
-last_verified: 2026-09-07
-review_by: 2026-10-07
+last_verified: 2026-11-15
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 ---
 
 # Business requirements
 
-This draft separates business needs from implementation status. The [legacy BRD](../archive/legacy/brd.md)
-remains available for provenance and unique-content mapping. Product/process approval is
-pending; these requirements do not establish current support.
+This document separates business needs from implementation status. The [legacy BRD](../archive/legacy/brd.md)
+remains available for provenance and unique-content mapping. Approval does not mean support: these requirements do not establish current support.
 
 ## BR-001
 
@@ -61,10 +60,10 @@ Customers own approved configuration, identities, local processes and legal use.
 
 ## Scope, assumptions and approval
 
-The [product vision](../product/vision.md) defines reference candidates and non-targets.
+The [product vision](../product/vision.md) defines reference configurations and non-targets.
 Go/PostgreSQL/native browser UI is a standing constraint. Business targets, legal applicability,
-acceptance signatories, RTO/RPO and commercial terms require named owner decisions; the draft
+acceptance signatories, RTO/RPO and commercial terms require named owner decisions; this document
 does not invent them. Shared-tree edits and missing accepted release evidence are current risks.
 
-Draft prepared 2026-09-07 from the existing backlog, audit and source structure. No approval
-has been recorded. Approved changes retain stable requirement IDs and link approval evidence.
+Prepared 2026-09-07 from the existing backlog, audit and source structure; approved by the
+product owner on 2026-11-15 (ask 193). Approved changes retain stable requirement IDs and link approval evidence.

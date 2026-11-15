@@ -496,3 +496,10 @@ R5171	employee-advance-balance	Employee advance balance	Expenses
 R5172	project-budget-vs-actual	Project budget vs actual	Finance
 R7970	aql-sample-plan	AQL Sample Plan	Quality
 R4050	lot-trace	Lot Trace (Both Ways)	WMS
+R8019	certificate-expiry	Certificate Expiry	HR
+R5173	cash-position	Cash position	Finance
+R5174	travel-requests	Travel requests	Expenses
+R5175	card-lines-unmatched	Card lines not matched	Expenses
+R7971	calibration-due	Instruments due for calibration	Quality
+R9062	own-approval-decisions	Own approval decisions	Admin
+R9063	declaration-gaps	Declaration gaps	PIM

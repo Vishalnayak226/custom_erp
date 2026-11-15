@@ -26,6 +26,15 @@ const AcquirerSettlementDoctype = "AcquirerSettlement"
 type AcquirerMatchResult struct {
 	Matched    int                      `json:"matched"`
 	Exceptions []map[string]interface{} `json:"exceptions"`
+	// BillExceptions (185.2): a provider statement's payments with no till
+	// bill, or a bill that took a different amount.
+	BillExceptions []map[string]interface{} `json:"bill_exceptions"`
+}
+
+// acquirerRow is one pending AcquirerSettlement row.
+type acquirerRow struct {
+	id   string
+	data map[string]interface{}
 }
 
 // MatchAcquirerSettlements matches every pending settlement row it can.
@@ -39,21 +48,22 @@ func MatchAcquirerSettlements(tenantID, actor string) (*AcquirerMatchResult, err
 	if err != nil {
 		return nil, err
 	}
-	type pending struct {
-		id   string
-		data map[string]interface{}
-	}
-	var list []pending
+	var list []acquirerRow
 	for rows.Next() {
-		var p pending
+		var p acquirerRow
 		var raw []byte
 		if rows.Scan(&p.id, &raw) == nil && json.Unmarshal(raw, &p.data) == nil {
 			list = append(list, p)
 		}
 	}
 	rows.Close()
-	out := &AcquirerMatchResult{Exceptions: []map[string]interface{}{}}
+	out := &AcquirerMatchResult{Exceptions: []map[string]interface{}{}, BillExceptions: []map[string]interface{}{}}
+	var payments []acquirerRow
 	for _, p := range list {
+		if strings.TrimSpace(strField(p.data, "payment_ref")) != "" {
+			payments = append(payments, p) // 185.2: one customer payment, not a payout
+			continue
+		}
 		reason, lineID := matchOneAcquirerSettlement(tenantID, schema, p.data, actor)
 		patch := map[string]interface{}{"match_status": "Matched", "bank_line": lineID, "exception": ""}
 		if reason != "" {
@@ -71,6 +81,9 @@ func MatchAcquirerSettlements(tenantID, actor string) (*AcquirerMatchResult, err
 			raw, patch["match_status"], p.id); err != nil {
 			return out, err
 		}
+	}
+	if err := matchUPIStatementRows(tenantID, schema, payments, actor, out); err != nil {
+		return out, err
 	}
 	if out.Matched > 0 {
 		LogAuditEvent(tenantID, actor, "FINANCE", "ACQUIRER_SETTLEMENTS_MATCHED", fmt.Sprintf("%d card / UPI payout(s) matched, %d exception(s)", out.Matched, len(out.Exceptions)))
@@ -119,8 +132,16 @@ func StartAcquirerSettlementMatcher(ctx context.Context, interval time.Duration)
 // matchOneAcquirerSettlement finds the bank credit for one row and books it.
 // It returns why it could not, or the matched line.
 func matchOneAcquirerSettlement(tenantID, schema string, d map[string]interface{}, actor string) (string, string) {
+	return matchPayoutToBank(tenantID, schema, strField(d, "mode"), strField(d, "settlement_date"), rowNet(d), numFromInterface(d["fee"]), actor)
+}
+
+// matchPayoutToBank books one payout of net (after fee) against the bank
+// credit of that amount dated a day before to three days after the
+// settlement date. A payout file's row is one payout; a UPI statement's
+// payments are summed into theirs first (185.2).
+func matchPayoutToBank(tenantID, schema, mode, settlementDate string, net, fee float64, actor string) (string, string) {
 	clearing := ""
-	switch strings.ToUpper(strings.TrimSpace(strField(d, "mode"))) {
+	switch strings.ToUpper(strings.TrimSpace(mode)) {
 	case "CARD":
 		clearing = "1101"
 	case "UPI":
@@ -128,14 +149,10 @@ func matchOneAcquirerSettlement(tenantID, schema string, d map[string]interface{
 	default:
 		return "mode must be Card or UPI", ""
 	}
-	net, fee := numFromInterface(d["net"]), numFromInterface(d["fee"])
-	if gross := numFromInterface(d["gross"]); net <= 0 && gross > 0 {
-		net = round2(gross - fee)
-	}
 	if net <= 0 {
 		return "no net amount", ""
 	}
-	day, err := time.Parse("2006-01-02", strings.TrimSpace(strField(d, "settlement_date")))
+	day, err := time.Parse("2006-01-02", strings.TrimSpace(settlementDate))
 	if err != nil {
 		return "settlement date must be YYYY-MM-DD", ""
 	}

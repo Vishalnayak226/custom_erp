@@ -20,6 +20,10 @@ type TenderDef struct {
 	NeedsReference bool   `json:"needs_reference"`
 	OpensDrawer    bool   `json:"opens_drawer"`
 	Order          int    `json:"display_order"`
+	// 185.1: a UPI tender's UPI ID (its own, else the store's) and the name
+	// the customer's app shows; the till draws a pay QR when there is one.
+	UPIID string `json:"upi_id,omitempty"`
+	Payee string `json:"payee,omitempty"`
 }
 
 func storeListed(list, store string) bool {
@@ -58,17 +62,33 @@ func StoreTenders(tenantID, store string) ([]TenderDef, error) {
 		_ = json.Unmarshal(raw, &d)
 		t := TenderDef{Name: strings.TrimSpace(strField(d, "name")), Kind: strField(d, "kind"),
 			NeedsReference: strField(d, "needs_reference") == "Yes", OpensDrawer: strField(d, "opens_drawer") == "Yes",
-			Order: int(numFromInterface(d["display_order"]))}
+			Order: int(numFromInterface(d["display_order"])), UPIID: strings.TrimSpace(strField(d, "upi_id"))}
 		if t.Name == "" || !isPOSMoneyMode(t.Kind) || !storeListed(strField(d, "stores"), store) {
 			continue
 		}
 		out = append(out, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if !any {
 		out = []TenderDef{{Name: "Cash", Kind: "Cash", OpensDrawer: true, Order: 1}, {Name: "Card", Kind: "Card", NeedsReference: true, Order: 2}, {Name: "UPI", Kind: "UPI", NeedsReference: true, Order: 3}}
 	}
+	storeUPI, payee := storeUPIPayee(schema, store)
+	for i := range out {
+		if out[i].Kind != "UPI" {
+			out[i].UPIID = ""
+			continue
+		}
+		if out[i].UPIID == "" {
+			out[i].UPIID = storeUPI
+		}
+		if out[i].UPIID != "" {
+			out[i].Payee = payee
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Order < out[j].Order })
-	return out, rows.Err()
+	return out, nil
 }
 
 // ValidateStoreTender refuses a tender name the store does not take, or one

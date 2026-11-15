@@ -79,7 +79,11 @@ async function gstrDownload(month) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   const r = out.reconciliation || {};
   const notes = (out.warnings || []).map(w => `<li>${escapeHTMLText(w)}</li>`).join('');
-  document.getElementById('gf-g1-note').innerHTML = `<p>${r.matches ? 'Totals agree with the GST return summary.' : 'Totals differ from the GST return summary.'}</p>${notes ? `<ul>${notes}</ul>` : ''}`;
+  // 170.35: what went in, one short line.
+  const c = out.counts || {};
+  const tally = [['Invoices', c.invoices], ['Till bills', c.till_bills], ['Credit notes', (c.credit_notes || 0) + (c.till_returns || 0)], ['Amendments', c.amendments]]
+    .filter(([, n]) => n).map(([l, n]) => `${l} ${n}`).join(' · ');
+  document.getElementById('gf-g1-note').innerHTML = `<p>${r.matches ? 'Totals agree with the GST return summary.' : 'Totals differ from the GST return summary.'}</p>${tally ? `<p>${escapeHTMLText(tally)}</p>` : ''}${notes ? `<ul>${notes}</ul>` : ''}`;
 }
 
 async function gstr2bImport(month) {
@@ -103,8 +107,8 @@ async function gstr2bLoadLines() {
   if (!res.ok) { box.innerHTML = ''; return; }
   const rows = (await res.json()).rows || [];
   if (!rows.length) { box.innerHTML = '<p>No lines for this month.</p>'; return; }
-  box.innerHTML = `<table><thead><tr><th>Status</th><th>Supplier</th><th>Invoice</th><th>Date</th><th>Value</th><th>Tax</th><th>Why</th><th>Decision</th></tr></thead><tbody>${rows.map(r => `<tr>
-      <td>${escapeHTMLText(r.status)}</td><td>${escapeHTMLText(r.supplier_gstin)}</td><td>${escapeHTMLText(r.doc_number)}</td><td>${escapeHTMLText(r.doc_date || '')}</td>
+  box.innerHTML = `<table><thead><tr><th>Status</th><th>Supplier</th><th>Document</th><th>Date</th><th>Value</th><th>Tax</th><th>Why</th><th>Decision</th></tr></thead><tbody>${rows.map(r => `<tr>
+      <td>${escapeHTMLText(r.status)}</td><td>${escapeHTMLText(r.supplier_gstin)}</td><td>${escapeHTMLText((r.doc_type && r.doc_type !== 'Invoice' ? `${r.doc_type} ` : '') + (r.doc_number || ''))}</td><td>${escapeHTMLText(r.doc_date || '')}</td>
       <td>${escapeHTMLText(String(r.total ?? ''))}</td><td>${escapeHTMLText(String(r.tax ?? ''))}</td><td>${escapeHTMLText(r.reason || '')}</td>
       <td>${r.source === '2B' ? `<select class="form-input" data-gf-decide="${escapeHTMLText(r.id)}">${G2B_DECISIONS.map(d => `<option value="${escapeHTMLText(d)}"${d === (r.decision || '') ? ' selected' : ''}>${escapeHTMLText(d || '-')}</option>`).join('')}</select>` : ''}</td></tr>`).join('')}</tbody></table>`;
 }

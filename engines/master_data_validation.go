@@ -478,6 +478,8 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 	// distinct items can each get their own valid barcode. Scoped to family
 	// (not global) so "Blue Cotton Shirt" in Clothing and an unrelated
 	// "Blue Cotton Shirt" cleaning rag in a different family don't collide.
+	// 199.1: a design's combinations all carry its item name, so a duplicate
+	// is the same name in the same family with the same values.
 	family := strField(payload, "family")
 	name := strField(payload, "name")
 	if family == "" || name == "" {
@@ -491,7 +493,8 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
 		WHERE doctype = 'Item' AND deleted_at IS NULL AND data->>'family' = $1 AND LOWER(BTRIM(data->>'name')) = LOWER(BTRIM($2)) AND id != $3 AND status != 'Cancelled'
-		LIMIT 1`, schema), family, name, docID).Scan(&existingID)
+		  AND LOWER(BTRIM(COALESCE(data->>'variant_option_values', ''))) = LOWER(BTRIM($4))
+		LIMIT 1`, schema), family, name, docID, strField(payload, "variant_option_values")).Scan(&existingID)
 	if err == nil {
 		return fmt.Errorf("an item named %q already exists in family %q: %s", name, family, existingID)
 	}

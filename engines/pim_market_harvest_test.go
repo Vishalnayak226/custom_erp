@@ -76,6 +76,15 @@ type harvestRig struct {
 func newHarvestRig(t *testing.T, fake *myntraFake) *harvestRig {
 	t.Helper()
 	tenantID, schema := sodTenant(t)
+	return newHarvestRigOn(t, fake, tenantID, schema)
+}
+
+// newHarvestRigOn is newHarvestRig on a client the test already made. Each rig
+// still has its own fake site and page store; only the database client is
+// shared, for sub-cases that write nothing the next one reads (177.6: each
+// client made costs a few seconds of suite time).
+func newHarvestRigOn(t *testing.T, fake *myntraFake, tenantID, schema string) *harvestRig {
+	t.Helper()
 	ts := httptest.NewServer(fake)
 	t.Cleanup(ts.Close)
 	base, _ := url.Parse(ts.URL)
@@ -230,12 +239,15 @@ func TestMyntraHarvestNeverFetchesADisallowedPath(t *testing.T) {
 }
 
 func TestMyntraHarvestStopsOnABlockAndAtThePageCap(t *testing.T) {
+	// One client for all five runs: a blocked or captcha run keeps nothing, and
+	// the page-cap run, which does keep pages, comes last.
+	tenantID, schema := sodTenant(t)
 	for _, tc := range []struct {
 		status int
 		want   string
 	}{{429, "429"}, {403, "403"}, {302, "redirect"}} {
 		fake := &myntraFake{status: tc.status}
-		rig := newHarvestRig(t, fake)
+		rig := newHarvestRigOn(t, fake, tenantID, schema)
 		// robots.txt itself answers normally in the fake; the page is blocked.
 		res := rig.h.run(context.Background(), rig.tenant, MyntraHarvestRequest{Keywords: []string{"kurta", "saree"}}, 10)
 		if !strings.Contains(res.StopReason, tc.want) {
@@ -254,7 +266,7 @@ func TestMyntraHarvestStopsOnABlockAndAtThePageCap(t *testing.T) {
 
 	// A captcha-looking 200 stops too and is not kept.
 	fake := &myntraFake{pages: map[string][]byte{"/kurta?rawQuery=kurta": []byte(`<html>Please solve this CAPTCHA to continue, we saw unusual traffic from your network</html>`)}}
-	rig := newHarvestRig(t, fake)
+	rig := newHarvestRigOn(t, fake, tenantID, schema)
 	res := rig.h.run(context.Background(), rig.tenant, MyntraHarvestRequest{Keywords: []string{"kurta"}}, 10)
 	if !strings.Contains(res.StopReason, "captcha") || res.Fetched != 0 {
 		t.Fatalf("captcha: %+v", res)
@@ -265,7 +277,7 @@ func TestMyntraHarvestStopsOnABlockAndAtThePageCap(t *testing.T) {
 	for i, key := range []string{"/kurta?rawQuery=kurta", "/kurta?p=2&rawQuery=kurta", "/kurta?p=3&rawQuery=kurta"} {
 		fake.pages[key] = myntraTestPage(myntraTestProduct(100+i, "Kurta "+key, 500, 900))
 	}
-	rig = newHarvestRig(t, fake)
+	rig = newHarvestRigOn(t, fake, tenantID, schema)
 	res = rig.h.run(context.Background(), rig.tenant, MyntraHarvestRequest{Keywords: []string{"kurta"}}, 2)
 	if res.Fetched != 2 {
 		t.Fatalf("cap: %+v", res)

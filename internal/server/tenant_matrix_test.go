@@ -172,3 +172,99 @@ func TestStage4934TwoClientNegativeMatrix(t *testing.T) {
 		t.Fatal("the cashier's import created a Brand record")
 	}
 }
+
+// Stage 49.3.4 - per-field checks. A cashier reads Items and rings up till
+// bills but may not see an item's cost (sensitive_fields.go). The field stays
+// out of every answer the cashier can reach - the record, the field list, a
+// search, an equality filter, the print data and its CSV - while the
+// administrator, as the positive control, gets it from the same print. Two
+// leaks were found and closed: each print line carried its whole item record
+// (cost price included), and ?cost_price=<value> filtered on the hidden field.
+func TestStage4934HiddenFieldsStayOffEveryReadPath(t *testing.T) {
+	db.InitDB(testConnStr())
+	previous := http.DefaultServeMux
+	http.DefaultServeMux = http.NewServeMux()
+	registerRoutes()
+	mux := http.DefaultServeMux
+	t.Cleanup(func() { http.DefaultServeMux = previous })
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
+	clientID, schema := "mxf"+suffix, "tenant_mxf"+suffix
+	t.Cleanup(func() {
+		db.DB.Exec("DROP SCHEMA IF EXISTS " + schema + " CASCADE")
+		db.DB.Exec(`DELETE FROM public.tenants WHERE tenant_id = $1`, clientID)
+		db.DB.Exec(`DELETE FROM public.tenant_lifecycle_events WHERE tenant_id = $1`, clientID)
+		engines.InvalidateTenantLifecycleCache(clientID)
+	})
+	if _, err := engines.ProvisionTenantSchema(clientID, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	seedUser := func(id, role string) string {
+		t.Helper()
+		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.users (id, username, password_hash, role, status, location_code)
+			VALUES ($1, $1, 'x', $2, 'Active', 'HO')`, schema), id, role); err != nil {
+			t.Fatalf("seed user %s: %v", id, err)
+		}
+		return engines.SignToken(id, id, role, clientID, "HO", 1)
+	}
+	admin := seedUser("mxf_admin", engines.RoleAdmin)
+	cashier := seedUser("mxf_cashier", engines.RoleCashier)
+	engines.ResetLiveUserStateCache()
+
+	const cost = "4321.77"
+	sku, cart := "MXF-ITEM-"+suffix, "MXF-CART-"+suffix
+	seed := func(doctype, id, status string, data map[string]interface{}) {
+		t.Helper()
+		b, _ := json.Marshal(data)
+		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, $4, 'mxf_cashier')`, schema), id, doctype, b, status); err != nil {
+			t.Fatalf("seed %s %s: %v", doctype, id, err)
+		}
+	}
+	seed("Item", sku, "Active", map[string]interface{}{"code": sku, "name": "Field matrix ring", "cost_price": 4321.77, "standard_cost": 4321.77, "mrp": 9999, "gst_rate": 3})
+	seed("POSCart", cart, "Paid", map[string]interface{}{"code": cart, "location": "HO", "cashier": "mxf_cashier", "payment_mode": "Cash",
+		"items": []interface{}{map[string]interface{}{"sku": sku, "qty": 1, "sale_price": 9999, "net_total": 9999}}})
+
+	call := func(path, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.RemoteAddr = "198.51.100.77:4934"
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	printPath := "/api/v1/print/document/" + engines.PrintTxnPOSTaxInvoice + "/" + cart
+	if rec := call(printPath, admin); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"cost_price"`) {
+		t.Fatalf("positive control - the administrator's print carries the item's cost: %d %.400s", rec.Code, rec.Body.String())
+	}
+
+	reads := []struct{ name, path string }{
+		{"the record", "/api/v1/doc/Item/" + sku},
+		{"the field list", "/api/v1/doc/Item/meta"},
+		{"the print data", printPath},
+		{"the print as CSV", printPath + "?format=csv"},
+	}
+	for _, p := range reads {
+		rec := call(p.path, cashier)
+		if rec.Code != http.StatusOK {
+			t.Errorf("cashier, %s: %d %.300s - the probe needs a readable answer", p.name, rec.Code, rec.Body.String())
+			continue
+		}
+		if body := rec.Body.String(); strings.Contains(body, cost) || strings.Contains(body, "cost_price") || strings.Contains(body, "standard_cost") {
+			t.Errorf("cashier, %s: the answer carries the item's cost: %.600s", p.name, body)
+		}
+	}
+	// A search on the cost value finds nothing, exactly like a value nobody has.
+	hit, miss := call("/api/v1/doc/Item?count=true&q="+cost, cashier), call("/api/v1/doc/Item?count=true&q=MXNOTHING", cashier)
+	if hit.Header().Get("X-Total-Count") != miss.Header().Get("X-Total-Count") {
+		t.Errorf("cashier searching the cost value: total %q, a value nobody has %q", hit.Header().Get("X-Total-Count"), miss.Header().Get("X-Total-Count"))
+	}
+	// A filter on a hidden declared field (standard_cost; cost_price is not declared, so 49.4.6 already refuses it) answers like a field the doctype lacks.
+	filtered, unknown := call("/api/v1/doc/Item?count=true&standard_cost="+cost, cashier), call("/api/v1/doc/Item?count=true&no_such_field=1", cashier)
+	if filtered.Code != http.StatusUnprocessableEntity || unknown.Code != http.StatusUnprocessableEntity {
+		t.Errorf("cashier filtering on standard_cost: %d (a field the doctype lacks: %d), want 422 for both - %.300s", filtered.Code, unknown.Code, filtered.Body.String())
+	}
+	// The administrator may still filter on it.
+	if rec := call("/api/v1/doc/Item?count=true&standard_cost="+cost, admin); rec.Code != http.StatusOK || rec.Header().Get("X-Total-Count") != "1" {
+		t.Errorf("administrator filtering on standard_cost: %d total %q, want 200 and 1", rec.Code, rec.Header().Get("X-Total-Count"))
+	}
+}

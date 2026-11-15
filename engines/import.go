@@ -149,10 +149,15 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 		return nil, err
 	}
 
+	// 185.2: a provider statement's own columns, mapped onto the doctype's.
+	records, columnWarnings := normalizeImportColumns(doctype, records)
 	headers := records[0]
 	// Clean headers
 	for i, h := range headers {
 		headers[i] = strings.TrimSpace(strings.ToLower(h))
+	}
+	if len(records) < 2 {
+		return nil, &ValidationError{Code: "DATAIM-0163", Message: "CSV is empty or missing data rows"}
 	}
 
 	// DATAIM-0164 (Stage 25.5): "Excel mandatory column missing" - checked
@@ -179,6 +184,7 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 	res, err := runDocDataImportContext(ctx, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
 	if err == nil && res != nil {
 		res.Warnings = append(res.Warnings, loadWarnings...)
+		res.Warnings = append(res.Warnings, columnWarnings...)
 	}
 	if err == nil {
 		attachFailedSourceRows(res, headers, records[1:], doctype, "")
@@ -379,6 +385,16 @@ func runDocDataImportOn(ctx context.Context, shared *sql.Tx, tenantID, doctype, 
 		for _, id := range append(append([]string{}, result.CreatedIDs...), result.UpdatedIDs...) {
 			if _, err := EnsureLocationCostCenter(tenantID, id, userID); err != nil {
 				result.Errors = append(result.Errors, RowValidationError{Message: fmt.Sprintf("location %s was imported, but its cost center could not be made: %v", id, err)})
+			}
+		}
+	}
+	// Ask 176.3: an imported card statement line is checked and matched to
+	// its expense claim the same way a line saved on screen is - one at a
+	// time, in file order, so two lines never take the same claim.
+	if !dryRun && doctype == CardStatementLineDoctype {
+		for _, id := range append(append([]string{}, result.CreatedIDs...), result.UpdatedIDs...) {
+			if err := MatchCardStatementLine(tenantID, id); err != nil {
+				result.Errors = append(result.Errors, RowValidationError{Message: fmt.Sprintf("card line %s was imported, but not matched: %v", id, err)})
 			}
 		}
 	}
@@ -922,6 +938,12 @@ func importBatch(shared *sql.Tx, tenantID, schema, doctype, userID, role string,
 
 		StampStewardshipSource(doctype, docData, "Import", userID) // 47.13.4
 
+		if doctype == "TransferOrder" { // 193.3: an import creates transfers only at the user's stores
+			if err := CheckTransferStoreAccess(tenantID, userID, "create", strField(docData, "from_warehouse"), strField(docData, "to_warehouse")); err != nil {
+				recordImportError(result, rowNumber, err.Error())
+				continue
+			}
+		}
 		// Perform field structure validation
 		valErr := validateDocumentWith(tenantID, doctype, docData, lk.validation)
 		if valErr != nil {

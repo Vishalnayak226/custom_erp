@@ -135,6 +135,7 @@ export async function renderSecurityPane(target) {
         <label class="s-5e0faa">From <input type="date" class="form-input" data-sec="from"></label>
         <label class="s-5e0faa">To <input type="date" class="form-input" data-sec="to"></label>
         <button class="btn btn-outline" data-sec="pack">Download</button>
+        <button class="btn btn-outline" data-sec="seal">Seal old rows</button>
       </div>
     </div>
 
@@ -220,13 +221,24 @@ export async function renderSecurityPane(target) {
     URL.revokeObjectURL(url);
   });
 
+  // 47.7.4: one boundary seal over audit rows written before signing existed.
+  $('seal').addEventListener('click', async () => {
+    if (!await showCustomConfirm('Seal every audit row written so far? Older rows get no signature; a later change to them will show.', 'Seal old rows')) return;
+    const res = await apiFetch('/api/v1/admin/audit-logs/seal-legacy', { method: 'POST' });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Could not seal the older rows.'); return; }
+    const out = await res.json();
+    showToast(out.sealed ? `Sealed ${out.checkpoint.row_count} rows.` : 'Nothing to seal.');
+    renderSecurityPane(target);
+  });
+
   $('signout').addEventListener('click', async () => {
     const id = $('user').value;
     if (!id) { showToast('Choose a user first.'); return; }
     await runControl('/api/v1/admin/security/sign-out-user', { id }, 'Sign out everywhere');
   });
   $('signout-all').addEventListener('click', async () => {
-    if (!await showCustomConfirm('Sign out every user of this business except you?', 'Sign out everyone')) return;
+    if (!await showCustomConfirm('Sign out every user except you?', 'Sign out everyone', { typed: businessName() })) return;
     await runControl('/api/v1/admin/security/sign-out-all', {}, 'Sign out everyone');
   });
   target.querySelectorAll('[data-sec-end]').forEach(btn => btn.addEventListener('click', async () => {
@@ -234,15 +246,17 @@ export async function renderSecurityPane(target) {
   }));
   $('freeze-int').addEventListener('click', async () => {
     const on = !p.integrations_frozen;
+    if (on && !await showCustomConfirm('Stop every integration?', 'Freeze integrations', { typed: businessName() })) return;
     if (await runControl('/api/v1/admin/security/freeze-integrations', { on }, on ? 'Freeze integrations' : 'Unfreeze integrations')) renderSecurityPane(target);
   });
   $('read-only').addEventListener('click', async () => {
     const on = !p.read_only; // 49.12.3
-    if (on && !await showCustomConfirm('Refuse every change until you end it?', 'Read-only')) return;
+    if (on && !await showCustomConfirm('Refuse every change until you end it?', 'Read-only', { typed: businessName() })) return;
     if (await runControl('/api/v1/admin/security/read-only', { on }, on ? 'Read-only' : 'End read-only')) renderSecurityPane(target);
   });
   $('freeze').addEventListener('click', async () => {
     const on = !p.exports_frozen;
+    if (on && !await showCustomConfirm('Stop every export?', 'Freeze exports', { typed: businessName() })) return;
     if (await runControl('/api/v1/admin/security/freeze-exports', { on }, on ? 'Freeze exports' : 'Unfreeze exports')) renderSecurityPane(target);
   });
   import('./view-security-notify.js' + new URL(import.meta.url).search).then(m => m.renderSecurityExtras(target)).catch(e => console.error(e));

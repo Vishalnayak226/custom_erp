@@ -312,3 +312,107 @@ func ListMasterMerges(tenantID string) ([]MasterMergeRecord, error) {
 	}
 	return out, rows.Err()
 }
+
+// MasterMergeDoctype is a supplier / item merge request (47.13.5, ask 179):
+// with an approval rule for it (migrations_stage47_13_5b_master_merge_approval
+// adds HR/Admin where none exists) a merge waits in Approvals and is carried
+// out when approved, like CustomerMerge; with none it is done at once.
+const MasterMergeDoctype = "MasterMerge"
+
+// MasterMergeRequest says where a merge request went: Pending Approval, or
+// Merged with what the merge did.
+type MasterMergeRequest struct {
+	ID     string             `json:"id"`
+	Status string             `json:"status"`
+	Merge  *MasterMergeResult `json:"merge,omitempty"`
+}
+
+// RequestMasterMerge records a MasterMerge and routes it. The pair is checked
+// now, so a request that could never be carried out is refused at once, and
+// again when it is carried out, since stock or status may change in between.
+func RequestMasterMerge(tenantID, master, keepID, mergeID, reason, actor, role string) (*MasterMergeRequest, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	keepID, mergeID = strings.TrimSpace(keepID), strings.TrimSpace(mergeID)
+	if _, err := checkMergePair(db.DB, schema, master, keepID, mergeID); err != nil {
+		return nil, err
+	}
+	var open string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = $1 AND status IN ('Draft', 'Pending Approval') AND deleted_at IS NULL
+		AND data->>'master_doctype' = $2 AND (data->>'merge_id' IN ($3, $4) OR data->>'keep_id' = $4) LIMIT 1`, schema),
+		MasterMergeDoctype, master, keepID, mergeID).Scan(&open)
+	if err == nil {
+		return nil, mergeErr("a merge of %s is already waiting for approval (%s)", mergeID, open)
+	}
+	if err != sql.ErrNoRows {
+		return nil, err
+	}
+	id := NewDocID("MMR")
+	data, _ := json.Marshal(map[string]interface{}{"code": id, "master_doctype": master, "keep_id": keepID, "merge_id": mergeID,
+		"reason": strings.TrimSpace(reason), "status": "Draft", "title": fmt.Sprintf("Merge %s %s into %s", mergeableMasters[master], mergeID, keepID)})
+	if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, 'Draft', $4)`, schema),
+		id, MasterMergeDoctype, data, actor); err != nil {
+		return nil, err
+	}
+	approver, err := RequiredApproverRoleForAmount(tenantID, MasterMergeDoctype, 0)
+	if err == nil && approver != "" {
+		err = SubmitForApproval(tenantID, MasterMergeDoctype, id, actor, role)
+		if err == nil {
+			return &MasterMergeRequest{ID: id, Status: "Pending Approval"}, nil
+		}
+	}
+	if err != nil {
+		// never leave a request nobody can act on
+		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2`, schema), id, MasterMergeDoctype)
+		return nil, err
+	}
+	res, err := executeMasterMerge(tenantID, id, actor)
+	if err != nil {
+		return nil, err
+	}
+	return &MasterMergeRequest{ID: id, Status: "Merged", Merge: res}, nil
+}
+
+func init() {
+	RegisterApprovalDecisionHook(MasterMergeDoctype, false, func(tenantID, docID, decision, actor string) {
+		if decision != "Approved" {
+			return
+		}
+		if _, err := executeMasterMerge(tenantID, docID, actor); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "master_merge", fmt.Sprintf("approved merge %s failed: %v", docID, err), "")
+		}
+	})
+}
+
+// executeMasterMerge carries out an approved (or rule-free) MasterMerge once.
+// A merge that can no longer be done (the item took stock since, the
+// duplicate was merged by another request) leaves the request Approved with
+// the reason in merge_error.
+func executeMasterMerge(tenantID, docID, actor string) (*MasterMergeResult, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var raw []byte
+	var status string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE id = $1 AND doctype = $2`, schema), docID, MasterMergeDoctype).Scan(&raw, &status); err != nil {
+		return nil, err
+	}
+	if status == "Merged" {
+		return nil, nil
+	}
+	var d map[string]interface{}
+	_ = json.Unmarshal(raw, &d)
+	res, err := MergeMasters(tenantID, strField(d, "master_doctype"), strField(d, "keep_id"), strField(d, "merge_id"), strField(d, "reason"), actor)
+	if err != nil {
+		note, _ := json.Marshal(map[string]string{"merge_error": err.Error()})
+		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $2::jsonb, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, schema), docID, string(note))
+		return nil, err
+	}
+	done, _ := json.Marshal(map[string]string{"status": "Merged", "merge_record": res.ID, "merge_error": ""})
+	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Merged', data = data || $2::jsonb, updated_at = CURRENT_TIMESTAMP, updated_by = $3 WHERE id = $1`, schema),
+		docID, string(done), actor)
+	return res, err
+}

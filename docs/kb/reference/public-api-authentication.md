@@ -4,8 +4,9 @@ section: Reference
 order: 40
 summary: How an integration gets a key, what a key may do, and what every response tells you about your budget.
 audience: integrator
+screens: [api-access]
 public: true
-last_verified: 2026-08-12
+last_verified: 2026-11-14
 doc_id: DOC-B0B4E9D9C8
 type: procedure
 status: draft
@@ -14,7 +15,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-12
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -33,7 +34,8 @@ promise.
 
 ## Getting a key
 
-A Super Admin issues one from the administration surface. The plaintext key is
+An Admin issues one under **Settings → API access**
+(**Issue**). The plaintext key is
 shown **once**, at creation, and only a one-way digest is stored - if it is
 lost, rotate the credential rather than trying to recover it.
 
@@ -46,8 +48,9 @@ and a key never inherits a person's role.
 | `inventory:read` | Available-to-sell reads |
 | `orders:read` | Order status and tracking |
 | `orders:write` | Order creation and mutation, once such endpoints exist |
-| `pim:read` | Product content, groups and readiness |
-| `pim:write` | Explicit PIM mutations |
+| `notifications:write` | Report a notification's delivery status back |
+| `pim:read` | Product content, groups and readiness, once such endpoints exist |
+| `pim:write` | Explicit PIM mutations, once such endpoints exist |
 | `webhooks:manage` | Webhook subscription lifecycle, once it exists |
 
 ## Every request
@@ -57,6 +60,9 @@ GET /api/public/v1/items?limit=50 HTTP/1.1
 Authorization: Bearer erp_v1_<prefix>_<secret>
 X-Tenant-ID: your-tenant
 ```
+
+An OAuth client gets its bearer token from `POST /api/public/v1/oauth/token`
+(form-encoded, `grant_type=client_credentials`) and sends it the same way.
 
 Both headers are required. A mutating request also requires `Idempotency-Key` -
 see [Retrying safely](public-api-idempotency.md).

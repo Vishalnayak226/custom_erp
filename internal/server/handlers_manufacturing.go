@@ -12,11 +12,18 @@ import (
 // Complete handlers, to avoid colliding with any concurrent session's
 // in-flight edits to that shared file - same precedent Stage 26.5 set with
 // handlers_wms_enterprise.go.
+//
+// Every handler here checks the role itself (193): postings need update on
+// ProductionOrder or SubcontractOrder, lookups need read on ProductionOrder.
+// moduleGate only says the client has manufacturing, not who may post.
 
 func handlePartialCompleteProductionOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
 		return
 	}
 	var req struct {
@@ -43,6 +50,9 @@ func handlePostProductionScrap(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
+		return
+	}
 	var req struct {
 		OrderID string  `json:"order_id"`
 		Sku     string  `json:"sku"`
@@ -67,6 +77,9 @@ func handleSendProductionToRework(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
+		return
+	}
 	var req struct {
 		OrderID string  `json:"order_id"`
 		Qty     float64 `json:"qty"`
@@ -88,6 +101,9 @@ func handleConfirmProductionOperation(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
 		return
 	}
 	var req struct {
@@ -149,6 +165,9 @@ func handleRecordActualProductionCost(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	if !requireDocPermission(w, r, "ProductionOrder", "update", "You do not have permission to update production orders") {
+		return
+	}
 	var req struct {
 		OrderID    string  `json:"order_id"`
 		ActualCost float64 `json:"actual_cost"`
@@ -170,6 +189,9 @@ func handleMRPSuggestions(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !requireDocPermission(w, r, "ProductionOrder", "read", "You do not have permission to view production orders") {
 		return
 	}
 	location := r.URL.Query().Get("location")
@@ -197,6 +219,9 @@ func handleGetProductionSchedule(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !requireDocPermission(w, r, "ProductionOrder", "read", "You do not have permission to view production orders") {
 		return
 	}
 	schedule, err := engines.GetProductionSchedule(tenantID)
@@ -289,6 +314,9 @@ func handleReceiveSubcontractOrder(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	if !requireDocPermission(w, r, "SubcontractOrder", "update", "You do not have permission to receive job work") {
+		return
+	}
 	var req struct {
 		ID  string  `json:"id"`
 		Qty float64 `json:"qty"`
@@ -314,6 +342,9 @@ func handleActiveBOMForItem(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	if !requireDocPermission(w, r, "ProductionOrder", "read", "You do not have permission to view production orders") {
+		return
+	}
 	item := r.URL.Query().Get("item")
 	if item == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query param 'item' is required")
@@ -333,6 +364,9 @@ func handleListProductionConfirmations(w http.ResponseWriter, r *http.Request) {
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
+		return
+	}
+	if !requireDocPermission(w, r, "ProductionOrder", "read", "You do not have permission to view production orders") {
 		return
 	}
 	rows, err := engines.ListProductionConfirmations(tenantID, orderID)

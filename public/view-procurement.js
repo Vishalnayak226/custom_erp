@@ -572,7 +572,7 @@ async function renderPOUploadPage(screen) {
 // Any status, until goods are received against it - the server refuses that
 // with PURCHA-0320 and names the receipt.
 window.deletePurchaseOrder = async function(poId, poNumber) {
-  if (!await showCustomConfirm(`Delete purchase order ${poNumber}? This cannot be undone from this screen.`, 'Delete Purchase Order')) return;
+  if (!await showCustomConfirm(`Delete purchase order ${poNumber}? This cannot be undone from this screen.`, 'Delete Purchase Order', { typed: poNumber })) return;
   const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`, { method: 'DELETE' });
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to delete the purchase order.', 'Delete Purchase Order'); return; }
@@ -2129,11 +2129,11 @@ async function createPODesign() {
     const existing = poDesignExistingFor(d, c.values);
     let sku = existing ? existing.sku : '';
     if (!sku) {
-      const valuesText = Object.keys(c.values).sort().map(k => c.values[k]).join(' ');
+      // 199.1: named by its item name; the values are its attributes.
       const iRes = await apiFetch('/api/v1/doc/Item', {
         method: 'POST',
         body: JSON.stringify({
-          name: valuesText ? `${designName} ${valuesText}` : designName,
+          name: inm.name || designName,
           family: designCode, parent_product_code: designCode,
           variant_option_values: c.key || undefined,
           category: inm.category || undefined,
@@ -2709,7 +2709,7 @@ async function mergeCustomerRow(duplicateId) {
     await showCustomAlert('Enter a different, valid customer id to merge into.', 'Invalid Customer ID');
     return;
   }
-  const confirmed = await showCustomConfirm(`This cannot be undone. Merge "${duplicateId}" into "${primaryId.trim()}"?`, 'Confirm Merge');
+  const confirmed = await showCustomConfirm(`Merge "${duplicateId}" into "${primaryId.trim()}"? This cannot be undone.`, 'Confirm Merge', { typed: duplicateId });
   if (!confirmed) return;
   const res = await apiFetch('/api/v1/crm/customer/merge', {
     method: 'POST',

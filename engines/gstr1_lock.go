@@ -138,7 +138,18 @@ func MarkGSTR1Filed(tenantID, userID, month string) error {
 	if err != nil {
 		return err
 	}
-	res, err := db.DB.Exec(fmt.Sprintf(`
+	// 170.35: what the month's return reported, kept so a later change is
+	// reported as an amendment.
+	snap, err := takeGSTR1Snapshot(tenantID, month)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.gstr1_filed_months (month_start, filed_by) VALUES (($1 || '-01')::date, $2)
 		ON CONFLICT (month_start) DO UPDATE SET filed_by = EXCLUDED.filed_by, filed_at = CURRENT_TIMESTAMP,
 			unmarked_by = NULL, unmarked_at = NULL, unmark_reason = NULL
@@ -148,6 +159,12 @@ func MarkGSTR1Filed(tenantID, userID, month string) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return &ValidationError{Code: gstr1MarkCode, Message: "that month is already marked"}
+	}
+	if err := snap.save(tx, schema, month); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "GSTR1_MARKED_FILED", "SUCCESS", "GSTR-1 for "+month+" marked filed")
 	return nil

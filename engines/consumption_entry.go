@@ -182,9 +182,13 @@ func PostConsumptionEntry(tenantID, userName string, req ConsumptionEntryRequest
 			line["counted_qty"] = p.counted
 		}
 		if p.used > 0 {
-			stock = append(stock, map[string]interface{}{"sku": p.sku, "qty": -p.used})
+			out := map[string]interface{}{"sku": p.sku, "qty": -p.used}
+			stock = append(stock, out)
 			if p.policy.Valuated() {
 				unit, _ := ResolveQuoteUnitCostPaise(tenantID, p.sku)
+				if unit > 0 {
+					out[ledgerKeyValuationRate] = PaiseToRupees(unit) // 49.5.5b.8: what the expense was booked at
+				}
 				cost := unit * int64(p.used)
 				byAccount[p.policy.ExpenseAccount] += cost
 				costTotal += cost

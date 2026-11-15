@@ -42,23 +42,39 @@ function showCustomAlert(message, title = 'Notification') {
   });
 }
 
-function showCustomConfirm(message, title = 'Confirm Action') {
+// 49.14.2: opts.typed is the human name the person must type before OK turns
+// on (the business, a role name, a record code - never a UUID). A browser
+// guard on top of, never instead of, the server's own checks.
+function showCustomConfirm(message, title = 'Confirm Action', opts = {}) {
   return new Promise((resolve) => {
     const backdrop = document.getElementById('custom-dialog-container');
     const titleEl = document.getElementById('custom-dialog-title');
     const msgEl = document.getElementById('custom-dialog-message');
+    const extraEl = document.getElementById('custom-dialog-extra');
     const okBtn = document.getElementById('custom-dialog-ok-btn');
     const cancelBtn = document.getElementById('custom-dialog-cancel-btn');
     const closeBtn = document.getElementById('custom-dialog-close-btn');
 
     titleEl.textContent = title;
     msgEl.textContent = message;
-    
+
     cancelBtn.style.display = '';
+    const phrase = String((opts && opts.typed) || '').trim();
+    if (phrase) {
+      extraEl.innerHTML = '<input type="text" id="custom-dialog-typed-input" class="form-input s-d25a61" autocomplete="off" spellcheck="false">';
+      extraEl.classList.remove('hidden');
+      const typedEl = document.getElementById('custom-dialog-typed-input');
+      typedEl.placeholder = phrase;
+      typedEl.setAttribute('aria-label', 'Type ' + phrase + ' to confirm');
+      okBtn.disabled = true;
+      typedEl.addEventListener('input', () => { okBtn.disabled = typedEl.value.trim().toLowerCase() !== phrase.toLowerCase(); });
+      setTimeout(() => typedEl.focus(), 0);
+    }
     backdrop.classList.remove('hidden');
 
     const cleanUp = () => {
       backdrop.classList.add('hidden');
+      if (phrase) { extraEl.innerHTML = ''; extraEl.classList.add('hidden'); okBtn.disabled = false; }
       okBtn.replaceWith(okBtn.cloneNode(true));
       cancelBtn.replaceWith(cancelBtn.cloneNode(true));
       closeBtn.replaceWith(closeBtn.cloneNode(true));
@@ -79,6 +95,13 @@ function showCustomConfirm(message, title = 'Confirm Action') {
       resolve(false);
     });
   });
+}
+
+// 49.14.2: the name an admin types to confirm a whole-business action: the
+// company name, or the client id when none is set. Same fallback as the header.
+function businessName() {
+  const c = state && state.profile && String(state.profile.company_name || '').trim();
+  return c || localStorage.getItem('erp_tenant_id') || 'default';
 }
 
 // inputType (32.5) lets a caller ask for a password without a second dialog
@@ -333,6 +356,52 @@ function renderErrorPanel(container, message, retryFn, status) {
   });
 }
 
+// 50.13 (BLD-036 gap 3): a section that reloads in place keeps what it shows,
+// dimmed and aria-busy, until the new content replaces it - no blank-then-fill
+// flash. Only an empty section (or one showing an error) gets the placeholder.
+// Returns the function that ends the busy state; call it however the load ends.
+function holdSectionWhileLoading(el, placeholderHTML) {
+  if (el.childElementCount && !el.querySelector('.state-error')) el.setAttribute('aria-busy', 'true');
+  else el.innerHTML = placeholderHTML;
+  return () => el.removeAttribute('aria-busy');
+}
+
+// 49.4.3: a style built at run time goes through the CSSOM (el.style, a
+// constructed stylesheet), which a strict style-src without 'unsafe-inline'
+// allows, never through markup (an inline style attribute or a <style>
+// element), which it refuses. Markup carries data-css="..." instead; one
+// observer applies it as the nodes arrive. Code that measures or prints in
+// the same task calls applyDataCss(root) itself, because the observer runs
+// after the task. Run-time stylesheets go through adoptCss(id, css).
+function applyDataCss(root) {
+  if (!root || root.nodeType !== 1) return root;
+  const apply = el => { el.style.cssText += ';' + el.getAttribute('data-css'); el.removeAttribute('data-css'); };
+  if (root.hasAttribute('data-css')) apply(root);
+  root.querySelectorAll('[data-css]').forEach(apply);
+  return root;
+}
+new MutationObserver(records => {
+  for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1) applyDataCss(n);
+}).observe(document.documentElement, { childList: true, subtree: true });
+// One constructed sheet per id, replaced on every call; '' or null removes it.
+// doc lets a print window adopt its own sheet. theme-boot.js tags its brand
+// sheet the same way (erpId), so this finds and replaces it.
+function adoptCss(id, css, doc = document) {
+  const sheets = [...doc.adoptedStyleSheets];
+  let sheet = sheets.find(s => s.erpId === id);
+  if (!css) {
+    if (sheet) doc.adoptedStyleSheets = sheets.filter(s => s !== sheet);
+    return null;
+  }
+  if (!sheet) {
+    sheet = new doc.defaultView.CSSStyleSheet();
+    sheet.erpId = id;
+    doc.adoptedStyleSheets = [...sheets, sheet];
+  }
+  sheet.replaceSync(css);
+  return sheet;
+}
+
 // BLD-041: screen code is native ES modules fetched only when a permitted
 // route is opened. Keep the shell classic so legacy screens and extensions
 // retain their existing global bindings; each module explicitly exports its
@@ -355,7 +424,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '79';
+const VIEW_MODULE_VERSION = '80';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -442,6 +511,8 @@ const LAZY_VIEW_MODULES = {
   'approval-rules': ['view-admin.js', 'renderApprovalRulesView', 'Approval Rules'],
   'dynamic-labels': ['view-admin.js', 'renderDynamicLabelsView', 'Dynamic Labels'],
   'extension-hooks': ['view-admin.js', 'renderExtensionHooksView', 'Extension Hooks'],
+  'api-access': ['view-admin.js', 'renderAPIAccessView', 'API access'], // 55.21 (ask 191)
+  subscription: ['view-subscription.js', 'renderSubscriptionView', 'Subscription'], // 50.12 (ask 193)
   'extension-hook-log': ['view-admin.js', 'renderExtensionHookLogView', 'Extension Hook Log'],
   'audit-logs': ['view-admin.js', 'renderLogHubView', 'Integration Logs'],
   'privacy-approvals': ['view-security-notify.js', 'renderPrivacyApprovalsView', 'Privacy approvals'], // 49.12.5
@@ -697,6 +768,9 @@ let state = {
   // own list into docData (GRN, Transfer Order) never set this - harmless,
   // since only renderDocTable's own pagination footer reads it.
   docTotal: 0,
+  // Stage 47.10: true when docTotal is the server's estimate (over 10k
+  // matches, X-Total-Count-Estimated) - the pager then says "about".
+  docTotalEstimated: false,
   prefixConfigs: [],
   approvalRules: [],
   labels: {},
@@ -942,6 +1016,7 @@ function paintLastShell() {
     document.getElementById(s.act)?.classList.add('active');
     if (s.view && s.hash === location.hash) {
       root.classList.add('view-steady'); root.innerHTML = s.view; root.setAttribute('aria-busy', 'true'); bootSnap = true;
+      root.querySelectorAll('[data-snap-style]').forEach(el => { el.style.cssText = el.dataset.snapStyle; el.removeAttribute('data-snap-style'); });
       // shown once its stylesheet is in
       const link = parseDeepLink(), css = link?.kind === 'view' && LAZY_VIEW_MODULES[link.view.split(':')[0]]?.[3];
       if (css) { root.style.visibility = 'hidden'; loadViewStyles(css).then(() => { root.style.visibility = ''; }); }
@@ -1023,8 +1098,20 @@ async function showRateLimitToast(response) {
   showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
 }
 
+// 193: a list the role may not read gets the server's own refusal (GLOBAL-0011)
+// here, so a screen's side lookup (channels on PIM Dashboard) leaves no 403 in the log.
+function refusedListRead(url) {
+  const p = state.permissions;
+  if (!p || !p.loaded || p.isAdmin) return null;
+  const m = /^\/api\/v1\/doc\/([A-Za-z0-9_]+)(?:\?|$)/.exec(url);
+  if (!m || m[1] === 'UserShortcut' || p.doctypes.has(m[1])) return null;
+  return new Response(JSON.stringify({ error: 'You do not have permission to perform this action. Please contact your administrator.', code: 'GLOBAL-0011', user_action: 'Contact admin for access.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+}
+
 async function apiFetch(url, options = {}) {
   if ((options.method && options.method !== 'GET') || options.body || options.signal) return apiFetchOnce(url, options);
+  const refused = refusedListRead(url);
+  if (refused) return refused;
   const key = url + '|' + JSON.stringify(options.headers || {});
   let pending = inflightGets.get(key);
   if (!pending) {
@@ -1211,7 +1298,7 @@ function autoNumberField(label, seriesKey, width = '180px') {
   return `
     <div class="form-group s-50435f">
       <label class="form-label">${label}</label>
-      <input type="text" class="form-input" style="width: ${width};" readonly tabindex="-1"
+      <input type="text" class="form-input" data-css="width: ${width};" readonly tabindex="-1"
              placeholder="Auto (${seriesKey} series)"
              title="Issued automatically from the ${seriesKey} series when you save. Administrators set the format under Prefix Configurations.">
     </div>
@@ -1235,7 +1322,7 @@ function employeePickerField(id, width = '200px') {
   return `
       <div class="form-group s-50435f">
         <label class="form-label" for="${id}">Employee</label>
-        <input type="text" id="${id}" class="form-input" style="width: ${width};"
+        <input type="text" id="${id}" class="form-input" data-css="width: ${width};"
                placeholder="Search, or click to browse" autocomplete="off">
       </div>`;
 }
@@ -1844,6 +1931,9 @@ function installNameDisplay(inputEl, doctype) {
 // List half: names swapped in for data-link-ref cells and whole-cell master
 // series codes "<RecordType>/..." (document numbers are not record types).
 const linkNameMapCache = new Map();
+// 200.2: the last map fetched per type, kept past the 60 s refresh, so a table
+// drawn again (a search keystroke, a second visit) gets its names before it paints.
+const linkNameReady = new Map();
 function linkNameMap(doctype) {
   if (!linkNameMapCache.has(doctype)) {
     linkNameMapCache.set(doctype, (async () => {
@@ -1857,6 +1947,7 @@ function linkNameMap(doctype) {
         });
         // All records fitted: a value not in the map is not a code (60.5).
         map.complete = rows.length < 1000;
+        linkNameReady.set(doctype, map);
       }
       return map;
     })().catch(() => new Map()));
@@ -1894,21 +1985,25 @@ function columnLinkCells(root) {
   return out;
 }
 
-async function sweepLinkNames(root) {
-  if (!root) return;
+// now: only the types already fetched, run as the table is drawn (200.2).
+async function sweepLinkNames(root, now) {
+  if (!root || now && (!linkNameReady.size || !root.querySelector('td:not([data-link-swept]), [data-link-ref]:not([data-link-swept])'))) return;
+  const later = d => now && d && !linkNameReady.has(d);
   const targets = [];
   root.querySelectorAll('[data-link-ref]:not([data-link-swept])').forEach(el => {
+    if (later(el.dataset.linkDoctype)) return;
     el.dataset.linkSwept = '1';
     const host = el.querySelector(':scope > .copyable-cell > span:first-child') || el;
     targets.push({ el: host, doctype: el.dataset.linkDoctype, ref: el.dataset.linkRef });
   });
   const columnTypes = columnLinkCells(root);
   root.querySelectorAll('td:not([data-link-swept])').forEach(td => {
-    td.dataset.linkSwept = '1';
     const host = td.children.length === 0 ? td : td.querySelector(':scope > .copyable-cell > span:first-child');
-    if (!host || host.children.length) return;
-    const text = host.textContent.trim();
+    const text = host && !host.children.length && host.textContent.trim();
     const doctype = text && (seriesDoctypeOf(text) || columnTypes.get(td));
+    if (later(doctype) || now && !text) return; // a cell still being filled waits for the full pass
+    td.dataset.linkSwept = '1';
+    if (!text) return;
     // A master's own list keeps its Code column: there the code is the
     // record's identity, shown beside its name, not a reference to decode.
     if (doctype && !(currentView === 'doctype-table' && currentDoctype === doctype)) targets.push({ el: host, doctype, ref: text });
@@ -1917,7 +2012,7 @@ async function sweepLinkNames(root) {
   const byDoctype = {};
   targets.forEach(t => { if (t.doctype && t.ref) (byDoctype[t.doctype] = byDoctype[t.doctype] || []).push(t); });
   for (const [doctype, list] of Object.entries(byDoctype)) {
-    const map = await linkNameMap(doctype);
+    const map = now ? (linkNameMap(doctype), linkNameReady.get(doctype)) : await linkNameMap(doctype);
     for (const t of list) {
       let name = map.get(t.ref);
       // Past the first 1000 records of a type, fall back to a single lookup -
@@ -1938,11 +2033,15 @@ function startLinkNameSweep() {
   if (!root || linkNameObserver) return;
   let timer = null;
   linkNameObserver = new MutationObserver(() => {
+    sweepLinkNames(root, true);
     clearTimeout(timer);
     timer = setTimeout(() => sweepLinkNames(root), 120);
   });
   linkNameObserver.observe(root, { childList: true, subtree: true });
   sweepLinkNames(root);
+  // 200.2: store and vendor names fetched while the first screen sits idle, so the
+  // first list with those columns draws with its names, not a moment later.
+  setTimeout(() => ['Location', 'Vendor'].forEach(d => canReadDoctype(d) && linkNameMap(d)), 1500);
 }
 
 // localISODate is a Date's LOCAL day as YYYY-MM-DD. toISOString() converts
@@ -2019,6 +2118,10 @@ async function quickCreateIntoInput(inputEl, doctype, seedText) {
 // defaultSelectValue (Stage 57.4): a new record's Status starts on Active.
 function defaultSelectValue(field, options) {
   if (field && String(field.fieldname).toLowerCase() === 'status' && options.includes('Active')) return 'Active';
+  // 55.11 (ask 179): a record that goes through approval starts Draft, Master
+  // or not - StewardshipChange, PriceListVersion and MediaRuleException opened
+  // with a blank required Status and the browser blocked Save.
+  if (field && String(field.fieldname).toLowerCase() === 'status' && options.includes('Draft')) return 'Draft';
   return '';
 }
 
@@ -2494,12 +2597,13 @@ function isDerivedCompanionField(name) {
 }
 
 // fieldSemantic mirrors the server's FieldSemantic: whole identifier first,
-// then its "-"/"_" separated words.
+// then its "-"/"_" separated words (188.1: camelCase words too).
 function fieldSemantic(name) {
-  const n = String(name || '').toLowerCase().trim();
+  const raw = String(name || '').trim();
+  const n = raw.toLowerCase();
   if (!n) return '';
   if (FIELD_SEMANTICS[n]) return FIELD_SEMANTICS[n];
-  for (const w of n.split(/[-_.]/)) {
+  for (const w of raw.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[-_.]/)) {
     if (FIELD_SEMANTICS[w]) return FIELD_SEMANTICS[w];
   }
   return '';
@@ -2536,7 +2640,7 @@ function isScanField(name) {
 function detectFieldFormat(name) {
   const n = String(name || '').toLowerCase().trim();
   if (!n || isDerivedCompanionField(n)) return null;
-  const semantic = fieldSemantic(n);
+  const semantic = fieldSemantic(name); // 188.1: raw name keeps camelCase words
   if (semantic && semantic !== 'phone') return null;
   for (const spec of FIELD_FORMATS) {
     for (const tok of (spec.tokens || [])) {
@@ -3134,7 +3238,7 @@ function isPhoneFieldName(name) {
   if (!n || isDerivedCompanionField(n)) return false;
   // The country-specific decorator must honor the same semantics as the
   // format matcher; "mobile-pick-wave-id" is a wave, not a phone number.
-  const semantic = fieldSemantic(n);
+  const semantic = fieldSemantic(name); // 188.1: raw name keeps camelCase words
   if (semantic) return semantic === 'phone';
   // Missing semantic metadata must not install a destructive input filter.
   if (!Object.keys(FIELD_SEMANTICS).length) return false;
@@ -3225,8 +3329,7 @@ function showLoginScreen() {
   pendingSessionData = null;
   passwordChangeShowing = false;
   document.getElementById('password-change-form')?.classList.add('hidden');
-  document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.remove('hidden'));
-  document.getElementById('login-form').classList.remove('hidden');
+  showLoginStep('login-form'); // 186.2
   document.getElementById('mfa-enroll-screen').classList.add('hidden');
   document.getElementById('mfa-challenge-screen').classList.add('hidden');
   document.getElementById('mfa-recovery-screen').classList.add('hidden');
@@ -3287,6 +3390,87 @@ async function handlePasswordChangeSubmit(event) {
     showApp();
     init();
     showToast('Your new password is set.', { variant: 'success' });
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// 186.2: Forgot password. The e-mailed link opens /#password_reset?token=...
+// (handleForgotPassword): in the hash, the token never reaches a server or
+// proxy log, and bootstrap clears it from the address bar at once.
+let resetToken = '';
+function showLoginStep(id) {
+  ['login-form', 'forgot-form', 'reset-form'].forEach(f => document.getElementById(f)?.classList.toggle('hidden', f !== id));
+  document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.toggle('hidden', id !== 'login-form'));
+}
+
+function showForgotForm() {
+  document.getElementById('forgot-form').reset();
+  ['forgot-sent', 'forgot-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('forgot-submit').disabled = false;
+  document.getElementById('forgot-user').value = document.getElementById('login-username').value.trim();
+  showLoginStep('forgot-form');
+  document.getElementById('forgot-user').focus();
+}
+
+async function handleForgotSubmit(event) {
+  event.preventDefault();
+  const errorEl = document.getElementById('forgot-error');
+  const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); btn.disabled = false; };
+  const btn = document.getElementById('forgot-submit');
+  const user = document.getElementById('forgot-user').value.trim();
+  errorEl.classList.add('hidden');
+  if (!user) return fail('Enter your username or e-mail.');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default' },
+      body: JSON.stringify({ username_or_email: user })
+    });
+    if (!res.ok) return fail(await getErrorMessage(res, 'Could not send the link. Try again.'));
+    // The same reply whether or not the account exists (no enumeration).
+    const sent = document.getElementById('forgot-sent');
+    sent.textContent = 'If that account has an e-mail, the link is on its way. No e-mail on file? Ask an administrator.';
+    sent.classList.remove('hidden');
+  } catch {
+    fail('Unable to reach the server. Please try again.');
+  }
+}
+
+function showResetForm(token) {
+  resetToken = token;
+  document.getElementById('app-root').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.title = 'Sign in | Wholeops';
+  document.getElementById('reset-form').reset();
+  document.getElementById('reset-error').classList.add('hidden');
+  showLoginStep('reset-form');
+  document.getElementById('reset-new').focus();
+}
+
+async function handleResetSubmit(event) {
+  event.preventDefault();
+  const errorEl = document.getElementById('reset-error');
+  const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
+  errorEl.classList.add('hidden');
+  const next = document.getElementById('reset-new').value;
+  if (!next) return fail('Enter a new password.');
+  if (next !== document.getElementById('reset-confirm').value) return fail('The two passwords do not match.');
+  const btn = document.getElementById('reset-submit');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/v1/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default' },
+      body: JSON.stringify({ token: resetToken, new_password: next })
+    });
+    if (!res.ok) return fail(await getErrorMessage(res, 'Could not set the new password.'));
+    resetToken = '';
+    showLoginScreen();
+    showToast('Your new password is set. Sign in with it.', { variant: 'success' });
+  } catch {
+    fail('Unable to reach the server. Please try again.');
   } finally {
     btn.disabled = false;
   }
@@ -3413,7 +3597,8 @@ async function handleLoginSubmit(event) {
     const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
     const res = await fetch('/api/v1/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantID },
+      // 195.1: a browser driven by automation says so; the server then wants Guide's key.
+      headers: Object.assign({ 'Content-Type': 'application/json', 'X-Tenant-ID': tenantID }, navigator.webdriver ? { 'X-ERP-Automated': '1' } : {}),
       body: JSON.stringify({ username, password, device_token: localStorage.getItem('erp_mfa_device:' + username) || '' })
     });
     const data = await res.json();
@@ -3435,6 +3620,7 @@ async function handleLoginSubmit(event) {
       // 125.8: remember this device, for the client's days (0 = off).
       document.getElementById('mfa-remember-days').textContent = data.remember_days;
       document.getElementById('mfa-remember-row').classList.toggle('hidden', !data.remember_days);
+      if (data.passkey_available) loadViewModule('/passkey-client.js').then((m) => m.offerPasskey(document.getElementById('mfa-challenge-screen'), data.challenge_token, completeLogin)); // 49.2.3
       return;
     }
 
@@ -3644,6 +3830,18 @@ function bootstrap() {
     logout();
   });
   bindRecoveryCodeScreen();
+  // 186.2: Forgot password and the e-mailed reset link.
+  document.getElementById('login-forgot-link').addEventListener('click', (e) => { e.preventDefault(); showForgotForm(); });
+  document.getElementById('forgot-form').addEventListener('submit', handleForgotSubmit);
+  document.getElementById('forgot-back').addEventListener('click', showLoginScreen);
+  document.getElementById('reset-form').addEventListener('submit', handleResetSubmit);
+  document.getElementById('reset-back').addEventListener('click', showLoginScreen);
+  const reset = /^#password_reset\?token=([0-9a-f]+)$/.exec(location.hash);
+  if (reset) {
+    history.replaceState(null, '', location.pathname + location.search);
+    showResetForm(reset[1]);
+    return;
+  }
 
   // 125.2: Control Panel Open (view-handoff.js).
   const handoff = /^#operator_handoff=([\w-]+)$/.exec(location.hash);
@@ -3786,7 +3984,9 @@ async function fetchAndRenderEnvironmentBanner() {
       document.body.style.paddingTop = '';
       try { localStorage.setItem(ENV_BANNER_DISMISSED_KEY, fullText); } catch (e) { /* closes for this page only */ }
     });
-    checkTruncation();
+    // 162.5 (ask 191): measure on the next frame. Measuring now forced a full
+    // layout in the middle of the boot, which the views then redo.
+    requestAnimationFrame(checkTruncation);
     window.addEventListener('resize', checkTruncation);
   } catch (e) {
     // Non-critical - never block the app on this.
@@ -3964,7 +4164,15 @@ const MENU_PERMISSION_MAP = {
   'menu-dynamic-labels': { adminOnly: true },
   'menu-doctype-builder': { devOnly: true },
   'menu-extension-hooks': { devOnly: true },
-  'menu-audit-logs': { adminOnly: true },
+  // 55.21 (ask 191): API keys, OAuth clients and AI assistants are the client's own (admin.api-credentials).
+  'menu-api-access': { adminOnly: true, capability: 'admin.api-credentials' },
+  'menu-subscription': { adminOnly: true }, // 50.12: the client's own plan, usage and invoices
+  // Ask 191: the Auditor template's whole job is these logs (audit.logs), so its role sees them too; each log
+  // then needs its own capability - Admin holds no system.logs (Stage 125), and Security Events is admin-only.
+  'menu-audit-logs': { adminOnly: true, capability: 'audit.logs' },
+  'menu-log-system': { capability: 'system.logs', strict: true },
+  'menu-log-jobs': { capability: 'jobs.view' },
+  'menu-log-security': { adminOnly: true },
   'menu-privacy-approvals': { adminOnly: true, capability: 'admin.privacy-approval' }, // 49.12.5
   // System Status dashboard (Stage 26.1.2) - reuses the same HR/Admin-only
   // gate as the ops-visibility endpoints it reads (requireHRAdmin on
@@ -4287,6 +4495,18 @@ const MENU_MODULE_MAP = {
       "extension-hook-log"
     ]
   },
+  "menu-api-access": {
+    "module": "core",
+    "views": [
+      "api-access"
+    ]
+  },
+  "menu-subscription": {
+    "module": "core",
+    "views": [
+      "subscription"
+    ]
+  },
   "custom-dialog-close-btn": {
     "module": "core",
     "views": [
@@ -4441,7 +4661,8 @@ function canDeleteDoctype(doctype) { return canDo('delete', doctype); }
 function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
   if (rule.adminOnly) return state.permissions.isAdmin || (!!rule.capability && state.permissions.capabilities.has(rule.capability));
-  if (rule.capability) return state.permissions.isAdmin || state.permissions.capabilities.has(rule.capability); // 132.18
+  // 132.18; strict (ask 191): a capability even a client's Admin may lack, such as system.logs.
+  if (rule.capability) return (!rule.strict && state.permissions.isAdmin) || state.permissions.capabilities.has(rule.capability);
   if (rule.devOnly) return state.permissions.isSuperAdmin; // 125.6
   if (rule.opOnly) return state.permissions.isOperator; // 132.10: the server's operator allowlist
   if (rule.update) return canUpdateDoctype(rule.update);
@@ -4553,12 +4774,25 @@ function applyModuleEntitlements() {
 // or tenant, so a heading never sits over nothing. Setup's own dynamically
 // built headings are left to renderSidebarSubmenu.
 function syncFlyoutHeadings() {
+  // 55.5a: each pass above collapses a menu only when its own class hides every
+  // entry, so a menu hidden half by role and half by product stayed as an empty
+  // header (the Cashier's Inventory / WMS / Setup). Collapse rows, then menus.
+  const gone = li => ['perm-hidden', 'module-hidden', 'empty-hidden'].some(c => li.classList.contains(c));
+  document.querySelectorAll('li.has-subflyout').forEach(row => {
+    const items = [...row.querySelectorAll('.menu-subflyout > li')].filter(li => li.querySelector('a'));
+    row.classList.toggle('empty-hidden', items.length > 0 && items.every(gone));
+  });
+  document.querySelectorAll('.has-flyout').forEach(container => {
+    const items = [...container.querySelectorAll(':scope > .menu-flyout > li')]
+      .filter(li => !li.classList.contains('submenu-group-label') && li.querySelector('.submenu-item[data-view], .menu-item') && !li.hasAttribute('data-cross-module'));
+    container.classList.toggle('empty-hidden', items.length > 0 && items.every(gone));
+  });
   document.querySelectorAll('.has-flyout > .menu-flyout > li.submenu-group-label').forEach(heading => {
     if (heading.closest('#submenu-master, .submenu')) return;
     let sibling = heading.nextElementSibling;
     let anyVisible = false;
     while (sibling && !sibling.classList.contains('submenu-group-label')) {
-      if (sibling.querySelector('.menu-item') && !sibling.classList.contains('perm-hidden') && !sibling.classList.contains('module-hidden')) { anyVisible = true; break; }
+      if (sibling.querySelector('.menu-item') && !gone(sibling)) { anyVisible = true; break; }
       sibling = sibling.nextElementSibling;
     }
     heading.classList.toggle('hidden', !anyVisible);
@@ -4667,6 +4901,8 @@ async function fetchRegisteredDoctypes() {
 // filter lists every match flat. A list with its own menu entry
 // (data-doctype, e.g. CRM > Customers) is not repeated here.
 let setupMenuFilter = '';
+// 162.5 (ask 191): one collator for the menu sort; localeCompare per comparison was a cold-load cost. Same order.
+const setupMenuCollator = new Intl.Collator();
 // Stage 88.1: Inventory-module lists that belong to the ERP side; every other one is filed under WMS.
 // A new ERP inventory list is added here.
 const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule'];
@@ -4675,13 +4911,35 @@ const SETUP_PRINTING = ['PrintTemplate', 'PrintProfile', 'StickerTemplate', 'Pri
 // Stage 88.2.9 / 88.4: a module's own setup page heads its list; Templates stands for both template lists.
 const SETUP_PAGES = { OMS: '<li><a class="submenu-item" id="menu-oms-settings" data-go="oms:settings" data-like="menu-oms">OMS settings</a></li>', Printing: '<li><a class="submenu-item" id="menu-templates" data-go="doctype-table" data-doctype="PrintTemplate">Templates</a></li><li><a class="submenu-item" id="menu-reprint" data-go="reprint">Reprint</a></li><li><a class="submenu-item" id="menu-branding" data-go="doctype-table" data-doctype="LegalEntity">Company branding</a></li>' };
 
+// 162.5 (ask 192): a Setup module row's lists are written into the page when
+// the row first opens, not at boot - building every hidden list cost 109 ms
+// of innerHTML on a 4x-throttled cold load. Rows that hold a module's own
+// setup page (SETUP_PAGES) are built at once: the menu's permission pass
+// reads those entries. Every other row holds only lists this role can read,
+// so it is never hidden and needs nothing until it opens.
+let pendingSetupRows = new Map(); // row -> { html, names }
+function fillSetupRow(row) {
+  const pending = pendingSetupRows.get(row);
+  if (!pending) return;
+  pendingSetupRows.delete(row);
+  row.querySelector('.menu-subflyout').innerHTML = pending.html;
+}
+// The Ctrl+K index reads every menu entry, so it fills them all first.
+window.fillSetupMenuRows = () => [...pendingSetupRows.keys()].forEach(fillSetupRow);
+function fillSetupRowFor(doctype) {
+  for (const [row, pending] of pendingSetupRows) if (pending.names.has(doctype)) fillSetupRow(row);
+}
+
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
   if (!sub) return;
   sub.innerHTML = '';
+  pendingSetupRows = new Map();
 
+  // 162.5 (ask 191): the lists with their own menu entry, read once - a query per doctype was a cold-load cost.
+  const ownEntry = new Set(Array.from(document.querySelectorAll('.sidebar-menu [data-doctype]'), a => a.dataset.doctype));
   const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name) && !['PrintTemplate', 'StickerTemplate'].includes(d.name) &&
-    !document.querySelector(`.sidebar-menu [data-doctype="${d.name}"]`));
+    !ownEntry.has(d.name));
   const needle = setupMenuFilter.trim().toLowerCase();
   const groupOf = d => SETUP_PRINTING.includes(d.name) ? 'Printing' : d.module === 'Inventory' && !SETUP_INVENTORY_ERP.includes(d.name) ? 'WMS' : (d.module || 'Other');
   // BLD-045: each label once; the sort below rebuilt both labels per comparison.
@@ -4724,7 +4982,7 @@ function renderSidebarSubmenu() {
   const byModule = {};
   visible.filter(matches).forEach(d => (byModule[groupOf(d)] = byModule[groupOf(d)] || []).push(d));
   Object.keys(byModule).sort().forEach(mod => {
-    const list = byModule[mod].sort((a, b) => label(a).localeCompare(label(b)));
+    const list = byModule[mod].sort((a, b) => setupMenuCollator.compare(label(a), label(b)));
     const advanced = list.filter(d => d.setup_advanced).map(entry).join('');
     const items = (SETUP_PAGES[mod] || '') + list.filter(d => !d.setup_advanced).map(entry).join('') + (advanced ? `<li class="submenu-group-label">Advanced</li>${advanced}` : '');
     const row = document.createElement('li');
@@ -4736,7 +4994,9 @@ function renderSidebarSubmenu() {
       return;
     }
     row.className = 'has-subflyout';
-    row.innerHTML = `<a class="menu-item submenu-parent">${escapeHTMLText(mod)}</a><ul class="menu-subflyout">${items}</ul>`;
+    const lazy = !SETUP_PAGES[mod];
+    row.innerHTML = `<a class="menu-item submenu-parent">${escapeHTMLText(mod)}</a><ul class="menu-subflyout">${lazy ? '' : items}</ul>`;
+    if (lazy) pendingSetupRows.set(row, { html: items, names: new Set(list.map(d => d.name)) });
     sub.appendChild(row);
   });
   if (needle && !Object.keys(byModule).length) sub.insertAdjacentHTML('beforeend', '<li class="submenu-group-label">No setup list matches that.</li>');
@@ -4746,22 +5006,26 @@ function renderSidebarSubmenu() {
   // now that the list this depends on just changed.
   applySidebarPermissions();
 
-  // Rebind event listeners to the list entries (module rows carry no data-view).
-  sub.querySelectorAll('.submenu-item[data-view]').forEach(item => {
-    item.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
-      document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-      
-      document.getElementById('menu-master-definition').classList.add('active');
-      item.classList.add('active');
-      
-      const doctype = item.getAttribute('data-view');
-      currentDoctype = doctype;
-      currentSearchQuery = '';
-      currentTablePage = 1;
-      renderView('doctype-table');
-    });
+  // One listener for every list entry, including those a row writes when it
+  // first opens (module rows carry no data-view). 162.5: it replaces one
+  // listener per entry, bound at boot.
+  if (sub.dataset.entryClickBound) return;
+  sub.dataset.entryClickBound = '1';
+  sub.addEventListener('click', (e) => {
+    const item = e.target.closest('.submenu-item[data-view]');
+    if (!item || !sub.contains(item)) return;
+    e.preventDefault();
+    document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+
+    document.getElementById('menu-master-definition').classList.add('active');
+    item.classList.add('active');
+
+    const doctype = item.getAttribute('data-view');
+    currentDoctype = doctype;
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    renderView('doctype-table');
   });
 }
 
@@ -5086,7 +5350,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-stock-moves', 'menu-stock-locations', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-bin-tools', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console', 'menu-control-panel'].forEach(id => {
+  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-stock-moves', 'menu-stock-locations', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-bin-tools', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-api-access', 'menu-subscription', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console', 'menu-control-panel'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -5174,6 +5438,7 @@ async function resetClientState() {
   state.activeDocFields = [];
   state.docData = [];
   state.docTotal = 0;
+  state.docTotalEstimated = false;
   state.prefixConfigs = [];
   state.approvalRules = [];
   state.labels = {};
@@ -5625,6 +5890,7 @@ function closeSubFlyouts(scope, except) {
 }
 function openSubFlyout(row) {
   clearTimeout(subFlyoutTimer);
+  fillSetupRow(row); // 162.5: a Setup row's lists are written on first open
   const flyout = row.closest('.menu-flyout'), panel = row.querySelector('.menu-subflyout');
   closeSubFlyouts(flyout, row);
   panel.classList.add('open');
@@ -5836,6 +6102,8 @@ const STATIC_VIEW_MENU_IDS = {
   'dynamic-labels': 'menu-dynamic-labels',
   'extension-hooks': 'menu-extension-hooks',
   'extension-hook-log': 'menu-extension-hooks',
+  'api-access': 'menu-api-access',
+  subscription: 'menu-subscription',
   'audit-logs': 'menu-audit-logs',
   'privacy-approvals': 'menu-privacy-approvals',
   'system-status': 'menu-system-status',
@@ -5864,11 +6132,18 @@ function scrollActiveMenuIntoView() {
   const active = document.querySelector('.sidebar-menu .menu-item.active, .sidebar-menu .submenu-item.active');
   if (active) active.scrollIntoView({ block: 'nearest' }); // 152.3: the menu moves only to show it
 }
+// 162.5 (ask 192): on a cold load the scroll waited for nothing yet forced a
+// layout of the whole page before the screen's first paint. It now runs just
+// after the next paint (the timeout queued inside the frame callback).
+function scrollActiveMenuIntoViewAfterPaint() {
+  requestAnimationFrame(() => setTimeout(scrollActiveMenuIntoView, 0));
+}
 
 function restoreActiveMenuState(view, doctype) {
   closeSubmenus();
   if (view === 'doctype-table' && doctype) {
     const submenu = document.getElementById('submenu-master');
+    fillSetupRowFor(doctype); // 162.5: only the row that holds this list
     const item = submenu ? submenu.querySelector(`.submenu-item[data-view="${doctype}"]`) : null;
     if (item) {
       document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
@@ -5877,7 +6152,8 @@ function restoreActiveMenuState(view, doctype) {
       item.classList.add('active');
       // Flyout itself stays closed on restore (it's a hover overlay now,
       // not an inline-expand section) - only the highlight is restored.
-      scrollActiveMenuIntoView();
+      scrollActiveMenuIntoViewAfterPaint();
+      syncDocumentTitle(); // a deep link renders before it highlights (162.5)
       return;
     }
   }
@@ -5889,7 +6165,8 @@ function restoreActiveMenuState(view, doctype) {
   if (!doctype && !view.includes(':') && view === currentView && currentViewTab) view = `${view}:${currentViewTab}`;
   const own = document.querySelector(doctype ? `.sidebar-menu [data-doctype="${doctype}"]` : `.sidebar-menu [data-go="${view}"]`);
   setActiveMenu(own ? own.id : STATIC_VIEW_MENU_IDS[view.split(':')[0]]);
-  scrollActiveMenuIntoView();
+  scrollActiveMenuIntoViewAfterPaint();
+  syncDocumentTitle();
 }
 
 // Restores whatever view/doctype/search/page the user was last on instead of
@@ -5971,6 +6248,11 @@ async function renderView(view, keep) {
   const myToken = ++viewRenderToken;
   keep = keep || bootSnap; bootSnap = false;
   beginViewReads(view);
+  // Stage 47.6.2: the RF shell hides the sidebar and the top bar while a task
+  // is open, so leaving it has to put them back. Set here - the one place every
+  // view change passes through - and with the Loading frame, so the screen
+  // moves once, on the click, not again when it fills in (200.2).
+  document.body.classList.toggle('rf-shell', view.split(':')[0] === 'rf-traceability');
   const root = document.getElementById('view-root');
   const top = root.scrollTop;
   if (keep) root.setAttribute('aria-busy', 'true');
@@ -6004,8 +6286,12 @@ async function renderView(view, keep) {
     if (keep) root.replaceChildren();
     root.removeAttribute('aria-busy');
     root.classList.toggle('view-steady', !!keep);
+    // Moving a node blurs it: a box the renderer focused (OMS Ship's Courier
+    // box, 57.26(h)) gets its focus back once it is on screen.
+    const focusedInView = scratch.contains(document.activeElement) ? document.activeElement : null;
     while (scratch.firstChild) root.appendChild(scratch.firstChild);
     scratch.remove();
+    if (focusedInView?.isConnected) focusedInView.focus({ preventScroll: true });
     if (keep) { root.scrollTop = top; window.steadyApply?.(memo, root); }
     syncDocumentTitle();
     // Chromium can cache a stale containing-block rect for sticky content (a
@@ -6057,12 +6343,6 @@ async function renderViewContent(view, root) {
   currentView = view;
   saveNavState();
 
-  // Stage 47.6.2: the RF shell hides the sidebar and the top bar while a task
-  // is open, so leaving it has to put them back. Cleared here - the one place
-  // every view change passes through - rather than in each view's own render,
-  // which is how a screen ends up permanently chromeless after one bad exit.
-  document.body.classList.toggle('rf-shell', view === 'rf-traceability');
-
   if (view === 'home') {
     await renderHomeView(root);
   } else if (LAZY_VIEW_MODULES[view]) {
@@ -6106,15 +6386,19 @@ function humanizeIdentifier(text) {
     .replace(/([A-Za-z])([0-9])/g, '$1 $2');
 }
 
+// 162.5 (ask 193): lower-cased once per labels object (state.labels is only ever replaced, never edited in
+// place). translateDOM asks this for every leaf on the page after each view switch; lower-casing every label
+// for every leaf was O(leaves x labels). The first label with a given lower-cased name still wins.
+let labelLookupSrc = null, labelLookup = null;
 function getTranslatedLabel(text) {
   if (!text) return '';
-  const clean = text.toLowerCase();
-  for (const [orig, custom] of Object.entries(state.labels)) {
-    if (orig.toLowerCase() === clean) {
-      return custom;
-    }
+  if (labelLookupSrc !== state.labels) {
+    labelLookupSrc = state.labels;
+    labelLookup = new Map();
+    for (const [orig, custom] of Object.entries(state.labels)) { const k = orig.toLowerCase(); if (!labelLookup.has(k)) labelLookup.set(k, custom); }
   }
-  return text;
+  const hit = labelLookup.get(text.toLowerCase());
+  return hit !== undefined ? hit : text;
 }
 
 // getDoctypeLabel is getTranslatedLabel plus the identifier humanizer above,
@@ -6167,10 +6451,10 @@ function isAdminRoleName(name) {
   return ['superadmin', 'hr/admin', 'hradmin', 'admin'].includes(String(name || '').toLowerCase().replace(/\s+/g, ''));
 }
 
-// Home (BLD-033): task screens only, never Settings (the retired Dashboard's
-// mistake); tiles gated by the same menuId as the sidebar (never by role
-// name), so a limited user sees fewer tiles, never a disabled one; shows
-// state (approvals, recent work, setup) the sidebar cannot.
+// Home (BLD-033): the task screens this session can reach, gated by the
+// same menuId as the sidebar (never by role name). 180.1: Home is for
+// dashboards, not shortcuts - this list no longer draws tiles; it only
+// decides the empty state and which masters "Get started" names.
 const HOME_QUICK_ACTIONS = [
   { id: 'pos', label: 'Point of Sale', desc: 'Ring up sales, take payment, handle receipted returns.', view: 'pos', menuId: 'menu-pos' },
   { id: 'warehouse-cockpit', label: 'Warehouse Cockpit', desc: 'Open tasks, exceptions, waves and inbound for one location.', view: 'warehouse-cockpit', menuId: 'menu-warehouse-cockpit' },
@@ -6211,18 +6495,6 @@ function navigateHomeAction(action) {
     currentTablePage = 1;
   }
   renderView(action.view);
-}
-
-// navigateHomeRecent opens the doctype-table list for one "recent" record,
-// pre-filtered to it by id/code - reuses the well-tested doctype-table view
-// rather than driving the edit modal from a screen it wasn't written for.
-function navigateHomeRecent(doctype, recordID) {
-  setActiveMenu((HOME_QUICK_ACTIONS.find(a => a.doctype === doctype) || {}).menuId);
-  closeSubmenus();
-  currentDoctype = doctype;
-  currentSearchQuery = recordID;
-  currentTablePage = 1;
-  renderView('doctype-table');
 }
 
 async function renderHomeView(container) {
@@ -6285,27 +6557,6 @@ async function renderHomeView(container) {
     }
   }
 
-  // Quick actions grid.
-  const actionsPanel = document.createElement('div');
-  actionsPanel.className = 'table-panel';
-  actionsPanel.style.padding = '20px';
-  actionsPanel.style.marginBottom = '24px';
-  actionsPanel.innerHTML = `<h2 class="card-title s-5beb8f">Your quick actions</h2>`;
-  const grid = document.createElement('div');
-  grid.className = 'home-action-grid';
-  visible.forEach(action => {
-    const tile = document.createElement('button');
-    tile.type = 'button';
-    tile.className = 'home-action-card';
-    tile.innerHTML = `
-      <span class="card-title">${escapeHTMLText(action.label)}</span>
-    `;
-    tile.addEventListener('click', () => navigateHomeAction(action));
-    grid.appendChild(tile);
-  });
-  actionsPanel.appendChild(grid);
-  container.appendChild(actionsPanel);
-
   // Scope-led setup: only the masters behind what THIS session can actually
   // reach - not a blanket "set up everything" nag. Reuses the exact same
   // setupHintHTML/isDoctypeSetUp Stage 41 already built for per-field hints.
@@ -6330,35 +6581,6 @@ async function renderHomeView(container) {
       </div>
     `;
     container.appendChild(setupPanel);
-  }
-
-  // Recent: the first visible task with a doctype of its own - "what did I
-  // touch last" for the thing this session actually does day to day.
-  const recentSource = visible.find(a => a.doctype);
-  if (recentSource) {
-    const res = await apiFetch(`/api/v1/doc/${recentSource.doctype}?sort=recent&limit=5`).catch(() => null);
-    if (res && res.ok) {
-      const rows = await res.json();
-      if (rows.length > 0) {
-        const recentPanel = document.createElement('div');
-        recentPanel.className = 'table-panel';
-        recentPanel.style.padding = '20px';
-        recentPanel.innerHTML = `<h2 class="card-title s-5beb8f">Recent ${escapeHTMLText(getDoctypeLabel(recentSource.doctype))}</h2>`;
-        const list = document.createElement('div');
-        list.className = 'home-recent-list';
-        rows.forEach(row => {
-          const item = document.createElement('button');
-          item.type = 'button';
-          item.className = 'home-recent-item';
-          const label = row.code || row.name || row.id;
-          item.innerHTML = `<span>${escapeHTMLText(String(label))}</span><span class="card-desc">${escapeHTMLText(String(row.status || ''))}</span>`;
-          item.addEventListener('click', () => navigateHomeRecent(recentSource.doctype, row.id));
-          list.appendChild(item);
-        });
-        recentPanel.appendChild(list);
-        container.appendChild(recentPanel);
-      }
-    }
   }
 }
 
@@ -6388,7 +6610,57 @@ function saveOfflineQueue(queue) {
   sendOfflineQueueHeartbeat();
 }
 
+// Stage 76.10: a till numbers the sales it queues offline from its own
+// series, so the customer's receipt carries the bill number the sale posts
+// under. The series (base and running digits) is registered once per store
+// while online and kept in this browser; the running number counts per
+// financial year. With no series yet the sale queues unnumbered and the
+// server gives it the store's next number when it posts.
+const TILL_SERIES_KEY = 'erp_pos_till_series';
+let tillSeriesAsked = '';
+function readTillSeries() {
+  try { return JSON.parse(localStorage.getItem(TILL_SERIES_KEY) || '{}') || {}; } catch { return {}; }
+}
+function saveTillSeries(all) {
+  try { localStorage.setItem(TILL_SERIES_KEY, JSON.stringify(all)); } catch { /* storage blocked: sales queue unnumbered */ }
+}
+async function ensureTillSeries(store) {
+  if (!store || !navigator.onLine || readTillSeries()[store] || tillSeriesAsked === store) return;
+  const token = localStorage.getItem('erp_token');
+  if (!token) return;
+  tillSeriesAsked = store; // a refusal is not asked again until the page reloads
+  try {
+    const res = await fetch('/api/v1/pos/till-series', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default' },
+      body: JSON.stringify({ location: store })
+    });
+    if (!res.ok) return;
+    const s = await res.json();
+    const all = readTillSeries();
+    all[store] = { base: s.base, digits: s.digits, till: s.till, next: {} };
+    saveTillSeries(all);
+  } catch { tillSeriesAsked = ''; }
+}
+function takeOfflineBillNumber(store, when = new Date()) {
+  const all = readTillSeries();
+  const s = all[store];
+  if (!s || !s.base || !(s.digits > 0)) return '';
+  const start = when.getMonth() < 3 ? when.getFullYear() - 1 : when.getFullYear();
+  const yy = String(start % 100).padStart(2, '0') + String((start + 1) % 100).padStart(2, '0');
+  const n = (Number((s.next || {})[yy]) || 0) + 1;
+  const number = s.base + yy + String(n).padStart(s.digits, '0');
+  if (number.length !== 16) return '';
+  s.next = { ...(s.next || {}), [yy]: n };
+  saveTillSeries(all);
+  return number;
+}
+
 function queueOfflinePOSCart(payload) {
+  if (!payload.offline_bill_number) {
+    const number = takeOfflineBillNumber(payload.location);
+    if (number) payload.offline_bill_number = number; // 76.10
+  }
   const queue = getOfflineQueue();
   queue.push({ cartNumber: payload.cart_number, location: payload.location, payload, queuedAt: new Date().toISOString() });
   saveOfflineQueue(queue);
@@ -6609,15 +6881,18 @@ function formatDay(value) {
 }
 
 
+// 162.5 (ask 193): one formatter each, made on first use. n.toLocaleString(locale, options) builds a new
+// Intl.NumberFormat per call (~0.3 ms, x4 on a throttled laptop, per money cell); the output is the same.
+let moneyFmt = null, plainNumberFmt = null;
 function formatMoney(v) {
   const n = Number(v);
   if (!isFinite(n)) return '0.00';
-  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (moneyFmt = moneyFmt || new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })).format(n);
 }
 // 47.14.2: counts and plain numbers, grouped like formatMoney (not the browser's own locale).
 function formatNumber(v) {
   const n = Number(v);
-  return isFinite(n) ? n.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '0';
+  return isFinite(n) ? (plainNumberFmt = plainNumberFmt || new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 })).format(n) : '0';
 }
 // 47.14.2: a Date or timestamp as "03 Feb 2026 14:05" (dateOnly drops the time), in the client's date order.
 function formatDateTime(v, dateOnly) {
@@ -6682,6 +6957,10 @@ const PIM_TABS = [
   { id: 'channel-category-map', label: 'Category Mapping', doctype: 'ChannelCategoryMap' },
   { id: 'channel-field-map', label: 'Field Mapping', doctype: 'ChannelFieldMap' },
   { id: 'channel-validation-rules', label: 'Validation Rules', doctype: 'ChannelValidationRule' },
+  // 55.11 (ask 179): an approved, in-date lower image count for one item on one channel.
+  { id: 'media-exceptions', label: 'Image Exceptions', doctype: 'MediaRuleException' },
+  // 47.13.6 (ask 185): a reviewed declaration pack on for one category tree.
+  { id: 'declaration-packs', label: 'Declaration Packs', doctype: 'DeclarationPack' },
   // 26.4.10: the internal reviewer's side of the supplier portal. Suppliers
   // themselves sign in with the limited 'Supplier' role and reach the same
   // doctype through the generic table screen - there is no second app, and no
@@ -6742,7 +7021,7 @@ async function fetchDocTablePage(doctype, page, search) {
   const totalHeader = dataRes.headers.get('X-Total-Count');
   const offset = (page - 1) * itemsPerPage;
   const total = totalHeader !== null ? (parseInt(totalHeader, 10) || 0) : offset + records.length;
-  return { records, total };
+  return { records, total, estimated: dataRes.headers.get('X-Total-Count-Estimated') === 'true' };
 }
 
 async function fetchDocTableData(doctype, page, search) {
@@ -6750,7 +7029,7 @@ async function fetchDocTableData(doctype, page, search) {
   if (!metaRes || !metaRes.ok) return undefined;
   const pageData = await fetchDocTablePage(doctype, page, search);
   if (!pageData) return undefined;
-  return { fields: await metaRes.json(), records: pageData.records, total: pageData.total };
+  return { fields: await metaRes.json(), records: pageData.records, total: pageData.total, estimated: pageData.estimated };
 }
 
 // cfgEsc is a historical alias for escapeHTMLText. It used to be a second,

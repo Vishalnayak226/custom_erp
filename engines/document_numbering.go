@@ -58,6 +58,9 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"EmployeeLoan":     {SeriesKey: "LOAN", NumberFields: []string{"code"}},
 	"Grievance":        {SeriesKey: "GRV", NumberFields: []string{"code"}},
 	"DisciplinaryCase": {SeriesKey: "DSC", NumberFields: []string{"code"}}, // 170.20
+	"TravelRequest":    {SeriesKey: "TRQ", NumberFields: []string{"code"}}, // 176.2
+	"ServiceVisit":     {SeriesKey: "SV", NumberFields: []string{"code"}},  // 176.4
+	"CalibrationRecord": {SeriesKey: "CAL", NumberFields: []string{"code"}}, // 176.6
 	"JobOpening":       {SeriesKey: "JOB", NumberFields: []string{"code"}}, // 170.18
 	"Applicant":        {SeriesKey: "APL", NumberFields: []string{"code"}}, // 170.18
 	"JobOffer":         {SeriesKey: "OFR", NumberFields: []string{"code"}}, // 170.18
@@ -99,6 +102,8 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"ServiceEntrySheet": {SeriesKey: "SES", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
 	// Stage 130.16 (74.3.3): job work orders on the planned JO series.
 	"SubcontractOrder": {SeriesKey: "JO", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	// 57.26(b): a ticket number from its own series instead of a typed one.
+	"ServiceTicket": {SeriesKey: "TKT", NumberFields: []string{"code"}, KeepID: true},
 	// Stage 148.23: the number is the id, so the statement and the ledger read it.
 	"SetOffVoucher": {SeriesKey: "SetOffVoucher", NumberFields: []string{"code"}},
 }
@@ -233,12 +238,20 @@ func DocumentNumberSeriesKey(doctype string) (string, bool) {
 // random id would put a document in the ledger outside its series, which is
 // exactly what an auditor looks for.
 func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, payload map[string]interface{}) error {
+	_, err := DrawDocumentNumber(tenantID, location, doctype, isCreate, payload)
+	return err
+}
+
+// DrawDocumentNumber is PrepareDocumentNumber that also returns where the
+// number came from (nil when none was drawn), so a save refused after this
+// point gives it back with Release (57.26 d).
+func DrawDocumentNumber(tenantID, location, doctype string, isCreate bool, payload map[string]interface{}) (*NumberDraw, error) {
 	series, ok := documentNumberSeriesByDoctype[doctype]
 	if !ok || !isCreate {
-		return nil
+		return nil, nil
 	}
 	if existing, present := payload["id"]; present && strings.TrimSpace(fmt.Sprintf("%v", existing)) != "" {
-		return nil
+		return nil, nil
 	}
 
 	// Store segment (Stage 76.8): the document's own store; else the maker's
@@ -261,15 +274,15 @@ func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, pa
 	}
 	storeCode := numberingStore(tenantID, location, own...)
 
-	code, err := GenerateSequence(tenantID, series.SeriesKey, storeCode, documentFinancialYear(time.Now()))
+	code, draw, err := drawSequence(tenantID, series.SeriesKey, storeCode, documentFinancialYear(time.Now()))
 	if err != nil {
 		// Preserve a precise *ValidationError (e.g. ADMINC-0030, an
 		// deactivated series) instead of flattening it into a plain error -
 		// the caller maps it to a real catalog code and a fixable message.
 		if verr, ok := err.(*ValidationError); ok {
-			return verr
+			return nil, verr
 		}
-		return fmt.Errorf("could not generate a %s number: %v", doctype, err)
+		return nil, fmt.Errorf("could not generate a %s number: %v", doctype, err)
 	}
 
 	if !series.KeepID {
@@ -278,7 +291,7 @@ func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, pa
 	for _, field := range series.NumberFields {
 		payload[field] = code
 	}
-	return nil
+	return draw, nil
 }
 
 // documentSourceStores (140.12.8) are the links a document's store can come

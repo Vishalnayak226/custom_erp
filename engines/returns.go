@@ -661,7 +661,7 @@ func ReceiveReturnRequest(tenantID, returnRequestID, receivedBy string) error {
 // each into the bucket the QC chose, on the stock ledger under its own key, and
 // - for a Sellable return - to where Sales Return says. It returns the components'
 // booked value, the figure the COGS reversal gives back to inventory.
-func receiveBundleParts(tx *sql.Tx, schema, tenantID, returnRequestID, location, userID string, line int, it returnItemRecord, bucket, stockTo string) (int64, error) {
+func receiveBundleParts(tx *sql.Tx, schema, tenantID, returnRequestID, location, userID string, line int, it returnItemRecord, bucket, stockTo string, rates returnLedgerRates) (int64, error) {
 	var total int64
 	for _, part := range it.Parts {
 		if err := applyReturnedStockToBucket(tx, schema, part.SKU, location, part.Qty, bucket); err != nil {
@@ -672,6 +672,7 @@ func receiveBundleParts(tx *sql.Tx, schema, tenantID, returnRequestID, location,
 			VoucherType: "SalesReturn", VoucherID: returnRequestID,
 			IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:L%d:%s:PART:QC", returnRequestID, line, part.SKU),
 			ToStatus:       bucket, UserID: userID,
+			stockLineSnapshot: rates.part(part), // 49.5.5b.6
 		}); err != nil {
 			return 0, err
 		}
@@ -822,6 +823,11 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		returnedBySKU[it.SKU] += it.Qty
 	}
 	ledgered := map[string]bool{}
+	// 49.5.5b.6: what each SKU's stock comes back in at, for its ledger line.
+	ledgerRates, err := customerReturnLedgerRates(tx, schema, originalOrderID, items)
+	if err != nil {
+		return 0, "", err
+	}
 	// Stage 148.28: what each disposition drafts and charges; no rule = as before.
 	dispRules := loadReturnDispositionRules(tx, schema)
 	var creditLines []returnItemRecord
@@ -841,7 +847,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		if rule.ReceivesStock {
 			if len(items[i].Parts) > 0 {
 				// 148.1d: a bundle comes back as its components, at what the sale booked.
-				partsValue, err := receiveBundleParts(tx, schema, tenantID, returnRequestID, returnLocation, qcBy, i, items[i], rule.Bucket, docStockField(tx, schema, returnRequestID, "stock_to"))
+				partsValue, err := receiveBundleParts(tx, schema, tenantID, returnRequestID, returnLocation, qcBy, i, items[i], rule.Bucket, docStockField(tx, schema, returnRequestID, "stock_to"), ledgerRates)
 				if err != nil {
 					return 0, "", err
 				}
@@ -861,6 +867,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 						VoucherType: "SalesReturn", VoucherID: returnRequestID,
 						IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
 						ToStatus:       rule.Bucket, UserID: qcBy, BatchNo: items[i].BatchNo,
+						stockLineSnapshot: ledgerRates.bySKU[items[i].SKU], // 49.5.5b.6
 					}); err != nil {
 						return 0, "", err
 					}
@@ -1353,12 +1360,18 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		// 140.12.3: units returned against a credit invoice first reduce
 		// what the customer still owes on it (Cr 1300); only the rest is
 		// paid back.
-		owed, errA := applyReturnToSalesInvoiceTx(tx, tenantID, schema, salesInvoiceForOrder(tenantID, strField(data, "original_order_id")), refundRequestID, processedBy, moneyPaise)
+		invoiceID := salesInvoiceForOrder(tenantID, strField(data, "original_order_id"))
+		owed, errA := applyReturnToSalesInvoiceTx(tx, tenantID, schema, invoiceID, refundRequestID, processedBy, moneyPaise)
 		if errA != nil {
 			return errA
 		}
 		if owed > 0 {
-			revenueCredits["1300"] = owed
+			// 148.4b: the receivable account the invoice went to.
+			ar, errR := ControlAccountForDocsTx(tx, schema, "1300", invoiceID)
+			if errR != nil {
+				return errR
+			}
+			revenueCredits[ar] += owed
 			data["applied_to_invoice"] = PaiseToRupees(owed)
 		}
 		if storeCredit {
@@ -1386,7 +1399,7 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	}
 	if moneyPaise+pointsPaise > 0 {
 		if err := PostDoubleEntryTx(tx, tenantID, schema, "RefundRequest", refundRequestID, revenueDebits, revenueCredits, "",
-			fmt.Sprintf("RefundRequest:%s:REFUND", refundRequestID)); err != nil {
+			fmt.Sprintf("RefundRequest:%s:REFUND", refundRequestID), PostingOptions{ControlChosen: true}); err != nil {
 			return err
 		}
 	}

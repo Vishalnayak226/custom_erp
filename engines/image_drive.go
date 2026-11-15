@@ -316,13 +316,6 @@ func (c *s3Client) folderFor(ownerDoctype string) string {
 	return c.settings.CombinationFolder
 }
 
-// ownerKey is where a photo goes: <folder>/<Design or Combination ID>/<name>,
-// "/" in the number written as "-". Records store this full key, so a later
-// folder change does not lose photos already written.
-func (c *s3Client) ownerKey(ownerDoctype, code, name string) string {
-	return c.folderFor(ownerDoctype) + "/" + safeMediaPathPart(code) + "/" + name
-}
-
 // ownerPhotoKey names a new photo after its Design or Combination ID (Stage
 // 129.9, the user: "rename 1.jpg to D00001.jpg"): <folder>/<ID>/<ID>.jpg, then
 // <ID>-2.jpg, <ID>-3.jpg... - one past every name this owner's photos have

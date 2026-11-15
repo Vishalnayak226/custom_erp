@@ -110,6 +110,8 @@ func BackfillReturnStockLedger(tenantID string) (int, error) {
 				ItemID: it.SKU, WarehouseID: r.location, Qty: float64(it.Qty),
 				VoucherType: "SalesReturn", VoucherID: r.id, IdempotencyKey: key,
 				ToStatus: rule.Bucket, UserID: "backfill-132.20",
+				// 49.5.5b.11: back in at the cost the sale booked, as ApplyReturnQC writes it.
+				stockLineSnapshot: stockLineSnapshot{ValuationRate: it.OriginalCostPrice},
 			}); err != nil {
 				tx.Rollback()
 				return written, fmt.Errorf("return %s %s: %v", r.id, it.SKU, err)

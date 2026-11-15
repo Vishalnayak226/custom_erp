@@ -112,6 +112,7 @@
     const token = bearer || (auth ? ls.get('erp_token') : '');
     if (token) headers.Authorization = 'Bearer ' + token;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (navigator.webdriver) headers['X-ERP-Automated'] = '1'; // 195.1: the server then wants Guide's key at sign-in
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20000);
     let res;
@@ -451,7 +452,7 @@
     setBar('Store', false);
     main.innerHTML = `
       <div class="tiles">${TILES.filter(t => !t.show || t.show()).map(t => `
-        <a class="tile" href="#/${t.route}"${t.later ? ' style="display:none" data-later="1"' : ''}>${ICON[t.icon] || ''}<span>${esc(t.label)}</span>${t.badge ? '<span class="badge" id="appr-badge" hidden></span>' : ''}</a>`).join('')}
+        <a class="tile" href="#/${t.route}"${t.later ? ' hidden data-later="1"' : ''}>${ICON[t.icon] || ''}<span>${esc(t.label)}</span>${t.badge ? '<span class="badge" id="appr-badge" hidden></span>' : ''}</a>`).join('')}
       </div>
       <div class="links">
         <a class="link" href="#/settings">Settings</a>
@@ -473,7 +474,7 @@
     try { // 148.33: the Inspect tile shows only while inspection by rule is on
       const r = await api('/api/v1/store-app/inspections');
       const tile = main.querySelector('[data-later]');
-      if (tile) { tile.style.display = ''; if ((r.lots || []).length) tile.insertAdjacentHTML('beforeend', `<span class="badge">${r.lots.length}</span>`); }
+      if (tile) { tile.hidden = false; if ((r.lots || []).length) tile.insertAdjacentHTML('beforeend', `<span class="badge">${r.lots.length}</span>`); }
     } catch (_) { /* off or unreachable: no tile */ }
     // 148.30: a salesman's own earnings tile - only when the module is on and the login is a salesman.
     try {

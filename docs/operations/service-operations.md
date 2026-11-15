@@ -35,7 +35,7 @@ Record configuration keys and intended values by non-secret reference: database/
 
 ## Observe and respond
 
-Check service readiness, error/latency percentiles, database connections/locks/storage, job/outbox backlog and oldest age, backup freshness and external delivery failures. Record dataset, tenant count, request mix and measurement window with every capacity claim. Use [NFRs](../requirements/nonfunctional-requirements.md) and Stage 47 as the proposed budgets; the deployment owner must approve actual SLO/RTO/RPO targets.
+Check service readiness, error/latency percentiles, database connections/locks/storage, job/outbox backlog and oldest age, backup freshness and external delivery failures. Record dataset, tenant count, request mix and measurement window with every capacity claim. Use [NFRs](../requirements/nonfunctional-requirements.md) and Stage 47 as the budgets. The owner approved the targets in the availability model below on 2026-11-15.
 
 | Symptom | First safe action | Evidence / follow-up |
 |---|---|---|
@@ -81,19 +81,26 @@ The existing [job runner](../../engines/jobrunner.go) and [outbox worker](../../
 
 Escalate repeated failures, backlog growth, tenant-scope uncertainty and ambiguous external outcomes with IDs and redacted diagnostics. Restart/replay/concurrent-worker acceptance belongs to the release's resilience evidence. Job/outbox state is not a substitute for customer-facing settlement or audit acceptance.
 
+## Deprecation and queued work across an upgrade (50.12, BLD-030)
+
+- **API and events.** Changes are additive within a major version: fields and event types are added, never renamed or removed. A route, field or event type to be retired is marked deprecated in the release notes and the API reference for at least one full release before removal, and the release says which replacement to use. Consumers ignore fields they do not know. A removal is a major-version change with its own notice.
+- **Queued work.** Jobs and outbox rows are stored with their tenant, type and payload version. An upgrade never rewrites a queued payload. The new build reads old payloads; a payload it can no longer read is marked failed with its reason and is retried or cancelled by an operator under *Job and outbox recovery*, never edited in SQL.
+- **Before an upgrade** let queued work drain or note what is left; a rollback of the binary keeps the rows, and the older build leaves rows of a type it does not know untouched.
+- **A client export** (`tenantctl export`) refuses to run with queued work outstanding, and never carries jobs, outbox rows or secrets; on a new client the integrations are connected again and pending work is re-raised from the business records.
+
 ## Availability model (Stage 49.13.1)
 
-What each kind of work may use, and what happens to it under pressure. Every limit below is in the code today (read 2026-10-26); the targets are **proposed** and wait for the owner's numbers.
+What each kind of work may use, and what happens to it under pressure. Every limit below is in the code today (read 2026-10-26). The owner approved the targets as written on 2026-11-15 (ask 193, "all recommended approved"). They are the service's targets until a client contract sets others.
 
-| Work | Shares | Limit | Under pressure | Proposed target |
+| Work | Shares | Limit | Under pressure | Target |
 |---|---|---|---|---|
-| Sign-in, MFA, health, cancel, Security controls | the client's request slots, plus a **priority lane** | `platform.per_tenant_max_concurrent_requests` (15) **+ 3 reserved** (49.13.2); sign-in 5/min per caller; username backoff and lockout | keeps its 3 reserved slots when ordinary work fills the 15 | sign-in p95 < 1 s |
-| Sales, receipts, saves (command finalization) | request slots; the shared database pool (50 connections) | the client's 15 slots; reports may hold at most half | ordinary work answers 503 `Retry-After: 2`; reports cannot starve it | p95 < 2 s; never a lost or double sale (idempotency keys) |
+| Sign-in, MFA, health, cancel, Security controls | the client's request slots, plus a **priority lane** | `platform.per_tenant_max_concurrent_requests` (15) **+ 3 reserved** (49.13.2), never held back by the server-wide cap; sign-in 5/min per caller; username backoff and lockout | keeps its 3 reserved slots when ordinary work fills the 15 | sign-in p95 < 1 s |
+| Sales, receipts, saves (command finalization) | request slots; the shared database pool (50 connections) | the client's 15 slots, and 44 for all clients together (`platform.global_max_concurrent_requests`, BLD-029); reports may hold at most half | ordinary work answers 503 `Retry-After: 2`; reports cannot starve it | p95 < 2 s; never a lost or double sale (idempotency keys) |
 | Lookups and search | request slots; per-caller rate limits | 100 searches/min, 60 other calls/min per caller; list pages capped (`platform.max_list_limit`) | 429 with `Retry-After`; the browser waits once, then retries | p95 < 1 s |
 | Reports and exports | half the client's slots; **live report runs** | 7 report requests per client; live runs ≤ 7 per client and ≤ 20 per server, abandoned runs counted until their query ends (49.13.3); 5 min hard stop; 55 s per request | GLOBAL-0310 503 "still running", or Export runs it in the background | on-screen report p95 < 10 s; larger ones are exports |
 | Background jobs and integrations | the job runner (scheduler leader only) | 10 jobs claimed per client per 10 s pass; bounded attempts, then dead-letter | queue; a poison job stops at its attempt limit (detection *Background jobs giving up*) | oldest ready job < 5 min (queue-saturation alert) |
 | Restore | backups (nightly, plus the off-box copy) | RPO ≤ 24 h (≤ 26 h off-box); RTO ≤ 4 h target, not yet measured | - | Targets set 2026-10-27 for every package (one database; checklist 135.10); the RTO is proven by the first timed restore from the bucket |
 
-**What sheds first:** a flood of reports or exports (half-slot cap, then GLOBAL-0310), then ordinary calls over a caller's rate (429), then the client's ordinary slots (503). Sign-in and the emergency controls are the last to go (priority lane). One client's flood cannot take another client's slots: every limit above is per client, except the database pool and the 20 live report runs per server.
+**What sheds first:** a flood of reports or exports (half-slot cap, then GLOBAL-0310), then ordinary calls over a caller's rate (429), then the client's ordinary slots (503), then, with several busy clients, the server-wide cap: past three quarters of its 44 slots a client at its fair share (44 divided by clients with work) is refused first, and a client under its share is still admitted. Sign-in and the emergency controls are the last to go (priority lane). One client's flood cannot take another client's slots: every limit above is per client, except the server-wide cap, the database pool and the 20 live report runs per server.
 
 **Still open:** a measured load test of the normal-screen burst (47.11.3) and an RTO measured by a timed restore drill.

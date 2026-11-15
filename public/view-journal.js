@@ -194,8 +194,8 @@ function renderJournalVoucherLines() {
         <input type="text" class="form-input s-30080b" list="jv-account-options" data-jv-line="${i}" data-jv-field="account" value="${escapeHTMLText(l.account)}" placeholder="Account code or name">
         <div class="jv-account-name s-6e0fd9">${escapeHTMLText(jvAccountLabel(l.account))}</div>
       </td>
-      <td class="num"><input type="number" class="form-input num s-27652d" min="0" step="1" data-jv-line="${i}" data-jv-field="debit" value="${escapeHTMLText(l.debit)}"></td>
-      <td class="num"><input type="number" class="form-input num s-27652d" min="0" step="1" data-jv-line="${i}" data-jv-field="credit" value="${escapeHTMLText(l.credit)}"></td>
+      <td class="num"><input type="number" class="form-input num s-27652d" min="0" step="0.01" data-jv-line="${i}" data-jv-field="debit" value="${escapeHTMLText(l.debit)}"></td>
+      <td class="num"><input type="number" class="form-input num s-27652d" min="0" step="0.01" data-jv-line="${i}" data-jv-field="credit" value="${escapeHTMLText(l.credit)}"></td>
       <td>${jvLines.length > 2 ? `<button class="action-btn action-btn-danger" type="button" data-jv-remove="${i}">Remove</button>` : ''}
         <button class="action-btn" type="button" data-jv-more="${i}">Details</button></td>
     </tr>
@@ -230,16 +230,20 @@ function renderJournalVoucherLines() {
   updateJournalVoucherTotals();
 }
 
+// Amounts are rupees with paise; balance is checked in whole paise (193.2).
+const jvPaise = v => Math.round((parseFloat(v) || 0) * 100);
+const jvMoney = n => n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
 function updateJournalVoucherTotals() {
-  const sum = f => jvLines.reduce((s, l) => s + (parseInt(l[f], 10) || 0), 0);
+  const sum = f => jvLines.reduce((s, l) => s + jvPaise(l[f]), 0) / 100;
   const dr = sum('debit'), cr = sum('credit');
-  document.getElementById('jv-total-debit').textContent = formatNumber(dr);
-  document.getElementById('jv-total-credit').textContent = formatNumber(cr);
+  document.getElementById('jv-total-debit').textContent = jvMoney(dr);
+  document.getElementById('jv-total-credit').textContent = jvMoney(cr);
   const note = document.getElementById('jv-balance-note');
   if (dr > 0 && dr === cr) {
     note.innerHTML = '<span class="badge badge-success">Balanced</span>';
   } else {
-    note.innerHTML = `<span class="badge badge-warning">Off by ${formatNumber(Math.abs(dr - cr))}</span>`;
+    note.innerHTML = `<span class="badge badge-warning">Off by ${jvMoney(Math.abs(dr - cr))}</span>`;
   }
 }
 
@@ -252,7 +256,7 @@ async function saveJournalVoucher() {
   const lines = jvLines
     .filter(l => l.account || l.debit || l.credit)
     .map(l => {
-      const row = { account_code: l.account, debit: parseInt(l.debit, 10) || 0, credit: parseInt(l.credit, 10) || 0 };
+      const row = { account_code: l.account, debit: parseFloat(l.debit) || 0, credit: parseFloat(l.credit) || 0 };
       JV_DETAIL_FIELDS.forEach(([k]) => { if (l[k]) row[k] = l[k]; });
       return row;
     });
@@ -260,8 +264,8 @@ async function saveJournalVoucher() {
   if (lines.length < 2) return fail('A journal voucher needs at least two lines.');
   const unknown = lines.find(l => !(jvAccounts || []).some(a => a.code === l.account_code));
   if (unknown) return fail(`"${unknown.account_code || '(blank)'}" is not an account in the Chart of Accounts.`);
-  const dr = lines.reduce((s, l) => s + l.debit, 0), cr = lines.reduce((s, l) => s + l.credit, 0);
-  if (dr !== cr || dr === 0) return fail(`Debits (${dr}) must equal credits (${cr}).`);
+  const dr = lines.reduce((s, l) => s + jvPaise(l.debit), 0) / 100, cr = lines.reduce((s, l) => s + jvPaise(l.credit), 0) / 100;
+  if (dr !== cr || dr === 0) return fail(`Debits (${jvMoney(dr)}) must equal credits (${jvMoney(cr)}).`);
 
   const res = await apiFetch('/api/v1/finance/journal-voucher', {
     method: 'POST', commandKey: 'jv.create', // 49.4.7a: a re-send after no answer posts once

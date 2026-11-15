@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -78,6 +79,27 @@ func TestGenericCreateUpsertGuards(t *testing.T) {
 		}
 		if doctype != "Brand" || name != "Keep Me" {
 			t.Errorf("the Brand record was changed: doctype=%s name=%s", doctype, name)
+		}
+	})
+
+	// 57.26(j): nor replaces a live record of its own type - the reused code
+	// is refused and the record keeps its data. (The deleted case above still
+	// brings the record back.)
+	t.Run("ACreateNeverReplacesALiveRecordOfItsType", func(t *testing.T) {
+		if rec := createBOM(bomID, 5); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "already exists") {
+			t.Fatalf("want 409 already exists for a live BOM's code, got %d %s", rec.Code, rec.Body.String())
+		}
+		var components string
+		if err := db.DB.QueryRow(`SELECT data->>'components' FROM tenant_default.documents WHERE id = $1`, bomID).Scan(&components); err != nil {
+			t.Fatal(err)
+		}
+		if components != `[{"sku":"RM-UPSERT","qty":3}]` {
+			t.Errorf("the live BOM was replaced: components=%s", components)
+		}
+		for _, dt := range []string{"ProductAttributeValue", "ProductContent"} {
+			if !createSetsByKey[dt] {
+				t.Errorf("%s is set by saving it again (PIM screens) and must keep the upsert", dt)
+			}
 		}
 	})
 }

@@ -28,7 +28,7 @@ func TestStage375FinancialStatementBuilder(t *testing.T) {
 	}
 	postJV := func(narration, cc, department string, amount int) string {
 		today := time.Now().Format("2006-01-02")
-		voucherID, err := CreateJournalVoucher(tenantID, today, narration, []JournalVoucherLine{{AccountCode: "5100", Debit: amount}, {AccountCode: "1100", Credit: amount}}, "manager1", JournalVoucherOptions{CostCenter: cc, Department: department})
+		voucherID, err := CreateJournalVoucher(tenantID, today, narration, []JournalVoucherLine{{AccountCode: "5100", Debit: float64(amount)}, {AccountCode: "1100", Credit: float64(amount)}}, "manager1", JournalVoucherOptions{CostCenter: cc, Department: department})
 		if err != nil {
 			t.Fatalf("CreateJournalVoucher: %v", err)
 		}

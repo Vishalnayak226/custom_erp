@@ -222,3 +222,160 @@ func TestStage1484RuleToBlockedOrMissingAccountFails(t *testing.T) {
 		t.Fatalf("a rule to a missing account must fail clearly, got %v", err)
 	}
 }
+
+// copyAccount adds code to the chart with like's account type.
+func (f stage1484Fixture) copyAccount(t *testing.T, code, name, like string) {
+	t.Helper()
+	if _, err := db.DB.Exec("INSERT INTO "+f.schema+".gl_accounts (account_code, account_name, account_type) SELECT $1, $2, account_type FROM "+f.schema+".gl_accounts WHERE account_code = $3 ON CONFLICT DO NOTHING", code, name, like); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Stage 148.4b: a receivable profile for a customer group puts that group's
+// invoices on its own control account. What clears an invoice follows the
+// account the invoice used - even after the customer moves group - and the
+// receivables tie-out counts it.
+func TestStage1484bReceivableByCustomerGroup(t *testing.T) {
+	f := stage1484Setup(t)
+	f.copyAccount(t, "1305", "Wholesale Receivables", "1300")
+	f.insert("C1484W", "Customer", "Active", "system", map[string]interface{}{"code": "C1484W", "name": "Wholesale Buyer", "phone": "9000001484", "customer_group": "Wholesale"})
+	f.insert("BANK-1484", "BankAccount", "Active", "system", map[string]interface{}{"bank_name": "Test Bank", "account_number": "001484", "gl_account_code": "1100", "status": "Active"})
+	f.profile(t, "PP-1484-AR", map[string]interface{}{"event": PostingEventReceivableControl, "customer_group": "Wholesale", "debit_account": "1305"})
+
+	f.invoice(t, "SI-1484B-R", "C1484", []map[string]interface{}{stage1484Line("TEE1484", 1, 100)}, 100)
+	f.invoice(t, "SI-1484B-W", "C1484W", []map[string]interface{}{stage1484Line("TEE1484", 2, 200)}, 200)
+	for _, id := range []string{"SI-1484B-R", "SI-1484B-W"} {
+		if _, err := PostSalesInvoice(f.tenantID, id, "manager1"); err != nil {
+			t.Fatalf("post %s: %v", id, err)
+		}
+	}
+	if got := stage1484Posted(t, f.schema, "SalesInvoice", "SI-1484B-R"); got["D:1300"] == 0 || got["D:1305"] != 0 {
+		t.Fatalf("a customer outside the group stays on 1300: %v", got)
+	}
+	got := stage1484Posted(t, f.schema, "SalesInvoice", "SI-1484B-W")
+	w := got["D:1305"]
+	if w < 20000 || got["D:1300"] != 0 {
+		t.Fatalf("the Wholesale invoice must debit 1305: %v", got)
+	}
+	if set := ControlAccounts(db.DB, f.schema, "1300"); len(set) != 2 || set[0] != "1300" || set[1] != "1305" {
+		t.Fatalf("receivable control accounts = %v, want [1300 1305]", set)
+	}
+
+	rows, err := ReceivablesVsLedger(f.tenantID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	for _, r := range rows {
+		if r.Document == "SI-1484B-W" {
+			seen = true
+			if r.Ledger != PaiseToRupees(w) || r.Difference != 0 {
+				t.Fatalf("the tie-out must read 1305: %+v", r)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("the tie-out left out the Wholesale invoice")
+	}
+
+	// The customer moves group after the invoice: what clears it still uses 1305.
+	if _, err := db.DB.Exec("UPDATE " + f.schema + `.documents SET data = data || '{"customer_group": "Retail"}'::jsonb WHERE id = 'C1484W'`); err != nil {
+		t.Fatal(err)
+	}
+	rec, err := RecordCustomerReceipt(f.tenantID, "acct1", CustomerReceiptInput{Customer: "C1484W", Location: "S1484", Mode: "Bank Transfer", BankAccount: "BANK-1484",
+		Amount: 150, Invoices: []ReceiptLine{{Ref: "SI-1484B-W", Amount: 150}}})
+	if err != nil {
+		t.Fatalf("receipt: %v", err)
+	}
+	if got := stage1484Posted(t, f.schema, "CustomerReceipt", rec.Number); got["C:1305"] != 15000 || got["C:1300"] != 0 {
+		t.Fatalf("the receipt must clear 1305: %v", got)
+	}
+	rest := w - 15000
+	// 176.8: the tie-out sets the receipt against the invoice it paid, so
+	// the invoice agrees and the receipt is not a ledger-only posting.
+	tieOut := func() (inv *ReceivableLedgerRow, receiptOnly *ReceivableLedgerRow) {
+		t.Helper()
+		rows, err := ReceivablesVsLedger(f.tenantID, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range rows {
+			switch {
+			case rows[i].Document == "SI-1484B-W":
+				inv = &rows[i]
+			case rows[i].Source == "Ledger only: CustomerReceipt":
+				receiptOnly = &rows[i]
+			}
+		}
+		return inv, receiptOnly
+	}
+	inv, receiptOnly := tieOut()
+	if inv == nil || inv.Ledger != PaiseToRupees(rest) || inv.Difference != 0 || receiptOnly != nil {
+		t.Fatalf("the receipt is not set against its invoice: %+v %+v", inv, receiptOnly)
+	}
+	// A receipt posting more than its invoices' lines shows the remainder.
+	if _, err := db.DB.Exec("INSERT INTO "+f.schema+".gl_postings (account_code, debit, credit, document_type, document_id) VALUES ('1300', 0, 100, 'CustomerReceipt', $1)", rec.Number); err != nil {
+		t.Fatal(err)
+	}
+	if inv, receiptOnly = tieOut(); inv.Difference != 0 || receiptOnly == nil || receiptOnly.Ledger != -1 || receiptOnly.Document != rec.Number {
+		t.Fatalf("the receipt's extra posting: %+v %+v", inv, receiptOnly)
+	}
+	f.insert("CN-1484B", "CreditNote", "Draft", "manager1", map[string]interface{}{"sales_invoice_id": "SI-1484B-W", "customer": "C1484W", "amount": PaiseToRupees(rest), "location": "S1484"})
+	if _, err := PostCreditNote(f.tenantID, "CN-1484B", "manager1"); err != nil {
+		t.Fatalf("credit note: %v", err)
+	}
+	if got := stage1484Posted(t, f.schema, "CreditNote", "CN-1484B"); got["C:1305"] != rest || got["C:1300"] != 0 {
+		t.Fatalf("the credit note must clear 1305: %v", got)
+	}
+	var bal int64
+	if err := db.DB.QueryRow("SELECT COALESCE(SUM(debit - credit), 0) FROM " + f.schema + ".gl_postings WHERE account_code = '1305'").Scan(&bal); err != nil || bal != 0 {
+		t.Fatalf("1305 must end cleared: %d %v", bal, err)
+	}
+}
+
+// Stage 148.4b: a payable profile for a vendor group moves that group's goods
+// receipts off 2100, and a bill naming the receipt clears the same account.
+func TestStage1484bPayableByVendorGroup(t *testing.T) {
+	f := stage1484Setup(t)
+	f.copyAccount(t, "2105", "Import Payables", "2100")
+	f.insert("V1484I", "Vendor", "Active", "system", map[string]interface{}{"code": "V1484I", "name": "Import Vendor", "vendor_group": "Import"})
+	f.profile(t, "PP-1484-AP", map[string]interface{}{"event": PostingEventPayableControl, "vendor_group": "Import", "credit_account": "2105"})
+
+	got := f.grn(t, "GRN-1484B-I", "V1484I")
+	if got["C:2105"] == 0 || got["C:2100"] != 0 {
+		t.Fatalf("the Import vendor's receipt must credit 2105: %v", got)
+	}
+	if other := f.grn(t, "GRN-1484B-O", "V1484O"); other["C:2100"] == 0 || other["C:2105"] != 0 {
+		t.Fatalf("a vendor outside the group stays on 2100: %v", other)
+	}
+	f.insert("VI-1484B", "VendorInvoice", "Matched", "system", map[string]interface{}{"vendor": "V1484O", "grn_id": "GRN-1484B-I"})
+	if err := PostDoubleEntry(f.tenantID, "VendorInvoice", "VI-1484B", map[string]int64{"2100": got["C:2105"]}, map[string]int64{"1100": got["C:2105"]}, "", "VI-1484B:PAY"); err != nil {
+		t.Fatal(err)
+	}
+	if paid := stage1484Posted(t, f.schema, "VendorInvoice", "VI-1484B"); paid["D:2105"] != got["C:2105"] || paid["D:2100"] != 0 {
+		t.Fatalf("a bill naming the receipt must clear 2105: %v", paid)
+	}
+}
+
+// Stage 148.4b: a receivable / payable profile names one account, not the
+// default itself, of the default's type.
+func TestStage1484bControlProfileChecks(t *testing.T) {
+	f := stage1484Setup(t)
+	f.copyAccount(t, "1305", "Wholesale Receivables", "1300")
+	for _, c := range []struct {
+		name string
+		data map[string]interface{}
+		want string
+	}{
+		{"the default itself", map[string]interface{}{"event": PostingEventReceivableControl, "customer_group": "W", "debit_account": "1300"}, "already the default"},
+		{"two accounts", map[string]interface{}{"event": PostingEventReceivableControl, "customer_group": "W", "debit_account": "1305", "credit_account": "1210"}, "same on both sides"},
+		{"another type", map[string]interface{}{"event": PostingEventPayableControl, "vendor_group": "I", "credit_account": "1305"}, "not the same type"},
+	} {
+		if err := validatePostingProfileRules(f.tenantID, c.data); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("%s: got %v, want %q", c.name, err, c.want)
+		}
+	}
+	if err := validatePostingProfileRules(f.tenantID, map[string]interface{}{"event": PostingEventReceivableControl, "customer_group": "W", "debit_account": "1305"}); err != nil {
+		t.Fatalf("a good receivable profile was refused: %v", err)
+	}
+}

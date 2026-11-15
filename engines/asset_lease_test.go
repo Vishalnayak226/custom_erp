@@ -174,3 +174,53 @@ func TestLeaseLessorPostsRentAndRefusesASecondLease(t *testing.T) {
 		t.Fatalf("rent: %v", gl)
 	}
 }
+
+// Ask 176: right-of-use depreciation builds up in 1421, and the last period
+// clears it against 1420, once. A lease that credited 1420 directly for its
+// early months (as before ask 176) closes only what reached 1421.
+func TestLeaseROUDepreciationBuildsIn1421AndClearsAtTheEnd(t *testing.T) {
+	cleanupLeaseTest()
+	t.Cleanup(cleanupLeaseTest)
+	lessee(t, "T170L-6", 3, 10000, 12, "Arrears")
+	if _, err := ActivateLease("default", "T170L-6", "t"); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+	pv := leaseGL(t, "T170L-6")["1420"][0]
+	RunLeasePostings("default", leaseTestSchema, time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC))
+	gl := leaseGL(t, "T170L-6")
+	if gl["1420"][1] != 0 || gl["1421"][1] <= 0 || gl["1421"][1] != gl["5311"][0] {
+		t.Fatalf("January's depreciation must credit 1421, not 1420: %v", gl)
+	}
+	RunLeasePostings("default", leaseTestSchema, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
+	gl = leaseGL(t, "T170L-6")
+	if gl["1421"][1] != pv || gl["1421"][0] != pv {
+		t.Fatalf("1421 must build to pv %d and be cleared: %v", pv, gl["1421"])
+	}
+	if gl["1420"][0] != pv || gl["1420"][1] != pv {
+		t.Fatalf("1420 must end at nought: %v", gl["1420"])
+	}
+	n := leasePostingCount(t, "T170L-6")
+	RunLeasePostings("default", leaseTestSchema, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+	if leasePostingCount(t, "T170L-6") != n {
+		t.Fatal("a run after close posted again")
+	}
+
+	// A lease set to credit its ROU account directly for January, then 1421.
+	lessee(t, "T170L-7", 3, 10000, 12, "Arrears")
+	if _, err := ActivateLease("default", "T170L-7", "t"); err != nil {
+		t.Fatalf("activate 7: %v", err)
+	}
+	db.DB.Exec("UPDATE " + leaseTestSchema + ".documents SET data = jsonb_set(data, '{rou_accumulated_account}', '\"1420\"') WHERE id = 'T170L-7'")
+	RunLeasePostings("default", leaseTestSchema, time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC))
+	jan := leaseGL(t, "T170L-7")["1420"][1]
+	if jan <= 0 {
+		t.Fatal("January must have credited 1420 directly")
+	}
+	db.DB.Exec("UPDATE " + leaseTestSchema + ".documents SET data = data - 'rou_accumulated_account' WHERE id = 'T170L-7'")
+	RunLeasePostings("default", leaseTestSchema, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
+	gl = leaseGL(t, "T170L-7")
+	pv7 := gl["1420"][0]
+	if gl["1420"][1] != pv7 || gl["1421"][0] != gl["1421"][1] || gl["1421"][1] != pv7-jan {
+		t.Fatalf("mixed lease must end with 1420 and 1421 at nought: %v (jan %d)", gl, jan)
+	}
+}

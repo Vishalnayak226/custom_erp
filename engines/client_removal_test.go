@@ -103,8 +103,8 @@ func TestStage49106bRemovalNeedsASecondPerson(t *testing.T) {
 	// The asker cannot approve it, whatever the self-approval setting says.
 	err = DecideApproval(home, ClientDataRemovalDoctype, id, asker.id, RoleSuperAdmin, "", "Approved", "")
 	var ve *ValidationError
-	if !errors.As(err, &ve) || ve.Code != "APPROV-0840" {
-		t.Fatalf("the asker approving their own request: %v, want APPROV-0840", err)
+	if !errors.As(err, &ve) || ve.Code != "APPROV-0841" { // 92.4: no setting can lift it
+		t.Fatalf("the asker approving their own request: %v, want APPROV-0841", err)
 	}
 	if err := DecideApproval(home, ClientDataRemovalDoctype, id, approver.id, RoleSuperAdmin, "", "Approved", "checked the ticket"); err != nil {
 		t.Fatalf("the second admin's approval: %v", err)

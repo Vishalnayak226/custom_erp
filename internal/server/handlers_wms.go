@@ -142,12 +142,16 @@ func handlePickScan(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TaskID string `json:"task_id"`
 		Scan   string `json:"scan"`
+		Qty    int    `json:"qty"` // 197.1: optional, units of this code at once (default 1)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" || req.Scan == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'task_id' and 'scan' are required")
 		return
 	}
-	sku, pickedQty, err := engines.ScanPickItem(tenantID, req.TaskID, req.Scan)
+	if req.Qty == 0 {
+		req.Qty = 1
+	}
+	sku, pickedQty, err := engines.ScanPickItemQty(tenantID, req.TaskID, req.Scan, req.Qty)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -159,7 +163,7 @@ func handlePickScan(w http.ResponseWriter, r *http.Request) {
 	if loc, lerr := engines.FulfillmentTaskLocationCode(tenantID, req.TaskID); lerr == nil {
 		userID := r.Header.Get("Resolved-User-ID")
 		engines.LogCompletedWarehouseTask(tenantID, engines.NewWarehouseTask{
-			TaskType: "Pick", LocationCode: loc, Item: sku, Qty: 1,
+			TaskType: "Pick", LocationCode: loc, Item: sku, Qty: float64(req.Qty),
 			SourceDocType: "FulfillmentTask", SourceDocID: req.TaskID,
 		}, userID)
 	}
@@ -175,12 +179,16 @@ func handlePackScan(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TaskID string `json:"task_id"`
 		Scan   string `json:"scan"`
+		Qty    int    `json:"qty"` // 197.1: optional, as at pick-scan
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" || req.Scan == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'task_id' and 'scan' are required")
 		return
 	}
-	sku, packedQty, err := engines.ScanPackItem(tenantID, req.TaskID, req.Scan)
+	if req.Qty == 0 {
+		req.Qty = 1
+	}
+	sku, packedQty, err := engines.ScanPackItemQty(tenantID, req.TaskID, req.Scan, req.Qty)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return

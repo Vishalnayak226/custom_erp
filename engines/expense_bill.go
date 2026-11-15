@@ -174,14 +174,40 @@ func expenseRowsOf(data map[string]interface{}) []expenseLineRow {
 
 // postExpenseBillTx books the bill: one balanced journal per cost centre.
 func postExpenseBillTx(tx *sql.Tx, tenantID, schema, billID, date string, rows []expenseLineRow) error {
+	if err := cwipLockForChargeTx(tx, schema, rows); err != nil {
+		return err
+	}
+	named := sourceLinesOn(schema)
 	for i, g := range expenseGroups(rows) {
+		opt := PostingOptions{CostCenter: g.CostCenter}
+		if named {
+			opt.Lines = expenseSourceLines(rows, g.CostCenter)
+		}
 		err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", billID, g.Debits, map[string]int64{"2100": g.Gross},
-			date, fmt.Sprintf("VendorInvoice:%s:EXPENSE:%d", billID, i+1), PostingOptions{CostCenter: g.CostCenter})
+			date, fmt.Sprintf("VendorInvoice:%s:EXPENSE:%d", billID, i+1), opt)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// expenseSourceLines (170.1) is one cost centre's journal written line by
+// line, each row naming its bill line (1-based): the same totals as the group.
+func expenseSourceLines(rows []expenseLineRow, costCenter string) []PostingLine {
+	var out []PostingLine
+	for i, r := range rows {
+		if r.CostCenter != costCenter {
+			continue
+		}
+		id := lineNoID(i + 1)
+		out = append(out, PostingLine{Account: r.Account, Debit: r.debit(), SourceLineID: id})
+		if !r.Blocked && r.Tax > 0 {
+			out = append(out, PostingLine{Account: "1500", Debit: r.Tax, SourceLineID: id})
+		}
+		out = append(out, PostingLine{Account: "2100", Credit: r.Net + r.Tax, SourceLineID: id})
+	}
+	return out
 }
 
 func expenseAccountOK(tx queryRower, schema, code string) error {

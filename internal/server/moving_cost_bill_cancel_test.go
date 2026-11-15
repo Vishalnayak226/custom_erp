@@ -39,10 +39,13 @@ func TestStage1481DeletingABillReversesItsDifference(t *testing.T) {
 	seed(paid, "VendorInvoice", "Matched", "{"+booked+`,"payments":[{"amount":100,"reference":"x"}]}`)
 	seed(pending, "VendorInvoice", "Pending Approval", "{"+booked+"}")
 
+	// The shipped `system` account is Inactive (SB-021), so act as a seeded admin.
+	actor, dropActor := seedContractUser(t, "HR/Admin", "HO")
+	defer dropActor()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
 	del := func(id string) *httptest.ResponseRecorder {
-		token := engines.SignToken("system", "system", "Super Admin", "default", "HO", currentCredentialVersion("system"))
+		token := engines.SignToken(actor, actor, "HR/Admin", "default", "HO", currentCredentialVersion(actor))
 		req := httptest.NewRequest(http.MethodDelete, "/api/v1/doc/VendorInvoice/"+id, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()

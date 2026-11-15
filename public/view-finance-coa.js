@@ -36,7 +36,7 @@ export function renderChartOfAccounts(container, accounts) {
   list.className = 'table-panel';
   const rowHtml = ({ a, depth }) => `<tr${a.blocked ? ' class="text-muted"' : ''}>
       <td class="s-355794">${esc(a.account_code)}</td>
-      <td style="font-weight:600; padding-left:${12 + depth * 18}px;">${esc(a.account_name)}</td>
+      <td data-css="font-weight:600; padding-left:${12 + depth * 18}px;">${esc(a.account_name)}</td>
       <td>${esc(a.account_type)}</td>
       <td>${esc(nameOf(a.parent_code))}</td>
       <td>${[a.blocked ? 'Blocked' : '', a.no_manual_posting ? 'No manual posting' : ''].filter(Boolean).join(', ')}</td>

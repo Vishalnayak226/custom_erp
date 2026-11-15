@@ -1,9 +1,10 @@
 // Stage 38.2d / 55.21: API access - the screen for the credentials an outside
-// system uses on /api/public/v1. Native ES module, appended to the Extension
-// Hooks page (the developer-integration area) so daily users never meet it.
-// Issue an API key or an OAuth client with only the scopes it needs, see the
-// secret once, rotate, revoke and read the recent calls. Every action is the
-// existing Super Admin route; nothing here holds a secret after the dialog.
+// system uses on /api/public/v1. Native ES module, shown on its own Settings
+// page, API access (ask 191: it sat inside Extension Hooks, a Super Admin
+// screen, so a client's Admin - who holds admin.api-credentials - could not
+// reach it). Issue an API key or an OAuth client with only the scopes it
+// needs, see the secret once, rotate, revoke and read the recent calls.
+// Nothing here holds a secret after the dialog.
 
 function apiAccessWhen(value) {
   if (!value) return '—';
@@ -14,16 +15,15 @@ function apiAccessWhen(value) {
 async function renderAPIAccessPanel(container) {
   const panel = document.createElement('div');
   panel.id = 'api-access-panel';
-  panel.style.marginTop = '24px';
   container.appendChild(panel);
 
   const res = await apiFetch('/api/v1/admin/api-credentials');
   if (!res) return;
   if (!res.ok) {
-    panel.innerHTML = '<h2 class="s-db89ac">API access</h2>';
+    panel.innerHTML = '<h1 class="page-title">API access</h1>';
     const msg = document.createElement('p');
     msg.className = 'text-muted';
-    msg.textContent = res.status === 403 ? 'Only a Super Admin can issue or change API access.' : 'API access could not be loaded.';
+    msg.textContent = res.status === 403 ? 'Only an Admin can issue or change API access.' : 'API access could not be loaded.';
     panel.appendChild(msg);
     return;
   }
@@ -83,7 +83,7 @@ async function renderAPIAccessPanel(container) {
     <div id="api-cred-traffic" class="s-ac2a5b"></div>`;
 
   panel.appendChild(txnPagedSection({ id: 'api-access', title: 'API access', page: 'New API access', count: credentials.length,
-    newLabel: 'New API access', form, list, heading: 'h2' }));
+    newLabel: 'New API access', form, list }));
   txnRestorePane('api-access');
 
   const showSecret = async (body) => {
@@ -113,7 +113,7 @@ async function renderAPIAccessPanel(container) {
       if (!r.ok) { await showApiError(r, 'The credential was not issued.'); return; }
       await showSecret(await r.json());
       txnDone('api-access');
-      renderView('extension-hooks');
+      renderView('api-access');
     });
   });
 
@@ -123,7 +123,7 @@ async function renderAPIAccessPanel(container) {
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'The credential was not rotated.'); return; }
     await showSecret(await r.json());
-    renderView('extension-hooks');
+    renderView('api-access');
   }));
   panel.querySelectorAll('[data-api-revoke]').forEach(btn => btn.addEventListener('click', async () => {
     if (!await showCustomConfirm('Revoke this credential? Every call and token using it is refused from now on. This cannot be undone.')) return;
@@ -131,7 +131,7 @@ async function renderAPIAccessPanel(container) {
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'The credential was not revoked.'); return; }
     showToast('Revoked.');
-    renderView('extension-hooks');
+    renderView('api-access');
   }));
   panel.querySelectorAll('[data-api-traffic]').forEach(btn => btn.addEventListener('click', async () => {
     const host = panel.querySelector('#api-cred-traffic');

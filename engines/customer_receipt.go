@@ -191,6 +191,8 @@ func RecordCustomerReceipt(tenantID, user string, in CustomerReceiptInput) (*Cus
 	available := money + tds + advUsed
 	var allocated int64
 	var invoices []ReceiptLine
+	credits := map[string]int64{} // 148.4b: each invoice clears the account it went to
+
 	for _, l := range in.Invoices {
 		id := strings.TrimSpace(l.Ref)
 		want := RupeesToPaise(l.Amount)
@@ -207,6 +209,11 @@ func RecordCustomerReceipt(tenantID, user string, in CustomerReceiptInput) (*Cus
 		}
 		allocated += got
 		invoices = append(invoices, ReceiptLine{Ref: id, Amount: PaiseToRupees(got)})
+		ar, err := ControlAccountForDocsTx(tx, schema, "1300", id)
+		if err != nil {
+			return nil, err
+		}
+		credits[ar] += got
 	}
 	if advUsed > allocated {
 		return nil, receiptFail("advances pay invoices - allocate the %.2f of advance used to the customer's invoices", PaiseToRupees(advUsed))
@@ -226,7 +233,7 @@ func RecordCustomerReceipt(tenantID, user string, in CustomerReceiptInput) (*Cus
 		debits[AccountTDSReceivable] += tds
 	}
 	if allocated > 0 {
-		if err := PostDoubleEntryTx(tx, tenantID, schema, "CustomerReceipt", number, debits, map[string]int64{"1300": allocated}, in.Date, postingKey); err != nil {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "CustomerReceipt", number, debits, credits, in.Date, postingKey, PostingOptions{ControlChosen: true}); err != nil {
 			return nil, postingError(err, "receipt not recorded")
 		}
 	}

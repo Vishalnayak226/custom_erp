@@ -23,6 +23,7 @@ type AssetScheduleLine struct {
 	To           string  `json:"to"`
 	Opening      float64 `json:"opening"`
 	Depreciation float64 `json:"depreciation"`
+	Adjustment   float64 `json:"adjustment,omitempty"` // ask 176: impairment / revaluation in the year (+ up, - down)
 	Closing      float64 `json:"closing"`
 	Posted       float64 `json:"posted"`
 	ToCome       float64 `json:"to_come"`
@@ -84,6 +85,7 @@ func GetAssetLifecycle(tenantID, assetID string) (*AssetLifecycle, error) {
 		"disposal_type": data["disposal_type"], "disposal_date": data["disposal_date"],
 		"disposal_proceeds": data["disposal_proceeds"], "disposal_received_into": data["disposal_received_into"],
 		"disposal_book_value": data["disposal_book_value"], "disposal_gain_loss": data["disposal_gain_loss"],
+		"disposal_reserve_released": data["disposal_reserve_released"],
 	}}
 
 	if entry.UsefulLifeYears > 0 && entry.Cost > 0 {
@@ -108,7 +110,14 @@ func GetAssetLifecycle(tenantID, assetID string) (*AssetLifecycle, error) {
 			st.MonthsDue = plan.monthsDue(time.Now())
 		}
 		st.MonthlyAmount, st.TotalMonths = PaiseToRupees(plan.amount(1)), plan.months
-		opening := plan.costPaise
+		// Ask 176: the table starts from the cost before any revaluation and
+		// carries each impairment or revaluation in the year it took effect,
+		// so a year's closing is the book value the GL shows for it.
+		opening := plan.baseCost
+		if opening <= 0 {
+			opening = plan.costPaise
+		}
+		history, _ := data["asset_adjustments"].([]interface{})
 		for y := 1; (y-1)*12 < plan.months; y++ {
 			first, last := (y-1)*12+1, y*12
 			if last > plan.months {
@@ -123,6 +132,14 @@ func GetAssetLifecycle(tenantID, assetID string) (*AssetLifecycle, error) {
 					monthsPosted++
 				}
 			}
+			var adj int64
+			for _, h := range history {
+				if m, ok := h.(map[string]interface{}); ok {
+					if at := int(numFromInterface(m["from_month_index"])); at >= first && at <= last {
+						adj += RupeesToPaise(numFromInterface(m["carrying_after"])) - RupeesToPaise(numFromInterface(m["carrying_before"]))
+					}
+				}
+			}
 			toCome := dep - done
 			if entry.Status == "Disposed" {
 				toCome = 0 // nothing more posts once the asset is gone
@@ -130,11 +147,11 @@ func GetAssetLifecycle(tenantID, assetID string) (*AssetLifecycle, error) {
 			from, to := plan.monthStart(first).Format("2006-01-02"), plan.monthEnd(last).Format("2006-01-02")
 			lc.Schedule = append(lc.Schedule, AssetScheduleLine{
 				Year: y, From: from, To: to, Opening: PaiseToRupees(opening), Depreciation: PaiseToRupees(dep),
-				Closing: PaiseToRupees(opening - dep), Posted: PaiseToRupees(done), ToCome: PaiseToRupees(toCome),
+				Adjustment: PaiseToRupees(adj), Closing: PaiseToRupees(opening + adj - dep), Posted: PaiseToRupees(done), ToCome: PaiseToRupees(toCome),
 				Months: last - first + 1, MonthsPosted: monthsPosted,
 				Current: entry.Status == "Capitalised" && from <= today && today <= to,
 			})
-			opening -= dep
+			opening += adj - dep
 		}
 		var duePaise int64
 		for i := 1; i <= st.MonthsDue; i++ {

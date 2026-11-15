@@ -81,4 +81,5 @@ docs/micro_checklist.pdf
 
 # Stage 109: release coordination and reports stay on this machine
 release/hold.txt
+release/security-ack.txt
 release/reports/

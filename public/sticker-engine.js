@@ -195,8 +195,11 @@ export const SAMPLE_BATCH_NO = (() => {
 
 // The built-in label fields every sticker carries (engines.StickerLabel);
 // anything else is read off label.fields, i.e. the Item record.
+// Item 201.3: 'name' prints the item alias (14 characters at most); the full
+// item name is label.fields.full_name.
 export const BUILTIN_FIELDS = [
-  { key: 'name', label: 'Item name', sample: 'Sample Item Name' },
+  { key: 'name', label: 'Item alias', sample: 'Necklace Antq' },
+  { key: 'full_name', label: 'Item name (full)', sample: 'Necklace Antique' },
   { key: 'sku', label: 'SKU', sample: 'SKU-0001' },
   { key: 'barcode', label: 'Barcode value', sample: '8901234567890' },
   { key: 'hsn_code', label: 'HSN code', sample: '7113' },
@@ -240,9 +243,9 @@ export function binLabel(b) {
 }
 
 export const SAMPLE_LABEL = {
-  sku: 'SKU-0001', name: 'Sample Item Name', barcode: '8901234567890', hsn_code: '7113',
+  sku: 'SKU-0001', name: 'Necklace Antq', barcode: '8901234567890', hsn_code: '7113',
   category: 'Rings', batch_no: SAMPLE_BATCH_NO, expiry_date: '2027-01-01', mfg_date: '2026-01-01',
-  qty: 1, source_doc_id: 'GRN-0001', fields: {}
+  qty: 1, source_doc_id: 'GRN-0001', fields: { full_name: 'Necklace Antique' }
 };
 
 // ---------------------------------------------------------------------------
@@ -1736,19 +1739,18 @@ async function printSheet(segments, dpi) {
   let html = '';
   for (const pg of sheetPages(segments)) {
     const cell = cellSize(pg.t);
-    html += `<div class="stk-page" style="page:stk${pg.si}; width:${pg.w}mm; height:${pg.h}mm;${pg.flip ? ' transform: rotate(180deg);' : ''}">`;
+    html += `<div class="stk-page" data-css="page:stk${pg.si}; width:${pg.w}mm; height:${pg.h}mm;${pg.flip ? ' transform: rotate(180deg);' : ''}">`;
     pg.cells.forEach(c => {
-      html += `<img src="${png(pg.t, c.label)}" style="left:${c.x}mm; top:${c.y}mm; width:${cell.w}mm; height:${cell.h}mm;${pg.a4 ? '' : ' image-rendering: pixelated;'}" alt="">`;
+      html += `<img src="${png(pg.t, c.label)}" data-css="left:${c.x}mm; top:${c.y}mm; width:${cell.w}mm; height:${cell.h}mm;${pg.a4 ? '' : ' image-rendering: pixelated;'}" alt="">`;
     });
     html += '</div>';
   }
 
-  const style = document.createElement('style');
-  style.id = 'sticker-print-page-style';
-  style.textContent = css;
-  document.getElementById('sticker-print-page-style')?.remove();
-  document.head.appendChild(style);
+  // 49.4.3: a constructed sheet and data-css, which a strict style-src allows.
+  adoptCss('sticker-print-page-style', null);
+  adoptCss('sticker-print-page-style', css); // re-added last, so its @page wins
   area.innerHTML = html;
+  applyDataCss(area);
   await Promise.all(Array.from(area.querySelectorAll('img')).map(img => (img.decode ? img.decode().catch(() => {}) : null)));
   area.classList.add('printing');
   await stickerStylesReady; // .stk-page lives in sticker-studio.css
@@ -1756,7 +1758,7 @@ async function printSheet(segments, dpi) {
   setTimeout(() => {
     area.classList.remove('printing');
     area.innerHTML = '';
-    style.remove();
+    adoptCss('sticker-print-page-style', null);
   }, 500);
 }
 
@@ -1825,6 +1827,38 @@ export async function printAlignmentTest(roll, preset) {
     { kind: 'text', field: 'custom', text: shift, x_mm: 1.2, y_mm: 1.2, w_mm: w / 2 - 2, h_mm: Math.min(4, h / 2 - 2), font_size_mm: 2.2, fit: 'shrink' }
   ].map(normaliseElement);
   return printTestLabel(t, { sku: '', name: '' }, preset, 'Alignment test');
+}
+
+// 194.1: Line up - one row of the roll per sideways step, lettered A, B, ...
+// around the shift on screen. Each row is built exactly as that shift would
+// print once saved (the same offset, and the same TSPL margin), so the row
+// that sits evenly on the tags is the shift to keep: the user taps its
+// letter instead of measuring millimetres. Each tag carries a box 0.5 mm in
+// from its edge, the row's letter and its shift. Nothing is logged. Resolves
+// to the rows [{ letter, shift_right_mm }] once printed, else null; an A4
+// sheet has no rows to line up and resolves null at once.
+export const LINE_UP_STEPS_MM = [-1, -0.5, 0, 0.5, 1];
+export async function printLineUp(roll, preset) {
+  const base = Object.assign({}, roll || defaultTemplate(), { assets: {} });
+  if (base.settings.sheet.mode === 'a4') return null;
+  const { w, h } = base;
+  const per = base.settings.per_row * base.settings.per_col;
+  const cur = Number(preset.shift_right_mm) || 0;
+  const rows = LINE_UP_STEPS_MM.map((step, i) => ({ letter: String.fromCharCode(65 + i), shift_right_mm: Math.round((cur + step) * 10) / 10 }));
+  const segments = rows.map(r => {
+    const t = Object.assign({}, base, { elements: [
+      { kind: 'box', x_mm: 0.5, y_mm: 0.5, w_mm: w - 1, h_mm: h - 1, thickness_mm: 0.3 },
+      { kind: 'text', field: 'custom', text: r.letter, x_mm: 1, y_mm: 1, w_mm: w - 2, h_mm: h - 2, font_size_mm: Math.min(12, h * 0.7), align: 'center', fit: 'shrink' },
+      { kind: 'text', field: 'custom', text: `R ${r.shift_right_mm}`, x_mm: 1.2, y_mm: 1.2, w_mm: Math.min(16, w / 3), h_mm: Math.min(4, h / 2 - 1), font_size_mm: 2.2, fit: 'shrink' }
+    ].map(normaliseElement) });
+    return { t: withPrinterPreset(t, Object.assign({}, preset, { shift_right_mm: r.shift_right_mm })), items: Array(per).fill({ sku: '', name: '' }) };
+  });
+  // Each row already carries its shift and skew; the print path adds only
+  // darkness and speed again (the same values).
+  const plain = Object.assign({}, preset, { shift_right_mm: null, shift_down_mm: null, skew_deg: null });
+  if (!await previewSegments(tuned(segments, plain), plain, 'Line up')) return null;
+  await printStickersNoDialog(segments, plain, 'Test print');
+  return rows;
 }
 
 // Stage 137.3: Calibrate roll - the printer feeds a few labels and measures

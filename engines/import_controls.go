@@ -7,7 +7,6 @@ import (
 	"hash"
 	"io"
 	"math"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -44,8 +43,13 @@ type importSourceReader struct {
 func newImportSourceReader(r io.Reader) *importSourceReader {
 	s := &importSourceReader{r: r, h: sha256.New()}
 	if n, ok := r.(interface{ Name() string }); ok {
-		s.name = filepath.Base(strings.TrimSpace(n.Name()))
-		if s.name == "." || s.name == string(filepath.Separator) {
+		// Strip a client path with either separator: the server runs on Linux,
+		// where filepath.Base keeps "C:\Users\x\file.csv" whole (177).
+		s.name = strings.TrimSpace(n.Name())
+		if i := strings.LastIndexAny(s.name, `/\`); i >= 0 {
+			s.name = s.name[i+1:]
+		}
+		if s.name == "." || s.name == ".." {
 			s.name = ""
 		}
 	}

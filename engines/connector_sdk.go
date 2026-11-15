@@ -32,14 +32,17 @@ type ConnectorOrderLine struct {
 }
 
 type ConnectorOrder struct {
-	ChannelOrderID  string               `json:"channel_order_id"`
-	CustomerName    string               `json:"customer_name"`
-	CustomerPhone   string               `json:"customer_phone"`
-	ShippingAddress string               `json:"shipping_address"`
-	ShippingState   string               `json:"shipping_state"`
-	PaymentStatus   string               `json:"payment_status"`
-	LocationCode    string               `json:"location_code"`
-	Lines           []ConnectorOrderLine `json:"lines"`
+	ChannelOrderID  string `json:"channel_order_id"`
+	CustomerName    string `json:"customer_name"`
+	CustomerPhone   string `json:"customer_phone"`
+	ShippingAddress string `json:"shipping_address"`
+	ShippingState   string `json:"shipping_state"`
+	PaymentStatus   string `json:"payment_status"`
+	LocationCode    string `json:"location_code"`
+	// MarketplaceInvoiceNo is the invoice number the marketplace itself
+	// issued (146.4.1); empty until it has invoiced.
+	MarketplaceInvoiceNo string               `json:"marketplace_invoice_no,omitempty"`
+	Lines                []ConnectorOrderLine `json:"lines"`
 }
 
 type ConnectorPullRequest struct {

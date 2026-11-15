@@ -54,6 +54,7 @@ var serverSetFields = map[string]map[string]bool{
 	// Stage 148.23: validateSetOffVoucher fills these from the pair; a reversal has its own button.
 	SetOffVoucherDoctype: {"customer_id": true, "vendor_id": true, "customer_balance": true, "vendor_balance": true, "posted_at": true, "reversed_on": true, "reversal_date": true},
 	"PORoutingRule":      {"role_check": true}, // 148.47: a mark the list adds
+	"CalibrationRecord":  {"next_due_on": true}, // 176.6: the date plus the instrument's interval
 }
 
 func init() {

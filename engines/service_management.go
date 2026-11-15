@@ -77,7 +77,7 @@ func CreateServiceTicket(tenantID, customer, description, priority, asset, servi
 
 	id := NewDocID("SVC")
 	docData := map[string]interface{}{
-		"id": id, "code": id, "customer": customer, "description": description,
+		"id": id, "code": IssueDocumentNumber(tenantID, "ServiceTicket", id, ""), "customer": customer, // 57.26(b) "description": description,
 		"priority": priority, "asset": asset, "service_contract_id": serviceContractID,
 		"respond_by_date": respondByDate, "resolve_by_date": resolveByDate, "status": "Draft",
 	}

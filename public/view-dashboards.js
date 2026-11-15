@@ -208,7 +208,7 @@ function widgetBox(w, i, editing) {
        <button type="button" data-dash-height="${i}" title="Taller / shorter" aria-label="Change height">↕</button>
        <button type="button" data-dash-edit="${i}" title="Edit" aria-label="Edit widget">✎</button><button type="button" data-dash-remove="${i}" title="Remove" aria-label="Remove widget">✕</button>`
     : `${w.source === 'report' ? `<button type="button" data-dash-info="${i}" title="What this shows" aria-label="What this shows">ⓘ</button>` : ''}${w.source === 'dataset' ? `<button type="button" data-dash-info="${i}" title="What this shows" aria-label="What this shows">ⓘ</button><button type="button" data-dash-csv="${i}" title="Download CSV" aria-label="Download CSV">CSV</button><button type="button" data-dash-xlsx="${i}" title="Download Excel" aria-label="Download Excel">XLSX</button>` : ''}`;
-  return `<div class="dash-widget" style="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};" data-dash-widget="${i}">
+  return `<div class="dash-widget" data-css="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};" data-dash-widget="${i}">
     <div class="dash-widget-head"><span class="dash-widget-title" title="${esc(w.title)}">${esc(w.title)}</span><span class="dash-widget-tools">${tools}</span></div>
     <div class="dash-widget-body" data-dash-body="${i}"><p class="dash-empty">Loading…</p></div></div>`;
 }
@@ -410,7 +410,7 @@ function dialog(title, body, wire, { wide = true, ok = '', onOk = null } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'dash-dialog';
-  overlay.innerHTML = `<div class="modal-container" style="max-width:${wide ? '980px' : '560px'};width:96vw;" role="dialog" aria-modal="true" aria-labelledby="dash-dialog-title">
+  overlay.innerHTML = `<div class="modal-container" data-css="max-width:${wide ? '980px' : '560px'};width:96vw;" role="dialog" aria-modal="true" aria-labelledby="dash-dialog-title">
     <div class="modal-header"><h3 class="modal-title" id="dash-dialog-title">${esc(title)}</h3><button type="button" class="modal-close" data-dash-close aria-label="Close">&times;</button></div>
     <div class="modal-body">${body}<div class="dash-error hidden" id="dash-dialog-error"></div></div>
     <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dash-close>${ok ? 'Cancel' : 'Close'}</button>${ok ? `<button type="button" class="btn btn-primary" id="dash-dialog-ok">${esc(ok)}</button>` : ''}</div></div>`;
@@ -646,7 +646,7 @@ async function exportPDF(cd, f) {
     '--chart-1:#4f6bed;--chart-2:#16a34a;--chart-3:#f59e0b;--chart-4:#dc2626;--chart-5:#0891b2;--chart-6:#9333ea;--chart-7:#db2777;--chart-8:#65a30d;';
   const [from, to] = rangeDates(f);
   box.innerHTML = `<h2 class="s-58d955">${esc(cd.name)}</h2><p class="s-878369">${from ? `${esc(from)} to ${esc(to)}` : 'All dates'}${f.store ? ` · ${esc(f.store)}` : ''}</p>
-    <div class="dash-grid">${cd.widgets.map((w, i) => `<div class="dash-widget" style="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};"><div class="dash-widget-head"><span class="dash-widget-title">${esc(w.title)}</span></div><div class="dash-widget-body" data-p="${i}"></div></div>`).join('')}</div>`;
+    <div class="dash-grid">${cd.widgets.map((w, i) => `<div class="dash-widget" data-css="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};"><div class="dash-widget-head"><span class="dash-widget-title">${esc(w.title)}</span></div><div class="dash-widget-body" data-p="${i}"></div></div>`).join('')}</div>`;
   document.body.appendChild(box);
   results.forEach((r, i) => {
     const host = box.querySelector(`[data-p="${i}"]`);
@@ -654,6 +654,7 @@ async function exportPDF(cd, f) {
     else renderChart(host, cd.widgets[i].kind, r.result, { title: cd.widgets[i].title });
   });
   box.querySelectorAll('.sr-only').forEach(el => el.remove());
+  applyDataCss(box); // 49.4.3: cloned and serialised below
   try {
     const css = await (await fetch('/dashboards.css' + VQ)).text();
     const h = box.scrollHeight;
@@ -709,6 +710,16 @@ function scheduleDigest(cd) {
 export async function mountHomeExtras(host) {
   if (isAdminRoleName(localStorage.getItem('erp_role'))) {
     const card = host.appendChild(document.createElement('div'));
+    // 162.5: the card is Home's LCP element; paint it from its last-known state
+    // (the key view-admin.js writes) before that 160 KB module loads.
+    try {
+      const last = JSON.parse(localStorage.getItem(`erp_setup_card:${localStorage.getItem('erp_tenant_id') || ''}:${localStorage.getItem('erp_username') || ''}`) || 'null');
+      if (last && last.n > 0 && typeof last.label === 'string') {
+        card.innerHTML = `<div class="table-panel s-6da4d3"><div class="s-cdf035"><strong>Finish setting up</strong> <span class="text-muted">- ${last.n} step${last.n === 1 ? '' : 's'} to go. Next: ${esc(last.label)}.</span></div>
+      <button type="button" class="btn btn-primary btn-sm" id="setup-guide-go">Continue setup</button></div>`;
+        card.querySelector('#setup-guide-go').addEventListener('click', () => { window.configOpenSetupGuide = true; setActiveMenu('menu-configuration'); renderView('configuration'); });
+      }
+    } catch (_) { /* no usable last state: the card appears when its read returns */ }
     loadViewModule('/view-admin.js').then(m => m.mountSetupGuideCard(card)).catch(() => {});
   }
   const res = await apiFetch('/api/v1/dashboards/home').catch(() => null);

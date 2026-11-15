@@ -1189,6 +1189,8 @@
 /* The till slip preview (view-pos-customer.js). */
 .vp-slip .receipt-line { display: flex; justify-content: space-between; gap: 8px; }
 .vp-slip hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+/* 185.1: the till's UPI QR for the bill amount. */
+#pos-upi-qr { max-width: 220px; margin: 0 auto 10px; }
 
 /* 49.4.3: classes that replaced run-time inline style attributes. */
 .u-fw5 { font-weight: 500; }

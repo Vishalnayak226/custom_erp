@@ -201,3 +201,44 @@ func handleControlPanelQueryBaseline(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
 }
+
+// POST /api/v1/platform/tenants/{tenant}/query-plan {"statement":"SELECT ..."}
+// (Stage 47.9.3d): EXPLAIN (ANALYZE, BUFFERS) for one read-only SELECT in that
+// client's schema. The security log keeps the statement's shape only
+// (NormalizeQuery strips every value).
+func handleControlPanelQueryPlan(w http.ResponseWriter, r *http.Request) {
+	if !requirePlatformOperator(w, r) {
+		return
+	}
+	target, ok := platformTargetTenant(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Statement string `json:"statement"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
+		return
+	}
+	plan, err := engines.ExplainStatement(r.Context(), target, req.Statement)
+	status := "success"
+	if err != nil {
+		status = "refused"
+	}
+	shape := engines.NormalizeQuery(req.Statement)
+	if len(shape) > 500 {
+		shape = shape[:500]
+	}
+	engines.LogAuditEventCtx(r.Context(), operatorTenant(r), r.Header.Get("Resolved-Username"), "platform.query_plan", status, "client="+target+" statement="+shape)
+	var refusal *engines.ExplainRefusal
+	if errors.As(err, &refusal) {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, refusal.Error())
+		return
+	}
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to explain the statement")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(plan)
+}

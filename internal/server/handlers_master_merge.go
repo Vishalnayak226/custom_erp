@@ -8,7 +8,9 @@ import (
 
 // Stage 47.13.5: merging a duplicate supplier or item (engines/master_merge.go).
 // Admin only. GET lists the history; POST {doctype, keep_id, merge_id, reason}
-// merges; POST /{id}/undo puts the references back.
+// asks for a merge (47.13.5, ask 179: it waits in Approvals where a MasterMerge
+// approval rule exists, else it is done at once); POST /{id}/undo puts the
+// references back.
 func handleMasterMerges(w http.ResponseWriter, r *http.Request) {
 	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
 		return
@@ -33,7 +35,7 @@ func handleMasterMerges(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
-	res, err := engines.MergeMasters(tenantID, req.Doctype, req.KeepID, req.MergeID, req.Reason, actor)
+	res, err := engines.RequestMasterMerge(tenantID, req.Doctype, req.KeepID, req.MergeID, req.Reason, actor, r.Header.Get("Resolved-Role"))
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

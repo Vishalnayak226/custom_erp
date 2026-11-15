@@ -181,17 +181,20 @@ func TestEveryCanonicalBudgetCarriesAHardThreshold(t *testing.T) {
 	}
 }
 
-func TestBinaryBudgetFailsOverTwentyFiveMiB(t *testing.T) {
-	// Proves the 25 MiB threshold actually bites, without building a real
+func TestBinaryBudgetFailsOneByteOver(t *testing.T) {
+	// Proves the binary threshold actually bites, without building a real
 	// oversized binary: the same setLimit path the real measurement uses.
-	report := Report{Metrics: map[string]Metric{}}
-	setLimit(&report, "binary_stripped_bytes", 25*MiB, 25*MiB, "boundary")
-	if got := report.Metrics["binary_stripped_bytes"].Status; got != "within_budget" {
-		t.Fatalf("exactly 25 MiB must pass, got %q", got)
+	if binaryBudget != 40*MiB {
+		t.Fatalf("binary budget is %d bytes; NFR-COST-001 says 40 MiB (item 177.4)", binaryBudget)
 	}
-	setLimit(&report, "binary_stripped_bytes", 25*MiB+1, 25*MiB, "one byte over")
+	report := Report{Metrics: map[string]Metric{}}
+	setLimit(&report, "binary_stripped_bytes", binaryBudget, binaryBudget, "boundary")
+	if got := report.Metrics["binary_stripped_bytes"].Status; got != "within_budget" {
+		t.Fatalf("exactly the budget must pass, got %q", got)
+	}
+	setLimit(&report, "binary_stripped_bytes", binaryBudget+1, binaryBudget, "one byte over")
 	if got := report.Metrics["binary_stripped_bytes"].Status; got != "over_budget" {
-		t.Fatalf("25 MiB + 1 byte must fail, got %q", got)
+		t.Fatalf("one byte over the budget must fail, got %q", got)
 	}
 }
 

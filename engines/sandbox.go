@@ -73,6 +73,11 @@ func ProvisionSandboxTenant(appVersion string, ttlDays int) (tenantID, schemaNam
 		WHERE tenant_id = $2`, ttlDays, tenantID); err != nil {
 		return "", "", "", fmt.Errorf("provisioned but failed to flag %s as a sandbox: %v", tenantID, err)
 	}
+	// 47.12.5 (ask 185): the sandbox profile - one person tries every flow
+	// end to end, so they may decide their own documents.
+	if err := SetSetting(tenantID, SettingSelfApproval, SelfApprovalAnyone, "sandbox"); err != nil {
+		return "", "", "", fmt.Errorf("provisioned but failed to set the sandbox approval profile on %s: %v", tenantID, err)
+	}
 	InvalidateTenantLifecycleCache(tenantID)
 	invalidateSandboxFlag()
 	return tenantID, schemaName, adminPassword, nil

@@ -38,7 +38,7 @@ const (
 	DeliveryChallanDoctype = "DeliveryChallan"
 	ChallanWriteOffDoctype = "ChallanWriteOff"
 	SettingEWBThreshold    = "gst.ewb_threshold"
-	ewbRuleVersion         = "EWB-R138-2026.1"
+	ewbRuleVersion         = "EWB-R138-2026.2" // .2 (2026-11-15): "exceeding" 50,000, not "at or over"
 	challanKindLost        = "Lost"
 	challanKindKept        = "Kept by party"
 	// The chart's own accounts (74.1.3): the posting profiles' defaults.
@@ -55,9 +55,9 @@ var challanPurposes = map[string]bool{"Job work": true, "Repair": true, "Exhibit
 func init() {
 	RegisterSetting(SettingDefinition{
 		Key: SettingEWBThreshold, Module: "Inventory",
-		Label: "E-way bill needed from (consignment value)", Type: SettingTypeFloat, Default: "50000", Unit: "₹",
+		Label: "E-way bill needed above (consignment value)", Type: SettingTypeFloat, Default: "50000", Unit: "₹",
 		Min:         settingBound(0),
-		Description: "A delivery challan whose goods are worth this much or more is marked as needing an e-way bill. Job work sent to another state needs one whatever the value.",
+		Description: "A delivery challan whose goods are worth more than this is marked as needing an e-way bill. Job work sent to another state needs one whatever the value.",
 	})
 	RegisterApprovalDecisionHook(DeliveryChallanDoctype, false, func(tenantID, docID, decision, actorUserID string) {})
 	RegisterApprovalDecisionHook(ChallanWriteOffDoctype, true, func(tenantID, docID, decision, actorUserID string) {
@@ -192,10 +192,10 @@ func challanEWBDecision(tenantID, location, purpose, partyGSTIN, partyState stri
 	switch {
 	case purpose == "Job work" && interstate:
 		out["required"], out["reason"] = true, "job work sent to another state needs an e-way bill whatever the value"
-	case value >= threshold:
-		out["required"], out["reason"] = true, fmt.Sprintf("goods worth %.2f, at or over %.2f", value, threshold)
+	case ewbValueNeedsBill(value, threshold):
+		out["required"], out["reason"] = true, fmt.Sprintf("goods worth %.2f, over %.2f", value, threshold)
 	default:
-		out["reason"] = fmt.Sprintf("goods worth %.2f, under %.2f", value, threshold)
+		out["reason"] = fmt.Sprintf("goods worth %.2f, not over %.2f", value, threshold)
 	}
 	return out
 }
@@ -402,7 +402,8 @@ func DispatchDeliveryChallan(tenantID, id, userID string, in ChallanDispatch) er
 				return challanFail(sku, fmt.Sprintf("not %d of %s available at %s to send out", qty, sku, location))
 			}
 		} else {
-			moves = append(moves, map[string]interface{}{"sku": sku, "qty": float64(-qty), "batch_no": b.BatchNo})
+			// 49.5.5b.10: at the cost the challan carries it out at.
+			moves = append(moves, map[string]interface{}{"sku": sku, "qty": float64(-qty), "batch_no": b.BatchNo, ledgerKeyValuationRate: b.UnitCost})
 			costPaise += RupeesToPaise(b.UnitCost) * int64(qty)
 		}
 	}

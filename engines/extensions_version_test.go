@@ -25,7 +25,7 @@ func TestStage47HookAPIVersionContract(t *testing.T) {
 	if _, err := CheckHookAPIVersion(7, "2027-01-01"); err == nil {
 		t.Fatal("a version past its sunset must be refused")
 	}
-	if p := string(buildHookPayload("default", "document.after_save", "Item", "I1", nil)); !strings.Contains(p, `"api_version":1`) {
+	if p := string(buildHookPayload("default", "test-user", "document.after_save", "Item", "I1", nil)); !strings.Contains(p, `"api_version":1`) {
 		t.Fatalf("the payload must name its version: %s", p)
 	}
 

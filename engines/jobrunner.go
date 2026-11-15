@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -367,26 +368,7 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 		go watchJobCancellation(jobCtx, schema, job.ID, cancel, watchDone)
 		// Stage 73.1.9: GL rows a job posts name the job, not a user.
 		var result map[string]interface{}
-		func() {
-			defer BindPostingActor(PostingActor{PostedBy: "service:job", SourceCommand: "job:" + job.JobType})()
-			// Stage 49.8.8: a poison job - one whose payload makes its handler
-			// panic - is a failed attempt like any other: retried with backoff,
-			// then dead-lettered. Unrecovered, the panic ended the worker
-			// goroutine and with it the whole server process, and the job,
-			// still Leased, was claimed again after the restart.
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("[JOBRUNNER] job %s (%s) panicked: %v\n%s", job.ID, job.JobType, r, debug.Stack())
-					result, err = nil, fmt.Errorf("job handler panicked: %v", r)
-				}
-			}()
-			result, err = handler(jobCtx, schema, job)
-			if jobCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
-				// Stage 49.8.6: over its runtime bound is a failed attempt
-				// whatever the handler returned.
-				result, err = nil, fmt.Errorf("job timed out after its %s runtime bound", JobMaxRuntime(job.JobType))
-			}
-		}()
+		result, err = runJobHandlerBounded(ctx, jobCtx, handler, schema, job)
 		cancel()
 		<-watchDone
 		runningJobs.Lock()
@@ -759,4 +741,73 @@ func StartJobRunnerRetentionSweeper(ctx context.Context, interval time.Duration)
 			}
 		}
 	}()
+}
+
+// jobAbandonGrace is how long past its runtime bound a handler that ignores
+// its context is waited for before the worker walks away from it (49.8.6).
+// Go cannot kill a goroutine, so an abandoned handler runs on until it
+// returns; the attempt is already failed and the worker free. A var so a test
+// can shorten it.
+var jobAbandonGrace = 15 * time.Second
+
+// jobsAbandoned counts handlers abandoned since start (ops visibility).
+var jobsAbandoned atomic.Int64
+
+// JobsAbandoned reports how many handlers ignored their context past the
+// bound and were abandoned since the server started.
+func JobsAbandoned() int64 { return jobsAbandoned.Load() }
+
+// runJobHandlerBounded runs one attempt in its own goroutine so a handler
+// that never looks at ctx cannot hold the worker past its bound (49.8.6).
+// A panic is a failed attempt (49.8.8); over the bound is a failed attempt
+// whatever the handler returned.
+func runJobHandlerBounded(ctx, jobCtx context.Context, handler JobHandlerFunc, schema string, job Job) (map[string]interface{}, error) {
+	type outcome struct {
+		result map[string]interface{}
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		// Stage 73.1.9: GL rows a job posts name the job, not a user. The
+		// binding is per goroutine, so it is made here.
+		defer BindPostingActor(PostingActor{PostedBy: "service:job", SourceCommand: "job:" + job.JobType})()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[JOBRUNNER] job %s (%s) panicked: %v\n%s", job.ID, job.JobType, r, debug.Stack())
+				done <- outcome{nil, fmt.Errorf("job handler panicked: %v", r)}
+			}
+		}()
+		res, err := handler(jobCtx, schema, job)
+		done <- outcome{res, err}
+	}()
+	timedOut := func() (map[string]interface{}, error) {
+		return nil, fmt.Errorf("job timed out after its %s runtime bound", JobMaxRuntime(job.JobType))
+	}
+	select {
+	case o := <-done:
+		if jobCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+			return timedOut()
+		}
+		return o.result, o.err
+	case <-jobCtx.Done():
+	}
+	if ctx.Err() == nil && jobCtx.Err() == context.DeadlineExceeded {
+		// Past the bound: give a handler that does watch ctx a moment to stop.
+		select {
+		case <-done:
+			return timedOut()
+		case <-time.After(jobAbandonGrace):
+			jobsAbandoned.Add(1)
+			log.Printf("[JOBRUNNER] job %s (%s) ignored its context %s past the bound; abandoned", job.ID, job.JobType, jobAbandonGrace)
+			return nil, fmt.Errorf("job timed out after its %s runtime bound and did not stop; abandoned", JobMaxRuntime(job.JobType))
+		}
+	}
+	// Cancelled by an operator or the server stopping: same wait, same walk-away.
+	select {
+	case o := <-done:
+		return o.result, o.err
+	case <-time.After(jobAbandonGrace):
+		jobsAbandoned.Add(1)
+		return nil, fmt.Errorf("job cancelled and did not stop; abandoned")
+	}
 }

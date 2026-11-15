@@ -1014,6 +1014,7 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		sku, batch         string
 		qty                float64
 		value, priceChange int64
+		price              float64 // 49.5.5b.11: the line's corrected rate
 	}
 	var moves []stockMove
 	var valueDelta float64
@@ -1062,7 +1063,7 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		eff.StockDelta += dq
 		valueDelta += dv
 		if math.Abs(dq) > 1e-9 || math.Abs(dv) >= 0.005 {
-			moves = append(moves, stockMove{sku: sku, batch: strField(l, "batch_no"), qty: dq, value: RupeesToPaise(dv), priceChange: RupeesToPaise(newPrice) - RupeesToPaise(oldPrice)})
+			moves = append(moves, stockMove{sku: sku, batch: strField(l, "batch_no"), qty: dq, value: RupeesToPaise(dv), priceChange: RupeesToPaise(newPrice) - RupeesToPaise(oldPrice), price: newPrice})
 		}
 		l["grn_qty"] = newQty
 		l["grn_price"] = newPrice
@@ -1100,7 +1101,7 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 	// GRN, the stock and the ledger exactly as they were.
 	voucher := fmt.Sprintf("%s-C%d", grnID, n)
 	for _, m := range moves {
-		line := map[string]interface{}{"sku": m.sku, "qty": m.qty}
+		line := map[string]interface{}{"sku": m.sku, "qty": m.qty, ledgerKeyValuationRate: m.price}
 		if m.batch != "" {
 			line["batch_no"] = m.batch
 		}

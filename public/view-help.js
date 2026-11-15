@@ -245,13 +245,18 @@ async function openHelpDrawer(screenID) {
   const slugs = map[keys.find(key => (map[key] || []).length)] || [];
 
   document.getElementById('kb-drawer')?.remove();
+  // 48.7.7: a dialog for screen readers, closed by Escape, focus in on open and back on close.
+  const returnFocus = document.activeElement;
   const drawer = document.createElement('div');
   drawer.id = 'kb-drawer';
   drawer.className = 'modal-overlay open';
+  drawer.setAttribute('role', 'dialog');
+  drawer.setAttribute('aria-modal', 'true');
+  drawer.setAttribute('aria-labelledby', 'kb-drawer-title');
   drawer.innerHTML = `
     <div class="modal-container kb-drawer-container">
       <div class="modal-header">
-        <h3 class="modal-title">Help</h3>
+        <h3 class="modal-title" id="kb-drawer-title">Help</h3>
         <button type="button" class="modal-close" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body" id="kb-drawer-body"><p class="text-muted">Loading&hellip;</p></div>
@@ -261,9 +266,14 @@ async function openHelpDrawer(screenID) {
       </div>
     </div>`;
   document.body.appendChild(drawer);
-  const close = () => drawer.remove();
+  const close = () => {
+    drawer.remove();
+    if (returnFocus && returnFocus.focus) returnFocus.focus();
+  };
   drawer.querySelector('.modal-close').addEventListener('click', close);
   drawer.querySelector('.btn-secondary').addEventListener('click', close);
+  drawer.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+  drawer.querySelector('.modal-close').focus();
 
   const body = drawer.querySelector('#kb-drawer-body');
   if (slugs.length === 0) {

@@ -186,7 +186,9 @@ async function renderFinanceWorkPanel(container) {
     list.appendChild(link);
   });
   // Stage 148.23: set-off has no menu line; its two lists show here once it is set up.
-  apiFetch('/api/v1/finance/set-off/suggestions?enabled_only=1').then(res => (res && res.ok ? res.json() : null)).then(out => {
+  // 193: asked only by a role that may open one of the two lists.
+  const mayOpenSetOff = typeof canReadDoctype !== 'function' || canReadDoctype('PartyPair') || canReadDoctype('SetOffVoucher');
+  if (mayOpenSetOff) apiFetch('/api/v1/finance/set-off/suggestions?enabled_only=1').then(res => (res && res.ok ? res.json() : null)).then(out => {
     if (!out || !out.enabled) return;
     [['Party pairs', '#/setup/PartyPair'], ['Set-off vouchers', '#/setup/SetOffVoucher']].forEach(([title, href]) => {
       const link = document.createElement('a');
@@ -902,7 +904,9 @@ async function renderBankReconciliationView(container) {
     if (!r.ok) { showApiError(r, 'Matching failed.'); return; }
     const out = await r.json();
     const ex = (out.exceptions || []).map(e => `${e.settlement_date || ''} ${e.mode || ''} ${Number(e.net || 0).toFixed(2)}: ${e.reason}`).join('\n');
-    await showCustomAlert(`${out.matched} payout(s) matched.${ex ? `\n\nNot matched:\n${ex}` : ''}`, 'Card / UPI settlements');
+    // 185.2: a UPI statement's payments checked against the till's bills.
+    const bills = (out.bill_exceptions || []).map(e => `${e.payment_ref || ''} ${Number(e.gross || 0).toFixed(2)}: ${e.reason}`).join('\n');
+    await showCustomAlert(`${out.matched} payout(s) matched.${ex ? `\n\nNot matched:\n${ex}` : ''}${bills ? `\n\nBills to check:\n${bills}` : ''}`, 'Card / UPI settlements');
     if (out.matched) renderView(currentView);
   });
 
@@ -1320,6 +1324,7 @@ async function renderSalesInvoicesView(container) {
               <td>
                 ${v.status === 'Draft' && financeCanPost() ? `<button class="action-btn" ${actionAttrs('postSalesInvoiceAction', [v.id])}>Post</button>` : ''}
                 ${v.status === 'Approved' && financeCanPost() ? `<button class="action-btn" data-si-settle="${escapeHTMLText(v.id)}">Settle</button>` : ''}
+                ${v.status === 'Approved' && financeCanPost() ? `<button class="action-btn" data-si-paylink="${escapeHTMLText(v.id)}">Pay link</button>` : ''}
                 ${(v.status === 'Draft' || (v.status === 'Approved' && history.length === 0)) && financeCanPost() ? `<button class="action-btn" data-si-cancel="${escapeHTMLText(v.id)}">Cancel</button>` : ''}
                 ${history.length > 0 ? `<button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}
                 <button class="action-btn" ${actionAttrs('printSalesInvoice', [v.id])}>Print</button>
@@ -1330,6 +1335,17 @@ async function renderSalesInvoicesView(container) {
     </table>`
   });
   container.querySelectorAll('[data-si-settle]').forEach(btn => btn.addEventListener('click', () => settleSalesInvoiceAction(btn.getAttribute('data-si-settle'))));
+  // 185.3: a Razorpay link for what the invoice owes; paying it books the receipt.
+  container.querySelectorAll('[data-si-paylink]').forEach(btn => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const res = await apiFetch(`/api/v1/finance/sales-invoice/${encodeURIComponent(btn.getAttribute('data-si-paylink'))}/payment-link`, { method: 'POST' });
+    btn.disabled = false;
+    if (!res) return;
+    if (!res.ok) { showApiError(res, 'No payment link was made.'); return; }
+    const link = await res.json();
+    try { await navigator.clipboard.writeText(link.url); showToast('Payment link copied.', { variant: 'success' }); } catch { /* copied by hand from the box */ }
+    showCustomPrompt(formatMoney(link.amount), link.url, 'Payment link');
+  }));
   // 140.12.8: cancel an invoice that took no money - what it posted is reversed.
   container.querySelectorAll('[data-si-cancel]').forEach(btn => btn.addEventListener('click', async () => {
     const reason = String((await showCustomPrompt('Why is this invoice being cancelled?', '', 'Cancel invoice')) || '').trim();

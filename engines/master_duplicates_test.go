@@ -71,6 +71,9 @@ func TestDuplicateSuppliersAndItems(t *testing.T) {
 	insert("I-3", "Item", map[string]interface{}{"code": "I-3", "name": "Blue Shirt", "hsn_code": "6205"})
 	insert("I-4", "Item", map[string]interface{}{"code": "I-4", "name": "Steel bottle", "gtin": "00012345678905", "hsn_code": "7323"})
 	insert("I-5", "Item", map[string]interface{}{"code": "I-5", "name": "Bottle, steel 1L", "gtin": "00012345678905", "hsn_code": "7323", "mrp": 499})
+	// 199.1: two combinations of one design share its item name.
+	insert("I-6", "Item", map[string]interface{}{"code": "I-6", "name": "CZ Necklace", "hsn_code": "7117", "family": "D-1", "variant_option_values": "COL:Red"})
+	insert("I-7", "Item", map[string]interface{}{"code": "I-7", "name": "CZ Necklace", "hsn_code": "7117", "family": "D-1", "variant_option_values": "COL:Green"})
 	if _, err := db.DB.Exec("INSERT INTO " + schema + ".inventory_availability (sku, location_code, on_hand, available) VALUES ('I-2', 'HO', 5, 5)"); err != nil {
 		t.Fatal(err)
 	}
@@ -128,6 +131,9 @@ func TestDuplicateSuppliersAndItems(t *testing.T) {
 	it := collect(items)
 	if _, found := it["I-3"]; found {
 		t.Error("same name under another HSN is another product")
+	}
+	if _, found := it["I-6"]; found {
+		t.Error("two combinations of one design were reported as duplicates")
 	}
 	if it["I-1"].group == 0 || it["I-1"].group != it["I-2"].group || !strings.Contains(it["I-1"].why, "Same barcode") || !strings.Contains(it["I-1"].why, "Same name and HSN") {
 		t.Errorf("shirt pair: %+v %+v", it["I-1"], it["I-2"])

@@ -94,19 +94,49 @@ func formatPeriodSegment(yearFormat, resetFreq, financialYear string, now time.T
 
 // GenerateSequence generates the next document code using row-level locking
 func GenerateSequence(tenantID, docType, storeCode, financialYear string) (string, error) {
+	code, _, err := drawSequence(tenantID, docType, storeCode, financialYear)
+	return code, err
+}
+
+// NumberDraw (57.26 d) is the counter bucket one number came from, so a save
+// refused after the number was drawn can give it back.
+type NumberDraw struct {
+	tenantID, docType, store, bucket string
+	value                            int64
+}
+
+// Release gives the number back, so a refused save leaves no hole in the
+// series. Only the latest number of its bucket can go back: if another
+// document drew since, the gap stays (ReleaseMasterNumber's rule). A nil
+// draw does nothing.
+func (d *NumberDraw) Release() {
+	if d == nil {
+		return
+	}
+	schema, err := db.GetTenantSchema(d.tenantID)
+	if err != nil {
+		return
+	}
+	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.sequence_counters SET current_val = current_val - 1
+		WHERE doc_type = $1 AND store_code = $2 AND financial_year = $3 AND current_val = $4`, schema),
+		d.docType, d.store, d.bucket, d.value)
+}
+
+// drawSequence is GenerateSequence that also says where the number came from.
+func drawSequence(tenantID, docType, storeCode, financialYear string) (string, *NumberDraw, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer tx.Rollback()
 
 	if err := db.SetSearchPath(tx, schema); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// 1. Fetch prefix configuration for this document type
@@ -127,7 +157,7 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 		activeStatus = true
 		includeStore = true
 	} else if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if !activeStatus {
@@ -137,7 +167,7 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 		// case deliberately falls back to defaults just above rather than
 		// erroring, so it isn't this scenario).
 		// Stage 76.8: the message names the screen that fixes it.
-		return "", &ValidationError{Code: "ADMINC-0030", Message: fmt.Sprintf("the %s number series is switched off - an administrator turns it on in Settings → Customize → Prefix Configs", docType)}
+		return "", nil, &ValidationError{Code: "ADMINC-0030", Message: fmt.Sprintf("the %s number series is switched off - an administrator turns it on in Settings → Customize → Prefix Configs", docType)}
 	}
 
 	// 2. Resolve which counter this number draws from. The bucket always
@@ -189,11 +219,11 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 		ON CONFLICT (doc_type, store_code, financial_year) DO UPDATE SET current_val = sequence_counters.current_val + 1
 		RETURNING current_val`, docType, counterStore, periodBucket).Scan(&nextVal)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// 5. Format sequence code
@@ -203,7 +233,8 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	if !includeStore || storeCode == "" {
 		storeSegment = ""
 	}
-	return joinNumberParts(prefix, storeSegment, periodSegment, paddedNum, suffix, separator, yearPosition), nil
+	draw := &NumberDraw{tenantID: tenantID, docType: docType, store: counterStore, bucket: periodBucket, value: nextVal}
+	return joinNumberParts(prefix, storeSegment, periodSegment, paddedNum, suffix, separator, yearPosition), draw, nil
 }
 
 // YearPositionEnd puts a series' year after the running number and suffix

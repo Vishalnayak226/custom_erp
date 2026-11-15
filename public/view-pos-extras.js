@@ -220,7 +220,7 @@ function renderPOSReturnTable() {
     } else {
       const ok = posReturnEligibility.found && posReturnEligibility.within_window;
       explain.innerHTML = `
-        <div style="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
+        <div data-css="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
                     background: ${ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'};">
           ${cfgEsc(posReturnEligibility.explanation || '')}
           ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div class="s-96ad60"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> ${posReturnEligibility.centralised ? `Booked there; goods come here by transfer.` : `Goods come back into this store.`}</div>` : ''}
@@ -1258,8 +1258,10 @@ async function posPrintGiftCardReceipt(r) {
   const browser = () => {
     const w = window.open('', '_blank', 'width=360,height=520');
     if (!w) { showCustomAlert(`${r.card} loaded with ${Number(r.amount).toFixed(2)}. Balance ${Number(r.balance).toFixed(2)}.`, 'Gift Card Issued'); return; }
-    w.document.write(`<!doctype html><title>Gift Card</title><body style="font-family:monospace; font-size:13px; padding:12px;">${slip}</body>`);
+    w.document.write(`<!doctype html><title>Gift Card</title><body>${slip}</body>`);
     w.document.close();
+    // 49.4.3: CSSOM, which the strict style-src this window inherits allows.
+    w.document.body.style.cssText = 'font-family:monospace; font-size:13px; padding:12px;';
     // BLD-041: printed from here - the window inherits script-src 'self', so
     // an inline print() in it was refused and the slip never printed.
     w.focus();
@@ -1301,8 +1303,9 @@ async function posRegisterGiftCards(p) {
     // number again, for a lost card (Stage 130.8).
     const w = window.open('', '_blank', 'width=420,height=600');
     if (w) {
-      w.document.write(`<!doctype html><title>New gift cards</title><body style="font-family:monospace; padding:12px;"><h3>${r.registered} new ${cfgEsc(p.profile)} numbers</h3><p>Print them on the cards now - after this only an administrator can show a number again.</p><ol>${r.numbers.map(n => `<li>${cfgEsc(n.replace(/(.{4})/g, '$1 ').trim())}</li>`).join('')}</ol></body>`);
+      w.document.write(`<!doctype html><title>New gift cards</title><body><h3>${r.registered} new ${cfgEsc(p.profile)} numbers</h3><p>Print them on the cards now - after this only an administrator can show a number again.</p><ol>${r.numbers.map(n => `<li>${cfgEsc(n.replace(/(.{4})/g, '$1 ').trim())}</li>`).join('')}</ol></body>`);
       w.document.close();
+      w.document.body.style.cssText = 'font-family:monospace; padding:12px;'; // 49.4.3: CSSOM, not markup
     }
   }
   await showCustomAlert(`${r.registered} card(s) registered as not yet issued.`, 'Gift Card');
@@ -1371,6 +1374,7 @@ export function printPOSReceipt(t, cartNumber, location, paymentMode, items, sal
       <div class="receipt-line receipt-total"><span>Total (${cfgEsc(paymentMode)})</span><span>${amountDue.toFixed(2)}</span></div>
     </div>
   `;
+  applyDataCss(area); // 49.4.3: before print(), which runs in this task
   area.classList.add('printing');
   window.print();
   setTimeout(() => area.classList.remove('printing'), 500);

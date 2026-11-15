@@ -9,8 +9,8 @@ audience: [maintainers, security-owner]
 applies_to: source documentation; scoped release acceptance required
 authority: proposed-policy
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-11-14
+review_by: 2027-02-14
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -20,13 +20,12 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 **Stage 49.0.6** — opened 2026-09-06. Companion to [threat-model.md](threat-model.md).
 
-> **Acceptance authority is not yet assigned.** 49.0.6 requires that a critical or
-> high risk cannot be accepted by its own implementer, and that exceptions are
-> time-bound and narrowly scoped. No such authority exists for this project yet, so
-> **every row below is Open or Closed — none is Accepted**, and the Owner column
-> names the role that must own it rather than pretending one has been appointed.
-> Appointing them is part of 49.0's acceptance criteria and is not something a
-> build session can do.
+> **Acceptance authority (owner, 2026-11-14, ask 178).** The product owner accepts
+> every Critical or High risk and approves each time-bound exception. The person who
+> built a change never accepts its risk. An acceptance or exception is written into
+> its row as `Accepted by the product owner, YYYY-MM-DD, until YYYY-MM-DD: <scope>`,
+> and lapses on that date. Until the owner accepts one, every row is Open or Closed.
+> The product owner is also the security owner (49.10.8).
 
 ## How to read a row
 
@@ -487,6 +486,9 @@ standing risk also gets an R- block above. The rules:
   **release-notes line** under Security fixes, with impact and fixed release
   and no exploit detail. A finding fixed before any numbered release needs
   none. The security owner sends it, and the cell then gets the date sent.
+- **F-01 to F-11 (owner as security owner, 2026-11-14, ask 178):** no outside
+  disclosure unless the finding's evidence shows client data reached someone it
+  should not. None of the eleven does, so each has its release-notes line only.
 - **Owner / SLA** uses the targets in
   [vulnerability-disclosure-lifecycle.md](vulnerability-disclosure-lifecycle.md) §49.15.3.
 
@@ -496,7 +498,7 @@ that breaks these rules.
 | ID | Found | Finding | Severity | Affected | Evidence | Owner / SLA | Fix | Regression test | Retest | Disclosure | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | F-01 | 2026-09-23 | Two concurrent deliveries of one channel webhook could each create a sales order | High (any provider retry; duplicate order, stock and revenue) | Builds before 702d2a2 (2026-09-27), no numbered release; D1, D2; clients with a channel connector | BLD-031 failure campaign; `engines/bld031_provider_extension_contract_test.go` | engineering-owner; High: next release | Advisory lock around channel order import | `TestBLD031ConcurrentDuplicateChannelWebhookDeliveryIsIdempotent` | 2026-10-27 pass (0.17.0 tree) | None needed: fixed before the first numbered release | Closed |
-| F-02 | 2026-10-25 | The MFA challenge or enrol token that a password alone earns worked as a full session, so the second factor could be skipped for any account, Super Admin included | Critical (password only; MFA bypass) | 0.2.0 to b960805 (0.14.0, 2026-10-25), back to the challenge token's introduction (123f093, 2026-07-19); fixed in 0bcac93 (0.14.0, 2026-10-26); D1, D2; every client; was live on app and minn | Stage 49.2.8 test campaign: 200 on `/api/v1/me` and `/api/v1/doc/*` with a challenge token | security-owner; Critical: same day | `purposeTokenRoutes`: a purpose token reaches only its own MFA step, otherwise GLOBAL-0009 | `TestStage49PasswordAloneNeverOpensAnMFAAccount` | 2026-10-27 pass (0.17.0 tree) | Advisory to the clients on app and minn (fix live since 0.14.0): affected releases, impact, fixed release, and to review sign-ins between 2026-07-19 and the 0.14.0 deploy; release-notes line | Closed |
+| F-02 | 2026-10-25 | The MFA challenge or enrol token that a password alone earns worked as a full session, so the second factor could be skipped for any account, Super Admin included | Critical (password only; MFA bypass) | 0.2.0 to b960805 (0.14.0, 2026-10-25), back to the challenge token's introduction (123f093, 2026-07-19); fixed in 0bcac93 (0.14.0, 2026-10-26); D1, D2; every client; was live on app and minn | Stage 49.2.8 test campaign: 200 on `/api/v1/me` and `/api/v1/doc/*` with a challenge token | security-owner; Critical: same day | `purposeTokenRoutes`: a purpose token reaches only its own MFA step, otherwise GLOBAL-0009 | `TestStage49PasswordAloneNeverOpensAnMFAAccount` | 2026-10-27 pass (0.17.0 tree) | Release-notes line (Security fixes). No advisory (owner, 2026-11-14): the evidence is a test reproduction; nothing shows client data reached anyone | Closed |
 | F-03 | 2026-10-25 | One reset link used twice at once set two passwords | Medium (needs the reset link and a race) | Releases before 0bcac93 (0.14.0, 2026-10-26), introduction not traced; D1, D2; every client | Stage 49.2.8: passed alone, failed in the full run; race reproduced and then held 15 times | security-owner; Medium: current stage | The password update claims the token itself (1 row or refused) | `TestStage49PasswordResetTokenWinsOnce` | 2026-10-27 pass (0.17.0 tree) | Release-notes line (Security fixes) | Closed |
 | F-04 | 2026-10-25 | A purged client's extension token read the default client's records (200) on any host not mapped to a client | High (needs a purged client's token; cross-client read) | Releases before 0bcac93 (0.14.0, 2026-10-26), introduction not traced; D1, and D2 hosts not mapped to a client; purged or unregistered clients | Stage 49.3.3: the test fails on the released code | security-owner; High: next release | `apiMiddleware` gates an extension token's client with `TenantIsOperational` (401) | `TestStage49TokenForAnUnregisteredClientIsRefused` | 2026-10-27 pass (0.17.0 tree) | Release-notes line (Security fixes); an advisory only if a purged client had a live extension token on app or minn | Closed |
 | F-05 | 2026-10-25 | Another store's or user's record answered 403 while a missing one answered 404, so the refusal confirmed the record existed | Low (signed-in user; existence only) | Releases before 0bcac93 (0.14.0, 2026-10-26); D1, D2; clients with store or self scopes | Stage 49.4.7 API misuse review | engineering-owner; Low: backlog | Both answer 404 GLOBAL-0004; the refusal is still audited as GLOBAL-0011 | `TestStage49OutOfScopeAndMissingRecordsAnswerAlike` | 2026-10-27 pass (0.17.0 tree) | Release-notes line (Security fixes) | Closed |

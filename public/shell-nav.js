@@ -5,15 +5,11 @@
 // navigation.hide_unfinished setting is on. Returns the landing screen only
 // if the role can open it, else ''.
 
-if (!document.getElementById('shell-nav-css')) {
-  const style = document.createElement('style');
-  style.id = 'shell-nav-css';
-  style.textContent = `
+// 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
+adoptCss('shell-nav-css', `
 .maturity-tag { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); white-space: nowrap; }
 .maturity-tag.maturity-experimental { background: var(--danger-soft-bg, var(--warning-soft-bg)); color: var(--danger-strong, var(--warning-strong)); }
-li.maturity-hidden { display: none !important; }`;
-  document.head.appendChild(style);
-}
+li.maturity-hidden { display: none !important; }`);
 
 function markMaturity(el, level, hide) {
   if (!el) return;

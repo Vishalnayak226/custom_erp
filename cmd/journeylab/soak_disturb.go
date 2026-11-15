@@ -193,10 +193,3 @@ func SoakMarkdown(ev SoakEvidence) string {
 	}
 	return b.String()
 }
-
-func quartText(first, last float64) string {
-	if first == 0 && last == 0 {
-		return "not computed (fewer than 8 passing cycles)"
-	}
-	return fmt.Sprintf("first quarter %.0f ms, last quarter %.0f ms", first, last)
-}

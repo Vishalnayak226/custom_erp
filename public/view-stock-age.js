@@ -68,7 +68,7 @@ async function decide(helpers, row, reload) {
 // renderStockAgeSection draws the list under the inspections, or nothing.
 async function renderStockAgeSection(container, helpers) {
   const data = await jsonOf('/api/v1/stock-age-inspections');
-  if (!data) return; // the check is off, or not allowed
+  if (!data || data.off) return; // the check is off, or not allowed
   const sec = document.createElement('div');
   sec.className = 'table-panel';
   sec.style.marginTop = '24px';

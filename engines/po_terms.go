@@ -366,8 +366,8 @@ func grniReport(tenantID string, p map[string]string) ([]map[string]interface{},
 			continue
 		}
 		var accepted, invoiced int64
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit - debit), 0) FROM %s.gl_postings WHERE account_code = $1 AND document_type = 'GRN' AND document_id = $2`, schema),
-			AccountAPSuspense, d.id).Scan(&accepted)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit - debit), 0) FROM %s.gl_postings WHERE account_code IN %s AND document_type = 'GRN' AND document_id = $1`, schema, controlAccountsIn(schema, AccountAPSuspense)),
+			d.id).Scan(&accepted)
 		if accepted == 0 {
 			continue
 		}
@@ -387,8 +387,8 @@ func grniReport(tenantID string, p map[string]string) ([]map[string]interface{},
 		}
 		rows.Close()
 		if len(ids) > 0 {
-			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit - credit), 0) FROM %s.gl_postings WHERE account_code = $1 AND document_type = 'VendorInvoice' AND document_id = ANY($2)`, schema),
-				AccountAPSuspense, pqStringArray(ids)).Scan(&invoiced)
+			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit - credit), 0) FROM %s.gl_postings WHERE account_code IN %s AND document_type = 'VendorInvoice' AND document_id = ANY($1)`, schema, controlAccountsIn(schema, AccountAPSuspense)),
+				pqStringArray(ids)).Scan(&invoiced)
 		}
 		out = append(out, map[string]interface{}{"grn": firstNonEmpty(strField(d.data, "code"), d.id), "date": d.at.Format("2006-01-02"), "vendor": strField(d.data, "vendor"),
 			"location": strField(d.data, "location"), "accepted_value": PaiseToRupees(accepted), "invoiced_value": PaiseToRupees(invoiced),

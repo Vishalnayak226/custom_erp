@@ -9,7 +9,7 @@ audience: [security, engineering, QA]
 applies_to: native browser shell and lazy view modules
 authority: source
 confidentiality: internal
-last_verified: 2026-10-23
+last_verified: 2026-11-15
 review_by: 2027-01-21
 supersedes: none
 superseded_by: none
@@ -106,18 +106,20 @@ before this migration and now log `[action] no such action function` instead, so
 improved and behaviour did not change. **Not fixed here**: removing the dead overlays or
 implementing the four functions is a UI decision, not boundary work.
 
-## 2. Content Security Policy — strict `script-src` enforced
+## 2. Content Security Policy — strict `script-src` and `style-src` enforced
 
 The enforced policy is now:
 
 ```
-default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self';
-img-src 'self' data: blob:; connect-src 'self' ws://localhost:* wss://localhost.qz.io:*;
-object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self';
+img-src 'self' data: blob:; connect-src 'self' ws://localhost:* ws://127.0.0.1:* wss://localhost.qz.io:*;
+frame-src 'self' printbridge:; object-src 'none'; base-uri 'self'; form-action 'self';
+frame-ancestors 'none'
 ```
 
-`'unsafe-inline'` is gone from `script-src`. The report-only header has moved on to the next
-candidate, strict `style-src`.
+`'unsafe-inline'` is gone from `script-src` and, since ask 191 (49.4.3), from `style-src` too.
+The report-only header is the same policy plus the next candidate, Trusted Types
+(`require-trusted-types-for 'script'`).
 
 **No nonce and no hash list**, deliberately. A nonce exists to permit inline `<script>` elements and
 there are none — `index.html` loads six external scripts and contains no inline block — so a nonce
@@ -139,8 +141,19 @@ Both phases were measured in Chromium across all 29 dispatched views, collecting
 | 3 — after dispatcher hardening | `'self'` | 0 | 0 | 0 |
 
 Phase 1 is what authorised the flip: the strict candidate reported **zero** violations of any
-directive before it was enforced. The 629 report-only violations now visible are all
-`style-src-attr`, i.e. the next migration this mechanism is queued to carry, not a regression.
+directive before it was enforced.
+
+`style-src` went the same way (49.4.3, ask 191, 2026-11-15). Run-time styles now go through the
+CSSOM (`data-css` applied by `applyDataCss`, constructed sheets by `adoptCss` in `app.js`), which
+the policy allows; a `style="..."` attribute or a `<style>` element in markup is refused.
+
+| Check against the strict candidate | Scope | `style-src` violations | Page errors |
+|---|---|---:|---:|
+| Report-only crawl | all 74 menu views, 323 doctype lists and their New forms (397 screens) | 0 | 0 |
+| Enforced, print paths (`docs/qa/bld041-print-paths.cjs`) | all 35 print paths, 35/35 passed | 0 | 0 |
+
+The same crawl logged 3,440 Trusted Types reports; that trial stays report-only.
+`TestPublicStylesGoThroughTheCSSOM` keeps new markup styles out.
 
 Separately, all **128** `data-act` reference sites were checked statically against every way this
 codebase publishes a function to `window` (`app.js` top-level declarations, `window.X =`, and view
@@ -220,8 +233,8 @@ classification. Still open:
   the revoked-session proof is `internal/server/session_revocation_test.go`.
 - **style-src** - 49.4.3 moved 2,764 static `style="..."` attributes to classes (`styles.css` for the cold core,
   `view-inline.css` for lazy views, loaded by `loadViewModule`) and the three static `<style>` blocks to CSS files. About 119
-  remain, built from `${...}` values at run time or toggled by JS; `TestPublicInlineStylesOnlyShrink` keeps that number from
-  growing. A 14-screen sweep still logs a few report-only violations, so the enforced policy keeps `'unsafe-inline'`.
+  remained, built from `${...}` values at run time or toggled by JS. Those now go through the CSSOM, and since ask 191
+  the enforced policy is `style-src 'self'` (section 2 has the evidence). Done.
 - **47.8.3** (session cookie-versus-token topology) and **47.8.5** (vendor assessment, tracked as
   26.11.1) stay excluded under their own existing gates.
 
@@ -230,6 +243,7 @@ classification. Still open:
 - **Script CSP**: enforced `script-src 'self'`; no inline script or eval. `TestPublicContentBoundary` now fails on a new inline `<script>`, `on*=` handler, `eval`, `new Function`, `srcdoc`, string `setTimeout`, or `document.write` outside the two reviewed print-popup files.
 - **Found and fixed**: `public/pim-catalog-share.html` had an inline script that the enforced CSP blocks (the shared-catalog page could not load); moved to `public/pim-catalog-share.js`. The bulk-selection CSV export in `public/view-documents.js` did not neutralise a leading `= + - @` cell; it now does (as `view-dashboards.js` already did). Server CSV writers already use the formula-safe writer (49.8.2); the leftover plain writers hold sanitised cells (`import.go`, `import_resume.go`) or a bank file format (`payment_file.go`, deliberately plain).
 - **User files**: attachments are `nosniff`, `private, no-store`, downloaded (not inline) unless an image; SVG is now always a download, and every file response carries `Content-Security-Policy: sandbox; default-src 'none'`. No route serves user-supplied HTML.
-- **Still blocked by the report-only candidate**: the remaining run-time inline `style="..."` attributes (a full 85-route crawl went from 1,486 console reports to 44); the enforced policy keeps `style-src 'unsafe-inline'` until they move to classes. No script consequence.
+- **Style CSP** (updated ask 191, 2026-11-15): the remaining run-time inline `style="..."` attributes (a full 85-route crawl went from 1,486 console reports to 44) moved to the CSSOM, and `style-src 'self'` is now enforced after a 397-screen crawl with zero violations and 35/35 print paths with it enforced.
 - **Trusted Types**: evaluation only, not enabled. `require-trusted-types-for 'script'` is now in the report-only header alone (49.4.3). A 14-screen sweep logged 146 reports, most of them `innerHTML` assignments in `app.js` and the view modules, so it cannot be enforced without a policy that wraps `esc()`'d markup. Read the reports for two weeks, then decide.
-- **Open**: new-code scanning of `innerHTML` with unescaped values (the sink scan harness covers it offline), style-src, 47.8.3 token storage (see `adr-session-topology.md`).
+  The full 397-screen crawl in ask 191 logged 3,440 reports.
+- **Open**: new-code scanning of `innerHTML` with unescaped values (the sink scan harness covers it offline), Trusted Types, 47.8.3 token storage (see `adr-session-topology.md`).

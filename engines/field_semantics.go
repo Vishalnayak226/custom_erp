@@ -118,14 +118,31 @@ func FieldSemantic(identifier string) string {
 		return s
 	}
 	// Word match, longest word first, so `serial_number` prefers "serial"
-	// over a shorter accidental hit.
-	words := strings.FieldsFunc(id, func(r rune) bool { return r == '-' || r == '_' || r == '.' })
+	// over a shorter accidental hit. 188.1: a camelCase name splits too
+	// (mobilePickWaveId -> mobile pick wave id), the same as app.js's mirror.
+	words := strings.FieldsFunc(splitCamelWords(strings.TrimSpace(identifier)), func(r rune) bool { return r == '-' || r == '_' || r == '.' })
 	for _, w := range words {
 		if s, ok := explicitFieldSemantics[w]; ok {
 			return s
 		}
 	}
 	return ""
+}
+
+// splitCamelWords lower-cases an identifier and puts "_" where a capital
+// follows a lower-case letter or digit: "mobilePickWaveId" -> "mobile_pick_wave_id".
+func splitCamelWords(s string) string {
+	var b strings.Builder
+	prev := false // previous rune was a lower-case letter or a digit
+	for _, r := range s {
+		upper := r >= 'A' && r <= 'Z'
+		if upper && prev {
+			b.WriteByte('_')
+		}
+		prev = (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		b.WriteString(strings.ToLower(string(r)))
+	}
+	return b.String()
 }
 
 // IsScanField reports whether an identifier holds a machine-read code. The RF

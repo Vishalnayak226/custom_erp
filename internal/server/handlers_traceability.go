@@ -82,6 +82,7 @@ func handleBatchConsume(w http.ResponseWriter, r *http.Request) {
 		VoucherType string `json:"voucher_type"`
 		VoucherID   string `json:"voucher_id"`
 		Customer    string `json:"customer"`
+		SerialNo    string `json:"serial_no"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.BatchNo == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code', 'sku' and 'batch_no' are required")
@@ -91,13 +92,35 @@ func handleBatchConsume(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
+	// 103.4.1: a serial-tracked item is issued one unit at a time, by its serial
+	// number - the serial gate runs beside the batch gate (a no-op for an item
+	// that does not track serials).
+	if err := engines.ValidateSerialForIssue(tenantID, req.Sku, req.SerialNo); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	serialTracked := false
+	if tracking, terr := engines.GetItemTracking(tenantID, req.Sku); terr == nil && tracking.TracksSerial() {
+		serialTracked = true
+		if req.Qty != 1 {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "A serial-tracked item is issued one unit at a time: qty must be 1")
+			return
+		}
+	}
 	if err := engines.ValidateLotForCustomer(tenantID, req.Customer, req.Sku, req.BatchNo); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	if err := engines.ConsumeBatchStock(tenantID, req.BinCode, req.Sku, req.BatchNo, req.Condition, req.Qty,
-		req.VoucherType, req.VoucherID, userID); err != nil {
-		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+	var consumeErr error
+	if serialTracked {
+		consumeErr = engines.IssueSerialFromLot(tenantID, req.BinCode, req.Sku, req.BatchNo, req.SerialNo, req.Condition,
+			req.VoucherType, req.VoucherID, userID)
+	} else {
+		consumeErr = engines.ConsumeBatchStock(tenantID, req.BinCode, req.Sku, req.BatchNo, req.Condition, req.Qty,
+			req.VoucherType, req.VoucherID, userID)
+	}
+	if consumeErr != nil {
+		writeEngineError(w, r, consumeErr, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{

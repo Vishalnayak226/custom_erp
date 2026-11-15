@@ -316,6 +316,17 @@ func ItemNameOrder(tenantID string) string {
 	return ItemNameOrderCategoryType
 }
 
+// ItemNameForSchema is the name a blank Item Name is saved with: the category
+// and type names in the org's order (199.1: the bulk purchase upload names its
+// item names and combinations with it).
+func ItemNameForSchema(schema, category, productType string) string {
+	order := ItemNameOrderCategoryType
+	if GetSettingStringForSchema(schema, SettingItemNameOrder) == ItemNameOrderTypeCategory {
+		order = ItemNameOrderTypeCategory
+	}
+	return composeItemName(order, category, productType)
+}
+
 func composeItemName(order, category, productType string) string {
 	parts := []string{strings.TrimSpace(category), strings.TrimSpace(productType)}
 	if order == ItemNameOrderTypeCategory {
@@ -358,8 +369,10 @@ func ApplyItemNameOrder(tenantID, from, to, by string) (ItemNameOrderChange, err
 	if err != nil {
 		return out, err
 	}
-	type rename struct{ id, code, oldName, newName string }
+	// Item 201.2: an alias made from the name follows it; a typed one stays.
+	type rename struct{ id, code, oldName, newName, oldAlias, newAlias string }
 	var renames []rename
+	short := ItemAliasShortForms(tenantID)
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data::text FROM %s.documents WHERE doctype = 'ItemName' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return out, err
@@ -380,7 +393,11 @@ func ApplyItemNameOrder(tenantID, from, to, by string) (ItemNameOrderChange, err
 		if oldName == newName || !strings.EqualFold(strings.TrimSpace(strField(d, "name")), oldName) {
 			continue
 		}
-		renames = append(renames, rename{id, firstNonEmpty(strField(d, "code"), id), oldName, newName})
+		r := rename{id: id, code: firstNonEmpty(strField(d, "code"), id), oldName: oldName, newName: newName}
+		if stored := strings.TrimSpace(strField(d, "item_alias")); stored == "" || stored == MakeItemAlias(oldName, cat, short) {
+			r.oldAlias, r.newAlias = MakeItemAlias(oldName, cat, short), MakeItemAlias(newName, cat, short)
+		}
+		renames = append(renames, r)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -449,6 +466,15 @@ func ApplyItemNameOrder(tenantID, from, to, by string) (ItemNameOrderChange, err
 			  AND (data->>'item_name' = ANY($1) OR data->>'family' = ANY($1) OR data->>'parent_product_code' = ANY($1))`, schema),
 			[]interface{}{pq.Array(refs)}, r, &out.Items); err != nil {
 			return out, err
+		}
+		if r.oldAlias != r.newAlias {
+			if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = jsonb_set(data, '{item_alias}', to_jsonb($2::text))
+				WHERE id = $1 AND COALESCE(data->>'item_alias', '') <> ''`, schema), r.id, r.newAlias); err != nil {
+				return out, err
+			}
+			if _, err := followItemAlias(tx, schema, refs, r.oldAlias, r.newAlias); err != nil {
+				return out, err
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {

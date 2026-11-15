@@ -213,6 +213,89 @@ func (r *Runner) JourneyCommandReplay() JourneyRecord {
 		s.Check(jstr(rq.JSON, "id") != "", "reprint request id")
 		return nil
 	})
+	// 74.U.2 (ask 191): job work - sent on its delivery challan, one piece
+	// back, the processing charge booked; each sent twice with one key.
+	j.Step("job work send, receive and charge", "admin", func(s *StepCtx) error {
+		o := s.SetupCall("admin", "POST", "/api/v1/doc/SubcontractOrder", map[string]interface{}{
+			"code": "E8-JW-" + stamp, "vendor_id": vendorID, "location": locWH, "status": "Draft",
+			"due_date": time.Now().AddDate(0, 0, 30).Format("2006-01-02"), "lines": j2s([]map[string]interface{}{{"sku": skuMain, "qty": 2}})})
+		order := jstr(o.JSON, "id")
+		if !s.Check(order != "", "job work order: %d %s", o.Status, trunc(string(o.Body), 160)) {
+			return nil
+		}
+		counts := func() string {
+			return ledger() + fmt.Sprintf(", challans %d, job work %s", r.docCount("DeliveryChallan"),
+				r.strOf(`SELECT status || '/' || COALESCE(data->>'jw_balance', '') FROM %s.documents WHERE id = $1`, order))
+		}
+		snd := s.keyed("admin", "POST", "/api/v1/manufacturing/subcontract-order/send", key("jws"), map[string]interface{}{"id": order}, counts)
+		if !s.Check(jstr(snd.JSON, "order_status") == "Sent", "job work sent: %s", trunc(string(snd.Body), 160)) {
+			return nil
+		}
+		s.keyed("admin", "POST", "/api/v1/manufacturing/subcontract-order/receive-lines", key("jwr"), map[string]interface{}{
+			"id": order, "lines": []map[string]interface{}{{"line_no": 1, "accepted_qty": 1}}}, counts)
+		s.keyed("admin", "POST", "/api/v1/manufacturing/subcontract-order/charge", key("jwc"), map[string]interface{}{
+			"id": order, "bill_no": "E8-JWB-" + stamp, "amount": 50}, counts)
+		return nil
+	})
+	// 74.U.2 (ask 191): store credit is issued inside a return's refund. The
+	// refund moves an existing record on, so it is guarded by the refund's
+	// status, not a command key: the second send is refused and nothing moves.
+	j.Step("return refunded to store credit", "jl-cash", func(s *StepCtx) error {
+		if customer == "" {
+			return nil
+		}
+		t := s.SetupCall("admin", "POST", "/api/v1/doc/TransferOrder", map[string]interface{}{
+			"transfer_number": "x", "from_warehouse": locWH, "to_warehouse": locStore, "status": "Draft",
+			"items": j2s([]map[string]interface{}{{"sku": skuMain, "qty": 1}})})
+		to := jstr(t.JSON, "id")
+		if !s.Check(to != "", "transfer to the shop: %d %s", t.Status, trunc(string(t.Body), 160)) {
+			return nil
+		}
+		s.SetupCall("admin", "POST", "/api/v1/transfer/submit", map[string]string{"transfer_order_id": to})
+		decide(s, "admin", "TransferOrder", to, "Approved")
+		s.SetupCall("admin", "POST", "/api/v1/transfer/dispatch", map[string]string{"transfer_order_id": to})
+		s.SetupCall("jl-sms", "POST", "/api/v1/transfer/receive", map[string]interface{}{"transfer_order_id": to, "received_items": []map[string]interface{}{{"sku": skuMain, "qty": 1}}})
+		cart := "E8-SC-" + stamp
+		items := []map[string]interface{}{{"sku": skuMain, "qty": 1}}
+		s.SetupCall("jl-cash", "POST", "/api/v1/pos/quote", map[string]interface{}{"cart_number": cart, "location": locStore, "items": items, "customer_id": customer})
+		c := s.SetupCall("jl-cash", "POST", "/api/v1/checkout", map[string]interface{}{"cart_number": cart, "location": locStore, "payment_mode": "Cash",
+			"amount_paid": 500, "items": items, "customer_id": customer})
+		bill := r.strOf(`SELECT id FROM %s.documents WHERE doctype = 'POSCart' AND (id = $1 OR data->>'cart_number' = $1) AND status = 'Paid' LIMIT 1`, cart)
+		if !s.Check(bill != "", "sale to the customer: %d %s", c.Status, trunc(string(c.Body), 200)) {
+			return nil
+		}
+		rt := s.SetupCall("admin", "POST", "/api/v1/returns", map[string]interface{}{"request_type": "Customer Return", "return_location": locStore,
+			"original_order_id": bill, "reason": "E2E-08", "items": []map[string]interface{}{{"sku": skuMain, "qty": 1}}})
+		ret := firstNonEmpty(jstr(rt.JSON, "return_request_id"), jstr(rt.JSON, "id"))
+		if !s.Check(ret != "", "return request: %d %s", rt.Status, trunc(string(rt.Body), 200)) {
+			return nil
+		}
+		s.SetupCall("admin", "POST", "/api/v1/returns/"+url.PathEscape(ret)+"/approve", map[string]interface{}{})
+		s.SetupCall("admin", "POST", "/api/v1/returns/"+url.PathEscape(ret)+"/receive", map[string]interface{}{})
+		qc := s.SetupCall("admin", "POST", "/api/v1/returns/"+url.PathEscape(ret)+"/qc", map[string]interface{}{"dispositions": map[string]string{skuMain: "Sellable"}})
+		refund := jstr(qc.JSON, "refund_request_id")
+		if !s.Check(refund != "", "refund request from the inspection: %d %s", qc.Status, trunc(string(qc.Body), 200)) {
+			return nil
+		}
+		s.SetupCall("admin", "POST", "/api/v1/refunds/"+url.PathEscape(refund)+"/approve", map[string]interface{}{})
+		counts := func() string {
+			return ledger() + fmt.Sprintf(", stored value %d, refund %s", r.countOf(`SELECT COUNT(*) FROM %s.stored_value_ledger`),
+				r.strOf(`SELECT status || '/' || COALESCE(data->>'store_credit_id', '') FROM %s.documents WHERE id = $1`, refund))
+		}
+		body := map[string]interface{}{"refund_method": "Store Credit"}
+		first := s.Call("admin", "POST", "/api/v1/refunds/"+url.PathEscape(refund)+"/process", body)
+		if !s.Check(first.Status < 300, "refund to store credit: %d %s", first.Status, trunc(string(first.Body), 200)) {
+			return nil
+		}
+		s.Check(r.strOf(`SELECT COALESCE(data->>'store_credit_id', '') FROM %s.documents WHERE id = $1`, refund) != "", "the refund issued no store credit")
+		after := counts()
+		again := s.Call("admin", "POST", "/api/v1/refunds/"+url.PathEscape(refund)+"/process", body, 400, 409, 422)
+		s.Check(again.Status >= 400 && again.Status < 500, "a second refund was not refused: %d %s", again.Status, trunc(string(again.Body), 200))
+		if now := counts(); now != after {
+			s.errs = append(s.errs, fmt.Sprintf("check failed: the second refund moved the counts: %s -> %s", after, now))
+		}
+		return nil
+	})
 	return r.finish(j)
 }
 

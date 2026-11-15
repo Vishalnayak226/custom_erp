@@ -4,7 +4,7 @@ section: Getting Started
 order: 4
 summary: Follow one order from placement to invoice, so the screens in between stop being a mystery.
 audience: cashier, store manager
-last_verified: 2026-08-12
+last_verified: 2026-11-14
 screens: [oms, pos, sales-invoices]
 doc_id: DOC-B7AB4C1114
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-12
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -39,31 +39,28 @@ but will not allocate.
 
 ## 1. Place the order
 
-Point of sale is the shortest path:
+1. Open **OMS » Orders** and click **New Order**.
+2. Fill in the customer's name, phone and address.
+3. Click **+ Add item**, pick the product and set the quantity.
+4. Click **Create Order**.
 
-1. Open **POS**.
-2. Scan or search for the product.
-3. Take payment.
-
-The sale creates a Sales Order and its lines in one step.
-
-For a channel order there is nothing to do by hand - the connector imports it
-and creates the same Sales Order the POS would have.
+A channel order needs nothing by hand: the connector brings it in as the same
+kind of order. A sale at **POS** ends at its bill and does not come through
+these steps.
 
 ## 2. Watch it allocate
 
-Open **OMS » Orders** and find your order. The allocation state tells you
-whether stock has been committed to it:
+Open **OMS » Orders** and find your order. Its status tells you whether stock
+has been committed to it:
 
-| State | Meaning |
+| Status | Meaning |
 |---|---|
-| Pending | No stock has been reserved yet |
-| Reserved | Stock is held for this order at a specific location |
-| Allocated | The order is ready to be picked |
+| Reserved | Stock is held for this order at one location; it is ready to pick |
+| On Hold | Something stops it; the order shows why, such as *Waiting for stock* |
 
-If it stays Pending, the **Allocation pending** tile on the same screen lists
-every order in that state and usually explains why - most often there is no
-location with enough available-to-sell stock.
+An order *Waiting for stock* is also on the **Allocation pending** tile on the
+same screen. Most often no location has enough available-to-sell stock: receive
+stock and the order can be reserved.
 
 ## 3. Pick, pack and dispatch
 
@@ -74,9 +71,8 @@ and label** - the OMS bill and the courier AWB in one go) and **Ship**
 (manifest, gate pass, hand over). Each step records who did it and when.
 
 > [!TIP]
-> Use **Priority** on an order in the OMS console to push it to the front of the
-> pick queue. The priority flag is honoured by the queue itself, not just shown
-> as a label.
+> Click **Expedite** on the order's page to push it to the front of the pick
+> queue. The queue itself puts it first, not just a label.
 
 ## 4. Invoice
 

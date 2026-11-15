@@ -243,10 +243,14 @@ func PullChannelOrders(ctx context.Context, tenantID, channelCode string) (proce
 			if location == "" {
 				location = cfg.LocationCode
 			}
-			_, importErr := ImportChannelSalesOrder(tenantID, ChannelOrderInput{Channel: channelCode, ChannelOrderID: o.ChannelOrderID, CustomerName: o.CustomerName, CustomerPhone: o.CustomerPhone, ShippingAddress: o.ShippingAddress, ShippingState: o.ShippingState, PaymentStatus: o.PaymentStatus, PreferredLocation: location, NoSplit: cfg.NoSplit || connector.Descriptor().NoSplit, Lines: lines})
+			orderID, importErr := ImportChannelSalesOrder(tenantID, ChannelOrderInput{Channel: channelCode, ChannelOrderID: o.ChannelOrderID, CustomerName: o.CustomerName, CustomerPhone: o.CustomerPhone, ShippingAddress: o.ShippingAddress, ShippingState: o.ShippingState, PaymentStatus: o.PaymentStatus, PreferredLocation: location, NoSplit: cfg.NoSplit || connector.Descriptor().NoSplit, Lines: lines})
 			if importErr != nil {
 				failed++
 				continue
+			}
+			// 146.4.1: the marketplace's own invoice number rides on the sale.
+			if o.MarketplaceInvoiceNo != "" && orderID != "" && schema != "" {
+				_ = mergeDocData(schema, "SalesOrder", orderID, map[string]interface{}{"marketplace_invoice_no": o.MarketplaceInvoiceNo})
 			}
 			processed++
 		}

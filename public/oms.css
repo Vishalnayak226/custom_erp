@@ -19,8 +19,9 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
 .oms-mono { font-family: monospace; }
 .oms-scan-panel { padding: 16px 20px; margin-bottom: 20px; border-left: 4px solid var(--primary-color); }
 .oms-scan-panel h2 { font-size: 16px; margin: 0; }
-.oms-scan-row { display: flex; gap: 8px; margin: 12px 0 6px; max-width: 520px; }
-.oms-scan-row .form-input { flex: 1; min-height: 44px; font-size: 16px; }
+.oms-scan-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; max-width: 640px; }
+.oms-scan-row .form-input { flex: 1 1 160px; min-width: 0; min-height: 44px; font-size: 16px; }
+.oms-scan-row .oms-input-sm { flex: 0 0 90px; } /* 197.1: the Qty beside a typed SKU */
 .oms-scan-msg { min-height: 20px; font-size: 13px; margin-bottom: 8px; }
 .oms-scan-bad { color: var(--danger-strong); font-weight: 600; }
 .oms-line-done td { color: var(--text-muted); }

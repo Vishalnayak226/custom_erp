@@ -27,10 +27,13 @@ func TestPurchaseOrderPreviewCarriesStoreAddresses(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
+	// The shipped `system` account is Inactive (SB-021), so act as a seeded admin.
+	actor, dropActor := seedContractUser(t, "HR/Admin", "HO")
+	defer dropActor()
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/procurement/purchase-order/preview", apiMiddleware(handlePreviewPurchaseOrder))
 	preview := func(body string) map[string]json.RawMessage {
-		token := engines.SignToken("system", "system", "Super Admin", "default", "HO", currentCredentialVersion("system"))
+		token := engines.SignToken(actor, actor, "HR/Admin", "default", "HO", currentCredentialVersion(actor))
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/procurement/purchase-order/preview", strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()

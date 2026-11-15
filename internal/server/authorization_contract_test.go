@@ -352,3 +352,33 @@ func TestCrossLocationAndSensitiveFieldsAreDeniedOverHTTP(t *testing.T) {
 		}
 	}
 }
+
+// 49.3.1: background jobs are evaluated like every other restricted surface.
+// The list (every job's last error) needs jobs.view; retry, replay and cancel,
+// which re-drive or stop deliveries, exports and postings, need jobs.manage.
+// Before this every signed-in role, a Cashier included, could do all three.
+func TestStage4931JobRoutesNeedTheirCapability(t *testing.T) {
+	list, retry, cancel := "GET /api/v1/jobs", "POST /api/v1/jobs/{id}/retry", "POST /api/v1/jobs/{id}/cancel"
+	cases := []struct {
+		role          string
+		sees, manages bool
+	}{
+		{engines.RoleSuperAdmin, true, true},
+		{engines.RoleAdmin, true, true},
+		{"Auditor", true, false},
+		{"Store Supervisor", false, false},
+		{"Integrator", false, false},
+		{engines.RoleCashier, false, false},
+		{"A role the client named", false, false},
+	}
+	for _, c := range cases {
+		if ok, _, _ := checkRouteCapability(list, c.role); ok != c.sees {
+			t.Errorf("%s on %s: allowed=%v, want %v", c.role, list, ok, c.sees)
+		}
+		for _, pattern := range []string{retry, cancel} {
+			if ok, _, _ := checkRouteCapability(pattern, c.role); ok != c.manages {
+				t.Errorf("%s on %s: allowed=%v, want %v", c.role, pattern, ok, c.manages)
+			}
+		}
+	}
+}

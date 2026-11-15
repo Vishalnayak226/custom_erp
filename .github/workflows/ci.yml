@@ -70,6 +70,7 @@ jobs:
         run: go build -o /tmp/erp-server-ci ./cmd/server
 
       - name: Apply database schema
+        id: schema
         run: /tmp/erp-server-ci -migrate
         env:
           DATABASE_URL: postgres://postgres@localhost:5435/custom_erp?sslmode=disable
@@ -135,6 +136,10 @@ jobs:
         run: go run ./cmd/doclint -strict
 
       - name: Test
+        # 50.11: runs even when an earlier, unrelated gate (budgets, docs)
+        # has failed, so the race detector is never skipped; the job still
+        # fails for that gate. It needs the schema step to have worked.
+        if: ${{ !cancelled() && steps.schema.outcome == 'success' }}
         # -race: this codebase serves concurrent HTTP requests over a shared
         # *sql.DB plus several package-level caches (auth livestate, settings
         # registry, rate-limit buckets), and the race detector had never been run

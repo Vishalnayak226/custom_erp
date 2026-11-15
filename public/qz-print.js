@@ -38,7 +38,8 @@
   // self-signed cert for "localhost" would make the browser refuse the socket
   // from an https:// page.
   var SECURE_HOST = 'localhost.qz.io';
-  var INSECURE_HOST = 'localhost';
+  // 203.2: the agent listens on 127.0.0.1 only; naming it skips a ::1 try.
+  var INSECURE_HOST = '127.0.0.1';
 
   var CONNECT_TIMEOUT_MS = 2000;
   var CALL_TIMEOUT_MS = 30000;
@@ -161,16 +162,16 @@
   }
 
   function candidates() {
-    var list = [];
-    var pageIsSecure = global.location && global.location.protocol === 'https:';
     var secure = SECURE_PORTS.map(function (p) { return 'wss://' + SECURE_HOST + ':' + p; });
     var insecure = INSECURE_PORTS.map(function (p) { return 'ws://' + INSECURE_HOST + ':' + p; });
 
-    // An https:// page cannot open a ws:// socket at all (mixed content), so
-    // there is no point trying. An http:// page prefers the plain socket:
-    // it skips a TLS handshake and a DNS lookup of localhost.qz.io, which is
-    // the difference between a print starting instantly and after ~2s.
-    if (pageIsSecure) return secure;
+    // Every page tries the plain socket first: it skips a TLS handshake and a
+    // DNS lookup of localhost.qz.io, the difference between a print starting
+    // at once and after ~2s. 203.2: an https:// page may open ws:// to
+    // 127.0.0.1 too - browsers treat loopback as secure, so it is not mixed
+    // content - and that is what lets PrintBridge install with no certificate
+    // question. A browser that refuses it fails that try at once and the
+    // secure socket is tried next, as before.
     return insecure.concat(secure);
   }
 
@@ -215,6 +216,8 @@
     };
     ws.onclose = function () {
       socket = null;
+      // 203.3: the agent stops to reinstall itself; the window starts now.
+      if (lastUpdate && lastUpdate.status === 'updating') updating(true);
       Object.keys(pending).forEach(function (uid) {
         clearTimeout(pending[uid].timer);
         pending[uid].reject(new Error('QZ Tray connection closed'));
@@ -351,9 +354,36 @@
    * stop the waking, for a PC where it was removed. */
   var SEEN = 'erp_printbridge_seen', wokeAt = 0, firstClick = true;
   function seen(v) { try { if (v) localStorage.setItem(SEEN, v); return parseInt(localStorage.getItem(SEEN), 10) || 0; } catch (e) { return 0; } }
+
+  /* 203.3: PrintBridge replaces itself. Once per page load, a few seconds
+   * after it connects, the page asks it to look for a newer signed release on
+   * this site (/downloads/printbridge-update.json); the agent checks at most
+   * every 10 minutes however many tabs ask. While it reinstalls (a few
+   * seconds) every tab leaves it alone - waking it then would start the old
+   * program mid-copy - and a print waits for the new one. An agent before
+   * 0.3.0 refuses the call; the Print Setup panel offers it the download. */
+  var UPDATING = 'erp_printbridge_updating', updateAsked = false, lastUpdate = null;
+  function updating(v) {
+    try {
+      if (v) localStorage.setItem(UPDATING, String(Date.now()));
+      return Date.now() - (parseInt(localStorage.getItem(UPDATING), 10) || 0) < 120000;
+    } catch (e) { return false; }
+  }
+  function askUpdate() {
+    if (updateAsked) return;
+    updateAsked = true;
+    setTimeout(function () {
+      if (!socket || socket.readyState !== 1) return;
+      send('printbridge.update', null).then(function (r) {
+        lastUpdate = r || null;
+        if (r && r.status === 'updating') updating(true);
+      }, function () { /* an agent before 0.3.0 */ });
+    }, 5000);
+  }
+
   function wake() {
     var n = seen();
-    if (!n || n > 3 || Date.now() - wokeAt < 30000) return false;
+    if (!n || n > 3 || Date.now() - wokeAt < 30000 || updating()) return false;
     wokeAt = Date.now();
     seen(String(n + 1));
     var f = document.createElement('iframe');
@@ -375,8 +405,11 @@
 
     connecting = loadCertificate().then(function () {
       return openAny().catch(function (err) {
-        if (!wake()) throw err;
-        return later(2500).then(openAny).catch(function () { return later(2500).then(openAny); });
+        var waitFor = updating();
+        if (!waitFor && !wake()) throw err;
+        var again = later(2500).then(openAny).catch(function () { return later(2500).then(openAny); });
+        // A reinstall takes a few seconds more than a wake.
+        return waitFor ? again.catch(function () { return later(5000).then(openAny); }) : again;
       });
     }).then(function (ws) {
       socket = ws;
@@ -390,6 +423,7 @@
       return sendCertificate();
     }).then(function () {
       connecting = null;
+      askUpdate();
       return true;
     }).catch(function (err) {
       connecting = null;
@@ -444,6 +478,8 @@
     hostname: function () { return connect().then(function () { return send('networking.hostname', null); }); },
     // Stage 137.4: PrintBridge's own release; an agent before 0.2.0 refuses the call.
     agentVersion: function () { return connect().then(function () { return send('printbridge.version', null); }); },
+    // 203.3: what the last update check found ({current, latest, status}), or null.
+    updateStatus: function () { return lastUpdate; },
     printItems: printItems,
     // Exposed for the self-test in the Configure Printers screen, which
     // proves the signing chain end-to-end before an operator relies on it.

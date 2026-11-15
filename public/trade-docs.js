@@ -457,7 +457,7 @@ function cellHTML(colDef, line, el) {
   if (colDef.key === 'image') {
     const src = line.image;
     const size = el.imageSize || 14;
-    return src ? `<img src="${esc(src)}" alt="" style="width:${esc(size)}mm;height:${esc(size)}mm;object-fit:contain;">` : '';
+    return src ? `<img src="${esc(src)}" alt="" data-css="width:${esc(size)}mm;height:${esc(size)}mm;object-fit:contain;">` : '';
   }
   const main = esc(formatValue(resolvePath(line, colDef.key), colDef.format || guessFormat(colDef.key)));
   // Stage 106.3: more fields printed under the column's own, one per line -
@@ -473,13 +473,13 @@ function cellHTML(colDef, line, el) {
 function tableHead(el) {
   const cols = el.columns || [];
   const total = cols.reduce((s, c) => s + (Number(c.width) || 1), 0) || 1;
-  return `<colgroup>${cols.map(c => `<col style="width:${((Number(c.width) || 1) / total * 100).toFixed(3)}%">`).join('')}</colgroup>
-    <thead><tr>${cols.map(c => `<th style="text-align:${esc(c.align || 'left')};${el.headerBg ? `background:${esc(el.headerBg)};` : ''}">${esc(c.label || '')}</th>`).join('')}</tr></thead>`;
+  return `<colgroup>${cols.map(c => `<col data-css="width:${((Number(c.width) || 1) / total * 100).toFixed(3)}%">`).join('')}</colgroup>
+    <thead><tr>${cols.map(c => `<th data-css="text-align:${esc(c.align || 'left')};${el.headerBg ? `background:${esc(el.headerBg)};` : ''}">${esc(c.label || '')}</th>`).join('')}</tr></thead>`;
 }
 
 function tableRowsHTML(el, lines) {
   const cols = el.columns || [];
-  return lines.map(l => `<tr>${cols.map(c => `<td style="text-align:${esc(c.align || 'left')}">${cellHTML(c, l, el)}</td>`).join('')}</tr>`).join('');
+  return lines.map(l => `<tr>${cols.map(c => `<td data-css="text-align:${esc(c.align || 'left')}">${cellHTML(c, l, el)}</td>`).join('')}</tr>`).join('');
 }
 
 function taxSummaryHTML(el, ctx) {
@@ -524,8 +524,8 @@ export function elementHTML(el, ctx, pageInfo) {
       return `${el.label ? `<span class="tdp-label">${esc(el.label)}</span> ` : ''}${esc(v)}`;
     }
     case 'block': return blockHTML(el, ctx);
-    case 'image': return el.src ? `<img src="${esc(el.src)}" alt="" style="width:100%;height:100%;object-fit:${esc(el.fit || 'contain')};">` : '';
-    case 'line': return `<div style="position:absolute;inset:0;${el.w >= el.h ? `border-top:${esc(el.thickness || 0.3)}mm solid ${esc(el.color || '#333')}` : `border-left:${esc(el.thickness || 0.3)}mm solid ${esc(el.color || '#333')}`}"></div>`;
+    case 'image': return el.src ? `<img src="${esc(el.src)}" alt="" data-css="width:100%;height:100%;object-fit:${esc(el.fit || 'contain')};">` : '';
+    case 'line': return `<div data-css="position:absolute;inset:0;${el.w >= el.h ? `border-top:${esc(el.thickness || 0.3)}mm solid ${esc(el.color || '#333')}` : `border-left:${esc(el.thickness || 0.3)}mm solid ${esc(el.color || '#333')}`}"></div>`;
     case 'box': return '';
     case 'taxSummary': return taxSummaryHTML(el, ctx);
     case 'totals': return totalsHTML(el, ctx);
@@ -603,8 +603,9 @@ function measureTable(el, lines, fontFamily) {
   // (.tdp-el), so a wrapped cell is counted at its real height.
   const inner = Math.max(1, el.w - 2);
   probe.style.cssText = `position:absolute;left:-10000px;top:0;width:${inner}mm;font-family:${fontFamily};`;
-  probe.innerHTML = `<table class="tdp-table" style="width:${inner}mm;font-size:${esc(el.fontSize || 8)}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, lines)}</tbody></table>`;
+  probe.innerHTML = `<table class="tdp-table" data-css="width:${inner}mm;font-size:${esc(el.fontSize || 8)}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, lines)}</tbody></table>`;
   document.body.appendChild(probe);
+  applyDataCss(probe); // 49.4.3: measured in this task
   const head = probe.querySelector('thead');
   const headMM = head ? head.getBoundingClientRect().height / PX_PER_MM : 6;
   const rowsMM = [...probe.querySelectorAll('tbody tr')].map(tr => tr.getBoundingClientRect().height / PX_PER_MM);
@@ -741,7 +742,7 @@ export function renderPages(layout, doc, opts = {}) {
     page.style.fontFamily = layout.page?.font || 'Inter, Arial, sans-serif';
     let html = '';
     if (first && !hasBrand && ctx.brand.name) {
-      html += `<div class="tdp-el tdp-brand-auto" style="left:${esc(layout.page?.margin ?? 10)}mm;top:3mm;width:${pw - 2 * (layout.page?.margin ?? 10)}mm;height:6mm;">${esc(ctx.brand.name)}</div>`;
+      html += `<div class="tdp-el tdp-brand-auto" data-css="left:${esc(layout.page?.margin ?? 10)}mm;top:3mm;width:${pw - 2 * (layout.page?.margin ?? 10)}mm;height:6mm;">${esc(ctx.brand.name)}</div>`;
     }
     (layout.elements || []).forEach(src => {
       if (src.hidden) return;
@@ -751,16 +752,17 @@ export function renderPages(layout, doc, opts = {}) {
         const { top, bottom: end } = roll && el === table ? { top: el.y, bottom: el.y + el.h + shift }
           : el === table && !opts.design ? tableBox(layout, el, first, last) : { top: el.y, bottom: el.y + el.h };
         bottom = Math.max(bottom, end);
-        html += `<div class="${esc(elementClass(el))}" style="${esc(boxStyle({ ...el, y: top, h: end - top, border: false, bg: '' }))}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${esc(el.fontSize || 8)}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
+        html += `<div class="${esc(elementClass(el))}" data-css="${esc(boxStyle({ ...el, y: top, h: end - top, border: false, bg: '' }))}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" data-css="font-size:${esc(el.fontSize || 8)}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
         return;
       }
       const inner = elementHTML(el, ctx, { page: pageNo, pages: total, design: !!opts.design });
       if (inner === '' && !['box', 'line'].includes(el.type)) return;
       bottom = Math.max(bottom, el.y + el.h);
-      html += `<div class="${esc(elementClass(el))}" style="${esc(boxStyle(el))}">${inner}</div>`;
+      html += `<div class="${esc(elementClass(el))}" data-css="${esc(boxStyle(el))}">${inner}</div>`;
     });
     if (roll) page.style.height = `${Math.ceil(bottom + (layout.page?.margin ?? 3))}mm`;
     page.innerHTML = html;
+    applyDataCss(page); // 49.4.3: now - the page may be rasterised before it is ever attached
     return page;
   });
 }
@@ -781,13 +783,8 @@ export async function printPages(pages, layout) {
   }
   area.innerHTML = '';
   pages.forEach(p => area.appendChild(p));
-  let style = document.getElementById('trade-page-style');
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'trade-page-style';
-    document.head.appendChild(style);
-  }
-  style.textContent = `@page { size: ${pw}mm ${ph}mm; margin: 0; }`;
+  adoptCss('trade-page-style', `@page { size: ${pw}mm ${ph}mm; margin: 0; }`); // 49.4.3: a constructed sheet
+  applyDataCss(area);
   // Wait for embedded images so none prints blank.
   await Promise.all([...area.querySelectorAll('img')].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
   document.body.classList.add('trade-printing');
@@ -1135,14 +1132,19 @@ async function rollToReceipt(pages, w, h, ref, store, browserPrint) {
 // printSlip (Stage 127.2) prints a small slip the till builds as HTML - an
 // advance voucher, a gift-card receipt - on this computer's receipt printer,
 // like the bill. browserPrint is how the slip printed before.
+// 49.4.3: the slip's look is .tdp-slip in trade-docs.css - the one sheet the
+// PDF / ESC-POS rasteriser embeds - not a <style> in the markup, which a
+// strict style-src refuses. The page goes on as a node: the rasteriser clones
+// it, and the string it used to get made every silent slip print fail.
 export async function printSlip(html, ref, browserPrint) {
-  const page = `<div class="s-2520da">` +
-    `<style>.receipt-line{display:flex;justify-content:space-between;gap:8px}hr{border:0;border-top:1px dashed #000;margin:6px 0}</style>${html}</div>`;
+  await tradeStylesReady;
   const probe = document.createElement('div');
   probe.style.cssText = 'position:fixed; left:-10000px; top:0;';
-  probe.innerHTML = page;
+  probe.innerHTML = `<div class="tdp-slip">${html}</div>`;
   document.body.appendChild(probe);
-  const h = Math.ceil(probe.firstElementChild.getBoundingClientRect().height / (96 / 25.4)) + 2;
+  applyDataCss(probe);
+  const page = probe.firstElementChild;
+  const h = Math.ceil(page.getBoundingClientRect().height / (96 / 25.4)) + 2;
   probe.remove();
   return rollToReceipt([page], 80, h, ref, (window.erpWorkingStore || {}).code || '', browserPrint);
 }

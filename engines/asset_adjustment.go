@@ -25,9 +25,12 @@ import (
 const (
 	assetAccRevalReserve = "3500"
 	assetAccImpairment   = "5313"
+	// Ask 176: disposal moves the asset's remaining reserve here.
+	assetAccRetainedEarnings = "3100"
 
-	assetAdjInputCode = "ASSET-1725" // kind, amount, reason or date not usable
-	assetAdjStateCode = "ASSET-1726" // asset not in a state to be adjusted
+	assetAdjInputCode       = "ASSET-1725" // kind, amount, reason or date not usable
+	assetAdjStateCode       = "ASSET-1726" // asset not in a state to be adjusted
+	assetReserveReleaseCode = "ASSET-1730" // 3100 is missing or not Equity, so the reserve cannot be released
 )
 
 const (

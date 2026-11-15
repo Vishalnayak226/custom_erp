@@ -10,10 +10,8 @@ let company = '';
 
 const TAGS = { development: 'Dev', staging: 'Staging', test: 'Test', uat: 'UAT' };
 
-if (!document.getElementById('shell-identity-css')) {
-  const style = document.createElement('style');
-  style.id = 'shell-identity-css';
-  style.textContent = `
+// 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
+adoptCss('shell-identity-css', `
 .shell-env-badge { margin: 0 auto 12px; width: fit-content; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--warning-soft-bg); color: var(--warning-strong); }
 .header-company { margin: 0 16px 0 4px; min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-muted); }
 @media (max-width: 700px) { .header-company { display: none; } }
@@ -32,9 +30,7 @@ if (!document.getElementById('shell-identity-css')) {
 .wo-strip { position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); }
 .wo-strip img { height: 28px; width: auto; }
 @media (max-width: 820px) { .header-brand .wo-by { display: none; } }
-`;
-  document.head.appendChild(style);
-}
+`);
 
 // fixTitle adds the environment tag and the company to whatever title the
 // app just set ("Purchase Orders | Wholeops" -> "[Dev] Purchase Orders -
@@ -109,14 +105,7 @@ function applyBranding() {
 :root[data-theme="dark"] { ${dark} }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ${dark} } }`;
   }
-  let style = document.getElementById('brand-accent-css');
-  if (css && !style) {
-    style = document.createElement('style');
-    style.id = 'brand-accent-css';
-    document.head.appendChild(style);
-  }
-  if (style && !css) style.remove();
-  else if (style && style.textContent !== css) style.textContent = css;
+  adoptCss('brand-accent-css', css); // 49.4.3: '' removes it
   remember('erp_brand_css', css);
 
   const src = on && brand.logo_version ? `/api/v1/branding/logo?v=${encodeURIComponent(brand.logo_version)}` : '';
@@ -185,15 +174,18 @@ export function applyCompanyName(name) {
   company = String(name || '').trim();
   const brand = document.querySelector('.app-header .header-brand');
   let el = document.getElementById('header-company');
-  if (company && brand) {
+  // 49.14.2: an admin always sees which client this is; no company name set -> the client id.
+  let shown = company;
+  try { if (!shown) shown = localStorage.getItem('erp_tenant_id') || ''; } catch (e) { /* storage blocked */ }
+  if (shown && brand) {
     if (!el) {
       el = document.createElement('span');
       el.id = 'header-company';
       el.className = 'header-company';
       brand.after(el);
     }
-    el.textContent = company;
-    el.title = company;
+    el.textContent = shown;
+    el.title = shown;
   } else if (el) {
     el.remove();
   }

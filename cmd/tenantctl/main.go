@@ -52,6 +52,16 @@ Lifecycle
   legal-hold  -tenant <id> -on|-off -reason <text> -actor <who> -yes
   purge     -tenant <id> -backup-ref <where the data was preserved> -request <id> -actor <who> -yes
 
+Portable export and import (50.12 / BLD-030) - move one client to a new client
+  export    -tenant <id> -dir <new folder> -reason <text> -actor <who> [-allow-pending-queue]
+                                            read-only; writes a manifest and one file per table
+  import    -dir <export folder> -tenant <new id> [-schema <name>] -reason <text> -actor <who> -yes
+                                            into a NEW client only; refuses a damaged, partial
+                                            or newer-format export; one transaction, then reconcile;
+                                            dry run without -yes
+  reconcile -dir <export folder> -tenant <id>
+                                            recount and rehash a client against an export
+
 Second person (Stage 49.10.6b) - a purge or a reset needs one
   request-removal -tenant <id> -action reset|purge -reason <text> -actor <your login>
                                             files the request in the operator's own client
@@ -134,6 +144,12 @@ func main() {
 		err = cmdLegalHold(args)
 	case "purge":
 		err = cmdPurge(args)
+	case "export":
+		err = cmdExport(args)
+	case "import":
+		err = cmdImport(args)
+	case "reconcile":
+		err = cmdReconcile(args)
 	case "request-removal":
 		err = cmdRequestRemoval(args)
 	case "reset-data":
@@ -946,5 +962,105 @@ func cmdSandboxMaskedCopy(args []string) error {
 	}
 	_ = engines.RecordTenantLifecycleEvent(id, "sandbox_created", *actor, fmt.Sprintf("masked copy of %s", *from))
 	fmt.Printf("Sandbox %s created: %d documents copied, %d values masked, %d skipped.\n\n  username                : admin\n  one-time admin password : %s\n", id, res.Copied, res.FieldsMasked, res.Skipped, password)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Portable export, import, reconcile (50.12 / BLD-030)
+// ---------------------------------------------------------------------------
+
+func cmdExport(args []string) error {
+	fs := flag.NewFlagSet("export", flag.ExitOnError)
+	tenant := fs.String("tenant", "", "Tenant id to export (required).")
+	dir := fs.String("dir", "", "New or empty folder to write the export into (required).")
+	allow := fs.Bool("allow-pending-queue", false, "Export even though queued work is outstanding (it is never carried).")
+	reason, actor, _ := commonFlags(fs, "Why this tenant is being exported")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tenant == "" || *dir == "" {
+		return fmt.Errorf("-tenant and -dir are required")
+	}
+	if *reason == "" {
+		return fmt.Errorf("-reason is required and is recorded in the tenant's evidence trail")
+	}
+	m, err := engines.ExportTenantPortable(*tenant, *dir, *actor, *allow)
+	if err != nil {
+		return err
+	}
+	var rows int64
+	for _, t := range m.Tables {
+		rows += t.Rows
+	}
+	if err := engines.RecordTenantLifecycleEvent(*tenant, "exported", *actor, fmt.Sprintf("portable export to %s: %d table(s), %d row(s), digest %s; reason: %s", *dir, len(m.Tables), rows, m.Digest, *reason)); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: export written but the evidence row could not be recorded: %v\n", err)
+	}
+	fmt.Printf("Exported %s: %d table(s), %d row(s), %d excluded.\n  digest %s\n  folder %s\n", *tenant, len(m.Tables), rows, len(m.Excluded), m.Digest, *dir)
+	fmt.Println("Media bytes are not copied: copy the media store beside the folder.")
+	return nil
+}
+
+func cmdImport(args []string) error {
+	fs := flag.NewFlagSet("import", flag.ExitOnError)
+	dir := fs.String("dir", "", "Export folder (required).")
+	tenant := fs.String("tenant", "", "NEW tenant id to create (required).")
+	schema := fs.String("schema", "", "Schema name. Defaults to tenant_<id>.")
+	reason, actor, confirm := commonFlags(fs, "Why this tenant is being imported")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" || *tenant == "" {
+		return fmt.Errorf("-dir and -tenant are required")
+	}
+	if *reason == "" {
+		return fmt.Errorf("-reason is required and is recorded in the tenant's evidence trail")
+	}
+	schemaName := *schema
+	if schemaName == "" {
+		schemaName = defaultSchemaName(*tenant)
+	}
+	m, err := engines.ReadPortableManifest(*dir)
+	if err != nil {
+		return fmt.Errorf("import refused, nothing was written: %w", err)
+	}
+	if !*confirm {
+		fmt.Printf("DRY RUN - the export is whole (client %s, format %d, %d table(s), digest %s).\n", m.TenantID, m.FormatVersion, len(m.Tables), m.Digest)
+		fmt.Printf("Would create tenant %q in schema %q and load it. Re-run with -yes.\n", *tenant, schemaName)
+		return nil
+	}
+	res, err := engines.ImportTenantPortable(*dir, *tenant, schemaName, *actor, *reason)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Imported into %s (schema %s): %d table(s), %d row(s); reconciled clean.\n", res.TenantID, res.Schema, res.Tables, res.Rows)
+	if len(res.NewerBy) > 0 {
+		fmt.Printf("  upgrade: this database has %d migration(s) newer than the export.\n", len(res.NewerBy))
+	}
+	fmt.Println("Exported users sign in as before. API keys and channel credentials are not carried: issue them again.")
+	return nil
+}
+
+func cmdReconcile(args []string) error {
+	fs := flag.NewFlagSet("reconcile", flag.ExitOnError)
+	dir := fs.String("dir", "", "Export folder (required).")
+	tenant := fs.String("tenant", "", "Tenant id to check (required).")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" || *tenant == "" {
+		return fmt.Errorf("-dir and -tenant are required")
+	}
+	rep, err := engines.ReconcileTenantPortable(*dir, *tenant)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Checked %d table(s), %d row(s).\n", rep.Tables, rep.Rows)
+	if !rep.OK {
+		for _, d := range rep.Differences {
+			fmt.Println("  DIFFERENT:", d)
+		}
+		return fmt.Errorf("%d difference(s): does NOT reconcile", len(rep.Differences))
+	}
+	fmt.Println("Reconciled: every table matches the export.")
 	return nil
 }

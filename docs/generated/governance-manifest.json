@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/doclint",
   "generator_version": "stage48-v1",
-  "release": "0.23.0",
+  "release": "0.24.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "docs/generated/capability-catalog.md",
-      "sha256": "e36d53399be12895d19794db1ef1cb03b1151bf79f0a987412d8f6b727ee8544",
+      "sha256": "32f487b2c7145d8941e0e3328359e4d802745d25e3a97073279574f90160376b",
       "sources": [
         "docs/product/capability-register.json",
         "docs/requirements/*.md",

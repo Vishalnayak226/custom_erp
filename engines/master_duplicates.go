@@ -150,7 +150,7 @@ func FindDuplicateItems(tenantID string) ([]MasterDuplicateRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	cands, err := loadMasterCandidates(schema, "Item", []string{"name", "barcode", "gtin", "hsn_code"})
+	cands, err := loadMasterCandidates(schema, "Item", []string{"name", "barcode", "gtin", "hsn_code", "family", "parent_product_code", "variant_option_values"})
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,14 @@ func FindDuplicateItems(tenantID string) ([]MasterDuplicateRow, error) {
 		}
 		c.valid = c.keys["Same barcode"] != "" || c.keys["Same GTIN"] != ""
 		if n := normalizeMasterName(raw["name"]); n != "" {
-			c.keys["Same name and HSN"] = n + "|" + normalizeCodeKey(raw["hsn_code"])
+			// 199.1: a design's combinations share their item name, so the
+			// design and the values are part of the match.
+			design := raw["family"]
+			if design == "" {
+				design = raw["parent_product_code"]
+			}
+			c.keys["Same name and HSN"] = n + "|" + normalizeCodeKey(raw["hsn_code"]) + "|" +
+				strings.ToLower(strings.TrimSpace(design)) + "|" + strings.ToLower(strings.TrimSpace(raw["variant_option_values"]))
 		}
 	}
 	if err := countMasterReferences(schema, cands, `SELECT sku, COUNT(*) FROM (

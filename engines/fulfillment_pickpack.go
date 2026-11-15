@@ -232,6 +232,25 @@ func scanGuard(task *pickPackTask) error {
 // with a message naming the actual product involved (§12: "not just
 // 'invalid scan'") rather than a bare error.
 func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err error) {
+	return ScanPickItemQty(tenantID, taskID, scan, 1)
+}
+
+// checkScanQty is 197.1's rule for counting several units in one entry (the
+// OMS step's "Without barcode": a typed SKU and a quantity). It is the same
+// as that many scans of the code: a piece's own code names one unit, and the
+// line must have that many left.
+func checkScanQty(qty int, piece string) error {
+	if qty < 1 {
+		return fmt.Errorf("quantity must be at least 1")
+	}
+	if piece != "" && qty != 1 {
+		return fmt.Errorf("a piece's own code counts one unit - scan each piece")
+	}
+	return nil
+}
+
+// ScanPickItemQty is ScanPickItem for qty units of the same code at once.
+func ScanPickItemQty(tenantID, taskID, scan string, qty int) (sku string, pickedQty int, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", 0, err
@@ -248,6 +267,9 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 		if piece == "" {
 			return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
 		}
+	}
+	if err := checkScanQty(qty, piece); err != nil {
+		return "", 0, err
 	}
 
 	// Stage 59.1: the scan and the bin it empties are one transaction, under
@@ -287,6 +309,9 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 		}
 		return "", 0, fmt.Errorf("scanned code belongs to %q (%s), which is not part of this task", name, resolvedSKU)
 	}
+	if line := task.items[matchIdx]; qty > line.Qty-line.ShortQty-line.PickedQty {
+		return "", 0, fmt.Errorf("only %d of %q (%s) left to pick", line.Qty-line.ShortQty-line.PickedQty, name, resolvedSKU)
+	}
 	if piece != "" {
 		if err := task.checkScannedPiece(tenantID, schema, resolvedSKU, piece); err != nil {
 			return "", 0, err
@@ -301,11 +326,11 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 		return "", 0, err
 	}
 	location, _ := task.data["location_code"].(string)
-	if _, err := ConsumeTaskBinStockTx(tx, tenantID, schema, taskID, location, resolvedSKU, 1); err != nil {
+	if _, err := ConsumeTaskBinStockTx(tx, tenantID, schema, taskID, location, resolvedSKU, qty); err != nil {
 		return "", 0, err
 	}
 
-	task.items[matchIdx].PickedQty++
+	task.items[matchIdx].PickedQty += qty
 	recomputeTaskStatus(task)
 	if err := task.saveWith(tx, schema); err != nil {
 		return "", 0, err
@@ -325,6 +350,11 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 // packed_qty == picked_qty can never match again, so packing ahead of
 // picking is structurally impossible rather than separately enforced.
 func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err error) {
+	return ScanPackItemQty(tenantID, taskID, scan, 1)
+}
+
+// ScanPackItemQty is ScanPackItem for qty units of the same code at once (197.1).
+func ScanPackItemQty(tenantID, taskID, scan string, qty int) (sku string, packedQty int, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", 0, err
@@ -341,6 +371,9 @@ func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err
 		if piece == "" {
 			return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
 		}
+	}
+	if err := checkScanQty(qty, piece); err != nil {
+		return "", 0, err
 	}
 
 	task, err := loadPickPackTask(schema, taskID)
@@ -368,6 +401,9 @@ func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err
 		}
 		return "", 0, fmt.Errorf("scanned code belongs to %q (%s), which is not part of this task", name, resolvedSKU)
 	}
+	if line := task.items[matchIdx]; qty > line.PickedQty-line.PackedQty {
+		return "", 0, fmt.Errorf("only %d of %q (%s) picked and not yet packed", line.PickedQty-line.PackedQty, name, resolvedSKU)
+	}
 	if piece != "" && !task.namesPiece(piece) {
 		if err := task.checkScannedPiece(tenantID, schema, resolvedSKU, piece); err != nil {
 			return "", 0, err
@@ -379,7 +415,7 @@ func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err
 		}
 	}
 
-	task.items[matchIdx].PackedQty++
+	task.items[matchIdx].PackedQty += qty
 	recomputeTaskStatus(task)
 	if err := task.save(schema); err != nil {
 		return "", 0, err

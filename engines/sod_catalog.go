@@ -118,8 +118,8 @@ var sodConflicts = []SoDConflict{
 		ID: "connector-secret-and-event-replay", Label: "Holds a connector secret and can replay events", Severity: "Medium",
 		Why:  "The webhook signing secret plus the ability to re-drive a delivery means an outbound event can be forged and made to look like the system's own retry.",
 		A:    Duty{Name: "Holds connector secrets", Doctypes: map[string]AccessLevel{"WebhookSubscription": AccessOperate}},
-		B:    Duty{Name: "Replays delivered events", Capabilities: []string{"jobs.default"}},
-		Note: "jobs.default (POST /api/v1/jobs/{id}/retry -> ReplayJob) is not yet one of route_capabilities.go's restricted capabilities, so EVERY authenticated role satisfies duty B today. Until job replay is capability-gated, this conflict reduces in practice to 'holds WebhookSubscription create/update'. Recorded rather than quietly narrowed, because the detector's honesty is the point.",
+		B:    Duty{Name: "Replays delivered events", Capabilities: []string{"jobs.manage"}},
+		Note: "jobs.manage (POST /api/v1/jobs/{id}/retry -> ReplayJob, and cancel) is a restricted capability since 49.3.1, held by the Administrator and Admin templates only, so this conflict is a role holding WebhookSubscription create/update that also holds jobs.manage.",
 	},
 }
 

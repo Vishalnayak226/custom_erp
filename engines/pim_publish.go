@@ -79,6 +79,14 @@ func CheckPublishReadiness(tenantID, itemCode, channelCode string) (*PublishRead
 	}
 	missing = append(missing, ruleFailures...)
 
+	// 47.13.6 (ask 185): an approved declaration pack in date for the item's
+	// category (on this channel or every channel) needs its required fields.
+	declFailures, err := declarationPublishFailures(tenantID, itemCode, channelCode, itemData)
+	if err != nil {
+		return nil, err
+	}
+	missing = append(missing, declFailures...)
+
 	return &PublishReadiness{Ready: len(missing) == 0, MissingFields: missing}, nil
 }
 
@@ -182,6 +190,9 @@ func evaluateChannelValidationRules(tenantID, itemCode, channelCode, locale stri
 		case "Min Images":
 			minCount, _ := strconv.Atoi(rule.RuleValue)
 			if imageCount < minCount {
+				if allowed, ok := mediaRuleExceptionMin(schema, itemCode, channelCode); ok && imageCount >= allowed {
+					continue
+				}
 				failures = append(failures, channelRuleFailureMessage(rule, fmt.Sprintf("requires at least %d image(s), item has %d", minCount, imageCount)))
 			}
 		case "Max Title Length":
@@ -196,6 +207,41 @@ func evaluateChannelValidationRules(tenantID, itemCode, channelCode, locale stri
 		}
 	}
 	return failures, nil
+}
+
+// mediaRuleExceptionMin (55.11, ask 179) returns the lowest image count an
+// Approved MediaRuleException accepts for this item on this channel, if one is
+// still in date (no last day, or a last day of today or later in the business
+// day). A Draft, Pending, Rejected, deleted or expired exception never counts.
+func mediaRuleExceptionMin(schema, itemCode, channelCode string) (int, bool) {
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT COALESCE(data->>'min_images', ''), COALESCE(data->>'valid_until', '')
+		FROM %s.documents
+		WHERE doctype = 'MediaRuleException' AND status = 'Approved' AND deleted_at IS NULL
+		  AND data->>'item_code' = $1 AND data->>'channel' = $2`, schema), itemCode, channelCode)
+	if err != nil {
+		return 0, false
+	}
+	defer rows.Close()
+	today := BusinessToday()
+	best, found := 0, false
+	for rows.Next() {
+		var minStr, until string
+		if rows.Scan(&minStr, &until) != nil {
+			continue
+		}
+		if until = strings.TrimSpace(until); until != "" && len(until) >= 10 && until[:10] < today {
+			continue
+		}
+		n, err := strconv.ParseFloat(strings.TrimSpace(minStr), 64)
+		if err != nil || n < 0 {
+			continue
+		}
+		if !found || int(n) < best {
+			best, found = int(n), true
+		}
+	}
+	return best, found
 }
 
 // computePublishPayloadHash hashes what would actually be published (the

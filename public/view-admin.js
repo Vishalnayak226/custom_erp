@@ -174,7 +174,7 @@ const SERIES_TRANSACTION_NAMES = {
   CA: 'Customer advance', AVR: 'Advance refund voucher', POSBILL: 'POS bill', EXP: 'Expense claim', PRO: 'Production order',
   ATT: 'Attendance', LV: 'Leave', LOAN: 'Employee loan', GRV: 'Grievance', MI: 'Material issue', MR: 'Material receipt',
   DC: 'Delivery challan', JO: 'Job work out', JR: 'Job work return', CV: 'Store credit voucher', DMG: 'Damage', ADJ: 'Stock adjustment',
-  AST: 'Asset', SM: 'Stock location move'
+  AST: 'Asset', SM: 'Stock location move', TKT: 'Service ticket'
 };
 // Stage 117.2: a series named after a record type reads as that record's
 // plain name - "Design", not "ProductFamily". Others fall back to the record
@@ -194,7 +194,7 @@ function seriesDisplayName(docType) {
 // takes its own module.
 const SERIES_GROUPS = {
   Procurement: ['PR', 'PO', 'GRN', 'ASN', 'RFQ', 'QTN', 'PRT', 'VCN', 'DN', 'LCV', 'GRNBatchSeq', 'Vendor'],
-  Sales: ['SI', 'SO', 'SR', 'CN', 'RF', 'CA', 'AVR', 'CV', 'DC', 'Customer'],
+  Sales: ['SI', 'SO', 'SR', 'CN', 'RF', 'CA', 'AVR', 'CV', 'DC', 'TKT', 'Customer'],
   POS: ['POSBILL'],
   Inventory: ['TO', 'TI', 'PI', 'GP', 'ADJ', 'DMG', 'KIT', 'MI', 'MR', 'CE', 'SM'],
   Manufacturing: ['PRO', 'JO', 'JR', 'BackflushRule'],
@@ -507,7 +507,7 @@ function openEditPrefixModal(c) {
   const counter = !!SERIES_DISPLAY_NAMES[s.doc_type];
   ['edit-prefix-prefix', 'edit-prefix-suffix'].forEach(id => { document.getElementById(id).style.textTransform = counter ? 'none' : 'uppercase'; });
   const input = (i, part, value, label, max) =>
-    `<input type="text" class="form-input" maxlength="${max}" style="text-transform: ${part === 'code' || !counter ? 'uppercase' : 'none'};" data-store-index="${i}" data-store-part="${part}" value="${escapeHTMLText(value || '')}" aria-label="${label}" data-act="previewEditPrefix" data-act-on="input"${part === 'code' ? ` placeholder="${escapeHTMLText(seriesStoreSegment(stores[i]))}"` : ''}>`;
+    `<input type="text" class="form-input" maxlength="${max}" data-css="text-transform: ${part === 'code' || !counter ? 'uppercase' : 'none'};" data-store-index="${i}" data-store-part="${part}" value="${escapeHTMLText(value || '')}" aria-label="${label}" data-act="previewEditPrefix" data-act-on="input"${part === 'code' ? ` placeholder="${escapeHTMLText(seriesStoreSegment(stores[i]))}"` : ''}>`;
   const rows = stores.map((st, i) => {
     const o = overrides[st.code] || {};
     const label = escapeHTMLText(st.name);
@@ -1108,10 +1108,14 @@ async function renderExtensionHooksView(container) {
       data.token
     );
   });
+}
 
-  // Stage 38.2d / 55.21: API keys and OAuth clients sit beside the hooks -
-  // both are how an outside system connects. Loaded through the shell so the
-  // module is the one the loader published.
+// Stage 38.2d / 55.21: API keys, OAuth clients and AI assistants - how an
+// outside system connects. Ask 191: their own page, because they are the
+// client's administration (admin.api-credentials, which Admin holds) while
+// Extension Hooks is the platform's Super Admin screen. Loaded through the
+// shell so each module is the one the loader published.
+async function renderAPIAccessView(container) {
   const apiAccess = await loadViewModule('/view-api-access.js' + new URL(import.meta.url).search);
   await apiAccess.renderAPIAccessPanel(container);
   // Stage 148.37: AI assistants (shown only when the ai_access module is on).
@@ -1247,18 +1251,34 @@ function showOneTimeSecretDialog(title, message, secretValue) {
   });
 }
 
+// 193: an edit is logged as "<Doctype> Fields changed: {json} for Document ID: <id>".
+// Show it as "Task <id>: packed weight kg - to 1" rather than the raw JSON.
+function auditDetailText(details) {
+  const m = /^(.*?)\s*Fields changed: (\{.*\}) for Document ID: (\S+)(.*)$/s.exec(details || '');
+  if (!m) return details;
+  let diff;
+  try { diff = JSON.parse(m[2]); } catch { return details; }
+  const val = v => (v === null || v === undefined || v === '' ? '-' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const parts = Object.entries(diff).map(([k, d]) => `${k.replace(/_/g, ' ')} ${val(d && d.old)} to ${val(d && d.new)}`);
+  return `${m[1] ? m[1] + ' ' : ''}${m[3]}: ${parts.join('; ')}${m[4] || ''}`;
+}
+
 // Render Activity Log (internal name still Log Hub) & panic dashboard logs
 // Stage 155.3: each log is its own sidebar entry ("audit-logs:<log>").
 const LOG_PAGES = { audit: 'Activity Log', system: 'System Errors', integration: 'Integration Payloads', jobs: 'Async Jobs', security: 'Security Events' };
+// Ask 191: the logs a role may lack even when it opens this screen (Admin holds no system.logs,
+// Stage 125). Neither is fetched without its capability, so no 403 lands in the console.
+const LOG_CAPABILITY = { system: 'system.logs', jobs: 'jobs.view' };
+const canSeeLog = tab => !LOG_CAPABILITY[tab] || state.permissions.capabilities.has(LOG_CAPABILITY[tab]);
 async function renderLogHubView(container) {
-  const logTab = LOG_PAGES[currentViewTab] ? currentViewTab : 'audit';
+  const logTab = LOG_PAGES[currentViewTab] && canSeeLog(currentViewTab) ? currentViewTab : 'audit';
   currentViewTab = logTab;
   setActiveMenu(logTab === 'audit' ? 'menu-audit-logs' : `menu-log-${logTab}`);
   const auditRes = await apiFetch('/api/v1/logs/audit');
   const auditLoadFailed = !!auditRes && !auditRes.ok;
   const auditLogs = auditRes && auditRes.ok ? await auditRes.json() : [];
 
-  const sysRes = await apiFetch('/api/v1/logs/system');
+  const sysRes = canSeeLog('system') ? await apiFetch('/api/v1/logs/system') : null;
   const sysLoadFailed = !!sysRes && !sysRes.ok;
   const systemLogs = sysRes && sysRes.ok ? await sysRes.json() : [];
 
@@ -1269,7 +1289,7 @@ async function renderLogHubView(container) {
   const intLogs = (intRes && intRes.ok ? await intRes.json() : null) || [];
 
   // Stage 38.6: the async job runner's visibility screen, same pane pattern.
-  const jobsRes = await apiFetch('/api/v1/jobs');
+  const jobsRes = canSeeLog('jobs') ? await apiFetch('/api/v1/jobs') : null;
   let jobsLoadFailed = !!jobsRes && !jobsRes.ok;
   let jobs = jobsRes && jobsRes.ok ? ((await jobsRes.json()).jobs || []) : [];
 
@@ -1279,7 +1299,6 @@ async function renderLogHubView(container) {
     <div class="page-title-section">
       <h1 class="page-title">${LOG_PAGES[logTab]}</h1>
     </div>
-    ${logTab === 'audit' ? '<button class="btn btn-outline" id="log-hub-panic-test"><span>Test Panic Recovery</span></button>' : ''}
   `;
   container.appendChild(header);
 
@@ -1287,7 +1306,6 @@ async function renderLogHubView(container) {
   const tabContent = document.createElement('div');
   tabContent.id = 'log-hub-tab-content';
   container.appendChild(tabContent);
-  header.querySelector('#log-hub-panic-test')?.addEventListener('click', triggerPanicRecovery);
   tabContent.addEventListener('click', (event) => {
     const retry = event.target.closest('[data-integration-retry-id]');
     if (retry) {
@@ -1326,7 +1344,7 @@ async function renderLogHubView(container) {
                 <tr>
                   <td>${escapeHTMLText(l.user_id)}</td>
                   <td>${escapeHTMLText(l.action)}</td>
-                  <td class="s-6cb285">${escapeHTMLText(l.details)}</td>
+                  <td class="s-6cb285">${escapeHTMLText(auditDetailText(l.details))}</td>
                   <td class="s-73e1c9">${escapeHTMLText(l.created_at)}</td>
                 </tr>
               `).join('')}
@@ -1425,6 +1443,9 @@ async function renderLogHubView(container) {
   }
 
   function renderJobsPane() {
+    // 49.3.1: Retry / Replay / Cancel need jobs.manage (Admin, Super Admin); an
+    // Auditor sees the list only. The server refuses anyone else either way.
+    const manage = state.permissions.isAdmin || state.permissions.capabilities.has('jobs.manage');
     tabContent.innerHTML = `
       <div class="table-panel">
         <h3 class="s-d965ea">Async Jobs</h3>
@@ -1454,9 +1475,9 @@ async function renderLogHubView(container) {
                   <td class="s-c6e5af" title="${escapeHTMLText(j.last_error || '')}">${escapeHTMLText(j.last_error || '-')}</td>
                   <td class="s-73e1c9">${j.updated_at}</td>
                   <td>
-                    ${(j.status === 'Failed' || j.status === 'DeadLettered' || j.status === 'Cancelled') ? `<button class="btn btn-sm btn-outline" data-job-action="retry" data-job-id="${escapeHTMLText(j.id)}">Retry</button>` : ''}
-                    ${(j.status === 'Quarantined') ? `<button class="btn btn-sm btn-outline" data-job-action="retry" data-job-id="${escapeHTMLText(j.id)}">Replay</button>` : ''}
-                    ${(j.status === 'Pending' || j.status === 'Leased') ? `<button class="btn btn-sm btn-outline" data-job-action="cancel" data-job-id="${escapeHTMLText(j.id)}">Cancel</button>` : ''}
+                    ${manage && (j.status === 'Failed' || j.status === 'DeadLettered' || j.status === 'Cancelled') ? `<button class="btn btn-sm btn-outline" data-job-action="retry" data-job-id="${escapeHTMLText(j.id)}">Retry</button>` : ''}
+                    ${manage && j.status === 'Quarantined' ? `<button class="btn btn-sm btn-outline" data-job-action="retry" data-job-id="${escapeHTMLText(j.id)}">Replay</button>` : ''}
+                    ${manage && (j.status === 'Pending' || j.status === 'Leased') ? `<button class="btn btn-sm btn-outline" data-job-action="cancel" data-job-id="${escapeHTMLText(j.id)}">Cancel</button>` : ''}
                     ${(j.status === 'Succeeded') ? '<span class="s-adb23a">-</span>' : ''}
                   </td>
                 </tr>
@@ -1525,17 +1546,9 @@ window.retryIntegrationEvent = async function(eventId) {
   }
 };
 
-window.triggerPanicRecovery = async function() {
-  if (await showCustomConfirm('Trigger deliberate panic in backend router to verify system recovery middleware?')) {
-    // A non-network response here - even a 500 - IS the success case: it proves
-    // the recovery middleware caught the panic and the server is still up.
-    // Only a dropped connection (res === null, already surfaced by apiFetch) means recovery failed.
-    const res = await apiFetch('/api/v1/debug/panic');
-    if (!res) return;
-    await showCustomAlert('Panic endpoint hit. Re-checking Activity Log for stack trace registration.', 'System Recovery');
-    renderView('audit-logs');
-  }
-};
+// Ask 192 (191.1): no "Test Panic Recovery" button here any more. The route
+// /api/v1/debug/panic is registered only outside production, so the button
+// ended in an error on every live site; dev / test call the route directly.
 
 // Configuration (Stage 28.1): the module-by-module admin Settings screen.
 // Fully generic - it renders whatever engines/settings_registry.go declares,
@@ -1571,11 +1584,15 @@ async function renderSetupPathPanel(host) {
   details.open = !!window.configOpenSetupGuide && remaining > 0;
   window.configOpenSetupGuide = false;
   const next = remaining > 0 ? steps.find(s => s.next && !s.done) : null;
-  const badge = s => s.done ? ['badge-success', 'Done'] : s.next ? ['badge-warning', 'Next']
+  // 47.12.4 (ask 179): one badge per step - a step with records that fails its
+  // checks reads its state (Invalid, Awaiting Approval...), not a green Done beside it.
+  const stateShown = s => s.state && !['Ready', 'Draft'].includes(s.state);
+  const badge = s => s.done && stateShown(s) ? [s.state === 'Invalid' ? 'badge-danger' : 'badge-warning', s.state]
+    : s.done ? ['badge-success', 'Done'] : s.next ? ['badge-warning', 'Next']
     : s.optional ? ['', 'Optional'] : s.waiting_for.length ? ['', 'Waiting'] : ['', 'To do'];
   const toCheck = steps.reduce((n, s) => n + setupFailingChecks(s).length, 0);
   details.innerHTML = `
-    <summary class="s-160dd9">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${toCheck
+    <summary class="s-160dd9">Guided setup - ${remaining === 0 ? (toCheck ? 'all steps entered' : 'everything a client needs is in place') : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${toCheck
       ? ` <span class="badge badge-warning s-391ef1">${toCheck} to check</span>` : ''}${next
       ? ` <span class="text-muted s-7e3a94">· Next: ${escapeHTMLText(next.label)}</span> <button type="button" class="btn btn-primary btn-sm s-78fa54" data-setup-next>Continue</button>` : ''}</summary>
     <ol class="s-5c6f1c">${steps.map(s => {
@@ -1583,12 +1600,12 @@ async function renderSetupPathPanel(host) {
       return `<li data-step-id="${escapeHTMLText(s.id)}"${s.next ? ' class="u-fw5"' : ''}>
         <span class="badge ${cls}">${text}</span>
         <strong>${escapeHTMLText(s.label)}</strong>
-        <span class="text-muted">${s.count ? `(${escapeHTMLText(String(s.count))})` : ''}${!s.done && s.waiting_for.length ? ` - after ${escapeHTMLText(s.waiting_for.map(w => label[w] || w).join(', '))}` : ''}</span>
+        <span class="text-muted">${s.count ? `(${escapeHTMLText(String(s.count))})` : ''}${!s.done && s.waiting_for.length ? ` - after ${escapeHTMLText(s.waiting_for.map(w => label[w] || w).join(', '))}` : ''}${(s.owners || []).length ? ` · Owner: ${escapeHTMLText(s.owners.join(', '))}` : ''}</span>
         ${s.view
           ? `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-view="${escapeHTMLText(s.view)}">${s.next ? 'Start here' : 'Open'}</button>`
           : (s.doctypes || []).map(dt => `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-doctype="${escapeHTMLText(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</button>`).join(' ')}
         ${s.note ? `<div class="text-muted s-269fff">${escapeHTMLText(s.note)}</div>` : ''}
-        ${s.state && !['Ready', 'Draft'].includes(s.state) ? `<span class="badge ${s.state === 'Invalid' ? 'badge-danger' : ''}" data-setup-state>${escapeHTMLText(s.state)}</span>` : ''}
+        ${!s.done && stateShown(s) ? `<span class="badge ${s.state === 'Invalid' ? 'badge-danger' : ''}" data-setup-state>${escapeHTMLText(s.state)}</span>` : ''}
         <button type="button" class="action-btn" data-setup-history="${escapeHTMLText(s.id)}">History</button>
         ${setupCheckLines(s)}
         <div data-setup-history-box="${escapeHTMLText(s.id)}" class="hidden"></div>
@@ -1663,20 +1680,28 @@ function setupCheckLines(s) {
 // mountSetupGuideCard (91.3) puts "finish setting up" on an admin's Home
 // while a step is left - after a reset and for every new client.
 async function mountSetupGuideCard(host) {
+  // 162.5: Home already painted the last-known card (view-dashboards.js, before
+  // this module loads); this corrects it and remembers the new state.
+  const key = `erp_setup_card:${localStorage.getItem('erp_tenant_id') || ''}:${localStorage.getItem('erp_username') || ''}`;
+  const paint = (n, label) => {
+    host.innerHTML = `<div class="table-panel s-6da4d3">
+    <div class="s-cdf035"><strong>Finish setting up</strong> <span class="text-muted">- ${n} step${n === 1 ? '' : 's'} to go. Next: ${escapeHTMLText(label)}.</span></div>
+    <button type="button" class="btn btn-primary btn-sm" id="setup-guide-go">Continue setup</button></div>`;
+    host.querySelector('#setup-guide-go').addEventListener('click', () => {
+      window.configOpenSetupGuide = true;
+      setActiveMenu('menu-configuration');
+      renderView('configuration');
+    });
+  };
+  const remember = (v) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch (_) { /* private window: no memory */ } };
   const res = await apiFetch('/api/v1/setup/path').catch(() => null);
   if (!res || !res.ok) return;
   const { steps = [] } = await res.json();
   const left = steps.filter(s => !s.done && !s.optional);
-  if (!left.length) return;
+  if (!left.length) { host.innerHTML = ''; remember({ n: 0 }); return; }
   const next = left.find(s => s.next) || left[0];
-  host.innerHTML = `<div class="table-panel s-6da4d3">
-    <div class="s-cdf035"><strong>Finish setting up</strong> <span class="text-muted">- ${left.length} step${left.length === 1 ? '' : 's'} to go. Next: ${escapeHTMLText(next.label)}.</span></div>
-    <button type="button" class="btn btn-primary btn-sm" id="setup-guide-go">Continue setup</button></div>`;
-  host.querySelector('#setup-guide-go').addEventListener('click', () => {
-    window.configOpenSetupGuide = true;
-    setActiveMenu('menu-configuration');
-    renderView('configuration');
-  });
+  remember({ n: left.length, label: next.label });
+  paint(left.length, next.label);
 }
 
 // Stage 144 (user, 2026-10-29: "Setting page is not good, Make it easy UI. 1st
@@ -1963,7 +1988,7 @@ async function renderConfigIndustry(host) {
       : 'No industry chosen yet.'}</p>
     <div role="radiogroup" aria-label="Industry" class="s-c7b32e">
       ${list.map(i => `
-        <label data-cfg-industry="${cfgEsc(i.code)}" style="display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid ${i.code === current ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius:8px; cursor:pointer; background:var(--panel-bg);">
+        <label data-cfg-industry="${cfgEsc(i.code)}" data-css="display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid ${i.code === current ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius:8px; cursor:pointer; background:var(--panel-bg);">
           <input type="radio" name="cfg-industry" value="${cfgEsc(i.code)}"${i.code === current ? ' checked' : ''} class="s-c00d39">
           <span><b>${cfgEsc(i.name)}</b>${i.code === current ? ' <span class="badge badge-success">Current</span>' : ''}
             ${i.focus ? `<span class="text-muted s-55d9e7">${cfgEsc(i.focus)}</span>` : ''}</span>
@@ -2054,6 +2079,20 @@ const CONFIG_INTEGRATION_DEFS = [
       { name: 'api_secret', label: 'API secret', secret: true },
       { name: 'base_url', label: 'Base URL', wide: true }
     ]
+  },
+  {
+    // 185.3: payment links on sales invoices; the webhook URL goes into Razorpay.
+    id: 'razorpay',
+    title: 'Razorpay payment links',
+    listUrl: '/api/v1/razorpay/credentials',
+    saveUrl: '/api/v1/razorpay/credentials',
+    keyField: 'code',
+    fields: [
+      { name: 'key_id', label: 'Key ID' },
+      { name: 'key_secret', label: 'Key secret', secret: true },
+      { name: 'webhook_secret', label: 'Webhook secret', secret: true }
+    ],
+    listOnly: [{ name: 'webhook_url', label: 'Webhook URL' }]
   }
 ];
 
@@ -2085,8 +2124,8 @@ const cfgCredentialMeta = (row) => `${cfgEsc(row.saved_by || '—')} · ${cfgWhe
 function configIntegrationSectionHtml(def, rows, unavailable) {
   const existing = rows.length
     ? `<table class="data-table s-781285">
-         <thead><tr>${def.fields.map(f => `<th>${cfgEsc(f.label)}</th>`).join('')}<th>Active</th><th>Owner · Last used · Expires</th><th></th></tr></thead>
-         <tbody>${rows.map(row => `<tr>${def.fields.map(f => {
+         <thead><tr>${def.fields.concat(def.listOnly || []).map(f => `<th>${cfgEsc(f.label)}</th>`).join('')}<th>Active</th><th>Owner · Last used · Expires</th><th></th></tr></thead>
+         <tbody>${rows.map(row => `<tr>${def.fields.concat(def.listOnly || []).map(f => {
            const v = row[f.name] == null ? '' : String(row[f.name]);
            return `<td>${f.secret && v ? '••••••' : cfgEsc(v)}</td>`;
          }).join('')}<td>${row.active === false ? 'No' : 'Yes'}</td><td>${cfgCredentialMeta(row)}</td>
@@ -2097,7 +2136,7 @@ function configIntegrationSectionHtml(def, rows, unavailable) {
         : 'No entries configured yet.'}</p>`;
 
   const inputs = def.fields.map(f => `
-    <div class="form-group" style="margin:0 0 12px; ${f.wide ? 'grid-column:1/-1;' : ''}">
+    <div class="form-group" data-css="margin:0 0 12px; ${f.wide ? 'grid-column:1/-1;' : ''}">
       <label class="form-label" for="cfgint-${def.id}-${f.name}">${cfgEsc(f.label)}</label>
       <input type="${f.secret ? 'password' : 'text'}" class="form-input"
              id="cfgint-${def.id}-${f.name}" autocomplete="off"
@@ -2654,7 +2693,23 @@ async function renderTenantEntitlementsView(container) {
 
   window.applyTenantPackage = async function(tenantId, packageKey) {
     const pkg = packages.find(p => p.package_key === packageKey);
-    if (!await showCustomConfirm(`Apply the "${pkg ? pkg.display_name : packageKey}" plan to this tenant? Every other optional module will be disabled to match.`)) return;
+    // 50.12 / BLD-024: show what the change does before it is confirmed.
+    let preview = '';
+    const imp = await apiFetch('/api/v1/admin/tenant/package/impact', {
+      method: 'POST',
+      body: JSON.stringify({ tenant_id: tenantId, packages: [packageKey] })
+    });
+    if (imp && imp.ok) {
+      const d = await imp.json();
+      const names = (list) => (list && list.length ? list.join(', ') : 'none');
+      preview = `\nGained: ${names(d.enable)}\nLost: ${names(d.disable)}`;
+      if (d.supported === false) preview += `\nNot a sold bundle: ${d.reason || 'unsupported'}`;
+      if (d.open_work && d.open_work.length) {
+        preview += '\nOpen work frozen: ' + d.open_work.map(w => `${w.count} ${w.doctype}`).join(', ');
+      }
+      preview += '\nRecords are kept and come back when a module is switched on again.\n';
+    }
+    if (!await showCustomConfirm(`Apply the "${pkg ? pkg.display_name : packageKey}" plan to this tenant?${preview} Every other optional module will be disabled to match.`)) return;
     const res = await apiFetch('/api/v1/admin/tenant/package', {
       method: 'POST',
       body: JSON.stringify({ tenant_id: tenantId, packages: [packageKey] })
@@ -3000,4 +3055,4 @@ function openConsoleEditor(results, row) {
   });
 }
 
-export { mountSetupGuideCard, renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigBody, openConfigModule, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };
+export { mountSetupGuideCard, renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderAPIAccessView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigBody, openConfigModule, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };

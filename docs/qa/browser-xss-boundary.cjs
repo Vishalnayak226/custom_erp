@@ -75,7 +75,6 @@ const server = http.createServer((req, res) => {
       };
       window.apiFetch = window.__api;
       window.retryIntegrationEvent = async id => { window.__retryIds.push(id); };
-      window.triggerPanicRecovery = () => {};
       window.showCustomConfirm = async () => false;
       window.showCustomAlert = async () => {};
       window.showApiError = async () => {};

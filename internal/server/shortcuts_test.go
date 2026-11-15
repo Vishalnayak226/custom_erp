@@ -12,7 +12,8 @@ import (
 // Stage 139.3: the short codes typed in the Ctrl+K box
 // (public/shortcut-codes.json). Fixed for every client, so each must open a
 // screen that exists, name a record type that is seeded, and be in both help
-// documents - a code the guide does not list is a code nobody learns.
+// documents - a code the guide does not list is a code nobody learns. Since
+// 202.1 every sidebar screen must have one.
 func TestStage139ShortCodes(t *testing.T) {
 	read := func(parts ...string) string {
 		body, err := os.ReadFile(filepath.Join(append([]string{"..", ".."}, parts...)...))
@@ -51,8 +52,26 @@ func TestStage139ShortCodes(t *testing.T) {
 
 	format := regexp.MustCompile(`^[A-Z]{2,4}$`)
 	codes := map[string]bool{}
+	menus := map[string]bool{}
 	for _, c := range file.Codes {
 		codes[c.Code] = true
+		menus[c.Menu] = true
+	}
+	// 202.1: every screen in the sidebar has a code. A group heading
+	// (menu-item-group) only opens its group, so it has none.
+	entry := regexp.MustCompile(`<a\b[^>]*\bclass="([^"]*)"[^>]*\bid="(menu-[a-z0-9-]+)"`)
+	screens := 0
+	for _, m := range entry.FindAllStringSubmatch(index, -1) {
+		if strings.Contains(" "+m[1]+" ", " menu-item-group ") {
+			continue
+		}
+		screens++
+		if !menus[m[2]] {
+			t.Errorf("sidebar entry %s has no code in public/shortcut-codes.json", m[2])
+		}
+	}
+	if screens < 100 {
+		t.Errorf("found %d sidebar entries; the pattern no longer matches public/index.html", screens)
 	}
 	seen := map[string]bool{}
 	for _, c := range file.Codes {

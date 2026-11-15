@@ -226,6 +226,8 @@ var doctypeScopes = map[string]DoctypeScope{
 	"SalaryRevision":      {SelfField: "employee_id"}, // 170.25
 	"StaffAdvance":        {SelfField: "employee_id"}, // 170.30
 	"Timesheet":           {SelfField: "employee_id"}, // 170.31
+	"TravelRequest":       {SelfField: "employee_id"}, // 176.2
+	"CorporateCard":       {SelfField: "employee_id"}, // 176.3
 	"EmployeeLoan":        {SelfField: "employee_id"},
 	"IncentiveProfile":    {SelfField: "employee_id"}, // Stage 148.30
 	"ExpenseClaim":        {LocationFields: []string{"location"}, LocationMandatory: true, SelfField: "employee_id"},
@@ -290,10 +292,12 @@ var selfScopeExemptions = map[string]map[string]bool{
 		"ExpenseClaim": true, "Grievance": true, "Leave": true, "Timesheet": true,
 		"OnboardingChecklist": true, "ShiftAssignment": true,
 		"TrainingRecord": true,
+		"TravelRequest": true, // 176.2: the manager approves the store's trips
 	},
 	// 170.30 / 170.31: an Accountant pays every employee's advance and reads
-	// timesheets to cost projects.
-	"Accountant": {"StaffAdvance": true, "Timesheet": true},
+	// timesheets to cost projects. 176.2 / 176.3: and reads every trip and
+	// every company card to match statements and pay advances.
+	"Accountant": {"StaffAdvance": true, "Timesheet": true, "TravelRequest": true, "CorporateCard": true},
 	// Cashier deliberately has NO exemption, even though the shipped seed
 	// grants it create/update on Leave, ExpenseClaim and Grievance. Those
 	// grants exist for self-service submission, not for reading colleagues'

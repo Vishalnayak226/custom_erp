@@ -38,7 +38,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" data-css="width:${width}px;" ${extra}></div>`;
   panel.innerHTML = `<div class="page-header s-249d01"><div class="page-title-section"><h1 class="page-title">New Sales Invoice</h1></div>
       <div><button type="button" class="btn btn-ghost" data-si="back">Back to invoices</button></div></div>
     <div class="s-d9da29">

@@ -72,8 +72,10 @@ func DisconnectConnectorCredentialContext(ctx context.Context, tenantID, kind, c
 		table, keyColumn, jobKeys = "clevertap_credentials", "account_id", []string{"account_id"}
 	case "unicommerce":
 		table, keyColumn, jobKeys = "unicommerce_credentials", "store_code", []string{"store_code"}
+	case RazorpayCredentialCode: // 185.3: payment links; no queued jobs
+		table, keyColumn, code = "channel_credentials", "channel_code", RazorpayCredentialCode
 	default:
-		return DisconnectResult{}, errors.New("kind must be channel, courier, pinelabs, clevertap or unicommerce")
+		return DisconnectResult{}, errors.New("kind must be channel, courier, pinelabs, clevertap, unicommerce or razorpay")
 	}
 	// A Shopify channel's webhooks go first, while its token can still ask.
 	removedHooks, warning := "", ""
@@ -100,11 +102,13 @@ func DisconnectConnectorCredentialContext(ctx context.Context, tenantID, kind, c
 	for _, k := range jobKeys {
 		where = append(where, fmt.Sprintf(`payload->>'%s' = $1`, k))
 	}
-	if r, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.async_jobs SET status = 'Cancelled', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP,
+	if len(where) > 0 { // 185.3: Razorpay queues no jobs
+		if r, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.async_jobs SET status = 'Cancelled', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP,
 		last_error = 'cancelled: connector disconnected'
 		WHERE status IN ('Pending', 'Leased') AND (%s)`, schema, strings.Join(where, " OR ")), jobKey); err == nil {
-		if n, _ := r.RowsAffected(); n > 0 {
-			cleaned = append(cleaned, fmt.Sprintf("%d queued job(s)", n))
+			if n, _ := r.RowsAffected(); n > 0 {
+				cleaned = append(cleaned, fmt.Sprintf("%d queued job(s)", n))
+			}
 		}
 	}
 	// A Shopify channel's webhook registration stamp: the receiver refuses

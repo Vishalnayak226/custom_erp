@@ -204,7 +204,8 @@ func IssueMaterial(tenantID, id, userID string) error {
 	byAccount := map[string]int64{}
 	for _, l := range lines {
 		sku, qty := strField(l, "sku"), int(numFromInterface(l["qty"]))
-		moves = append(moves, map[string]interface{}{"sku": sku, "qty": float64(-qty)})
+		mv := map[string]interface{}{"sku": sku, "qty": float64(-qty)}
+		moves = append(moves, mv)
 		l["issued_qty"] = qty
 		if truthy(l["valuated"]) {
 			// The cost at issue, as an adjustment takes it; the request's own
@@ -213,6 +214,7 @@ func IssueMaterial(tenantID, id, userID string) error {
 			unit := RupeesToPaise(firstPositive(adjustmentUnitCost(tenantID, sku, itemData), numFromInterface(l["unit_cost"])))
 			cost := unit * int64(qty)
 			l["unit_cost"], l["value"] = PaiseToRupees(unit), PaiseToRupees(cost)
+			mv[ledgerKeyValuationRate] = PaiseToRupees(unit) // 49.5.5b.9: the cost it was expensed at
 			byAccount[strField(l, "expense_account")] += cost
 		}
 	}
@@ -315,7 +317,11 @@ func ReturnMaterial(tenantID, issueID string, in []MaterialReturnLine, userID st
 			cond = "Damaged"
 			damaged = append(damaged, map[string]interface{}{"sku": r.SKU, "qty": r.Qty})
 		}
-		moves = append(moves, map[string]interface{}{"sku": r.SKU, "qty": float64(r.Qty)})
+		mv := map[string]interface{}{"sku": r.SKU, "qty": float64(r.Qty)}
+		if truthy(l["valuated"]) {
+			mv[ledgerKeyValuationRate] = numFromInterface(l["unit_cost"]) // 49.5.5b.9: back at the cost it went out at
+		}
+		moves = append(moves, mv)
 		l["returned_qty"] = int(numFromInterface(l["returned_qty"])) + r.Qty
 		value := 0.0
 		if truthy(l["valuated"]) {

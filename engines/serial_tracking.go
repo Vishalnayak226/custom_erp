@@ -597,3 +597,76 @@ func GetSerialMovementHistory(tenantID, sku, serialNo string) ([]SerialMovementR
 	}
 	return out, rows.Err()
 }
+
+// IssueSerialFromLot (103.4.1) issues ONE serial-tracked unit out of a lot's
+// bin stock: ValidateSerialForIssue is the gate, the unit is then claimed
+// InStock -> Allocated by a conditional update (so two requests for the same
+// unit, or a replay, cannot both win), and only then is the lot's bin stock
+// consumed. If the consume fails the claim is handed back, so a refused
+// issue leaves the unit exactly as it was.
+func IssueSerialFromLot(tenantID, binCode, sku, batchNo, serialNo, condition, voucherType, voucherID, userID string) error {
+	if err := ValidateSerialForIssue(tenantID, sku, serialNo); err != nil {
+		return err
+	}
+	unit, err := GetSerial(tenantID, sku, serialNo)
+	if err != nil {
+		return err
+	}
+	if unit == nil {
+		return &ValidationError{Code: "INVENT-0115", Message: fmt.Sprintf("serial %s is not registered for item %s", serialNo, sku)}
+	}
+	if unit.BatchNo != "" && batchNo != "" && unit.BatchNo != batchNo {
+		return &ValidationError{Code: "INVENT-0104", Message: fmt.Sprintf("serial %s of %s belongs to batch %s, not %s", serialNo, sku, unit.BatchNo, batchNo)}
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	if voucherType == "" {
+		voucherType = "BatchConsume"
+	}
+	if err := claimSerialInStock(schema, unit, SerialAllocated, voucherType, voucherID, userID); err != nil {
+		return err
+	}
+	if err := ConsumeBatchStock(tenantID, binCode, sku, batchNo, condition, 1, voucherType, voucherID, userID); err != nil {
+		// Hand the claim back; the unit is still ours (status Allocated, reserved for this voucher).
+		if _, rerr := db.DB.Exec(fmt.Sprintf(`
+			UPDATE %s.documents SET data = data || '{"status":"InStock","reserved_for":""}'::jsonb, status = 'InStock', updated_at = CURRENT_TIMESTAMP
+			WHERE doctype = 'SerialNumber' AND id = $1 AND status = 'Allocated' AND data->>'reserved_for' = $2`, schema), unit.DocID, voucherID); rerr != nil {
+			LogSystemError(tenantID, userID, "ERROR", "IssueSerialFromLot", fmt.Sprintf("serial %s of %s: could not hand back after a failed consume: %v", serialNo, sku, rerr), "")
+		}
+		return err
+	}
+	LogAuditEvent(tenantID, userID, "SERIAL_STATUS_CHANGE", "SUCCESS",
+		fmt.Sprintf("Serial %s of %s: %s -> %s (issued from lot %s against %s)", serialNo, sku, SerialInStock, SerialAllocated, batchNo, voucherID))
+	return nil
+}
+
+// claimSerialInStock moves a unit InStock -> newStatus only if it is still
+// InStock when the update runs, with its stock ledger line in the same
+// transaction. Losing the race is a refusal, not a double issue.
+func claimSerialInStock(schema string, unit *SerialInfo, newStatus, voucherType, voucherID, userID string) error {
+	patchJSON, _ := json.Marshal(map[string]interface{}{"status": newStatus, "reserved_for": voucherID})
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(fmt.Sprintf(`
+		UPDATE %s.documents SET data = data || $1::jsonb, status = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE doctype = 'SerialNumber' AND id = $3 AND status = 'InStock'`, schema), patchJSON, newStatus, unit.DocID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return &ValidationError{Code: "INVENT-0104", Message: fmt.Sprintf("serial %s of %s is no longer in stock - it was issued by another request", unit.SerialNo, unit.Item)}
+	}
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+		ItemID: unit.Item, WarehouseID: unit.LocationCode, Qty: 0,
+		VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
+		FromStatus: SerialInStock, ToStatus: newStatus, SerialNo: unit.SerialNo,
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	return tx.Commit()
+}

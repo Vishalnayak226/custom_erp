@@ -1,0 +1,23 @@
+{
+  "packs": [
+    {
+      "id": "packaged-goods-in",
+      "label": "Packaged goods declarations (India) - example",
+      "version": "2026-11",
+      "note": "Example only. A qualified legal-metrology reviewer decides whether, and with which fields, it applies to a category before it is turned on.",
+      "fields": [
+        {"code": "LM_MAKER", "label": "Manufacturer, packer or importer (name and address)", "required": true},
+        {"item_field": "country_of_origin", "label": "Country of origin", "required": true},
+        {"code": "LM_GENERIC_NAME", "label": "Common or generic name", "required": true},
+        {"code": "LM_NET_QTY", "label": "Net quantity", "required": true},
+        {"code": "LM_NET_QTY_UNIT", "label": "Net quantity unit", "values": ["g", "kg", "ml", "l", "cm", "m", "number"], "required": true},
+        {"code": "LM_MFG_DATE", "label": "Month and year of manufacture or import", "required": true},
+        {"code": "LM_BEST_BEFORE", "label": "Best before or use by (as applicable)", "required": false},
+        {"item_field": "mrp", "label": "MRP", "required": true},
+        {"code": "LM_UNIT_SALE_PRICE", "label": "Unit sale price", "required": true},
+        {"code": "LM_CONSUMER_CARE", "label": "Consumer care details", "required": true},
+        {"code": "LM_ARTWORK_REF", "label": "Label artwork reference", "required": true}
+      ]
+    }
+  ]
+}

@@ -417,7 +417,11 @@ async function loadOMSTiles() {
 async function loadOMSOrders(liveHost = null) {
   const host = liveHost?.isConnected ? liveHost : document.getElementById('oms-order-table');
   if (!host) return;
-  host.innerHTML = '<div class="text-muted s-287f77">Loading orders…</div>';
+  const done = holdSectionWhileLoading(host, '<div class="text-muted s-287f77">Loading orders…</div>');
+  try { await fillOMSOrders(host); } finally { done(); }
+}
+
+async function fillOMSOrders(host) {
   const res = await apiFetch(`/api/v1/oms/orders?${omsFilterQuery()}`);
   if (!res) return;
   if (!res.ok) {

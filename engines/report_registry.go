@@ -247,9 +247,6 @@ func reportRefused(def ReportDefinition) error {
 	return &ValidationError{Code: "GLOBAL-0011", Message: fmt.Sprintf("%s is a finance report - it needs a finance role", def.Label)}
 }
 
-// ReportNumber is a report's permanent number (R1001), or "" for none.
-func ReportNumber(id string) string { return reportNumbers[id] }
-
 // reportFullVisibilityRoles see every column in full; any other role gets
 // Sensitive-flagged columns redacted in place (Stage 20.39, matching the
 // master plan's own Loophole Matrix control for "report export leaks
@@ -425,6 +422,11 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 	var stopped *ValidationError
 	if errors.As(err, &stopped) && stopped.Code == "REPORT-0161" {
 		return nil, nil, false, stopped // the report's own read stopped short
+	}
+	if errors.As(err, &stopped) && stopped.Code == "GLOBAL-0002" {
+		// 176.1: the report refused a bad filter (a date typed 14-11-2026). That
+		// is the caller's input, not the report failing - 422, not 503.
+		return nil, nil, false, stopped
 	}
 	if err != nil {
 		// REPORT-0162 (Stage 25.5): "Report generation failed" - distinct

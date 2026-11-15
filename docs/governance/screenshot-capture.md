@@ -9,8 +9,8 @@ audience: [documentation-author, qa-owner]
 applies_to: current manual screenshots; synthetic fixtures only
 authority: canonical
 confidentiality: internal
-last_verified: 2026-11-07
-review_by: 2026-10-08
+last_verified: 2026-11-15
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 ---
@@ -96,6 +96,14 @@ assets and their references until parity, replacement and retention checks pass;
 capture does not authorize their deletion. Existing `guides/img` material has not
 been recertified by the new harness. Real RF device and screen-reader walkthroughs
 remain separate evidence.
+
+`docs/guides/img` holds only the current manual set: the images a guide, SOP or KB
+article shows, each with a shot in the capture tool. `TestManualImagesAreTheLivingSet`
+(`go test ./internal/kb/`) fails on an image no manual shows, a missing image, a file
+that is not a manual image, and an image with no shot. When a manual stops showing
+an image, move it to `docs/archive/legacy/screenshots-<date>/` and add a row to the
+archive's "Where did it go?" table. The 2026-08-01 set, its manifest and its three
+unused shots are in [the archive](../archive/legacy/screenshots-2026-08-01/screenshot-manifest.md).
 
 ## Verify the harness
 

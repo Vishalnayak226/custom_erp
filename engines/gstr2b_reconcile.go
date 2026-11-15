@@ -116,7 +116,12 @@ func parseGSTR2B(raw []byte) (lines []gstr2bFileLine, period string, err error) 
 				if dm == nil {
 					continue
 				}
-				l := gstr2bFileLine{gstin: strings.ToUpper(strField(pm, "ctin")), name: strField(pm, "trdnm"), docType: docType,
+				kind := docType
+				// 170.36: a cdnr note says whether it is a credit or a debit note.
+				if key == "cdnr" && strings.EqualFold(firstNonEmpty(strField(dm, "typ"), strField(dm, "ntty")), "D") {
+					kind = "Debit Note"
+				}
+				l := gstr2bFileLine{gstin: strings.ToUpper(strField(pm, "ctin")), name: strField(pm, "trdnm"), docType: kind,
 					number: strField(dm, numKey), date: gstr2bDate(strField(dm, "dt")),
 					taxable: numFromInterface(dm["txval"]), igst: numFromInterface(dm["igst"]), cgst: numFromInterface(dm["cgst"]),
 					sgst: numFromInterface(dm["sgst"]), cess: numFromInterface(dm["cess"]), total: numFromInterface(dm["val"])}
@@ -134,12 +139,20 @@ func parseGSTR2B(raw []byte) (lines []gstr2bFileLine, period string, err error) 
 	return lines, period, nil
 }
 
+// gstr2bBook is a vendor bill or vendor note in the books. kind is the 2B
+// document it answers to: a bill is an "Invoice"; our DebitNote (the payable
+// goes down) answers the supplier's "Credit Note"; our VendorCreditNote (the
+// payable goes up) answers the supplier's "Debit Note". gstin is "" when the
+// vendor has no GSTIN in the books (170.36).
 type gstr2bBook struct {
-	id, gstin, number, date string
-	total, tax              float64
-	hasTax                  bool
-	used                    bool
+	id, kind, gstin, number, date string
+	total, tax                    float64
+	hasTax                        bool
+	used                          bool
 }
+
+// gstr2bNoteKind maps a vendor note doctype to the 2B document it answers to.
+var gstr2bNoteKind = map[string]string{"DebitNote": "Credit Note", "VendorCreditNote": "Debit Note"}
 
 func loadBooksForMonth(schema, month string) ([]*gstr2bBook, error) {
 	first, last, err := gstr1Month(month)
@@ -163,19 +176,61 @@ func loadBooksForMonth(schema, month string) ([]*gstr2bBook, error) {
 		if err := rows.Scan(&id, &raw, &gstin); err != nil {
 			return nil, err
 		}
-		gstin = strings.ToUpper(strings.TrimSpace(gstin))
-		if gstin == "" {
-			continue // an unregistered vendor is not on a 2B
-		}
 		var m map[string]interface{}
 		_ = json.Unmarshal(raw, &m)
-		b := &gstr2bBook{id: id, gstin: gstin, number: firstNonEmpty(strField(m, "invoice_number"), id), date: strField(m, "invoice_date"),
+		b := &gstr2bBook{id: id, kind: "Invoice", gstin: strings.ToUpper(strings.TrimSpace(gstin)),
+			number: firstNonEmpty(strField(m, "invoice_number"), id), date: strField(m, "invoice_date"),
 			total: numFromInterface(m["invoice_amount"])}
 		for _, k := range []string{"gst_total", "gst_amount"} {
 			if v := numFromInterface(m[k]); v > 0 {
 				b.tax, b.hasTax = v, true
 				break
 			}
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	notes, err := loadVendorNotesForMonth(schema, first, last)
+	return append(out, notes...), err
+}
+
+// loadVendorNotesForMonth reads the vendor notes posted in the month. A note
+// has no date field of its own, so it is dated by its first GL posting.
+func loadVendorNotesForMonth(schema string, first, last time.Time) ([]*gstr2bBook, error) {
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		WITH posted AS (
+			SELECT document_type, document_id, MIN(created_at) AS at FROM %[1]s.gl_postings
+			 WHERE document_type IN ('DebitNote', 'VendorCreditNote') GROUP BY document_type, document_id)
+		SELECT d.id, d.doctype, d.data, COALESCE(v.data->>'gstin', ''), public.erp_local_date(p.at)::text
+		FROM posted p
+		JOIN %[1]s.documents d ON d.id = p.document_id AND d.doctype = p.document_type
+		LEFT JOIN %[1]s.documents v ON v.doctype = 'Vendor' AND v.deleted_at IS NULL AND v.id = d.data->>'vendor_id'
+		WHERE d.deleted_at IS NULL AND d.status NOT IN ('Draft', 'Cancelled', 'Rejected')
+		  AND p.at >= public.erp_day_start($1::date) AND p.at < public.erp_day_start($2::date + 1)`, schema),
+		first.Format("2006-01-02"), last.Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*gstr2bBook
+	for rows.Next() {
+		var id, doctype, gstin, day string
+		var raw []byte
+		if err := rows.Scan(&id, &doctype, &raw, &gstin, &day); err != nil {
+			return nil, err
+		}
+		var m map[string]interface{}
+		_ = json.Unmarshal(raw, &m)
+		total := numFromInterface(m["total_with_gst"])
+		if total == 0 {
+			total = round2(numFromInterface(m["amount"]) + numFromInterface(m["gst_amount"]))
+		}
+		b := &gstr2bBook{id: id, kind: gstr2bNoteKind[doctype], gstin: strings.ToUpper(strings.TrimSpace(gstin)),
+			number: firstNonEmpty(strField(m, "note_number"), id), date: day, total: total}
+		if v := numFromInterface(m["gst_amount"]); v > 0 {
+			b.tax, b.hasTax = v, true
 		}
 		out = append(out, b)
 	}
@@ -328,12 +383,11 @@ func ReconcileGSTR2B(tenantID, month, userID string) (map[string]int, error) {
 		results[i] = result{status: Gstr2bNotInBook}
 	}
 	// Pass 1: supplier + normalised number. Pass 2: supplier, amount and date.
+	// Pass 3: a vendor with no GSTIN in the books, by number. Each pass pairs a
+	// 2B line only with a book of the same kind (bill, credit or debit note).
 	for i, s := range stored {
-		if s.line.docType != "Invoice" {
-			continue
-		}
 		for _, b := range books {
-			if !b.used && b.gstin == s.line.gstin && NormalizeInvoiceNumber(b.number) == NormalizeInvoiceNumber(s.line.number) {
+			if !b.used && b.kind == s.line.docType && b.gstin == s.line.gstin && NormalizeInvoiceNumber(b.number) == NormalizeInvoiceNumber(s.line.number) {
 				b.used = true
 				st, why := gstr2bJudge(s.line, b, amtTol, dateTol)
 				results[i] = result{st, why, b.id}
@@ -342,11 +396,11 @@ func ReconcileGSTR2B(tenantID, month, userID string) (map[string]int, error) {
 		}
 	}
 	for i, s := range stored {
-		if results[i].bill != "" || s.line.docType != "Invoice" {
+		if results[i].bill != "" {
 			continue
 		}
 		for _, b := range books {
-			if b.used || b.gstin != s.line.gstin || math.Abs(s.line.total-b.total) > amtTol {
+			if b.used || b.kind != s.line.docType || b.gstin != s.line.gstin || math.Abs(s.line.total-b.total) > amtTol {
 				continue
 			}
 			if s.line.date != "" && b.date != "" && dayGap(s.line.date, b.date) > dateTol {
@@ -355,9 +409,26 @@ func ReconcileGSTR2B(tenantID, month, userID string) (map[string]int, error) {
 			b.used = true
 			st, why := gstr2bJudge(s.line, b, amtTol, dateTol)
 			if why == "" {
-				why = fmt.Sprintf("matched on amount and date; the bill is numbered %s", b.number)
+				why = fmt.Sprintf("matched on amount and date; ours is numbered %s", b.number)
 			}
 			results[i] = result{st, why, b.id}
+			break
+		}
+	}
+	for i, s := range stored {
+		if results[i].bill != "" {
+			continue
+		}
+		for _, b := range books {
+			if b.used || b.gstin != "" || b.kind != s.line.docType || NormalizeInvoiceNumber(b.number) != NormalizeInvoiceNumber(s.line.number) {
+				continue
+			}
+			b.used = true
+			why := fmt.Sprintf("the vendor has no GSTIN in the books; the 2B gives %s", s.line.gstin)
+			if _, diff := gstr2bJudge(s.line, b, amtTol, dateTol); diff != "" {
+				why += "; " + diff
+			}
+			results[i] = result{Gstr2bMismatch, why, b.id}
 			break
 		}
 	}
@@ -370,9 +441,6 @@ func ReconcileGSTR2B(tenantID, month, userID string) (map[string]int, error) {
 	summary := map[string]int{Gstr2bMatched: 0, Gstr2bMismatch: 0, Gstr2bNotInBook: 0, Gstr2bNotIn2B: 0}
 	for i, s := range stored {
 		r := results[i]
-		if r.status == Gstr2bNotInBook && s.line.docType != "Invoice" {
-			r.reason = "credit note: match it to the vendor credit note by hand"
-		}
 		patch, _ := json.Marshal(map[string]interface{}{"status": r.status, "reason": r.reason, "bill_id": r.bill})
 		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND doctype = $4`, schema),
 			patch, r.status, s.id, Gstr2bLineDoctype); err != nil {
@@ -386,12 +454,16 @@ func ReconcileGSTR2B(tenantID, month, userID string) (map[string]int, error) {
 		return nil, err
 	}
 	for _, b := range books {
-		if b.used {
+		if b.used || b.gstin == "" { // an unregistered vendor is not on a 2B
 			continue
 		}
-		data := map[string]interface{}{"month": month, "source": "Books", "supplier_gstin": b.gstin, "doc_type": "Invoice", "doc_number": b.number,
+		why := "the supplier has not reported this bill"
+		if b.kind != "Invoice" {
+			why = "the supplier has not reported this note"
+		}
+		data := map[string]interface{}{"month": month, "source": "Books", "supplier_gstin": b.gstin, "doc_type": b.kind, "doc_number": b.number,
 			"doc_key": NormalizeInvoiceNumber(b.number), "doc_date": b.date, "total": b.total, "tax": b.tax, "bill_id": b.id, "status": Gstr2bNotIn2B,
-			"reason": "the supplier has not reported this bill"}
+			"reason": why}
 		raw, _ := json.Marshal(data)
 		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, $4, $5)`, schema),
 			NewDocID("G2B"), Gstr2bLineDoctype, raw, Gstr2bNotIn2B, userID); err != nil {
@@ -434,9 +506,9 @@ func init() {
 		ID: "gstr2b-reconciliation", Label: "GSTR-2B reconciliation", Category: "Finance",
 		Columns: []ReportColumn{
 			{Key: "status", Label: "Status"}, {Key: "supplier_gstin", Label: "Supplier GSTIN"}, {Key: "supplier_name", Label: "Supplier"},
-			{Key: "doc_number", Label: "Invoice"}, {Key: "doc_date", Label: "Date"},
+			{Key: "doc_type", Label: "Type"}, {Key: "doc_number", Label: "Number"}, {Key: "doc_date", Label: "Date"},
 			{Key: "total", Label: "Value"}, {Key: "tax", Label: "Tax"},
-			{Key: "bill_id", Label: "Vendor bill"}, {Key: "reason", Label: "Why"}, {Key: "decision", Label: "Decision"},
+			{Key: "bill_id", Label: "Bill / note"}, {Key: "reason", Label: "Why"}, {Key: "decision", Label: "Decision"},
 		},
 		Params: []ReportParam{
 			{Key: "month", Label: "Month (YYYY-MM)", Type: "text", Required: true},

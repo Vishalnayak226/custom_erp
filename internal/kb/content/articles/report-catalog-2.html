@@ -1,7 +1,7 @@
 <h1 id="report-catalog-part-2">Report catalog (part 2) <a class="kb-anchor" href="#report-catalog-part-2" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>149</strong> reports, from HRMS to PIM / PIMS.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>150</strong> reports, from HRMS to PIM / PIMS.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#hrms">HRMS</a> - 15 reports</li><li><a href="#inventory">Inventory</a> - 43 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 8 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li></ul>
+<ul><li><a href="#hrms">HRMS</a> - 15 reports</li><li><a href="#inventory">Inventory</a> - 43 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 9 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li></ul>
 <h2 id="hrms">HRMS <a class="kb-anchor" href="#hrms" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r8002-attendance-register">R8002 Attendance Register <a class="kb-anchor" href="#r8002-attendance-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-attendance-register</code></p>
@@ -285,7 +285,7 @@
 <p><strong>Report id:</strong> <code>stock-ledger</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>SKU (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location_code</code>) - text, optional</li><li><strong>Voucher Type (optional)</strong> (<code>voucher_type</code>) - text, optional</li><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
-<p><strong>Columns:</strong> Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User</p>
+<p><strong>Columns:</strong> Date · SKU · Location · Qty Delta · UOM · Running Balance · Voucher Type · Voucher ID · Unit Cost · Unit Price · Tax % · From Location/Bin · To Location/Bin · From Condition · To Condition · User</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r3005-stock-ledger">R3005 Stock Ledger <a class="kb-anchor" href="#r3005-stock-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-ledger</code></p>
@@ -745,6 +745,12 @@
 <p><strong>Report id:</strong> <code>pim-brand-vocabulary</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Brand on items · Items · Brand master spelling</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r9063-declaration-gaps">R9063 Declaration gaps <a class="kb-anchor" href="#r9063-declaration-gaps" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>declaration-gaps</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Category</strong> (<code>category</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Item · Name · Category · Pack · Channel · Missing · Turned on by</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r7969-listing-drift">R7969 Listing drift <a class="kb-anchor" href="#r7969-listing-drift" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>listing-drift</code></p>

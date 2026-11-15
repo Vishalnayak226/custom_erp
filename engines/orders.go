@@ -200,8 +200,8 @@ type SalesOrderInput struct {
 // earlier at order validation. Returns the new SalesOrder's id.
 //
 // This is the Order Engine's own creation path, and as of Stage 35.1 it is
-// the only one: ImportChannelOrder and ImportUnicommerceOrder (the legacy
-// signatures in engines/sourcing.go and unicommerce.go) are now thin adapters
+// the only one: ImportChannelOrder (the legacy signature in
+// engines/sourcing.go) and ImportUnicommerceSalesOrder are thin adapters
 // onto ImportChannelSalesOrder, which calls this. Every channel webhook,
 // poller and manual entry point therefore lands here.
 func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {

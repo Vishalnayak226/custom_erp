@@ -73,6 +73,21 @@ async function renderManufacturingView(container) {
   }
 }
 
+// 57.26(e): the BOM picker names the item each BOM makes, not its code -
+// the shared link-name map, with a single lookup past its first 1000 items.
+async function bomItemNames(boms) {
+  const names = {};
+  const refs = [...new Set(boms.map(b => b.parent_item).filter(Boolean))];
+  if (!refs.length) return names;
+  const map = await linkNameMap('Item');
+  for (const ref of refs) {
+    let name = map.get(String(ref));
+    if (!name && !map.complete) name = linkDisplayName(await lookupLinkDoc('Item', ref));
+    if (name) names[ref] = name;
+  }
+  return names;
+}
+
 async function renderManufacturingOrdersTab(container) {
   const [bomsRes, ordersRes] = await Promise.all([
     apiFetch('/api/v1/doc/BOM'),
@@ -82,6 +97,7 @@ async function renderManufacturingOrdersTab(container) {
 
   const boms = bomsRes.ok ? await bomsRes.json() : [];
   const orders = ordersRes.ok ? await ordersRes.json() : [];
+  const bomItemName = await bomItemNames(boms); // 57.26(e)
 
   const bomFormPanel = document.createElement('div');
   bomFormPanel.className = 'table-panel';
@@ -125,7 +141,7 @@ async function renderManufacturingOrdersTab(container) {
         <label class="form-label" for="po-mfg-bom">BOM</label>
         <select id="po-mfg-bom" class="form-input s-0fff9b">
           <option value="">Select a BOM</option>
-          ${boms.map(b => `<option value="${b.code || b.id}">${b.code || b.id} (${b.parent_item || ''})</option>`).join('')}
+          ${boms.map(b => `<option value="${escapeHTMLText(b.code || b.id)}">${escapeHTMLText(b.code || b.id)} (${escapeHTMLText(bomItemName[b.parent_item] || b.parent_item || '')})</option>`).join('')}
         </select>
       </div>
       <div class="form-group s-50435f">

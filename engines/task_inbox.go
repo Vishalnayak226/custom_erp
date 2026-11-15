@@ -76,6 +76,7 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 			pending = nil
 		}
 		splitGuard := len(pending) > 0 && GetSettingBool(tenantID, SettingApprovalSplitGuard)
+		var covers map[string]bool // 73.4.9: whom the viewer covers today, read once for the page
 		for _, doc := range pending {
 			doctype, _ := doc["doctype"].(string)
 			id, _ := doc["id"].(string)
@@ -101,8 +102,14 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 				approvedAt = adjusted
 			}
 			required := batch.requiredRole(tenantID, doctype, doc, approvedAt) // Stage 148.39; the slab was read once for the page
-			if !HasFullAccess(scope.Role) && required != scope.Role && !mayAlsoDecide(tenantID, doctype, id, doc, createdBy, scope.UserID, scope.Role, required) {
-				continue
+			if !HasFullAccess(scope.Role) && required != scope.Role {
+				if covers == nil {
+					covers = rolesCoveredToday(tenantID, scope.UserID)
+				}
+				if !mayAlsoDecideWith(tenantID, doctype, id, doc, createdBy, scope.UserID, scope.Role, required,
+					&approvalCoverFacts{covers: covers, waitedHours: f.waitedHours, made: f.made}) {
+					continue
+				}
 			}
 			code := id
 			for _, key := range []string{"code", "name", "po_number", "invoice_number"} {

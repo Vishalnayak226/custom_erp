@@ -52,6 +52,7 @@ var workerOwner = map[string]string{
 	"StartPOAutoCancelWorker":             "",
 	"StartPieceHoldWorker":                "",
 	"StartAmortizationWorker":             "",
+	"StartSaaSBillingWorker":              "",
 	"StartRecurringBillingWorker":         "",
 	"StartEInvoiceWorker":                 "",
 	"StartMaintenanceSchedulingWorker":    "quality",

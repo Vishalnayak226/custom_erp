@@ -129,3 +129,26 @@ func TestNavForRoleHidesUnfinishedOnlyFromNonAdmins(t *testing.T) {
 		t.Fatal("an administrator always sees every entry")
 	}
 }
+
+// 202.2: short codes are on unless the company turns them off, and turning
+// them back on restores them.
+func TestNavForRoleShortCodesSwitch(t *testing.T) {
+	db.InitDB(testConnStr())
+	t.Cleanup(func() { SetSetting("default", SettingKeyShortCodes, "true", "test") })
+	if settingsRegistry[SettingKeyShortCodes].Default != "true" {
+		t.Fatal("short codes are on by default")
+	}
+	for _, c := range []struct {
+		value string
+		off   bool
+	}{{"false", true}, {"true", false}} {
+		if err := SetSetting("default", SettingKeyShortCodes, c.value, "test"); err != nil {
+			t.Fatal(err)
+		}
+		for _, role := range []string{RoleCashier, RoleSuperAdmin} {
+			if got := NavForRole("default", role).NoCodes; got != c.off {
+				t.Errorf("setting %s, role %s: no_codes = %v, want %v", c.value, role, got, c.off)
+			}
+		}
+	}
+}

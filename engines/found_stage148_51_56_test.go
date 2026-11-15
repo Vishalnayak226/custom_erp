@@ -245,16 +245,18 @@ func inclusiveStep(t *testing.T, m *mc1481, qty, rate float64, old bool) mc1481S
 func TestStage14851InclusiveLineLeavesNothingOnThePayable(t *testing.T) {
 	m := newMC1481(t)
 	preserveSeries(t, m.schema, "DN", "VCN", "GRNBatchSeq", "VendorInvoice", "GRN")
+	// Stage 173.1: the bill's rounding goes to Round Off (5280), so 1200 stays
+	// at the stock value to the paisa.
 	for _, c := range []struct {
-		name        string
-		qty, rate   float64
-		old         bool
-		stock, owed int64
+		name               string
+		qty, rate          float64
+		old                bool
+		stock, owed, round int64
 	}{
-		{"new small", 7, 99.99, false, 59316, 0},
-		{"new large", 1000, 99.99, false, 8473729, 0},
-		{"old small", 7, 99.99, true, 59318, -2},
-		{"old large", 1000, 99.99, true, 8474000, -271},
+		{"new small", 7, 99.99, false, 59318, 0, -2},
+		{"new large", 1000, 99.99, false, 8474000, 0, -271},
+		{"old small", 7, 99.99, true, 59318, -2, 0},
+		{"old large", 1000, 99.99, true, 8474000, -271, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			m.t = t
@@ -263,9 +265,18 @@ func TestStage14851InclusiveLineLeavesNothingOnThePayable(t *testing.T) {
 			if got := m.glAll("1200", s.grn, v.VendorBillID); got != c.stock {
 				t.Errorf("1200 after the bill %d, want %d", got, c.stock)
 			}
+			if got := m.glAll(accountRoundOff, s.grn, v.VendorBillID); got != c.round {
+				t.Errorf("5280 after the bill %d, want %d", got, c.round)
+			}
+			if value := RupeesToPaise(numFromInterface(m.valuation(s.sku)["total_value"])); !c.old && value != c.stock {
+				t.Errorf("stock value %d against 1200 %d", value, c.stock)
+			}
 			m.payStep(s)
 			if got := m.glAll("2100", s.grn, v.VendorBillID); got != c.owed {
 				t.Errorf("2100 after payment %d, want %d", got, c.owed)
+			}
+			if c.name == "new small" {
+				s1731LegacyBillKeepsItsBooks(t, m, s, v.VendorBillID)
 			}
 		})
 	}
@@ -274,6 +285,51 @@ func TestStage14851InclusiveLineLeavesNothingOnThePayable(t *testing.T) {
 	stampGRNExactPrice(l, grnPOLineRate{})
 	if _, has := l[grnStockRoundSettled]; has {
 		t.Errorf("a forged mark stayed: %v", l)
+	}
+}
+
+// s1731LegacyBillKeepsItsBooks re-matches a bill as one booked before 173.1
+// would hold it - the rounding inside its cost, no Round Off record - and wants
+// nothing posted: the folded rounding equals what it booked.
+func s1731LegacyBillKeepsItsBooks(t *testing.T, m *mc1481, s mc1481Step, billID string) {
+	t.Helper()
+	data, _, err := fetchDocData(m.tenant, "VendorInvoice", billID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cost, round := storedBillCost(data), storedBillRound(data)
+	if len(round) == 0 {
+		t.Fatalf("the bill kept no rounding: %v", data["bill_round_adjust"])
+	}
+	asStored := map[string]interface{}{} // as JSON reads it back
+	for sku, v := range round {
+		cost[sku] += v
+	}
+	for sku, v := range cost {
+		asStored[sku] = float64(v)
+	}
+	data["bill_cost_adjust"] = asStored
+	delete(data, "bill_round_adjust")
+	before := [2]int64{m.glAll("1200", billID), m.glAll(accountRoundOff, billID)}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, m.schema); err != nil {
+		t.Fatal(err)
+	}
+	if err := settleBillCostDifferenceTx(tx, m.tenant, m.schema, billID, data, map[string]interface{}{}, s.grn, true, false); err != nil {
+		t.Fatalf("re-match: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if after := [2]int64{m.glAll("1200", billID), m.glAll(accountRoundOff, billID)}; after != before {
+		t.Errorf("a re-match of a bill booked before 173.1 moved 1200 / 5280: %v -> %v", before, after)
+	}
+	if _, has := data["bill_round_adjust"]; has {
+		t.Errorf("an old bill was moved onto the new rule: %v", data["bill_round_adjust"])
 	}
 }
 

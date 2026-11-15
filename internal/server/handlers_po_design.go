@@ -130,6 +130,12 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 	if issued, err := engines.IssuedPrint(tenantID, doc, firstNonBlank(r.Header.Get("Resolved-Username"), r.Header.Get("Resolved-User-ID"))); err == nil {
 		doc = issued
 	}
+	// Stage 49.3.4: a field the role cannot read leaves the print too (the
+	// CSV / Excel below included) - each line carries its whole item record.
+	if err := engines.RedactPrintDocument(tenantID, r.Header.Get("Resolved-Role"), &doc); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to prepare the print")
+		return
+	}
 	// Stage 98.1: ?format=csv|xlsx downloads the lines instead.
 	if format != "" {
 		body, name, contentType, err := engines.BuildPrintExport(doc, format)

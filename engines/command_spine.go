@@ -112,12 +112,16 @@ func RunEconomicCommand(tenantID string, c EconomicCommand, post EconomicPost) (
 
 // WriteStockLedgerLinesTx writes the ledger entries for movements inside the
 // caller's transaction (74.1.5), with the same merge and idempotency keys as
-// WriteStockLedgerLines - and refuses a posting dated in a closed accounting
+// stockLedgerEntriesFor - and refuses a posting dated in a closed accounting
 // period (74.0.2 c), as the GL does. date is the posting's own date
-// (YYYY-MM-DD); "" = today. The existing post-commit WriteStockLedgerLines
-// stays for today's callers until each is moved deliberately.
+// (YYYY-MM-DD); "" = today. The old post-commit variant was removed (103.4.1);
+// every posting writes its ledger rows here.
 func WriteStockLedgerLinesTx(tx *sql.Tx, schema, locationCode, voucherType, voucherID, userID, date string, lines []PostedStockLine) error {
 	if err := rejectIfCurrentPeriodClosed(tx, schema, voucherType, voucherID, date); err != nil {
+		return err
+	}
+	lines, err := withStockLineUOMs(tx, schema, lines)
+	if err != nil {
 		return err
 	}
 	for _, e := range stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID, lines) {

@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **965** codes. Each row says what the user is shown, what to do about
+There are **983** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -21,7 +21,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 ## Contents
 
 - [Admin / Configuration](#admin--configuration) - 21 codes
-- [Approvals / Workflow](#approvals--workflow) - 4 codes
+- [Approvals / Workflow](#approvals--workflow) - 6 codes
 - [Audit & Compliance](#audit--compliance) - 2 codes
 - [Backup / DR](#backup--dr) - 4 codes
 - [CRM](#crm) - 1 codes
@@ -39,7 +39,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [CRM / Referrals](#crm--referrals) - 1 codes
 - [CRM / Segments](#crm--segments) - 1 codes
 - [CRM / Senders](#crm--senders) - 1 codes
-- [CRM / Service](#crm--service) - 1 codes
+- [CRM / Service](#crm--service) - 3 codes
 - [CRM / Templates](#crm--templates) - 1 codes
 - [CRM / Vouchers](#crm--vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
@@ -48,11 +48,11 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Data Import / Excel Upload](#data-import--excel-upload) - 16 codes
 - [Deployment / Release](#deployment--release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype--dynamic-metadata) - 8 codes
-- [Expense Management](#expense-management) - 11 codes
+- [Expense Management](#expense-management) - 15 codes
 - [Extension Hooks / Customization](#extension-hooks--customization) - 4 codes
 - [Finance](#finance) - 7 codes
-- [Finance & Accounting](#finance--accounting) - 102 codes
-- [Fixed Assets](#fixed-assets) - 19 codes
+- [Finance & Accounting](#finance--accounting) - 104 codes
+- [Fixed Assets](#fixed-assets) - 20 codes
 - [GST](#gst) - 9 codes
 - [Global](#global) - 22 codes
 - [Global / Common](#global--common) - 25 codes
@@ -62,7 +62,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [HR / Payroll](#hr--payroll) - 32 codes
 - [Integration / API](#integration--api) - 14 codes
 - [Integrations](#integrations) - 1 codes
-- [Inventory](#inventory) - 23 codes
+- [Inventory](#inventory) - 24 codes
 - [Inventory / Warehouse](#inventory--warehouse) - 29 codes
 - [Item Master](#item-master) - 4 codes
 - [Manufacturing](#manufacturing) - 7 codes
@@ -73,9 +73,9 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Observability / Incident](#observability--incident) - 3 codes
 - [Omnichannel / OMS](#omnichannel--oms) - 5 codes
 - [Order Management](#order-management) - 12 codes
-- [PIM](#pim) - 55 codes
+- [PIM](#pim) - 57 codes
 - [PIM / Product Publishing](#pim--product-publishing) - 8 codes
-- [POS / Billing](#pos--billing) - 42 codes
+- [POS / Billing](#pos--billing) - 44 codes
 - [POS / Offline & Cash Drawer](#pos--offline--cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch--bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
@@ -86,7 +86,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Purchase Requisition](#purchase-requisition) - 6 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
-- [Quality](#quality) - 6 codes
+- [Quality](#quality) - 8 codes
 - [Quality & Maintenance](#quality--maintenance) - 12 codes
 - [RFQ](#rfq) - 6 codes
 - [Reports](#reports) - 3 codes
@@ -140,6 +140,8 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `APPROV-0158` | Approval already completed | This approval action is already completed. Please refresh the page. | Correct details or retry. Contact admin if repeated. | High | 409 |
 | `APPROV-0159` | Reject reason missing | Rejection reason is required. | Correct details or retry. Contact admin if repeated. | High | 422 |
 | `APPROV-0840` | Approver is the person who submitted the document | You cannot approve or reject a document you submitted. | Ask another approver with the required role to decide it, or ask an admin to change Who can approve their own documents (Settings > Configuration > Security). | Medium | 422 |
+| `APPROV-0841` | Asker tries to decide a document that always needs a second person (a Super Admin's password reset, an item treatment correction, or a dual-control request) | Someone else must decide this document. | Ask another admin, or another approver with the required role, to decide it. No setting lets the person who asked decide it. | Medium | 422 |
+| `APPROV-0842` | Submitter decides their own document above the amount set in Own decisions above this amount need a reason, with no written reason | Write why you are deciding your own document. | Add a reason of at least 10 characters in the comment, or ask another approver to decide it. | Medium | 422 |
 
 ## Audit & Compliance
 
@@ -259,6 +261,8 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `CRMPLT-1114` | Ticket action not valid in its state | The ticket can't do that in its current state. | Check the ticket's state; resolve needs a note of what was done. | Low | 422 |
+| `CRMPLT-1131` | Service ticket names a help article that is not published, or an article published with no text | That help article cannot be used. | Publish the article, with its text, before a ticket names it. | Low | 422 |
+| `CRMPLT-1132` | Service visit refused (ticket closed or not found, no engineer, time not readable, check-out before check-in, Done without check-out or the customer's name, or a Done visit edited) | This visit cannot be saved. | Pick an open ticket and an engineer. Check out after check-in. A Done visit needs a check-out and the name of who signed it off, and cannot be changed. | Medium | 422 |
 
 ## CRM / Templates
 
@@ -369,6 +373,10 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `EXP-1700` | Expense claim over the limit set on its category or the claimant's grade (refuse mode) | The claim is over the limit for its category. | Lower the amount, split it into valid claims, or ask an administrator about the category limit. | Medium | 422 |
 | `EXP-1701` | Employee advance not found, or missing its employee or amount, when paid | This advance cannot be paid. | Check the employee and an amount above zero on the advance, then pay it again. | Medium | 422 |
 | `EXP-1702` | Employee advance paid again or paid after it was settled or cancelled | This advance is already paid. | Only a Draft advance can be paid. Open the advance to see its status. | Medium | 422 |
+| `EXP-1703` | Travel request refused (no employee, purpose or destination, dates out of order, cost not above zero, advance above the cost, or an approved request edited) | This travel request cannot be saved. | Give the employee, purpose, destination, From and To dates and an estimated cost above 0. The advance cannot be more than the cost. An approved request cannot be changed. | Medium | 422 |
+| `EXP-1704` | Advance or expense claim names a travel request that is not approved or belongs to another employee | That travel request cannot be used here. | Pick an Approved travel request of the same employee. | Medium | 422 |
+| `EXP-1705` | Corporate card refused (last 4 digits not four digits, or the card holder not found) | This card cannot be saved. | Enter only the last 4 digits of the card and pick the card holder. | Medium | 422 |
+| `EXP-1706` | Card statement line refused (no card, date or description, amount not above zero) or the claim named does not fit it | This card line cannot be saved. | Give the card, date, description and an amount above 0. A claim must be the card holder's, for the same amount, and not on another line. | Medium | 422 |
 
 ## Extension Hooks / Customization
 
@@ -429,6 +437,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `FIN-0522` | Credit note names a foreign-currency sales invoice that is still open | This credit note cannot be applied to a foreign-currency invoice. | Settle that invoice in full, or remove the invoice from the note and post it as a refund. | Medium | 422 |
 | `FIN-0841` | Pay with TDS on a bill in a foreign currency | TDS cannot be worked out on a bill in a foreign currency. | Pay the bill with Pay, which converts at the payment rate; record any withholding on a foreign payment separately. | Medium | 422 |
 | `FIN-0842` | Matching a vendor bill that is paid, part-paid or awaiting approval | This bill can no longer be matched. | A bill is matched once, before it is paid. Check its payments under Supplier bills; a wrong bill is corrected with a debit or credit note. | Medium | 422 |
+| `FIN-0843` | Journal voucher lines refused (unreadable, unbalanced, or an amount with more than two decimals) | These voucher lines cannot be saved. | Give each line a debit or a credit of up to two decimals, and make the debits equal the credits. | Medium | 422 |
 | `FIN-0844` | Changing the amounts of a document that has posted to the accounts | The amounts of a posted document cannot be changed. | Correct it with a credit or debit note, or reverse it; other details of the document can still be edited. | High | 422 |
 | `FIN-0850` | A sale names a piece or batch it cannot sell | This piece or batch cannot be sold here. Check the code and the store. | Scan the piece or batch again, or sell it from the store that holds it. | Medium | 422 |
 | `FIN-0851` | A credit note names a piece it cannot bring back | This piece cannot be brought back on this note. | Check that the piece was sold on this invoice and has not already come back. | Medium | 422 |
@@ -485,6 +494,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `FIN-1723` | Project budget refused (no lines, unknown cost type, negative or repeated line) or the report asked without a project | The project budget is not valid. | Add each cost type once (Labour, Materials, Expenses or Other) with an amount, and pick a project for the report. | Low | 422 |
 | `FIN-1724` | Project revenue run refused (setting off, bad month, or cost-to-complete project with no estimated cost) | Project revenue cannot be recognised. | Turn on project revenue recognition in Settings, enter the month like 2026-11, and set an estimated cost on cost-to-complete projects. | Medium | 422 |
 | `FIN-1725` | Service SLA setting not valid (hours text or escalation target) | That SLA setting is not valid. | Write hours like Low=24,Medium=8,High=4,Critical=1 and the target as user:<id> or role:<name>. | Low | 422 |
+| `FIN-1726` | Payment link refused: Razorpay not set up or refused, invoice not posted, nothing owed or not in rupees | A payment link could not be made. | Check the reason shown. An administrator saves the Razorpay keys under Settings → Integrations; a link is for a posted rupee invoice with a balance. | Medium | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -521,6 +531,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `ASSET-1727` | Meter reading below the last one | The reading is below the last one. | Enter a reading at or above the last, or fix the earlier one. | Medium | 422 |
 | `ASSET-1728` | Maintenance cost cannot be posted (part store, quantity or stock) | The parts cannot be taken from stock. | Choose a store with enough stock for each part. | Medium | 422 |
 | `ASSET-1729` | Asset already leased out on another active lease | This asset is already leased out. | Close the other lease first. | Medium | 409 |
+| `ASSET-1730` | Revaluation reserve cannot be released at disposal (3100 missing or not Equity) | Retained earnings is not set up. | Add account 3100 Retained Earnings as Equity, then dispose again. | Medium | 422 |
 
 ## GST
 
@@ -742,6 +753,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `STKLOC-0863` | Stock move incomplete or through a location that only transfers / holds change | The stock move is not complete. | Choose the item, a quantity above zero and two different locations the store uses (In-Transit and On Hold change only through transfers and hold codes). | Medium | 422 |
 | `STKLOC-0864` | Stock move larger than the free stock in the from location | There is not enough free stock in that location. | Move no more than the location holds (stock promised to an order is not free). | High | 422 |
 | `STKLOC-0865` | Stock move record written through the generic record API | Stock moves are made from Stock -> Move Stock. | Use Move Stock, which moves the stock and records it in one step. | Medium | 422 |
+| `STORE-0855` | A transfer is created, dispatched or received at a store the user has not been given | This transfer is not at one of your stores. | Ask someone who works at the store, or an administrator to add the store in Users -> Stores. | High | 422 |
 
 ## Inventory / Warehouse
 
@@ -987,6 +999,8 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `PIM-9343` | Re-parse of a day with no saved Myntra pages | No saved Myntra pages for that day. | Choose a day that has a run, or start a run first. | Medium | 404 |
 | `PIM-9360` | Copying photos to the image drive while the drive is not switched on | The image drive is not switched on. | Switch it on under Settings, Image drive, then copy the photos. | Medium | 422 |
 | `PIM-9361` | Starting a photo copy to the image drive while one is already running | A copy is already running. | Wait for it to finish, then start it again if photos are left. | Low | 409 |
+| `PIM-9362` | Saving a declaration pack with an unknown pack, no reviewer or evidence, or a last day before the effective date | This declaration pack can't be saved. | Pick a shipped pack, name the qualified reviewer and the evidence, and a last day on or after the effective date. | Medium | 422 |
+| `PIM-9363` | Saving an item or item name with an item alias longer than 14 characters | The item alias can be 14 characters at most. | Shorten it, or clear it to have it made from the name. | Low | 422 |
 
 ## PIM / Product Publishing
 
@@ -1039,6 +1053,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `POSOFF-0875` | Bill paid by a tender the store does not take | This store does not take that tender. | Pick one of the store's tenders, or add it in Setup -> Masters -> POS Tender (and the store to its Stores). | Medium | 422 |
 | `POSOFF-0876` | Bill without the salesman the store asks for, or with someone not its salesman | The bill needs one of the store's salesmen. | Pick the salesman on the till. Add or reactivate them in Setup -> Masters -> Salesman. | Medium | 422 |
 | `POSOFF-0877` | Bill discount above the reason limit without a reason | This discount needs a reason. | Say why the discount is given; above an approval slab a manager approves it too. | Medium | 422 |
+| `POSOFF-0878` | Saving a store or tender with a UPI ID that is not name@provider, or a UPI ID on a non-UPI tender | This UPI ID can't be used. | Type the UPI ID as name@provider (for example store@ybl), or leave it blank. Only a UPI tender takes one. | Medium | 422 |
 | `POSOFF-1301` | Bill cannot be cancelled (not found, not today's, partly returned, nothing left, or no reason) | This bill can't be cancelled. | Only today's bill, with nothing returned yet, can be cancelled - give the reason. For an older bill, or one already partly returned, take a return instead. | Medium | 422 |
 | `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
 | `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |
@@ -1046,6 +1061,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `POSOFF-1361` | Offline sale validated with a line not scanned, or scanned with a code that is not that item's barcode | The scanned barcodes don't match. | Every line must have been scanned with one of the item's own barcodes. Check the goods with the cashier; if it can't be put right, reject the sale with the reason. | High | 422 |
 | `POSOFF-1362` | Offline sale cannot be decided (already validated or rejected, rung up by the person deciding, or a rejection with no reason) | This offline sale can't be decided. | Only a Pending sale is validated or rejected, by a manager other than the cashier who rang it up; a rejection needs the reason. | Medium | 422 |
 | `POSOFF-1363` | Duplicate tender - the same card / UPI / cheque reference and amount was taken at this store minutes ago | This payment was already taken on an earlier bill. | Check the earlier bill. If the customer really paid twice with the same reference, mark the tender as a second payment and try again. | High | 409 |
+| `POSOFF-1371` | Till series refused (not a store, all 99 tills taken) or an offline bill number refused at sync (not this store's till series, malformed, or already on a bill) | This offline bill number can't be used. | Check the number on the customer's receipt against the till that rang it up. If it is on another bill already, reject the sale with the reason and re-bill it online; a till gets its series when its screen opens online. | High | 422 |
 | `STORE-0854` | Store switch while the user's till session is open at the current store | Your till session is still open at this store. | Close the session (POS -> More... -> Close Session), then switch store. | High | 422 |
 
 ## POS / Offline & Cash Drawer
@@ -1228,6 +1244,8 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `QUALIT-1763` | SCAR missing vendor, issue or reply-by date, or its vendor or non-conformance not found | The SCAR is not complete. | Give the vendor, the issue and the reply-by date. | Medium | 422 |
 | `QUALIT-1764` | SCAR opened for a non-conformance that already has an open SCAR | That non-conformance already has an open SCAR. | Close the open SCAR first. | Medium | 422 |
 | `QUALIT-1765` | SCAR step out of order, with no text, or on an unknown SCAR | That SCAR step cannot be recorded. | Record root cause, then action, then verification. | Medium | 422 |
+| `QUALIT-1766` | Instrument calibration interval missing or out of range | This instrument cannot be saved. | Give a calibration interval of 1 to 3650 days. | Medium | 422 |
+| `QUALIT-1767` | Calibration record refused (unknown or retired instrument, date missing or in the future, result not Pass or Fail, or a recorded calibration edited) | This calibration cannot be saved. | Pick an instrument in use, the date it was calibrated (not later than today) and Pass or Fail. A recorded calibration cannot be changed. | Medium | 422 |
 
 ## Quality & Maintenance
 

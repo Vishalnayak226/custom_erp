@@ -166,7 +166,7 @@ function renderPrintSheet(labels, copies) {
       const breakClass = (i === labelCopies - 1 && isLastOfCategoryGroup) ? ' sticker-label-group-end' : '';
       if (elements.length > 0 && label.label_width_mm && label.label_height_mm) {
         html += `
-          <div class="sticker-label sticker-label-templated${breakClass}" style="width:${label.label_width_mm}mm; height:${label.label_height_mm}mm;">
+          <div class="sticker-label sticker-label-templated${breakClass}" data-css="width:${label.label_width_mm}mm; height:${label.label_height_mm}mm;">
             ${elements.map(el => renderStickerElementHTML(el, label)).join('')}
           </div>
         `;
@@ -182,6 +182,7 @@ function renderPrintSheet(labels, copies) {
     }
   });
   area.innerHTML = html;
+  applyDataCss(area); // 49.4.3: before print(), which runs in this task
   area.classList.add('printing');
   window.print();
   setTimeout(() => area.classList.remove('printing'), 500);

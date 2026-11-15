@@ -169,6 +169,9 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 type DispatchOptions struct {
 	Picks           []transferLine
 	ShortReasonCode string
+	// internal marks a run the engine composes itself (centralised returns);
+	// the store check (193.3) is for a person's own dispatch.
+	internal bool
 }
 
 // DispatchTransferOrderOpts is DispatchTransferOrderWith plus the fill policy
@@ -211,6 +214,11 @@ func DispatchTransferOrderOpts(tenantID, transferOrderID, userID string, opts Di
 	fromWarehouse, _ := data["from_warehouse"].(string)
 	if fromWarehouse == "" {
 		return fmt.Errorf("transfer order is missing from_warehouse")
+	}
+	if !opts.internal { // 193.3: dispatch needs the source store
+		if err := checkTransferStoreAccess(tenantID, userID, transferStepDispatch, fromWarehouse, ""); err != nil {
+			return err
+		}
 	}
 	// Stage 146.1.7: dispatch consumes the approval hold before the stock moves.
 	if err := releaseTransferReservationTx(tx, schema, transferOrderID); err != nil {

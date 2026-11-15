@@ -17,7 +17,8 @@
 //	go run ./cmd/brainmap -check # exit 1 if any file is unclaimed by a region
 //
 // On Windows with Controlled Folder Access on, use docs/brain/update-brain.ps1
-// instead - see writeOut below for why.
+// instead: Controlled Folder Access refuses a freshly built binary any write
+// under Documents and reports it as "the system cannot find the file specified".
 //
 // Stdlib only, per the repo's lightweight-and-no-new-dependencies principle.
 package main
@@ -345,28 +346,6 @@ func main() {
 func fatal(err error) {
 	fmt.Fprintf(os.Stderr, "brainmap: %v\n", err)
 	os.Exit(1)
-}
-
-// writeOut exists to turn one specific, very confusing Windows failure into an
-// actionable message. With Controlled Folder Access on (Defender's ransomware
-// protection, on by default), a freshly compiled binary is an "unknown app" and
-// is refused any write under %USERPROFILE%\Documents - and Windows reports that
-// refusal as ERROR_FILE_NOT_FOUND, so Go surfaces it as "the system cannot find
-// the file specified" for a directory that plainly exists.
-// docs/brain/update-brain.ps1 sidesteps it by generating into TEMP and copying
-// the result in with PowerShell, which Windows already trusts.
-func writeOut(path string, content []byte) error {
-	err := os.WriteFile(path, content, 0o644)
-	if err == nil {
-		return nil
-	}
-	if info, statErr := os.Stat(filepath.Dir(path)); statErr == nil && info.IsDir() {
-		return fmt.Errorf("could not write %s (%v).\n"+
-			"  The directory exists, so this is almost certainly Windows Controlled Folder Access\n"+
-			"  refusing an unknown binary a write under Documents. Run docs/brain/update-brain.ps1\n"+
-			"  instead, or pass -out to write somewhere unprotected", path, err)
-	}
-	return err
 }
 
 // repoRoot walks up from the working directory looking for go.mod, so the tool

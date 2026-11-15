@@ -134,13 +134,6 @@ func SaveCourierCredentialBy(tenantID, provider string, fields map[string]string
 	return SaveChannelCredentialBy(tenantID, courierCredentialCode(provider), fields, savedBy, expiresAt)
 }
 
-func HasCourierCredential(tenantID, provider string) (bool, error) {
-	if _, err := courierAdapter(provider); err != nil {
-		return false, err
-	}
-	return HasChannelCredential(tenantID, courierCredentialCode(provider))
-}
-
 func courierCredentials(tenantID, provider string) (map[string]string, error) {
 	return getChannelCredential(tenantID, courierCredentialCode(provider))
 }

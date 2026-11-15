@@ -37,6 +37,8 @@ type SetupPathStep struct {
 	Severity         string       `json:"severity,omitempty"`
 	Checks           []SetupCheck `json:"checks"`
 	ValidatorVersion string       `json:"validator_version"`
+	// 47.12.4 (ask 191): the roles that may complete the step (setupStepOwners).
+	Owners []string `json:"owners"`
 }
 
 // Stage 91.3 (decided 2026-10-21): the guided setup walks these in the
@@ -60,6 +62,10 @@ var setupPathPlan = []SetupPathStep{
 		Note: "Pieces, metres, kilograms... how items are counted."},
 	{ID: "item-types", Label: "Item types and categories", Doctypes: []string{"ItemType", "Category"}, DependsOn: []string{"units"},
 		Note: "Which kinds of goods you keep, and the categories you sell them under."},
+	// 55.3 (ask 179): the registers items pick from. Any one in use is enough;
+	// batches and serial numbers are made on receipt, not set up beforehand.
+	{ID: "registers", Label: "Brands, styles and colours", Doctypes: []string{"Brand", "Style", "Color"}, Optional: true,
+		Note: "The brand, style and colour lists items pick from. Leave it if you don't use them."},
 	{ID: "items", Label: "Items", Doctypes: []string{"Item"}, DependsOn: []string{"item-types"},
 		Note: "What you buy and sell - or add them on your first purchase order."},
 	{ID: "parties", Label: "Vendors and customers", Doctypes: []string{"Vendor", "Customer"}, DependsOn: []string{"entity"},
@@ -105,6 +111,7 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 		return nil, err
 	}
 
+	ownersOf := setupStepOwners(tenantID, schema)
 	steps := make([]SetupPathStep, len(setupPathPlan))
 	done := map[string]bool{}
 	for i, plan := range setupPathPlan {
@@ -125,6 +132,11 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 		case "approvals":
 			step.Count = rules
 			step.Done = rules > 0
+		case "registers":
+			for _, dt := range step.Doctypes {
+				step.Count += active[dt]
+			}
+			step.Done = step.Count > 0
 		case "tax":
 			// 91.3: HSN codes in use, and no active legal entity without its GSTIN.
 			step.Count = active["HSNCode"]
@@ -154,6 +166,8 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 			step.Checks = []SetupCheck{setupExists("users-second", "Someone besides the first administrator can sign in", users-1, "user")}
 		case "approvals":
 			step.Checks = []SetupCheck{setupExists("approvals-rule", "At least one approval rule", rules, "approval rule")}
+		case "registers":
+			step.Checks = []SetupCheck{setupExists("registers-any", "At least one brand, style or colour", step.Count, "brand, style or colour")}
 		case "items":
 			step.Checks = readiness.itemChecks(active["Item"])
 		default:
@@ -161,6 +175,7 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 		}
 		step.Checks = append(step.Checks, finance[step.ID]...)
 		step.ValidatorVersion = SetupValidatorVersion
+		step.Owners = ownersOf(step)
 		step.State, step.Severity = setupStepState(step, readiness.pending(step.Doctypes))
 		done[step.ID] = step.Done
 		steps[i] = step
@@ -182,4 +197,53 @@ func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 	}
 	recordSetupStates(schema, steps, actor)
 	return steps, nil
+}
+
+// setupStepOwners (Stage 47.12.4, ask 191) gives each step's owner: the
+// client's roles that may complete it. A record step needs create on every
+// doctype it asks for (the registers step on any one, as its Done reads),
+// from the same role_permissions rows RoleMayOnDoctype reads, full access
+// counting. A screen step follows that screen's write gate: numbering and
+// approval rules take full access (requireHRAdmin), users the admin.users
+// capability of /api/v1/admin/users. Read live, so it follows Settings ›
+// Roles; one query per read.
+func setupStepOwners(tenantID, schema string) func(SetupPathStep) []string {
+	creates := map[string]map[string]bool{} // role -> doctype
+	if rows, err := db.DB.Query(fmt.Sprintf(`SELECT role, doctype_name FROM %s.role_permissions WHERE allow_create`, schema)); err == nil {
+		for rows.Next() {
+			var role, doctype string
+			if rows.Scan(&role, &doctype) == nil {
+				if creates[role] == nil {
+					creates[role] = map[string]bool{}
+				}
+				creates[role][doctype] = true
+			}
+		}
+		rows.Close()
+	}
+	roles := TenantRoleNames(tenantID)
+	return func(step SetupPathStep) []string {
+		owners := []string{}
+		for _, role := range roles {
+			may := HasFullAccess(role)
+			switch {
+			case may:
+			case step.ID == "users":
+				may = RoleHasCapability(role, "admin.users")
+			case len(step.Doctypes) > 0:
+				anyOne := step.ID == "registers"
+				may = !anyOne
+				for _, dt := range step.Doctypes {
+					if creates[role][dt] == anyOne {
+						may = anyOne
+						break
+					}
+				}
+			}
+			if may {
+				owners = append(owners, role)
+			}
+		}
+		return owners
+	}
 }

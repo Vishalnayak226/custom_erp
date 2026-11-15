@@ -352,6 +352,21 @@ func TestFailFirstRules(t *testing.T) {
 	}
 }
 
+// Item 177.2: with the tests on GitHub, the click reports build, vet and tests as
+// "github ..."; that passes the gate, and anything else that is not "pass" still fails.
+func TestResultsRunOnGitHubPass(t *testing.T) {
+	in := baseInput(t)
+	in.Results = map[string]string{"build": "github (release.yml)", "vet": "github (release.yml)", "tests": "github (16 shards)"}
+	rec := Evaluate(in)
+	if c := find(rec, "results"); rec.Verdict != "pass" || c.Status != Pass || !strings.Contains(c.Detail, "on GitHub") {
+		t.Fatalf("github results: verdict %s, results=%s (%s)", rec.Verdict, c.Status, c.Detail)
+	}
+	in.Results["tests"] = "skipped"
+	if c := find(Evaluate(in), "results"); c.Status != Fail {
+		t.Fatalf("tests=skipped must fail, got %s", c.Status)
+	}
+}
+
 func TestOptionalChecksFollowPolicy(t *testing.T) {
 	in := baseInput(t)
 	in.Vuln = Vuln{Ran: true, Findings: 2, Detail: "GO-2026-1, GO-2026-2"}

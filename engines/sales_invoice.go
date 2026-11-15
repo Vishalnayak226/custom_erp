@@ -207,7 +207,8 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 	var items []interface{}
 	var cogsPaise int64
 	var saleCosts []saleCostLine
-	for _, l := range salesInvoiceLineItems(dataStr) {
+	var costLineNo []int // 170.1: each sale cost's invoice line, 1-based
+	for i, l := range salesInvoiceLineItems(dataStr) {
 		if l.Sku == "" || l.Qty <= 0 {
 			continue
 		}
@@ -218,10 +219,12 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 		if l.BatchNo != "" {
 			line["batch_no"] = l.BatchNo
 		}
-		items = append(items, line)
 		unitPaise := ResolveCOGSUnitCostPaise(tenantID, l.Sku, itemStandardCostRupees(tenantID, l.Sku))
+		l.markLedgerRates(line, PaiseToRupees(unitPaise)) // 49.5.5b.3
+		items = append(items, line)
 		cogsPaise += int64(l.Qty) * unitPaise
 		saleCosts = append(saleCosts, newSaleCostLine(tenantID, l.Sku, l.Qty, unitPaise, l.SerialNos, l.BatchNo))
+		costLineNo = append(costLineNo, i+1)
 	}
 	if len(items) == 0 {
 		return nil
@@ -256,13 +259,16 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 	if cogsPaise > 0 {
 		// Stage 148.4 splits by line value; each line's value is what 148.1 booked.
 		cogsLines := make([]groupLine, 0, len(saleCosts))
-		for _, c := range saleCosts {
+		cogsShares := make([]sourceLineShare, 0, len(saleCosts))
+		for k, c := range saleCosts {
 			cogsLines = append(cogsLines, groupLine{Sku: c.SKU, Weight: c.ValuePaise})
+			cogsShares = append(cogsShares, sourceLineShare{ID: lineNoID(costLineNo[k]), Weight: c.ValuePaise})
 		}
 		cogsDebits, cogsCredits := salesInvoiceCOGSAccounts(tenantID, data, cogsLines, cogsPaise)
 		if err := PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID,
 			cogsDebits, cogsCredits, "",
-			fmt.Sprintf("SalesInvoice:%s:COGS", invoiceID)); err != nil {
+			fmt.Sprintf("SalesInvoice:%s:COGS", invoiceID),
+			withSourceLines(schema, nil, cogsDebits, cogsCredits, cogsShares)...); err != nil {
 			return fmt.Errorf("COGS posting failed, invoice not posted: %v", err)
 		}
 	}
@@ -392,6 +398,7 @@ func CancelSalesInvoice(tenantID, invoiceID, userID, reason string) error {
 					if l.BatchNo != "" {
 						line["batch_no"] = l.BatchNo
 					}
+					l.markLedgerRates(line, 0) // 49.5.5b.3: the price and tax it was billed at
 					items = append(items, line)
 				}
 			}

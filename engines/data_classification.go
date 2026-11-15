@@ -68,7 +68,15 @@ const (
 	DataFlowSigningKey     = "auth.signing_key"
 	DataFlowAuditEvidence  = "audit.evidence"
 	DataFlowBackup         = "operations.backup"
+	// 170.20: a disciplinary case is guarded per record (its readers), not per
+	// field, so its fields carry no sensitive-field rule; rowScopedFlows maps
+	// the whole doctype here instead.
+	DataFlowDisciplinary = "hr.disciplinary"
 )
+
+// rowScopedFlows classifies every field of a doctype whose privacy control is
+// which records a user may open (scope_policy.go), not which fields.
+var rowScopedFlows = map[string]string{DisciplinaryCaseDoctype: DataFlowDisciplinary}
 
 // DataFlowClass is one row of the 49.6.1 registry: everything an operator or
 // an automated privacy-rights/retention job needs to decide what happens to
@@ -185,6 +193,16 @@ var dataClassifications = map[string]DataFlowClass{
 		RetentionTrigger: "none while the checksum-chain requirement (47.16.3) is in force", LegalHold: true,
 		Deletion: "[needs decision: statutory audit-log retention period once 47.16.3 sets it - never silently pruned before then]",
 	},
+	DataFlowDisciplinary: {
+		Tier: TierRestricted, Privacy: PrivacyPersonal,
+		Purpose: "Investigate a conduct, attendance or performance case against an employee and record its outcome", TenantScoped: true,
+		Source: "HR-entered case; evidence attached to it",
+		Consumers: "HR/Admin and Super Admin; the employee, the investigator and the people named (the case's readers, scope_policy.go)",
+		Masking: "A role outside HR opens only the cases naming them; their attachments follow the case",
+		Export: "No report of its own; the list applies the same readers scope",
+		RetentionTrigger: "case closed", LegalHold: true,
+		Deletion: "[needs decision: HR retention policy for closed disciplinary case content]",
+	},
 	DataFlowBackup: {
 		Tier: TierRestricted, Privacy: "",
 		Purpose: "Recover from data loss within the approved RTO", TenantScoped: false,
@@ -211,6 +229,9 @@ func ClassifyCategory(category string) (DataFlowClass, bool) {
 // does not cover (which is not itself a finding - most fields are
 // intentionally uncovered, e.g. Customer.phone).
 func ClassifyDoctypeField(doctype, field string) (DataFlowClass, bool) {
+	if flow, ok := rowScopedFlows[doctype]; ok {
+		return ClassifyCategory(flow)
+	}
 	rules, ok := sensitiveFields[doctype]
 	if !ok {
 		return DataFlowClass{}, false

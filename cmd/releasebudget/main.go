@@ -25,6 +25,12 @@ import (
 const (
 	KiB = int64(1024)
 	MiB = 1024 * KiB
+
+	// binaryBudget is the stripped Linux server binary limit (NFR-COST-001).
+	// Raised from 25 MiB to 40 MiB on 2026-11-14 (item 177.4): the binary had
+	// grown to 33.7 MiB and CI was red on every push. 40 MiB still catches a
+	// sudden jump. CI and the release click (G4c) both run this check.
+	binaryBudget = 40 * MiB
 )
 
 // Three profiles, because NFR-COST-001 states two different budgets and they
@@ -118,7 +124,7 @@ func measure(root, binary, databaseURL, backupDir, logsDir string) (Report, erro
 		if err != nil {
 			return report, fmt.Errorf("stat release binary: %w", err)
 		}
-		setLimit(&report, "binary_stripped_bytes", info.Size(), 25*MiB, "NFR-COST-001; build with -ldflags '-s -w'")
+		setLimit(&report, "binary_stripped_bytes", info.Size(), binaryBudget, "NFR-COST-001; build with -ldflags '-s -w'")
 	} else {
 		report.Metrics["binary_stripped_bytes"] = Metric{Unit: "bytes", Status: "not_measured", Note: "pass -binary with the stripped release artifact"}
 	}

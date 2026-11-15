@@ -2,15 +2,15 @@
 doc_id: DOC-REQ-PRD
 title: Product requirements core
 type: normative
-status: draft
+status: approved
 owner: product-owner
 approvers: [product-owner, engineering-owner, qa-owner]
 audience: [product, process-owners, engineering, QA]
 applies_to: proposed reference configurations
-authority: proposed-policy
+authority: canonical
 confidentiality: internal
-last_verified: 2026-09-07
-review_by: 2026-10-07
+last_verified: 2026-11-15
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 ---
@@ -68,5 +68,9 @@ Checklist completion and version numbers cannot establish either level.
 ## Open gates
 
 The warehouse reference uses one owner per warehouse under the 47.5 guard; mixed-owner use
-is unsupported. Physical devices await 47.6.6; audit archive/restore awaits 47.7.6 and qualified review. No country/industry/device configuration inherits
-acceptance from another. Full product/process approval and signed release evidence remain open.
+is built (Stage 59) but outside the reference evaluation. Physical devices await 47.6.6; audit archive/restore awaits 47.7.6 and qualified review. No country/industry/device configuration inherits
+acceptance from another. Product approval is recorded below; signed release evidence remain open.
+
+## Approval
+
+Approved by the product owner on 2026-11-15 (ask 193, item 47.15.3). Approval fixes the requirements text; it does not claim any capability is accepted or Production.

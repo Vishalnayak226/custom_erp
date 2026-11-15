@@ -96,10 +96,13 @@ func TestStatusTransitionMapEnforcedThroughGenericDocAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal payload: %v", err)
 		}
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/doc/RFQ", bytes.NewReader(payload))
+		// 57.26(j): an edit goes to the record's own route, as every screen
+		// does; a create reusing a live record's code is refused.
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/doc/RFQ/"+rfqID, bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.SetPathValue("doctype", "RFQ")
+		req.SetPathValue("id", rfqID)
 		rec := httptest.NewRecorder()
 		apiMiddleware(handleGenericDoc)(rec, req)
 		return rec

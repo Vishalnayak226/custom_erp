@@ -47,14 +47,20 @@ func shopifyOr(a, b string) string {
 // shopifyCallbackURL is where Shopify sends this client's webhooks: the
 // address the administrator is using, so a client's own hostname routes to it.
 func shopifyCallbackURL(r *http.Request, channel string) string {
+	q := url.Values{"tenant_id": {r.Header.Get("Resolved-Tenant-ID")}, "channel": {channel}}
+	return publicCallbackURL(r, "/api/v1/integration/shopify/webhook", q)
+}
+
+// publicCallbackURL is an address on this server an outside platform calls
+// back (Shopify, Razorpay), built from the address the user is on.
+func publicCallbackURL(r *http.Request, path string, q url.Values) string {
 	scheme := "https"
 	if fp := r.Header.Get("X-Forwarded-Proto"); fp != "" {
 		scheme = strings.Split(fp, ",")[0]
 	} else if r.TLS == nil && (strings.HasPrefix(r.Host, "localhost") || strings.HasPrefix(r.Host, "127.")) {
 		scheme = "http"
 	}
-	q := url.Values{"tenant_id": {r.Header.Get("Resolved-Tenant-ID")}, "channel": {channel}}
-	return fmt.Sprintf("%s://%s/api/v1/integration/shopify/webhook?%s", scheme, r.Host, q.Encode())
+	return fmt.Sprintf("%s://%s%s?%s", scheme, r.Host, path, q.Encode())
 }
 
 // handleShopifyCredentials saves the shop address, token and webhook secret

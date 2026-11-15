@@ -368,7 +368,8 @@ func applyQuarantineScrapTx(tx *sql.Tx, schema, location, number, userID string,
 		if n, _ := res.RowsAffected(); n == 0 {
 			return &ValidationError{Code: "INVENT-0101", SubFor: sku, Message: fmt.Sprintf("%s at %s no longer holds %d unit(s) in quarantine to write off", sku, location, qty)}
 		}
-		if err := WriteStockLedgerLinesTx(tx, schema, location, InventoryAdjustmentDoctype, number, userID, "", []PostedStockLine{{SKU: sku, Qty: -qty, BatchNo: strField(l, "batch_no")}}); err != nil {
+		if err := WriteStockLedgerLinesTx(tx, schema, location, InventoryAdjustmentDoctype, number, userID, "", []PostedStockLine{{SKU: sku, Qty: -qty, BatchNo: strField(l, "batch_no"),
+			stockLineSnapshot: stockLineSnapshot{ValuationRate: numFromInterface(l["unit_cost"])}}}); err != nil {
 			return err
 		}
 	}

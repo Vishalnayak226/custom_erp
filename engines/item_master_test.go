@@ -359,8 +359,9 @@ func TestStage89ItemMasterAskedOnce(t *testing.T) {
 	if err != nil || res.Status != "Pending Approval" || doc("TAG89")["item_type"] != "Product" {
 		t.Fatalf("second admin: %+v %v / %v", res, err, doc("TAG89")["item_type"])
 	}
-	if err := DecideApproval(tenantID, TreatmentCorrectionDoctype, res.ID, "system", RoleSuperAdmin, "", "Approved", ""); err == nil {
-		t.Errorf("the admin who asked cannot approve")
+	// 92.4: with its own code, so the hint says another admin decides it.
+	if code := sodCode(DecideApproval(tenantID, TreatmentCorrectionDoctype, res.ID, "system", RoleSuperAdmin, "", "Approved", "")); code != "APPROV-0841" {
+		t.Errorf("the admin who asked cannot approve: %q, want APPROV-0841", code)
 	}
 	if err := DecideApproval(tenantID, TreatmentCorrectionDoctype, res.ID, "second-admin", RoleSuperAdmin, "", "Approved", "ok"); err != nil {
 		t.Fatalf("second admin approves: %v", err)

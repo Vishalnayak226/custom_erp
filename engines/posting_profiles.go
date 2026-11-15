@@ -40,6 +40,10 @@ const (
 	PostingEventPOSSaleRevenue      = "pos_sale_revenue"
 	PostingEventPOSSaleCOGS         = "pos_sale_cogs"
 	PostingEventGRNReceipt          = "grn_receipt"
+	// Stage 148.4b: the receivable (1300) and payable (2100) account by
+	// customer / vendor group (engines/posting_groups.go).
+	PostingEventReceivableControl = "receivable_control"
+	PostingEventPayableControl    = "payable_control"
 )
 
 var postingEvents = []string{
@@ -49,6 +53,7 @@ var postingEvents = []string{
 	PostingEventAdjustmentGain, PostingEventAdjustmentLoss, PostingEventAdjustmentDamage, PostingEventAdjustmentRevalue, PostingEventAdjustmentExpiry,
 	PostingEventJobworkCharge, PostingEventJobworkLoss, PostingEventChallanNonReturnable,
 	PostingEventSalesInvoiceRevenue, PostingEventSalesInvoiceCOGS, PostingEventPOSSaleRevenue, PostingEventPOSSaleCOGS, PostingEventGRNReceipt,
+	PostingEventReceivableControl, PostingEventPayableControl,
 }
 
 // PostingContext is what a posting knows about itself for the match: blank
@@ -168,6 +173,31 @@ func validatePostingProfileRules(tenantID string, payload map[string]interface{}
 	}
 	if from, to := strField(payload, "effective_from"), strField(payload, "effective_to"); from != "" && to != "" && to < from {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Effective to", Message: "the profile ends before it starts"}
+	}
+	return validateControlProfile(schema, strField(payload, "event"), debit, credit)
+}
+
+// validateControlProfile (148.4b): a receivable / payable profile names one
+// account, not the default itself, of the default's type.
+func validateControlProfile(schema, event, debit, credit string) error {
+	k, ok := controlKindForEvent(event)
+	if !ok {
+		return nil
+	}
+	if debit != "" && credit != "" && debit != credit {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Credit account", Message: "a receivable or payable profile names one account - the same on both sides"}
+	}
+	acct := firstNonEmpty(debit, credit)
+	if acct == k.base {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Debit account", Message: fmt.Sprintf("%s is already the default - name the group's own account", acct)}
+	}
+	var same bool
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE((SELECT account_type FROM %[1]s.gl_accounts WHERE account_code = $1) =
+		(SELECT account_type FROM %[1]s.gl_accounts WHERE account_code = $2), FALSE)`, schema), acct, k.base).Scan(&same); err != nil {
+		return err
+	}
+	if !same {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Debit account", Message: fmt.Sprintf("account %s is not the same type as %s", acct, k.base)}
 	}
 	return nil
 }

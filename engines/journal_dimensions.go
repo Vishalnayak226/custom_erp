@@ -61,7 +61,7 @@ func journalPostingLines(lines []JournalVoucherLine) []PostingLine {
 	}
 	out := make([]PostingLine, 0, len(lines))
 	for _, l := range lines {
-		out = append(out, PostingLine{Account: l.AccountCode, Debit: int64(l.Debit) * 100, Credit: int64(l.Credit) * 100,
+		out = append(out, PostingLine{Account: l.AccountCode, Debit: RupeesToPaise(l.Debit), Credit: RupeesToPaise(l.Credit),
 			CostCenter: l.CostCenter, Department: l.Department, Store: l.Store, Employee: l.Employee, Tag: l.Tag, Narration: l.Narration})
 	}
 	return out

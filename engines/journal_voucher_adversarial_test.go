@@ -47,7 +47,7 @@ func newJVAdvFixture(t *testing.T) *jvAdvFixture {
 func (f *jvAdvFixture) create(name string, debit, credit int) string {
 	f.t.Helper()
 	id, err := CreateJournalVoucher(f.tenantID, "2026-07-25", jvAdvPrefix+" "+name,
-		[]JournalVoucherLine{{AccountCode: "5100", Debit: debit}, {AccountCode: "1100", Credit: credit}}, "admin")
+		[]JournalVoucherLine{{AccountCode: "5100", Debit: float64(debit)}, {AccountCode: "1100", Credit: float64(credit)}}, "admin")
 	if err != nil {
 		f.t.Fatalf("CreateJournalVoucher: %v", err)
 	}

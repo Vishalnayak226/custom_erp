@@ -38,11 +38,6 @@ var conditionOperators = map[string][]string{
 // attribute; they behave as text.
 var conditionItemFields = map[string]bool{"name": true, "family": true, "status": true}
 
-// ConditionOperatorsFor lists the operators that fit an attribute value type.
-func ConditionOperatorsFor(valueType string) []string {
-	return conditionOperators[conditionKind(valueType)]
-}
-
 func conditionKind(valueType string) string {
 	switch strings.ToLower(strings.TrimSpace(valueType)) {
 	case "number", "decimal", "integer", "float", "currency":

@@ -146,9 +146,11 @@ tr.sc-row > td:first-child {
   background-color: var(--primary-light);
 }
 
+/* 200.2: one fixed width - the options change as you type, the box must not. */
 .sc-views {
-  width: auto;
-  min-width: 140px;
+  width: 170px;
+  flex: 0 0 170px;
+  text-overflow: ellipsis;
 }
 
 /* "Unsaved entry from ..." above a New form. */

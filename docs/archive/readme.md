@@ -111,7 +111,8 @@ On 2026-10-19 (checklist Stage 97) the docs folder was reorganised. Paths below 
 | `guides/UAT_CHECKLIST.md` | renamed to [`guides/uat-checklist.md`](../guides/uat-checklist.md) (2026-11-11, item 160.1) |
 | `guides/USER_GUIDE.md` | renamed to [`guides/user-guide.md`](../guides/user-guide.md) (2026-11-11, item 160.1) |
 | `guides/USER_SOP.md` | renamed to [`guides/user-sop.md`](../guides/user-sop.md) (2026-11-11, item 160.1) |
-| `guides/img/MANIFEST.md` | renamed to [`guides/img/screenshot-manifest.md`](../guides/img/screenshot-manifest.md) (2026-11-11, item 160.1) |
+| `guides/img/MANIFEST.md` | renamed to `guides/img/screenshot-manifest.md` (2026-11-11, item 160.1), then moved to [`archive/legacy/screenshots-2026-08-01/screenshot-manifest.md`](legacy/screenshots-2026-08-01/screenshot-manifest.md) (2026-11-15, item 48.7.6) |
+| `guides/img/trial-balance.png`, `approvals.png`, `record-list.png` | moved to [`archive/legacy/screenshots-2026-08-01/`](legacy/screenshots-2026-08-01/screenshot-manifest.md): no manual used them; `guides/img` keeps only the images the guides and SOPs show (2026-11-15, item 48.7.6) |
 | `operations/backup_restore.md` | renamed to [`operations/backup-restore.md`](../operations/backup-restore.md) (2026-11-11, item 160.1) |
 | `operations/connector_live_verification.md` | renamed to [`operations/connector-live-verification.md`](../operations/connector-live-verification.md) (2026-11-11, item 160.1) |
 | `operations/go_live_decisions.md` | renamed to [`operations/go-live-decisions.md`](../operations/go-live-decisions.md) (2026-11-11, item 160.1) |

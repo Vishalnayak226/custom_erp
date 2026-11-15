@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 25
 summary: Track a lot or an individual unit from receipt to dispatch, pick the right stock first by expiry, and answer a recall in two directions.
 audience: warehouse operator, category manager, admin
-last_verified: 2026-08-31
+last_verified: 2026-11-15
 screens: [grn, wave-picking, doctype:batch, doctype:serialnumber, doctype:lottableconstraint, reports]
 doc_id: DOC-60557E41E3
 type: procedure
@@ -35,7 +35,7 @@ the existing receiving and picking flows rather than beside them.
 
 ## Turning it on for an item
 
-Tracking is opt-in, per item, on the Item master's **Tracking Mode** field:
+Tracking is opt-in, per item, on the Item master's **Traceability** field:
 
 | Mode | Meaning |
 |---|---|
@@ -202,7 +202,7 @@ item's base unit.
 
 ## Troubleshooting
 
-**"Batch / Lot is required" on a GRN line.** The item's Tracking Mode is
+**"Batch / Lot is required" on a GRN line.** The item's Traceability setting is
 Batch or Batch and Serial. Enter the lot number from the carton; if it's a
 new lot, the `Batch` record is created for you.
 

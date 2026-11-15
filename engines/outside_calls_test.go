@@ -244,25 +244,25 @@ func TestOutsideCallsExtensionHooks(t *testing.T) {
 	// stopped (refused before any DNS lookup of the .invalid name).
 	outsideCallsEnv(t, "", "", "")
 	remoteID := seedExtensionHook(t, "tenant_default", "document.before_save", doctype, "https://hook.invalid/check", "s", 2000)
-	wantRefused("development", InvokeBeforeSaveHooks("default", doctype, "DOC-OC-1", map[string]interface{}{}), "off in development")
+	wantRefused("development", InvokeBeforeSaveHooks("default", "test-user", doctype, "DOC-OC-1", map[string]interface{}{}), "off in development")
 	if _, err := db.DB.Exec("DELETE FROM tenant_default.extension_hooks WHERE id = $1", remoteID); err != nil {
 		t.Fatal(err)
 	}
 	// A local hook (the extension SDK on the developer's machine) is called.
 	seedExtensionHook(t, "tenant_default", "document.before_save", doctype, local.URL, "s", 2000)
-	if err := InvokeBeforeSaveHooks("default", doctype, "DOC-OC-2", map[string]interface{}{}); err != nil || hits.Load() != 1 {
+	if err := InvokeBeforeSaveHooks("default", "test-user", doctype, "DOC-OC-2", map[string]interface{}{}); err != nil || hits.Load() != 1 {
 		t.Fatalf("development, loopback hook: want it called, got %v (hits %d)", err, hits.Load())
 	}
 
 	// Production calls it.
 	outsideCallsEnv(t, "production", "", "")
-	if err := InvokeBeforeSaveHooks("default", doctype, "DOC-OC-3", map[string]interface{}{}); err != nil || hits.Load() != 2 {
+	if err := InvokeBeforeSaveHooks("default", "test-user", doctype, "DOC-OC-3", map[string]interface{}{}); err != nil || hits.Load() != 2 {
 		t.Fatalf("production: want the hook called, got %v (hits %d)", err, hits.Load())
 	}
 
 	// The emergency switch beats production.
 	outsideCallsEnv(t, "production", "", "1")
-	wantRefused("emergency switch", InvokeBeforeSaveHooks("default", doctype, "DOC-OC-4", map[string]interface{}{}), "emergency switch")
+	wantRefused("emergency switch", InvokeBeforeSaveHooks("default", "test-user", doctype, "DOC-OC-4", map[string]interface{}{}), "emergency switch")
 	if hits.Load() != 2 {
 		t.Fatalf("emergency switch: the hook was called (hits %d)", hits.Load())
 	}
@@ -276,11 +276,11 @@ func TestOutsideCallsExtensionHooks(t *testing.T) {
 	}
 	seedExtensionHook(t, schema, "document.before_save", doctype, local.URL, "s", 2000)
 	afterID := seedExtensionHook(t, schema, "document.after_save", doctype, local.URL, "s", 2000)
-	wantRefused("client Off", InvokeBeforeSaveHooks(tenantID, doctype, "DOC-OC-5", map[string]interface{}{}), "off for this client")
-	if err := InvokeBeforeSaveHooks("default", doctype, "DOC-OC-6", map[string]interface{}{}); err != nil || hits.Load() != 3 {
+	wantRefused("client Off", InvokeBeforeSaveHooks(tenantID, "test-user", doctype, "DOC-OC-5", map[string]interface{}{}), "off for this client")
+	if err := InvokeBeforeSaveHooks("default", "test-user", doctype, "DOC-OC-6", map[string]interface{}{}); err != nil || hits.Load() != 3 {
 		t.Fatalf("another client: want its hook called, got %v (hits %d)", err, hits.Load())
 	}
-	InvokeAfterSaveHooksAsync(tenantID, doctype, "DOC-OC-7", map[string]interface{}{})
+	InvokeAfterSaveHooksAsync(tenantID, "test-user", doctype, "DOC-OC-7", map[string]interface{}{})
 	var logged string
 	for i := 0; i < 40; i++ {
 		_ = db.DB.QueryRow("SELECT COALESCE(error, '') FROM "+schema+".extension_hook_log WHERE hook_id = $1 ORDER BY called_at DESC LIMIT 1", afterID).Scan(&logged)

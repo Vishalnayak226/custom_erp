@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 20
 summary: Receive stock against a PO, put it away, pick and pack it back out, count it, adjust it, and move it between locations — the floor-ops backbone every other WMS feature sits on top of.
 audience: warehouse operator, warehouse manager, admin
-last_verified: 2026-09-03
+last_verified: 2026-11-15
 screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, inventory, stock-locations, stock-moves, module:inventory, reports]
 doc_id: DOC-79A300F5E0
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -110,6 +110,10 @@ child GRN at step 4 (`PostGRNReceiptWithQC` / `PostGRNReceiptPart`,
   real retry instead of counting a phantom receipt against it
   (`PURCHA-0084` would otherwise block re-receiving a PO the system
   believes is already fulfilled).
+- **An Approved GRN cannot be cancelled by a save** (`FIN-0844`, 49.5.3).
+  It has posted its stock and GL; a save as `Cancelled` would have left
+  both standing and taken the receipt off its PO's received quantity, so
+  the goods could be received twice. Reverse it with a **purchase return**.
 
 The GRN list at the bottom of the screen shows every receipt's **Received /
 Rejected / Damaged** totals and status (`Pending`, `Approved`, `Cancelled`).
@@ -148,6 +152,7 @@ RF Receiving posts at once.
 | `GOODSR-0090` | Rejected quantity given with no rejection reason. |
 | `GOODSR-0095` | A vendor invoice was posted against a GRN that isn't completed. |
 | `GRN-0253` | GRN cancellation blocked — a downstream vendor invoice or stock movement already exists against it. |
+| `FIN-0844` | An Approved GRN was saved as `Cancelled`. It has posted; reverse it with a purchase return. |
 | `PURCHA-0084` | The PO this GRN references is closed; no further receipts allowed against it. |
 
 ### Reading receiving activity
@@ -224,8 +229,8 @@ error.
 **WMS → Wave / Batch Picking** consolidates several open fulfillment tasks
 into one walk instead of one per order:
 
-1. **Make a wave** — choose the **Location**, tick the orders under
-   *Orders ready to wave*, choose **Into** (*A new wave* or an open one) and
+1. **Orders ready to wave** — choose the **Location**, tick the orders under
+   *1. Orders ready to wave*, choose **Into** (*A new wave* or an open one) and
    click **Put N selected into the wave**.
 2. **Release it** — under *Open waves*, click **Release**. Then **Pick list**
    shows the consolidated, walk-route-sorted pick list and, per order, what
@@ -323,10 +328,10 @@ wasn't set yet when it was first approved). Posting is idempotent against
 double-clicking — a line already `Posted` refuses to post twice.
 
 **4. Blind recount.** If a count result looks wrong before trusting it
-enough to post, **Request Recount** creates a fresh line for the same
+enough to post, **Recount** (on a line with a variance) creates a fresh line for the same
 session/location/bin/SKU with **no counted or system quantity carried
 over** — the second counter is blind to both the first count and the
-system's own number. Enter its value with **Submit Recount Value**.
+system's own number. Enter its value on that line and click **Save recount**.
 
 **5. ABC cycle-count planner.** Enter a **Location** and click **Get Plan**
 (`GET /api/v1/wms/cycle-count/abc-plan`, `GetABCCycleCountPlan`) to see

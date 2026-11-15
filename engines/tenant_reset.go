@@ -37,6 +37,8 @@ var tenantResetKeep = map[string]string{
 	"users":                     "the logins, with their password hashes",
 	"mfa_recovery_codes":        "the logins' two-factor recovery codes",
 	"mfa_trusted_devices":       "the logins' remembered devices (Stage 125.8)",
+	"user_passkeys":             "the logins' passkeys (Stage 49.2.3)",
+	"passkey_challenges":        "five-minute sign-in challenges (Stage 49.2.3)",
 	"roles":                     "roles",
 	"role_permissions":          "permissions",
 	"role_landing":              "roles' landing screens (Stage 47.14.5)",
@@ -75,6 +77,9 @@ var tenantResetKeep = map[string]string{
 	"crm_suppressions":          "evidence: numbers and addresses that asked for no messages (by contact, so a re-imported one stays stopped)",
 	"store_app_pins":            "the logins' store app PINs",
 	"web_push_vapid":            "the browser-alert signing key",
+	// 76.10: each till keeps its series in its browser and does not register
+	// again, so clearing these would refuse its next offline bills.
+	"pos_till_series": "the tills' offline bill series",
 
 	"security_export_config":       "the security-event export destination and its cursor (Stage 49.11.6)",
 	"notification_matrix_versions": "evidence: the notification matrix, every version (Stage 49.12.5)",
@@ -107,6 +112,7 @@ var tenantResetClear = map[string]string{
 	"memo_stock_sales":                  "memo stock sales",
 	"sales_incentive_entries":           "sales incentives", // Stage 148.30
 	"gstr1_filed_months":                "GSTR-1 filed months",
+	"gstr1_filed_rows":                  "GSTR-1 filed rows", // 170.35
 	"vendor_po_files":                   "vendor link files",
 	"vendor_po_links":                   "vendor links",
 	"vendor_po_proposals":               "vendor link proposals",

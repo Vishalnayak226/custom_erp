@@ -21,7 +21,33 @@ type CapabilityRegister struct {
 	Configurations     []Configuration `json:"configurations"`
 	Capabilities       []Capability    `json:"capabilities"`
 	CommonRequirements []string        `json:"common_requirements,omitempty"`
+	ChecksSource       string          `json:"checks_source,omitempty"`
 }
+
+// CapabilityCheck is one row of the blueprint's capability register, filed
+// under the module capability it belongs to (73.0.2): one register, not two.
+// Status is the blueprint's assessment until the row's acceptance test is
+// evidenced; a row moves to Verified only with evidence attached.
+type CapabilityCheck struct {
+	ID             string   `json:"id"`
+	Domain         string   `json:"domain"`
+	Capability     string   `json:"capability"`
+	Target         string   `json:"target"`
+	Status         string   `json:"status"`
+	Gap            string   `json:"gap"`
+	Priority       string   `json:"priority"`
+	AcceptanceTest string   `json:"acceptance_test"`
+	Evidence       []string `json:"evidence"`
+	ChecklistRef   []string `json:"checklist_ref"`
+}
+
+var (
+	checkIDPattern       = regexp.MustCompile(`^BP-\d{3}$`)
+	checkPriorityPattern = regexp.MustCompile(`^P[0-3](/P[0-3])?$`)
+	checkStatuses        = []string{"Built - verify", "Partial", "Missing / benchmark gap", "External gate", "Optional / scale-gated", "Verified"}
+	trackerItemPattern   = regexp.MustCompile(`(?m)^\s*- \[[ x]\] \*\*([0-9][0-9A-Za-z.]*[0-9A-Za-z])`)
+)
+
 type Configuration struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
@@ -33,26 +59,27 @@ type Configuration struct {
 	Limit      string `json:"limit"`
 }
 type Capability struct {
-	ID              string   `json:"id"`
-	ModuleKeys      []string `json:"module_keys,omitempty"`
-	Title           string   `json:"title"`
-	Owner           string   `json:"owner"`
-	Maturity        string   `json:"maturity"`
-	Configurations  []string `json:"configurations"`
-	Requirements    []string `json:"requirements"`
-	BusinessNeeds   []string `json:"business_needs,omitempty"`
-	Personas        []string `json:"personas,omitempty"`
-	Processes       []string `json:"processes,omitempty"`
-	Controls        []string `json:"controls,omitempty"`
-	Design          []string `json:"design"`
-	Tests           []string `json:"tests"`
-	Help            []string `json:"help"`
-	Stages          []string `json:"stages"`
-	Limits          string   `json:"limits"`
-	LastVerified    string   `json:"last_verified"`
-	ReviewBy        string   `json:"review_by"`
-	Approver        string   `json:"approver"`
-	ReleaseEvidence []string `json:"release_evidence"`
+	ID              string            `json:"id"`
+	ModuleKeys      []string          `json:"module_keys,omitempty"`
+	Title           string            `json:"title"`
+	Owner           string            `json:"owner"`
+	Maturity        string            `json:"maturity"`
+	Configurations  []string          `json:"configurations"`
+	Requirements    []string          `json:"requirements"`
+	BusinessNeeds   []string          `json:"business_needs,omitempty"`
+	Personas        []string          `json:"personas,omitempty"`
+	Processes       []string          `json:"processes,omitempty"`
+	Controls        []string          `json:"controls,omitempty"`
+	Design          []string          `json:"design"`
+	Tests           []string          `json:"tests"`
+	Help            []string          `json:"help"`
+	Stages          []string          `json:"stages"`
+	Limits          string            `json:"limits"`
+	LastVerified    string            `json:"last_verified"`
+	ReviewBy        string            `json:"review_by"`
+	Approver        string            `json:"approver"`
+	ReleaseEvidence []string          `json:"release_evidence"`
+	Checks          []CapabilityCheck `json:"checks,omitempty"`
 }
 
 func capabilityFiles(root string, now time.Time) (map[string][]byte, []Finding, error) {
@@ -67,6 +94,7 @@ func capabilityFiles(root string, now time.Time) (map[string][]byte, []Finding, 
 	}
 	findings := validateCapabilities(root, register, now)
 	findings = append(findings, validateReverseTrace(root, register)...)
+	findings = append(findings, validateCapabilityChecks(root, register)...)
 	var catalog, trace strings.Builder
 	header := "<!-- GENERATED from docs/product/capability-register.json by cmd/doclint. DO NOT EDIT. -->\n\n"
 	catalog.WriteString(header + "# Capability catalog\n\nSource status: **" + register.Status + "**. Owner: **" + register.Owner + "**. Version label: **" + register.Release + "**.\n\n" +
@@ -83,6 +111,7 @@ func capabilityFiles(root string, now time.Time) (map[string][]byte, []Finding, 
 		fmt.Fprintf(&trace, "## %s — %s\n\n- Requirements: %s\n- Design/control: %s\n- Automated tests: %s\n- User help: %s\n- Work items: %s\n- Verification/review: %s / %s\n- Signed release evidence: %s\n\n", c.ID, c.Title, artifactLinks(c.Requirements), artifactLinks(c.Design), artifactLinks(c.Tests), artifactLinks(c.Help), strings.Join(c.Stages, ", "), c.LastVerified, c.ReviewBy, artifactLinks(c.ReleaseEvidence))
 		fmt.Fprintf(&trace, "- Business need: %s\n- Personas: %s\n- Processes: %s\n- Security/data/operations/legal control: %s\n\n", artifactLinks(c.BusinessNeeds), artifactLinks(c.Personas), artifactLinks(c.Processes), artifactLinks(c.Controls))
 	}
+	writeCapabilityChecks(&catalog, register)
 	reverse := map[string][]string{}
 	for _, c := range register.Capabilities {
 		for _, group := range [][]string{register.CommonRequirements, c.BusinessNeeds, c.Requirements, c.Controls, c.Personas, c.Processes} {
@@ -104,6 +133,92 @@ func capabilityFiles(root string, now time.Time) (map[string][]byte, []Finding, 
 	}
 	return map[string][]byte{"docs/generated/capability-catalog.md": []byte(catalog.String()), "docs/generated/requirements-traceability.md": []byte(trace.String())}, findings, nil
 }
+
+// writeCapabilityChecks renders the blueprint rows filed under each capability
+// (73.0.2), so the catalogue is the one register.
+func writeCapabilityChecks(b *strings.Builder, register CapabilityRegister) {
+	total := 0
+	for _, c := range register.Capabilities {
+		total += len(c.Checks)
+	}
+	if total == 0 {
+		return
+	}
+	cell := func(s string) string { return strings.ReplaceAll(s, "|", `\|`) }
+	fmt.Fprintf(b, "\n## Capability checks\n\n%d rows. Source: %s\n\nStatus is the blueprint's assessment until the row's acceptance test is evidenced; the checklist item says what has been built since. A row becomes Verified only with its evidence attached. New work names the row it closes (`[row: BP-nnn]`).\n", total, register.ChecksSource)
+	for _, c := range register.Capabilities {
+		if len(c.Checks) == 0 {
+			continue
+		}
+		fmt.Fprintf(b, "\n### %s — %s (%d)\n\n| Row | Capability | Target | Status | Priority | Acceptance test | Evidence | Checklist |\n|---|---|---|---|---|---|---|---|\n", c.ID, c.Title, len(c.Checks))
+		for _, k := range c.Checks {
+			ref := strings.Join(k.ChecklistRef, ", ")
+			if ref == "" {
+				ref = "none"
+			}
+			fmt.Fprintf(b, "| %s | %s | %s | %s | %s | %s | %s | %s |\n", k.ID, cell(k.Capability), cell(k.Target), k.Status, k.Priority, cell(k.AcceptanceTest), artifactLinks(k.Evidence), ref)
+		}
+	}
+}
+
+// validateCapabilityChecks keeps the blueprint rows honest: a known status
+// and priority, an acceptance test, evidence that exists, and checklist items
+// that exist in the tracker or its archive.
+func validateCapabilityChecks(root string, register CapabilityRegister) []Finding {
+	findings := []Finding{}
+	add := func(id, message string) {
+		findings = append(findings, Finding{"docs/product/capability-register.json", "capability-evidence", id + ": " + message})
+	}
+	items := map[string]bool{}
+	for _, path := range []string{"docs/micro_checklist.md", "docs/archive/micro_checklist_closed_stages.md"} {
+		if body, err := os.ReadFile(filepath.Join(root, path)); err == nil {
+			for _, m := range trackerItemPattern.FindAllStringSubmatch(string(body), -1) {
+				items[m[1]] = true
+			}
+		}
+	}
+	seen := map[string]bool{}
+	for _, c := range register.Capabilities {
+		for _, k := range c.Checks {
+			id := c.ID + " " + k.ID
+			if !checkIDPattern.MatchString(k.ID) || seen[k.ID] {
+				add(id, "invalid or duplicate check id")
+			}
+			seen[k.ID] = true
+			if !contains(checkStatuses, k.Status) {
+				add(id, "invalid check status "+k.Status)
+			}
+			if !checkPriorityPattern.MatchString(k.Priority) {
+				add(id, "invalid check priority "+k.Priority)
+			}
+			if strings.TrimSpace(k.Capability) == "" || strings.TrimSpace(k.AcceptanceTest) == "" {
+				add(id, "capability and acceptance test are required")
+			}
+			if k.Status == "Verified" && len(k.Evidence) == 0 {
+				add(id, "a Verified row needs its acceptance evidence")
+			}
+			for _, ref := range k.Evidence {
+				path, _, _ := strings.Cut(ref, "#")
+				full, err := docgen.Path(root, path)
+				if err != nil {
+					add(id, "unsafe evidence path")
+					continue
+				}
+				if _, err := os.Stat(full); err != nil {
+					add(id, "missing evidence "+path)
+				}
+			}
+			// Only where the tracker is there to check against (not in a bare test root).
+			for _, ref := range k.ChecklistRef {
+				if len(items) > 0 && !items[ref] {
+					add(id, "unknown checklist item "+ref)
+				}
+			}
+		}
+	}
+	return findings
+}
+
 func artifactLinks(paths []string) string {
 	if len(paths) == 0 {
 		return "pending"

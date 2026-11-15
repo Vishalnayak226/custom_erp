@@ -19,14 +19,66 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **241** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **260** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-08-11 to 2026-10-17
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-10
+- [Part 2](release-notes-2.md) - 2026-08-16 to 2026-10-18
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-15
+
+## 2026-11-15
+
+**"Build everything. All approved" - every buildable open item: SaaS packages and billing, passkeys, tax rules from official sources, Unicommerce, the role checks Guide found, and the owner checklist** *(code + tests + guides + docs, ask 193; NOT COMMITTED)*
+
+**OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app** *(code + tests + guide + Guide suites, asks 197 and 198; NOT COMMITTED)*
+
+**A short item alias on stickers, the item name from Category + Type, and combinations named by their item name** *(code + migration + tests + guides, asks 199 and 201; NOT COMMITTED)*
+
+**PrintBridge installs once and then updates itself** *(ERP + PrintBridge agent 0.3.0 + installer + tests + guides, ask 203; NOT COMMITTED)*
+
+**A short code for every menu screen, and a switch to turn codes off for a client** *(code + tests + guides, ask 202; NOT COMMITTED)*
+
+**"Build all recommended" - search on very large masters, the panic button off Activity Log, the cold-load gate re-run and three more connected-organisation journeys** *(code + tests + guides + docs, ask 192; NOT COMMITTED)*
+
+**"start building all next 40 itms" + "all recomennded approved" - 37 buildable items: the Customer-create migration, CI that always tests, jobs capabilities, a strict style CSP, a second-replica job test, an API access page, and the doc and walk items** *(code + tests + guides + docs, ask 191; NOT COMMITTED)*
 
 ## 2026-11-14
+
+**"Build above pending all approved" - what ask 178 left open: Forgot password from the sign-in screen, a second-admin document's own APPROV code, the ten doclint findings that stop release G7, 57.26's browser walk, and the approved dead-code list where its files were free** *(code + tests + guides + KB, session erp-0f, ask 186; NOT COMMITTED)*
+
+**"Clean up" + "Build half and give me a prompt to build rest 50%(now)" - the first half of ask 187: the local dev data cleaned up, guard tests first, a faster test database on GitHub, a certificate check at deploy, a security-change acknowledgement at release, and every hook naming who it acts for** *(release scripts + CI + code + tests + SDK, session erp-e0, ask 187; NOT COMMITTED)*
+
+**"Build half and give me a prompt to build rest 50%(now)" - the second half of ask 187: QA, UI, Docs and TEN items sorted into buildable, gated and decision; the re-code tool's guide paragraph, sections that keep their rows while they reload, a camelCase field-name fix, and the open decisions with a recommended answer** *(code + tests + guides, session erp-ba, ask 188; NOT COMMITTED)*
+
+**"Build all untouched next 30 items" - PIM, PROC, INV, PRT, CHN, DATA and CFG: a media rule exception that a second person approves, master merges through approval, a registers step on the setup path, till number series for offline bills, one badge per setup-path step, and three decisions with a recommended answer** *(code + tests + migrations + guides, session erp-fa, ask 179; NOT COMMITTED)*
+
+**"C is getting filled. See what we can clean up" - C: from 22.6 GB to 48.7 GB free** *(machine clean-up, no code, ask 181)*
+
+**"I got the new printer, guide test in now" - the new label printer does not take TSPL** *(test only, no code, ask 182)*
+
+**"all recommended" / "Build all don't ask/wait for approval" / "Complete al" - ask 175's decision batch built as recommended: the shipped bootstrap accounts closed, ten screen and save fixes, approval delegation and reminders for every document, the capability checks filed, and every stock ledger line keeping its UOM, cost, price and tax** *(code + tests + migrations + guides, session erp-70, ask 178; NOT COMMITTED)*
+
+Detail is in the tracker under each item id and the ask 178 run header.
+
+**"Recent not required in home. Home is for Dashboards Not shortcuts" - Home loses its Recent list and its quick-action tiles** *(code + guides, ask 180; NOT COMMITTED)*
+
+Detail is in the tracker: the ask 180 run header in the Asks log and 180.1 in *RPT › Dashboards & home*.
+
+**"Once all pushed and deployed start building all the open items" - FIN, TAX, HR, MFG, ASQ and RPT: the gaps left on ask 170, receivable and payable accounts by party group, a cash position, travel requests, corporate cards, field visits, help articles and instrument calibration, and every ask-170 item verified** *(code + tests + guides, session erp-57, ask 176; NOT COMMITTED)*
+
+Detail is in the tracker under each item id (now in the archive) and the ask 176 run header.
+
+**"Why it is taking so much time?" / "i need is 1 min all should be done" - the release suite moves to GitHub's machines and the click's own gates are cut** *(release scripts + CI + guides, session erp-5c, ask 177; NOT COMMITTED)*
+
+Detail is in the tracker: 177.1-177.7 in *OPS › Release pipeline & gates* and the ask 177 run header.
+
+**"Once al push and deployed start build" / "All open items" - TEN, SEC, PLAT, UI, OPS, QA and DOC: what 0.24.0 proves is closed, one decision batch with recommended answers, hidden fields kept off prints and filters, a consent-withdrawal test, and the budgets re-run on a quiet machine** *(code + tests + guides, session erp-70, ask 175; NOT COMMITTED)*
+
+Detail is in the tracker under each item id and the ask 175 run header.
+
+**"push & deploy all" - release 0.24.0 (bfd0ff0) and its deploy to app and minn** *(release + deploy, session erp-5c, ask 174)*
+
+Detail is in the tracker: 174.1 in *OPS › Release pipeline & gates* and the ask 174 run header.
 
 **"Start building next 20 item. Include from prev which was left in half way" - eight decisions built as recommended (a read-only mode, an encrypted evidence pack, buyer e-mails dropped after delivery, no takeover of an unrecorded command claim, the store cut on two old reports and the payroll export), the loyalty spend served by an index, PO and transfer-in line upload, security friction measured, a privacy-requests screen, and two more replayed commands in the E8 journey** *(code + tests + guides, session erp-2b, ask 173; NOT COMMITTED)*
 
@@ -471,30 +523,4 @@ From the user's message and draft workbook `ERP_Industry_Product_Attribute_Maste
 **Stage 80 — New Item form in sections with a variant-option picker; Help opens the right article on every list; one place for print templates; WMS start-here guide** *(code + docs, NOT COMMITTED)*
 
 Four screenshots from the user on the deployed build. Full detail in `micro_checklist.md` Stage 80.
-
-**Stage 79 — Number boxes take only numbers; PO record form pickers and status; Roles screen rebuilt** *(code + docs, NOT COMMITTED)*
-
-Four messages from the user on the deployed build, all on screens reached from GRN → "create the PO" and Settings → Roles. Full detail in `micro_checklist.md` Stage 79.
-
-## 2026-10-17
-
-**71.8 multi-page prints, PO / GRN rules pinned, Stage 78 day limits** *(code + docs, NOT COMMITTED)*
-
-Three of the user's messages in one session; full detail in `micro_checklist.md` 71.8, the 65.2 re-check note and Stage 78.
-
-**Stage 73 batch C — OMS, platform, shared shell, masters: truthful notifications, exception queues and one order timeline, order changes after release, one task inbox, OAuth2 client credentials** *(code + docs, NOT COMMITTED)*
-
-One of four parallel batches over Stage 73 / 55. Detail and verification notes are on each item in **micro_checklist.md**.
-
-**Stage 73 batch D — Finance, HR, expenses, assets, reports: posting attribution, signed close with controlled reopen, bank workbench, payroll reconciliation, control totals** *(code + docs, NOT COMMITTED)*
-
-One of four parallel batches over Stage 73 (decision D09: corrections by reversal only; reopen through maker-checker). Detail and verification notes are on each item in **micro_checklist.md**.
-
-**Stage 72 — Item & Material Master: independent classification, packaging backflush at the POS, gifts with purchase, gift cards as stored value** *(code + docs; committed `0845470`, deployed 2026-10-17)*
-
-From two PDFs of the user's: *Backflush vs Non-Sellable Items in Retail ERP/POS* (*"Build this also for pos"*) and the 41-page *Enterprise Item & Material Master Module - Build Blueprint* that grew out of it (*"Read and update checklist and build"*). The blueprint's rule - one item-type list cannot answer what an item is, whether stock is kept, whether it is valued, whether the till sells it, how it is consumed and where its cost goes - is now how the item master works: the Stage 60 **Item Type became the reusable profile** with eight independent dimensions (+ expense account) that any Item may override, resolved in one place (`engines/item_policy.go`), checked on every save against the blueprint's compatibility rules and frozen once an item has stock history. At the till (`ResolvePOSQuote`, the one pricing path): packaging and other non-sellable items are refused, promo-only gifts ring at zero only when a new **Gift With Purchase** offer earns them, and a stored-value item cannot be a bill line. **Backflush Rules** consume the store's usual box and butter paper with every sale, inside the sale's transaction, with a **Packaging** override for the cashier, a short-stock policy (default never blocks - the user's decision) and an **Item Exception** queue. Items that keep no stock (services, non-stock expense) and non-valuated stock now behave distinctly at GRN, at the till and on transfers; **virtual kits** issue their components at the POS. **Gift cards** are stored value: registered numbers, funded only when payment and liability posting commit, redeemed as a tender inside checkout, append-only ledger, masked everywhere, block / release / cancel. **Consumption Entry** posts periodic counts and manual issues. Nine section-20 reports. Found and fixed on the way: the POS screen had refused every zero-priced line since Stage 60.4, so no gift or free item could ever be billed. Full detail and verification: `micro_checklist.md` Stage 72; decisions still needed (item release maker-checker, effective-dated versions, posted-bill cancellation, per-store item policy, editor + reason in the audit trail, negative stock per profile, gift returns, gift-card refunds / transfer): 72.D.
-
-**Stage 69 — Create and history on separate pages, everywhere** *(code + docs, NOT COMMITTED)*
-
-From the user's HR Attendance screenshot: *"All txn where there is create and history both will be different page … Make it standard practice how it is in best erp being followed."* Every screen that records something now opens on its **list** (count beside the title) with **+ New …** top right; the form is a page of its own with a breadcrumb back, and saving returns to the list - the Odoo / ERPNext / Zoho shape. One shared mechanism in `public/txn-screen.js` (outside the cold core, `app.js` untouched): each page is a browser history entry on the same address, so Back / Forward move between list and form without a re-render and keep half-typed work, and `history.state` decides which page a re-render shows. Applied to the five Stage 65.8 / 68 screens that had New-first tabs (PO, GRN, Purchase Return, Stock Transfer, Journal Vouchers) and to sixteen more: HR (Attendance, Leave, Payroll, Loans/Advances, My Requests with three New pages), Expenses, Fixed Assets, Manufacturing orders + BOM, ASN, RFQ and its quotes, Order Management's manual order, Marketplace's three sections, Payment Proposals, Yard Board, Sticker Printing's Print tab, and Location Movement - which had no history of moves at all and now lists the completed Move warehouse tasks, each of which now records its batch and reason (`engines/wms_bin_move.go`). Guides, SOP and UAT checklist updated. Full detail and verification: checklist Stage 69.
 

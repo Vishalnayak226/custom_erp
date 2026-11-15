@@ -270,3 +270,10 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .po-keys kbd { font: 11px Consolas, Monaco, monospace; padding: 1px 5px; border: 1px solid var(--border-color); border-bottom-width: 2px; border-radius: 4px; background: var(--panel-bg); color: var(--text-main); }
 .po-keys kbd:not(:first-child) { margin-left: 8px; }
 .po-actions { margin-left: auto; } /* the totals moved to the bottom strip (114.2) */
+
+/* 49.4.3: a till slip on the receipt roll (printSlip). Here, not in a <style>
+   in the slip's markup, because a strict style-src refuses that, and because
+   this is the one sheet the PDF / ESC-POS rasteriser embeds. */
+.tdp-slip { width: 80mm; box-sizing: border-box; padding: 3mm 4mm; background: #fff; color: #000; font: 12px/1.4 system-ui, sans-serif; }
+.tdp-slip .receipt-line { display: flex; justify-content: space-between; gap: 8px; }
+.tdp-slip hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }

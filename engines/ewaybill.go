@@ -44,7 +44,7 @@ import (
 const (
 	SettingEWBProvider   = "gst.ewb_provider"
 	SettingEWBExemptHSN  = "gst.ewb_exempt_hsn"
-	ewbDecisionVersion   = "EWB-R138-2026.2" // .2 (47.16.4e): a sales line's value always includes its tax
+	ewbDecisionVersion   = "EWB-R138-2026.3" // .2 (47.16.4e): a sales line's value always includes its tax; .3: "exceeding" 50,000
 	EWBNotRequired       = "NotRequired"
 	EWBReady             = "Ready"
 	EWBSubmitted         = "Submitted"
@@ -381,6 +381,11 @@ func ewbSalesLineValue(tenantID string, l map[string]interface{}) float64 {
 	return round2(taxable + tax)
 }
 
+// ewbValueNeedsBill is Rule 138(1) CGST Rules: a bill is needed when the
+// consignment value EXCEEDS the threshold (Rs 50,000), so exactly 50,000
+// does not need one. Both decision points (documents and challans) use it.
+func ewbValueNeedsBill(value, threshold float64) bool { return value > threshold }
+
 // EWBDecisionFor works out whether a document needs an e-way bill.
 func EWBDecisionFor(tenantID, doctype, docID string) (map[string]interface{}, *ewbFacts, error) {
 	f, _, err := ewbFactsFor(tenantID, doctype, docID)
@@ -397,10 +402,10 @@ func EWBDecisionFor(tenantID, doctype, docID string) (map[string]interface{}, *e
 		d["reason"] = "services or exempt goods only"
 	case f.purpose == "Job work" && interstate:
 		d["required"], d["reason"] = true, "job work sent to another state needs an e-way bill whatever the value"
-	case f.value >= threshold:
-		d["required"], d["reason"] = true, fmt.Sprintf("goods worth %.2f, at or over %.2f", f.value, threshold)
+	case ewbValueNeedsBill(f.value, threshold):
+		d["required"], d["reason"] = true, fmt.Sprintf("goods worth %.2f, over %.2f", f.value, threshold)
 	default:
-		d["reason"] = fmt.Sprintf("goods worth %.2f, under %.2f", f.value, threshold)
+		d["reason"] = fmt.Sprintf("goods worth %.2f, not over %.2f", f.value, threshold)
 	}
 	return d, f, nil
 }

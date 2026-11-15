@@ -19,7 +19,9 @@ superseded_by: none
 
 This describes inspected source structure, not deployed acceptance. The
 [capability catalog](../generated/capability-catalog.md) owns supported scope and limits.
-Historical architecture documents retain their own authority banners.
+Historical architecture documents retain their own authority banners. Proposed designs
+are kept apart from this page: the POS extensions not built (restaurant and service
+checkout) are in [POS proposed design](pos-proposed-design.md).
 
 ## Concerns and topology
 

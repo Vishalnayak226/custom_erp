@@ -34,6 +34,10 @@ func TestStage387SandboxTenants(t *testing.T) {
 		if err != nil || expired {
 			t.Fatalf("expected a freshly provisioned 5-day sandbox to not be expired yet, got expired=%v err=%v", expired, err)
 		}
+		// 47.12.5 (ask 185): the sandbox profile - one person may decide their own documents.
+		if got := GetSettingString(tenantID, SettingSelfApproval); got != SelfApprovalAnyone {
+			t.Fatalf("a sandbox must start at self-approval %q, got %q", SelfApprovalAnyone, got)
+		}
 
 		var expiresAt time.Time
 		if err := db.DB.QueryRow("SELECT sandbox_expires_at FROM public.tenants WHERE tenant_id = $1", tenantID).Scan(&expiresAt); err != nil {

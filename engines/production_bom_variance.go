@@ -41,7 +41,7 @@ type actionOnlyFieldRule struct {
 
 var actionOnlyFields = map[string]actionOnlyFieldRule{
 	"ProductionOrder": {Fields: []string{"bom_variance_acknowledged", "bom_variance_ack"}, Action: "Accept BOM change"},
-	"VendorInvoice":   {Fields: []string{"bill_cost_adjust", "bill_cost_posts", "bill_cost_on_hand", "bill_cost_sold", "bill_cost_units", "purchase_rate_set"}, Action: "Match the bill"},
+	"VendorInvoice":   {Fields: []string{"bill_cost_adjust", "bill_round_adjust", "bill_cost_posts", "bill_cost_on_hand", "bill_cost_sold", "bill_cost_units", "purchase_rate_set"}, Action: "Match the bill"},
 }
 
 // ActionOnlyFieldDoctypes lists, per doctype, the keys only an action writes

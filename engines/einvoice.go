@@ -421,6 +421,7 @@ type IRPPrecDoc struct {
 // totals check runs in (75.2.3: "in paise integers, not floats").
 type irpLinePaise struct {
 	Gross, Discount, Assessable, CGST, SGST, IGST, Total int64
+	SKU                                                  string // 170.35: the GSTR-1 reads its tax treatment
 }
 
 type IRPPaiseTotals struct {
@@ -667,7 +668,7 @@ func BuildCanonicalTaxDocument(tenantID, doctype, id string) (*IRPDocument, erro
 		net := l.Gross - l.Discount
 		assessable := int64(float64(net)/(1+rate/100) + 0.5)
 		tax := net - assessable
-		lp := irpLinePaise{Gross: l.Gross, Discount: l.Discount, Assessable: assessable, Total: net}
+		lp := irpLinePaise{Gross: l.Gross, Discount: l.Discount, Assessable: assessable, Total: net, SKU: l.SKU}
 		if doc.Meta.Interstate {
 			lp.IGST = tax
 		} else {

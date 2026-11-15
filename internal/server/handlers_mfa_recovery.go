@@ -336,6 +336,11 @@ func handleAdminResetUserMFA(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to reset MFA")
 		return
 	}
+	// 49.2.3: a lost device may hold a passkey; it goes with the reset.
+	if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.user_passkeys WHERE user_id = $1`, schema), targetID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to reset MFA")
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to reset MFA")
 		return

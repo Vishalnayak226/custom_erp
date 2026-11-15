@@ -290,6 +290,9 @@ async function renderMFARecoveryPanel(panel) {
     </div>
   `;
 
+  const passkeyBox = panel.appendChild(document.createElement('div')); // 49.2.3
+  loadViewModule('/passkey-client.js').then((m) => m.renderPasskeyPanel(passkeyBox, { apiFetch, showApiError, showCustomPrompt }));
+
   document.getElementById('mfa-forget-devices-btn')?.addEventListener('click', async () => {
     const r = await apiFetch('/api/v1/me/mfa/devices/forget', { method: 'POST', body: '{}' });
     if (r && !r.ok) return showApiError(r, 'Failed to forget your devices.');

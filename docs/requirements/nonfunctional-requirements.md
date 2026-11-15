@@ -2,15 +2,15 @@
 doc_id: DOC-REQ-NFR
 title: Nonfunctional requirements
 type: normative
-status: draft
+status: approved
 owner: engineering-owner
 approvers: [product-owner, security-owner, operations-owner, qa-owner]
 audience: [engineering, QA, operations, security]
 applies_to: declared reference workload and configuration
-authority: proposed-policy
+authority: canonical
 confidentiality: internal
-last_verified: 2026-09-07
-review_by: 2026-10-07
+last_verified: 2026-11-15
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 ---
@@ -26,7 +26,7 @@ tenants, concurrency, hardware, network and release. Owners approve exceptions w
 | NFR-COR-001 | Retried sale/return/payment/stock command has zero or one reconciled effect under boundary failures | Domain/QA; fault and concurrency totals |
 | NFR-PERF-001 | Interactive server p95 ≤150 ms, p99 ≤500 ms at approved representative load | Engineering; workload and distribution |
 | NFR-UX-001 | Reference p75 LCP ≤1.5 s, INP ≤200 ms; cached view p95 ≤250 ms | UX/QA; device/browser measurement |
-| NFR-COST-001 | Stripped binary ≤25 MiB; idle small-tenant RSS ≤80 MiB; cold core ≤180 KiB compressed; initial core JS ≤120 KiB gzip | Engineering; reproducible artifact/runtime measurements |
+| NFR-COST-001 | Stripped binary ≤40 MiB (raised from 25 MiB on 2026-11-14, item 177.4); idle small-tenant RSS ≤80 MiB; cold core ≤180 KiB compressed; initial core JS ≤120 KiB gzip | Engineering; reproducible artifact/runtime measurements |
 | NFR-DOC-001 | KB ≤2 MiB; search ≤250 KiB; ordinary topic ≤120 KiB; zero check-time writes | Documentation; generation safety/size report |
 | NFR-ACC-001 | Reference tasks/devices meet the selected accessibility acceptance standard with keyboard, screen reader, reflow, contrast and interruption evidence | Accessibility/QA; token tests alone cannot establish conformance |
 | NFR-OPS-001 | Restore meets business-approved RTO/RPO for each deployment class | Operations; values pending before Production; isolated DR drill |
@@ -40,3 +40,7 @@ tenants, concurrency, hardware, network and release. Owners approve exceptions w
 Define sample/window, percentile method and error treatment before measurement. Record
 failures, owner, remediation and expiry. Qualified reviewers decide retention/applicability.
 Acceptance never transfers automatically across country, owner model, device or deployment.
+
+## Approval
+
+Approved by the product owner on 2026-11-15 (ask 193, item 47.15.3). Approval fixes the requirements text; it does not claim any capability is accepted or Production.

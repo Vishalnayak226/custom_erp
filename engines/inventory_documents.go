@@ -327,6 +327,9 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 				if b := strField(l, "batch_no"); b != "" {
 					m["batch_no"] = b
 				}
+				if u := numFromInterface(l["unit_cost"]); u > 0 {
+					m[ledgerKeyValuationRate] = u // 49.5.5b.8: the cost the line's value was worked from
+				}
 				moves = append(moves, m)
 			}
 			_, posted, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, moves, false)
@@ -574,6 +577,9 @@ func init() {
 	RegisterJobHandler(mrpChangeJobType, func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
 		tenantID, _ := job.Payload["tenant_id"].(string)
 		id, _ := job.Payload["mrp_change_id"].(string)
+		if err := ctx.Err(); err != nil { // 49.8.6: a stopped attempt does not start the write
+			return nil, err
+		}
 		if err := ApplyMRPChange(tenantID, id, "system"); err != nil {
 			return nil, err
 		}

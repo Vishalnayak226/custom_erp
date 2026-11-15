@@ -447,6 +447,7 @@ type AssetDisposal struct {
 	DepreciationFirst       []string                `json:"depreciation_first"`
 	DepreciationSkipped     []AssetDepreciationSkip `json:"depreciation_skipped"`
 	ReceiptAccounts         []AssetReceiptAccount   `json:"receipt_accounts,omitempty"`
+	ReserveReleased         float64                 `json:"reserve_released,omitempty"` // ask 176: Dr 3500 / Cr 3100
 }
 
 // assetReceiptAccounts is 1100 Cash/Bank plus every BankAccount's GL code
@@ -533,6 +534,15 @@ func assetDisposalLines(schema, receivedInto string, debits, credits map[string]
 	return lines
 }
 
+// assetReserveReleaseLines is the second entry a disposal of a revalued asset
+// posts: its remaining revaluation reserve to retained earnings (ask 176).
+func assetReserveReleaseLines(reserve int64) []AssetDisposalLine {
+	return []AssetDisposalLine{
+		{Account: assetAccRevalReserve, Name: "Revaluation Reserve", Debit: PaiseToRupees(reserve)},
+		{Account: assetAccRetainedEarnings, Name: "Retained Earnings", Credit: PaiseToRupees(reserve)},
+	}
+}
+
 // PreviewAssetDisposal works out what disposing now would post, without
 // posting anything - including the depreciation that would be posted first.
 func PreviewAssetDisposal(tenantID, assetID string, proceeds float64, receivedInto string) (*AssetDisposal, error) {
@@ -595,6 +605,10 @@ func PreviewAssetDisposal(tenantID, assetID string, proceeds float64, receivedIn
 	preview.ReceivedInto = receivedInto
 	preview.GainLoss = PaiseToRupees(gainLoss)
 	preview.Lines = assetDisposalLines(schema, receivedInto, debits, credits)
+	if reserve := int64(numFromInterface(data["revaluation_reserve_paise"])); reserve > 0 {
+		preview.ReserveReleased = PaiseToRupees(reserve)
+		preview.Lines = append(preview.Lines, assetReserveReleaseLines(reserve)...)
+	}
 	if preview.ReceiptAccounts, err = assetReceiptAccounts(schema); err != nil {
 		return nil, err
 	}
@@ -656,6 +670,23 @@ func DisposeAssetWithProceeds(tenantID, assetID, disposalType string, proceeds f
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset-Disposal", assetID, debits, credits, "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {
 		return nil, err
 	}
+	// Ask 176 (170.7): what is left of this asset's revaluation reserve moves
+	// to retained earnings; it never passes through profit and loss.
+	reserveReleased := int64(numFromInterface(data["revaluation_reserve_paise"]))
+	if reserveReleased > 0 {
+		var typ string
+		if err := tx.QueryRow(fmt.Sprintf(`SELECT account_type FROM %s.gl_accounts WHERE account_code = $1`, schema), assetAccRetainedEarnings).Scan(&typ); err != nil || typ != "Equity" {
+			return nil, &ValidationError{Code: assetReserveReleaseCode, SubFor: "Asset",
+				Message: fmt.Sprintf("account %s Retained Earnings must be an Equity account to release this asset's revaluation reserve", assetAccRetainedEarnings)}
+		}
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset-Disposal", assetID,
+			map[string]int64{assetAccRevalReserve: reserveReleased}, map[string]int64{assetAccRetainedEarnings: reserveReleased},
+			"", fmt.Sprintf("Asset:%s:RESERVE-RELEASE", assetID)); err != nil {
+			return nil, err
+		}
+		data["revaluation_reserve_paise"] = float64(0)
+		data["disposal_reserve_released"] = PaiseToRupees(reserveReleased)
+	}
 	today := BusinessToday()
 	data["disposal_type"] = disposalType
 	data["disposal_date"] = today
@@ -679,6 +710,10 @@ func DisposeAssetWithProceeds(tenantID, assetID, disposalType string, proceeds f
 		AccumulatedDepreciation: PaiseToRupees(accumulated), BookValue: PaiseToRupees(costPaise - accumulated),
 		Proceeds: PaiseToRupees(proceedsPaise), ReceivedInto: receivedInto, GainLoss: PaiseToRupees(gainLoss),
 		Lines: assetDisposalLines(schema, receivedInto, debits, credits), DepreciationFirst: outcome.MonthsPosted, DepreciationSkipped: outcome.Skipped,
+		ReserveReleased: PaiseToRupees(reserveReleased),
+	}
+	if reserveReleased > 0 {
+		result.Lines = append(result.Lines, assetReserveReleaseLines(reserveReleased)...)
 	}
 	result.Code, _ = data["code"].(string)
 	return result, nil

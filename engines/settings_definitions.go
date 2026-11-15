@@ -191,6 +191,11 @@ func init() {
 		Description: "How an item name is built from its category and type. Switching renames every item name still built the old way, and the designs and items named from it; switching back renames them back. A name typed by hand and bills already printed are not changed.",
 	})
 	RegisterSetting(SettingDefinition{
+		Key: SettingItemAliasShortForms, Module: "Inventory",
+		Label: "Item alias short forms", Type: SettingTypeString, Default: DefaultItemAliasShortForms,
+		Description: "Word=Short pairs, separated by commas. An item alias (14 characters at most, printed on stickers) uses them when the item name is too long: Necklace Antique becomes Necklace Antq.",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: SettingAttributeTypeMapping, Module: "Inventory",
 		Label: "Attributes follow the item's type", Type: SettingTypeBool, Default: "false",
 		Description: "Off: every attribute and value is offered for every item. On: an item, a PO line and a GRN line offer only the attributes and values mapped to the item's type (or its category) - set on each Product Type and Category. A type with nothing mapped still offers everything.",
@@ -206,11 +211,18 @@ func init() {
 		Key: SettingSelfApproval, Module: "Security",
 		Label: "Who can approve their own documents", Type: SettingTypeSelect, Default: SelfApprovalAnyone,
 		Options: []SettingOption{
-			{Value: SelfApprovalAnyone, Label: "Anyone who can approve it"},
+			// 47.12.5 (ask 185): the three profiles are named on the choices.
+			{Value: SelfApprovalAnyone, Label: "Anyone who can approve it (owner-run, sandbox)"},
 			{Value: SelfApprovalAdmins, Label: "Admins only"},
-			{Value: SelfApprovalNobody, Label: "Nobody - someone else always decides"},
+			{Value: SelfApprovalNobody, Label: "Nobody - someone else always decides (controlled business)"},
 		},
-		Description: "Whether the person who submitted a document (a PO, a requisition, a voucher...) can approve or reject it themselves. They still need the role the approval rule names. Each one is marked \"decided by the submitter\" in the approval history and the audit log. A Super Admin's password reset and a second-admin treatment correction always need a second admin. A new client starts at Nobody.",
+		Description: "Whether the person who submitted a document (a PO, a requisition, a voucher...) can approve or reject it themselves. They still need the role the approval rule names. Each one is marked \"decided by the submitter\" in the approval history and the audit log, and listed in the Own approval decisions report. A Super Admin's password reset and a second-admin treatment correction always need a second admin. A new client starts at Nobody; a sandbox client at Anyone.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingSelfApprovalReasonAbove, Module: "Security",
+		Label: "Own decisions above this amount need a reason", Type: SettingTypeFloat, Default: "0",
+		Min:         settingBound(0),
+		Description: "When someone approves or rejects their own document worth more than this, they must write why (at least 10 characters). 0 means no reason is asked for.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "security.loyalty_otp_validity_minutes", Module: "Security",
@@ -773,6 +785,12 @@ func registerStage282Settings() {
 		Label: "Concurrent requests per tenant", Type: SettingTypeInt, Default: "15", Unit: "requests",
 		Min: settingBound(1), Max: settingBound(500),
 		Description: "How many requests one tenant may have in flight at once before further ones are shed, so a single tenant cannot starve the others.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.global_max_concurrent_requests", Module: "Platform",
+		Label: "Concurrent requests, whole server", Type: SettingTypeInt, Default: "44", Unit: "requests",
+		Min: settingBound(1), Max: settingBound(500),
+		Description: "How many ordinary requests all clients together may have in flight at once. Keep it below the database pool (50) so sign-in and health always find a connection. Past three quarters of it, a client at its fair share waits while others under theirs still get in.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.db_statement_timeout_seconds", Module: "Platform",

@@ -6,6 +6,8 @@ const aiWhen = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) 
 
 export async function renderAssistantDrafts(host) {
   if (!host) return;
+  // 193: with the module off the call only earns a 403, so do not ask.
+  if (typeof isMenuModuleVisible === 'function' && !isMenuModuleVisible('ai_access')) { host.remove(); return; }
   const res = await apiFetch('/api/v1/orders/assistant-drafts');
   // Off, or not allowed: nothing to show.
   if (!res || !res.ok) { host.remove(); return; }

@@ -78,9 +78,11 @@ below carries a build tag.
 - `TestBLD017RefundNeverExceedsPaid` (engines/bld017_economic_properties_test.go) — randomised: refunds never exceed what was paid.
 - `TestStage84SelfApprovalIsCoded` (engines/approval_self_decision_test.go) — with self-approval set to nobody, a submitter cannot decide their own voucher.
 - `TestStage49106bThresholdSplittingReport` (engines/insider_findings_test.go) — several records just under an approval limit by one user on one day show on the Threshold splitting report; records clear of or at the limit, on other days or by other people do not.
+- `TestStage49118DetectionDrillCoversEveryRule` (engines/security_test.go) and `TestStage4954AbuseRulesIgnoreLookAlikes` (engines/security_detection_abuse_test.go) — the `threshold_split` detection rule raises a security event for two or more of one person's documents to one vendor or customer, each just under an approval limit, that reach it together within a day; look-alikes do not fire.
+- `TestStage4935TwoHalvesSubmittedAtOnceBothNeedTheCombinedApprover` (engines/approval_threshold_split_test.go) — with **Approve split documents at their combined amount** on, the pieces go to the approver their total needs.
 - `TestStage49106bSelfApprovalOffForNewClients` (same file) — a client provisioned from 49.10.6b on starts with self-approval off, and its admin cannot approve their own record; existing clients keep their choice.
 
-**Not covered:** the threshold-splitting report is a review, not a block - nothing stops the records when they are made. Clients that existed before 49.10.6b keep self-approval as they had it (by default anyone, `TestStage92SubmitterMayDecideOwn`) until they turn it off.
+**Not covered:** the split guard is off by default (it changes who approves what a client already routes), so until a client turns it on, the detection rule and the report flag the pieces but nothing stops them. Clients that existed before 49.10.6b keep self-approval as they had it (by default anyone, `TestStage92SubmitterMayDecideOwn`) until they turn it off.
 
 ## 7. Owner crossover
 

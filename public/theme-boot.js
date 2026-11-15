@@ -13,10 +13,12 @@
     if (b && b.enabled && b.logo_version) root.setAttribute('data-brand', 'client');
     var css = localStorage.getItem('erp_brand_css');
     if (css) {
-      var s = document.createElement('style');
-      s.id = 'brand-accent-css';
-      s.textContent = css;
-      document.head.appendChild(s);
+      // 49.4.3: a constructed sheet, not a <style> element, so a strict
+      // style-src allows it; app.js adoptCss finds it again by erpId.
+      var s = new CSSStyleSheet();
+      s.erpId = 'brand-accent-css';
+      s.replaceSync(css);
+      document.adoptedStyleSheets = Array.from(document.adoptedStyleSheets).concat(s);
     }
   } catch (e) {}
 })();

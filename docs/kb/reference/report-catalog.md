@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**456** reports across **28** categories, all reachable from
+**463** reports across **28** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -43,28 +43,28 @@ open the right page.
 ## Contents
 
 - [Accounting](#accounting) - 26 reports
-- [Admin](#admin) - 7 reports
+- [Admin](#admin) - 8 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 36 reports
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Expenses](#expenses) - 1 reports
-- [Finance](#finance) - 43 reports
+- [Expenses](#expenses) - 3 reports
+- [Finance](#finance) - 44 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
-- [HR](#hr) - 2 reports
+- [HR](#hr) - 3 reports
 - [HRMS](report-catalog-2.md#hrms) - 15 reports
 - [Inventory](report-catalog-2.md#inventory) - 43 reports
 - [MIS & Management](report-catalog-2.md#mis-management) - 10 reports
 - [Manufacturing](report-catalog-2.md#manufacturing) - 21 reports
 - [Master Data & Audit](report-catalog-2.md#master-data-audit) - 11 reports
 - [OMS](report-catalog-2.md#oms) - 25 reports
-- [PIM](report-catalog-2.md#pim) - 8 reports
+- [PIM](report-catalog-2.md#pim) - 9 reports
 - [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
 - [Procurement](report-catalog-3.md#procurement) - 27 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
-- [Quality](report-catalog-3.md#quality) - 3 reports
+- [Quality](report-catalog-3.md#quality) - 4 reports
 - [Sales](report-catalog-3.md#sales) - 14 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
 - [Service](report-catalog-3.md#service) - 1 reports
@@ -478,6 +478,19 @@ open the right page.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Record · Code · Name · Missing · Why it matters
+
+**Drill-down:** no.
+
+### R9062 Own approval decisions
+
+**Report id:** `own-approval-decisions`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Decided · Document type · Document · Decision · Decided by · Role · Amount · Reason
 
 **Drill-down:** no.
 
@@ -1353,6 +1366,16 @@ open the right page.
 
 ## Expenses
 
+### R5175 Card lines not matched
+
+**Report id:** `card-lines-unmatched`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Card · Card holder · Date · Description · Amount *(sensitive)* · Claims that fit
+
+**Drill-down:** no.
+
 ### R5171 Employee advance balance
 
 **Report id:** `employee-advance-balance`
@@ -1360,6 +1383,18 @@ open the right page.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Employee · Advanced *(sensitive)* · Settled *(sensitive)* · Balance *(sensitive)*
+
+**Drill-down:** no.
+
+### R5174 Travel requests
+
+**Report id:** `travel-requests`
+
+**Parameters:**
+
+- **Status** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Rejected
+
+**Columns:** Request · Employee · Destination · From · To · Status · Estimated *(sensitive)* · Advance paid *(sensitive)* · Claimed *(sensitive)* · Left of estimate *(sensitive)*
 
 **Drill-down:** no.
 
@@ -1438,6 +1473,18 @@ open the right page.
 - **To** (`end`) - date, **required**
 
 **Columns:** Activity · Cash In *(sensitive)* · Cash Out *(sensitive)* · Net Change *(sensitive)*
+
+**Drill-down:** no.
+
+### R5173 Cash position
+
+**Report id:** `cash-position`
+
+**Parameters:**
+
+- **As of** (`as_of`) - date, optional
+
+**Columns:** Section · Item · Now *(sensitive)* · Week 1 *(sensitive)* · Week 2 *(sensitive)* · Week 3 *(sensitive)* · Week 4 *(sensitive)* · Later *(sensitive)* · Total *(sensitive)*
 
 **Drill-down:** no.
 
@@ -1629,7 +1676,7 @@ open the right page.
 - **Month (YYYY-MM)** (`month`) - text, **required**
 - **Status** (`status`) - text, optional
 
-**Columns:** Status · Supplier GSTIN · Supplier · Invoice · Date · Value · Tax · Vendor bill · Why · Decision
+**Columns:** Status · Supplier GSTIN · Supplier · Type · Number · Date · Value · Tax · Bill / note · Why · Decision
 
 **Drill-down:** no.
 
@@ -2036,6 +2083,18 @@ open the right page.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Employee ID · Employee · Department · Present · Absent · Late · Leave · Holiday · Weekly Off · Total Marked Days · Attendance %
+
+**Drill-down:** no.
+
+### R8019 Certificate Expiry
+
+**Report id:** `certificate-expiry`
+
+**Parameters:**
+
+- **Days ahead (optional)** (`days`) - text, optional
+
+**Columns:** Employee ID · Employee · Department · Training · Certificate · Valid until · Days left · Status
 
 **Drill-down:** no.
 

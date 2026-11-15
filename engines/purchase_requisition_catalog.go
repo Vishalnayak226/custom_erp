@@ -18,26 +18,33 @@ import (
 // still leaving Prefix Configs as the one place an administrator controls the
 // series.
 func PreparePurchaseRequisition(tenantID, location string, isCreate bool, payload map[string]interface{}) error {
+	_, err := DrawPurchaseRequisition(tenantID, location, isCreate, payload)
+	return err
+}
+
+// DrawPurchaseRequisition is PreparePurchaseRequisition that also returns
+// where the PR number came from, so a refused save gives it back (57.26 d).
+func DrawPurchaseRequisition(tenantID, location string, isCreate bool, payload map[string]interface{}) (*NumberDraw, error) {
 	if rawDescription, ok := payload["description"]; ok && rawDescription != nil {
 		description := strings.TrimSpace(fmt.Sprintf("%v", rawDescription))
 		payload["description"] = description
 	}
 
 	if err := PrepareRequisitionLines(tenantID, isCreate, payload); err != nil { // 148.14
-		return err
+		return nil, err
 	}
 	if !isCreate {
-		return nil
+		return nil, nil
 	}
 	if strings.TrimSpace(location) == "" {
 		location = "HQ"
 	}
-	code, err := GenerateSequence(tenantID, "PR", location, purchaseRequisitionFinancialYear(time.Now()))
+	code, draw, err := drawSequence(tenantID, "PR", location, purchaseRequisitionFinancialYear(time.Now()))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	payload["code"] = code
-	return nil
+	return draw, nil
 }
 
 // EnsurePurchaseRequisitionDescription saves a canonical requirement phrase

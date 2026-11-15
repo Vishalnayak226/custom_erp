@@ -345,7 +345,12 @@ func gstLine(r *catRow) gstMoney {
 	if posBillGST(r, "igst") > 0 {
 		g.igst = m.gst
 	} else {
-		g.cgst, g.sgst = m.gst/2, m.gst/2
+		// Split as the bill does (gst.go): CGST is half the tax in paise,
+		// SGST the rest, so an odd-paisa tax (23.81) shows 11.91 + 11.90 and
+		// not 11.90 + 11.90 (ask 191, found by journeylab E8).
+		tax := round2(m.gst)
+		g.cgst = round2(tax / 2)
+		g.sgst = tax - g.cgst
 	}
 	return g
 }

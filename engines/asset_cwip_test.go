@@ -2,8 +2,12 @@ package engines
 
 import (
 	"custom_erp/db"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Ask 170.6: capital work in progress.
@@ -91,5 +95,102 @@ func TestAssetCWIPRefusesAChargeToAnAssetNotInCWIP(t *testing.T) {
 	empty := e.cwipAsset(0)
 	if _, err := CapitalizeCWIPAsset(e.tenant, empty, "t", 0, ""); validationCode(err) != "ASSET-1723" {
 		t.Fatalf("nothing collected: %v", err)
+	}
+}
+
+// Ask 176: a bill and a capitalisation racing for the same asset queue on the
+// asset's row lock, so what is capitalised is exactly what was charged before
+// it, and 1450 nets to nought for the asset.
+func TestAssetCWIPBillsRacingACapitaliseReconcile(t *testing.T) {
+	e := newExp19(t)
+	asset := e.cwipAsset(0)
+	e.create(e.input("RACE0", ExpenseBillLine{Description: "Groundwork", Amount: 1000, CwipAsset: asset}))
+
+	const bills = 6
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	posted, refused := 0, 0
+	var capErr error
+	var capAmount float64
+	for i := 0; i < bills; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			res, err := CreateExpenseBill(e.tenant, "system", e.input(fmt.Sprintf("RACE%d", i+1), ExpenseBillLine{Description: "Works", Amount: 100, CwipAsset: asset}))
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				posted++
+				e.docs = append(e.docs, res.InvoiceID)
+			case validationCode(err) == "ASSET-1724":
+				refused++
+			default:
+				t.Errorf("bill %d: %v", i+1, err)
+			}
+		}(i)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res, err := CapitalizeCWIPAsset(e.tenant, asset, "t", 0, "2026-10-01")
+		mu.Lock()
+		defer mu.Unlock()
+		capErr = err
+		if res != nil {
+			capAmount = res.Amount
+		}
+	}()
+	wg.Wait()
+	if capErr != nil {
+		t.Fatalf("capitalise: %v", capErr)
+	}
+	if posted+refused != bills {
+		t.Fatalf("posted %d + refused %d != %d", posted, refused, bills)
+	}
+	collected, err := CWIPCollectedPaise(e.tenant, asset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := int64(100000 + posted*10000); collected != want {
+		t.Fatalf("collected %d, want %d (posted %d)", collected, want, posted)
+	}
+	if RupeesToPaise(capAmount) != collected {
+		t.Fatalf("capitalised %.2f but %d was charged to the asset", capAmount, collected)
+	}
+	var net int64
+	if err := db.DB.QueryRow("SELECT COALESCE(SUM(debit - credit), 0) FROM "+e.schema+".gl_postings WHERE account_code = '1450' AND (document_id = $1 OR document_id = ANY($2))",
+		asset, pq.Array(e.docs)).Scan(&net); err != nil {
+		t.Fatal(err)
+	}
+	if net != 0 {
+		t.Fatalf("1450 left %d for the asset's bills and its capitalisation", net)
+	}
+}
+
+// Ask 176: a bill held for approval that charges a CWIP asset is refused at
+// approval once the asset has been capitalised.
+func TestAssetCWIPBillApprovedAfterCapitaliseIsRefused(t *testing.T) {
+	e := newExp19(t)
+	rule, err := UpsertApprovalRule(e.tenant, "VendorInvoice", 50000, nil, "Finance Manager", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = DeleteApprovalRule(e.tenant, rule) })
+	asset := e.cwipAsset(0)
+	e.create(e.input("PRE", ExpenseBillLine{Description: "Groundwork", Amount: 1000, CwipAsset: asset}))
+	held := e.create(e.input("HELD", ExpenseBillLine{Description: "Big works", Amount: 60000, CwipAsset: asset}))
+	if _, st, _ := fetchDocData(e.tenant, "VendorInvoice", held); st != "Pending Approval" {
+		t.Fatalf("the big bill is %s, want Pending Approval", st)
+	}
+	if _, err := CapitalizeCWIPAsset(e.tenant, asset, "t", 0, "2026-10-01"); err != nil {
+		t.Fatalf("capitalise: %v", err)
+	}
+	db.DB.Exec("UPDATE "+e.schema+".documents SET status = 'Approved' WHERE id = $1", held)
+	if _, err := FinalizeVendorInvoiceOverridePayment(e.tenant, held, "checker"); validationCode(err) != "ASSET-1724" {
+		t.Fatalf("approving a charge to a capitalised asset must be refused with ASSET-1724: %v", err)
+	}
+	if e.gl(held, "1450") != 0 {
+		t.Fatal("the refused bill booked to 1450")
 	}
 }

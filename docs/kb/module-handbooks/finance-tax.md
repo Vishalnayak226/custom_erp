@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 70
 summary: Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.
 audience: accountant, finance manager, admin
-last_verified: 2026-09-03
+last_verified: 2026-11-15
 screens: [finance, module:finance, journal-vouchers, reports, configuration, einvoice, bank-files]
 doc_id: DOC-DDBD8E5B5F
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -139,6 +139,17 @@ liability account instead of straight to revenue, and a background worker
 recognizes it into revenue on schedule — see the **Deferred Revenue
 Roll-Forward** report to track one in progress.
 
+**A posted document's money is fixed** (`FIN-0844`, 47.16.4). Once a sales
+invoice is Approved or Paid, a credit, debit or vendor credit note is
+Posted, a journal voucher is Posted, or a vendor invoice has any payment,
+a save may not change the amounts, tax, currency or exchange rate it
+posted with. Nor may a save mark it Cancelled, Draft, Rejected, Void or
+Reversed — that would leave its receivable and GST in the ledger while the
+document said it was gone. Correct it with a credit or debit note (CGST
+s.34) or the document's own reversal, each posting its own entry. An
+Approved goods receipt is held the same way: a save cannot cancel it; it
+is reversed with a purchase return (49.5.3).
+
 ## E-invoice (IRN)
 
 For a GSTIN that must e-invoice (turnover above ₹5 crore), every posted
@@ -165,7 +176,7 @@ without TDS deduction (`/vendor-invoice/pay` vs. `/vendor-invoice/pay-with-tds`
 — reached from the invoice's own action buttons). For paying many invoices
 in one run:
 
-1. **Create a Payment Proposal** — a batch of invoices selected for payment.
+1. **Create Proposal from Selected** — a batch of invoices selected for payment.
 2. **Execute** it — every invoice in the batch is paid through the exact
    same vendor-invoice payment path a single manual payment uses, not a
    parallel mechanism.
@@ -224,8 +235,8 @@ close the loop:
 > `public/app.js`. A period-end revaluation needs a direct API call today.
 
 Three registered reports read multi-currency data without needing their own
-screen: **FX Open Item Exposure**, **FX Gain/Loss Register**, and **Trial
-Balance (Presentation Currency)** — all reachable from Reports → Finance
+screen: **Open FX Exposure**, **FX Gain/Loss Register**, and **Trial
+Balance in Presentation Currency** — all reachable from Reports → Finance
 like any other report.
 
 ## Error codes reference
@@ -235,6 +246,7 @@ like any other report.
 | `GLOBAL-0012` | An accounting period's Start Date is later than its End Date. |
 | `FIN-0260` | Posting refused — the transaction date falls inside a Closed accounting period with no approved backdated-posting exception. |
 | `FIN-0261` | (Warning) A bank statement line doesn't match anything in the ledger. |
+| `FIN-0844` | A save tried to change a posted document's amounts, or to un-post it. Use a credit or debit note, or its reversal. |
 
 ## Reports
 

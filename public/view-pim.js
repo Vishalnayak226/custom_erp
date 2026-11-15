@@ -5,7 +5,7 @@ const PIM_GROUPS = [
   { id: 'products', label: 'Products', tabs: ['dashboard', 'workbench', 'reports', 'families', 'attributes', 'attribute-groups', 'family-attributes'] },
   { id: 'work', label: 'My work', tabs: ['my-work', 'supplier-submissions', 'task-templates', 'workflows'] },
   { id: 'media', label: 'Media', tabs: ['media-library'] },
-  { id: 'channels', label: 'Channels & publishing', tabs: ['channels', 'channel-category-map', 'channel-field-map', 'channel-validation-rules', 'catalogs', 'export-templates', 'export-schedules'] },
+  { id: 'channels', label: 'Channels & publishing', tabs: ['channels', 'channel-category-map', 'channel-field-map', 'channel-validation-rules', 'media-exceptions', 'catalogs', 'export-templates', 'export-schedules'] },
   { id: 'advanced', label: 'Advanced setup', tabs: ['import-templates', 'import-schedules'] }
 ];
 
@@ -212,7 +212,11 @@ async function renderPIMMediaLibraryTab(container) {
         const imgEl = en.target;
         obs.unobserve(imgEl);
         const m = byId.get(imgEl.getAttribute('data-medlib-thumb'));
-        let imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/transform/small`);
+        // 193: only a JPEG/PNG original has resized copies (ReadMediaTransform), and a
+        // file of another known type (PDF, video) cannot show in an <img>: ask for neither.
+        const ft = String(m.file_type || '');
+        if (ft && !ft.startsWith('image/')) return;
+        let imgRes = (ft === 'image/jpeg' || ft === 'image/png') ? await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/transform/small`) : null;
         if (!imgRes || !imgRes.ok) imgRes = m.has_thumbnail ? await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/thumbnail`) : null;
         if (!imgRes || !imgRes.ok) imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
         if (!imgRes || !imgRes.ok || medlibObserver !== obs) return;

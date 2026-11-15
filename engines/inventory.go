@@ -24,21 +24,22 @@ import (
 // since a zero contributes nothing, while the movement itself is still on
 // the card.
 type StockLedgerEntry struct {
-	ItemID         string
-	WarehouseID    string
-	Qty            float64
-	VoucherType    string
-	VoucherID      string
-	IdempotencyKey string // non-empty: a second write with the same key is a no-op, so a retried call (e.g. a replayed offline sale) can't double-count
-	FromLocationID string
-	ToLocationID   string
-	FromStatus     string
-	ToStatus       string
-	UserID         string
-	DeviceID       string
-	BatchNo        string // Stage 42.1.3: the lot this movement was of. Empty for non-batch-tracked stock, which is most of it - it is what makes the ledger answerable for recall without a second history table.
-	SerialNo       string // Stage 42.1.8: the unit this movement was of. Same convention as BatchNo - empty for non-serial-tracked stock, and what makes GetSerialMovementHistory a read of this table rather than a second store.
-	OwnerID        string // Stage 42.5.5: the 3PL owner this movement was of. Same convention as BatchNo/SerialNo - empty unless the stock has been explicitly owner-segregated with RecordOwnerStock/ConsumeOwnerStock.
+	ItemID            string
+	WarehouseID       string
+	Qty               float64
+	VoucherType       string
+	VoucherID         string
+	IdempotencyKey    string // non-empty: a second write with the same key is a no-op, so a retried call (e.g. a replayed offline sale) can't double-count
+	FromLocationID    string
+	ToLocationID      string
+	FromStatus        string
+	ToStatus          string
+	UserID            string
+	DeviceID          string
+	BatchNo           string // Stage 42.1.3: the lot this movement was of. Empty for non-batch-tracked stock, which is most of it - it is what makes the ledger answerable for recall without a second history table.
+	SerialNo          string // Stage 42.1.8: the unit this movement was of. Same convention as BatchNo - empty for non-serial-tracked stock, and what makes GetSerialMovementHistory a read of this table rather than a second store.
+	OwnerID           string // Stage 42.5.5: the 3PL owner this movement was of. Same convention as BatchNo/SerialNo - empty unless the stock has been explicitly owner-segregated with RecordOwnerStock/ConsumeOwnerStock.
+	stockLineSnapshot        // 49.5.5b: the UOM and rates as they were when this line posted
 }
 
 // WriteStockLedgerEntry writes an append-only inventory card record.
@@ -67,6 +68,9 @@ func insertStockLedgerEntry(q interface {
 		}
 	}
 
+	if err := fillLedgerSnapshot(q, schema, &e); err != nil { // 49.5.5b.9-.11
+		return err
+	}
 	id, marshaled, err := stockLedgerEntryDoc(e)
 	if err != nil {
 		return err
@@ -123,6 +127,7 @@ func stockLedgerEntryDoc(e StockLedgerEntry) (string, []byte, error) {
 	if e.OwnerID != "" {
 		docData["owner_id"] = e.OwnerID
 	}
+	e.stockLineSnapshot.writeTo(docData)
 
 	marshaled, err := json.Marshal(docData)
 	return id, marshaled, err
@@ -198,6 +203,10 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 // movement back - never a stock change the Stock Ledger does not show.
 // (WriteStockLedgerLinesTx is the command spine's, with its closed-period check.)
 func writeStockLedgerLinesInTx(tx *sql.Tx, schema, locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) error {
+	lines, err := withStockLineUOMs(tx, schema, lines)
+	if err != nil {
+		return err
+	}
 	for _, e := range stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID, lines) {
 		if err := insertStockLedgerEntry(tx, schema, e); err != nil {
 			return fmt.Errorf("stock ledger for %s at %s: %w", e.ItemID, locationCode, err)
@@ -213,6 +222,7 @@ type PostedStockLine struct {
 	SKU     string
 	Qty     int
 	BatchNo string
+	stockLineSnapshot
 }
 
 // PostInventoryLedgerWithVoucherTx is the availability half of
@@ -343,7 +353,7 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 			return nil, nil, err
 		}
 		batchNo, _ := itemMap["batch_no"].(string)
-		postedLines = append(postedLines, PostedStockLine{SKU: sku, Qty: qtyVal, BatchNo: strings.TrimSpace(batchNo)})
+		postedLines = append(postedLines, PostedStockLine{SKU: sku, Qty: qtyVal, BatchNo: strings.TrimSpace(batchNo), stockLineSnapshot: stockLineSnapshotFrom(itemMap)})
 	}
 	return negativeEvents, postedLines, nil
 }
@@ -378,21 +388,8 @@ func (e *InsufficientStockError) Error() string {
 	return fmt.Sprintf("insufficient stock for SKU %s at %s: available %d, requested %d", e.SKU, e.Location, e.Available, e.Requested)
 }
 
-// WriteStockLedgerLines writes the append-only ledger entries for movements
-// that have already been applied to availability. Deliberately AFTER the
-// caller's commit: WriteStockLedgerEntry opens its own transaction, and the
-// entries are idempotency-keyed, so a crash between the commit and this call
-// leaves entries that a replay writes exactly once.
-func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) {
-	for _, entry := range stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID, lines) {
-		if lerr := WriteStockLedgerEntry(tenantID, entry); lerr != nil {
-			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", entry.ItemID, locationCode, lerr), "")
-		}
-	}
-}
-
 // stockLedgerEntriesFor is the ledger entries a voucher's movements make -
-// shared by WriteStockLedgerLines and WriteStockLedgerLinesTx (74.1.5), so the
+// shared by WriteStockLedgerLinesTx (74.1.5), so the
 // two cannot drift in how they merge lines or key a replay.
 func stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) []StockLedgerEntry {
 	// Lines that share a key (one SKU, and lot, on two lines of the same
@@ -406,6 +403,7 @@ func stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID string, 
 		for _, p := range lines {
 			k := [2]string{p.SKU, p.BatchNo}
 			if i, ok := at[k]; ok {
+				merged[i].stockLineSnapshot = merged[i].stockLineSnapshot.merge(merged[i].Qty, p.stockLineSnapshot, p.Qty)
 				merged[i].Qty += p.Qty
 				continue
 			}
@@ -419,7 +417,7 @@ func stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID string, 
 		entry := StockLedgerEntry{
 			ItemID: p.SKU, WarehouseID: locationCode, Qty: float64(p.Qty),
 			VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
-			BatchNo: p.BatchNo,
+			BatchNo: p.BatchNo, stockLineSnapshot: p.stockLineSnapshot,
 		}
 		if voucherID != "" {
 			entry.IdempotencyKey = fmt.Sprintf("%s:%s:%s:%s", voucherType, voucherID, locationCode, p.SKU)

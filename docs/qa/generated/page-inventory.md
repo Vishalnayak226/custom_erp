@@ -11,11 +11,11 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 133 |
-| Screens in the shell registry | 75 |
-| File-to-route actions | 1236 |
-| Registered `/api` routes | 1068 |
-| Routes no front-end file calls | 206 |
+| Front-end files with screens or API calls | 135 |
+| Screens in the shell registry | 77 |
+| File-to-route actions | 1254 |
+| Registered `/api` routes | 1089 |
+| Routes no front-end file calls | 212 |
 | Calls matching no route | 2 |
 
 ## Screens and front-end files
@@ -28,10 +28,12 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | GET | `/api/v1/approval/pending` | `handleListPendingApprovals` |  | signed-in: approval.default | every signed-in role |
+| POST | `/api/v1/auth/forgot-password` | `handleForgotPassword` |  | public: auth.default | anyone |
 | POST | `/api/v1/auth/logout` | `handleLogout` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/activate` | `handleMFAActivate` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/enroll` | `handleMFAEnroll` |  | signed-in: auth.default | every signed-in role |
 | POST | `/api/v1/auth/mfa/verify` | `handleMFAVerify` |  | signed-in: auth.default | every signed-in role |
+| POST | `/api/v1/auth/reset-password` | `handleResetPassword` |  | public: auth.default | anyone |
 | GET | `/api/v1/availability` | `handleGetAvailability` |  | signed-in: availability.default | every signed-in role |
 | GET | `/api/v1/branding` | `handleBranding` |  | public: version.default | anyone |
 | POST | `/api/v1/checkout` | `handleCheckout` |  | signed-in: checkout.default | every signed-in role |
@@ -47,7 +49,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | GET | `/api/v1/import-batches` | `handleImportBatchList` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/import-batches` | `handleImportBatchCreate` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/inbox` | `handleTaskInbox` |  | signed-in: approval.default | every signed-in role |
-| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.default | every signed-in role |
+| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.view | Super Admin, Admin, Administrator, Auditor |
 | ANY | `/api/v1/labels` | `handleLabels` |  | signed-in: labels.default | every signed-in role |
 | GET | `/api/v1/localization` | `handleGetLocalization` |  | signed-in: localization.default | every signed-in role |
 | POST | `/api/v1/login` | `handleLogin` |  | public: login.default | anyone |
@@ -62,6 +64,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | GET | `/api/v1/meta/field-formats` | `handleFieldFormats` |  | signed-in: meta.default | every signed-in role |
 | POST | `/api/v1/orders` | `handleCreateSalesOrder` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/pos/offline-heartbeat` | `handlePOSOfflineHeartbeat` |  | signed-in: pos.default | every signed-in role |
+| POST | `/api/v1/pos/till-series` | `handlePOSTillSeries` |  | signed-in: pos.default | every signed-in role |
 | ANY | `/api/v1/prefix` | `handlePrefix` |  | signed-in: prefix.default | every signed-in role |
 | GET | `/api/v1/ready` | `handleReadiness` |  | public: health.default | anyone |
 | GET | `/api/v1/reason-codes` | `handleListReasonCodes` |  | signed-in: doc.default | every signed-in role |
@@ -137,6 +140,19 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | ANY | `/api/v1/procurement/vendor-link/public` | `handleVendorLinkPublic` | procurement | public: procurement.default | anyone |
+
+### `public/passkey-client.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/auth/passkey/options` | `handlePasskeyAssertOptions` |  | signed-in: auth.default | every signed-in role |
+| POST | `/api/v1/auth/passkey/verify` | `handlePasskeyAssertVerify` |  | signed-in: auth.default | every signed-in role |
+| POST | `/api/v1/me/passkeys/options` | `handlePasskeyRegisterOptions` |  | signed-in: me.default | every signed-in role |
+| DELETE | `/api/v1/me/passkeys/{id}` | `handleDeleteMyPasskey` |  | signed-in: me.default | every signed-in role |
+| GET | `/api/v1/me/passkeys` | `handleListMyPasskeys` |  | signed-in: me.default | every signed-in role |
+| POST | `/api/v1/me/passkeys` | `handlePasskeyRegisterFinish` |  | signed-in: me.default | every signed-in role |
 
 ### `public/pim-catalog-share.js`
 
@@ -389,7 +405,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-admin.js`
 
-Screens: Prefix Configurations (`#/view/prefix-configs`; help: A day as an administrator, verified 2026-08-17), Approval Rules (`#/view/approval-rules`; help: Security, Roles & Approvals, verified 2026-09-03; A day as an administrator, verified 2026-08-17), Dynamic Labels (`#/view/dynamic-labels`; help: A day as an administrator, verified 2026-08-17), Extension Hooks (`#/view/extension-hooks`; help: A day as an administrator, verified 2026-08-17), Extension Hook Log (`#/view/extension-hook-log`; help: A day as an administrator, verified 2026-08-17), Integration Logs (`#/view/audit-logs`; help: Security, Roles & Approvals, verified 2026-09-03; A day as an administrator, verified 2026-08-17), Configuration (`#/view/configuration`; help: Your first sign-in, verified 2026-08-12; CRM & Loyalty, verified 2026-09-03; Finance & Tax, verified 2026-09-03; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Country codes and phone number rules, verified 2026-09-10; A day as an administrator, verified 2026-08-17), System Status (`#/view/system-status`; help: Backup & Restore, verified 2026-09-03; Incident Response & Alerting, verified 2026-09-03; A day as an administrator, verified 2026-08-17), Tenant Entitlements (`#/view/tenant-entitlements`; help: A day as an administrator, verified 2026-08-17), Tenant Usage (`#/view/tenant-usage`; help: A day as an administrator, verified 2026-08-17), Data Console (`#/view/platform-console`; help: Control Panel and Data Console (platform operators), verified 2026-10-18).  
+Screens: Prefix Configurations (`#/view/prefix-configs`; help: A day as an administrator, verified 2026-08-17), Approval Rules (`#/view/approval-rules`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17), Dynamic Labels (`#/view/dynamic-labels`; help: A day as an administrator, verified 2026-08-17), Extension Hooks (`#/view/extension-hooks`; help: A day as an administrator, verified 2026-08-17), API access (`#/view/api-access`; help: Authenticating against the public API, verified 2026-11-14), Extension Hook Log (`#/view/extension-hook-log`; help: A day as an administrator, verified 2026-08-17), Integration Logs (`#/view/audit-logs`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17), Configuration (`#/view/configuration`; help: Your first sign-in, verified 2026-11-14; CRM & Loyalty, verified 2026-11-15; Finance & Tax, verified 2026-11-15; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-11-15; Procurement, verified 2026-09-03; Country codes and phone number rules, verified 2026-09-10; A day as an administrator, verified 2026-08-17), System Status (`#/view/system-status`; help: Backup & Restore, verified 2026-09-03; Incident Response & Alerting, verified 2026-09-03; A day as an administrator, verified 2026-08-17), Tenant Entitlements (`#/view/tenant-entitlements`; help: A day as an administrator, verified 2026-08-17), Tenant Usage (`#/view/tenant-usage`; help: A day as an administrator, verified 2026-08-17), Data Console (`#/view/platform-console`; help: Control Panel and Data Console (platform operators), verified 2026-10-18).  
 Owners: M01, M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -410,18 +426,18 @@ Owners: M01, M30. Live inspection: not recorded.
 | GET | `/api/v1/admin/tenant-usage` | `handleTenantUsage` |  | admin: admin.tenant-usage | Super Admin |
 | POST | `/api/v1/admin/tenant/module-entitlement` | `handleSetModuleEntitlement` |  | admin: admin.tenant | Super Admin |
 | GET | `/api/v1/admin/tenant/module-entitlements` | `handleGetModuleEntitlements` |  | admin: admin.tenant | Super Admin |
+| POST | `/api/v1/admin/tenant/package/impact` | `handlePackageImpact` |  | admin: admin.tenant | Super Admin |
 | POST | `/api/v1/admin/tenant/package` | `handleSetTenantPackage` |  | admin: admin.tenant | Super Admin |
 | POST | `/api/v1/admin/tenant/provision` | `handleProvisionTenant` |  | admin: admin.tenant | Super Admin |
 | GET | `/api/v1/admin/tenants` | `handleListTenants` |  | admin: admin.tenants | Super Admin |
 | ANY | `/api/v1/approval/rules` | `handleApprovalRules` |  | signed-in: approval.default | every signed-in role |
-| ANY | `/api/v1/debug/panic` | `handleDebugPanic` |  | signed-in: debug.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/integration/logs` | `handleGetIntegrationLogs` |  | signed-in: integration.default | every signed-in role |
 | POST | `/api/v1/integration/retry` | `handleRetryIntegrationEvent` |  | signed-in: integration.default | every signed-in role |
 | POST | `/api/v1/integrations/credentials/disconnect` | `handleConnectorDisconnect` |  | admin: admin.integrations | Super Admin, Admin |
-| POST | `/api/v1/jobs/{id}/cancel` | `handleCancelJob` |  | signed-in: jobs.default | every signed-in role |
-| POST | `/api/v1/jobs/{id}/retry` | `handleRetryJob` |  | signed-in: jobs.default | every signed-in role |
-| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.default | every signed-in role |
+| POST | `/api/v1/jobs/{id}/cancel` | `handleCancelJob` |  | signed-in: jobs.manage | Super Admin, Admin, Administrator |
+| POST | `/api/v1/jobs/{id}/retry` | `handleRetryJob` |  | signed-in: jobs.manage | Super Admin, Admin, Administrator |
+| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.view | Super Admin, Admin, Administrator, Auditor |
 | ANY | `/api/v1/labels` | `handleLabels` |  | signed-in: labels.default | every signed-in role |
 | ANY | `/api/v1/logs/audit` | `handleAuditLogs` |  | signed-in: audit.logs | Super Admin, Admin, Administrator, Auditor |
 | ANY | `/api/v1/logs/system` | `handleSystemLogs` |  | signed-in: system.logs | Super Admin, Administrator, Auditor |
@@ -435,6 +451,7 @@ Owners: M01, M30. Live inspection: not recorded.
 | GET | `/api/v1/platform/tenants/{tenant}/attribute-library` | `handleAttributeLibrary` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/attribute-library` | `handleApplyAttributeLibrary` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/open` | `handleControlPanelOpenTenant` |  | admin: platform.console | Super Admin |
+| POST | `/api/v1/platform/tenants/{tenant}/query-plan` | `handleControlPanelQueryPlan` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/records/{doctype}/{id}` | `handlePlatformUpdateRecord` |  | admin: platform.console | Super Admin |
 | GET | `/api/v1/platform/tenants/{tenant}/records/{doctype}` | `handlePlatformRecords` |  | admin: platform.console | Super Admin |
 | GET | `/api/v1/platform/tenants/{tenant}/records` | `handlePlatformRecordTypes` |  | admin: platform.console | Super Admin |
@@ -445,6 +462,8 @@ Owners: M01, M30. Live inspection: not recorded.
 | POST | `/api/v1/platform/tenants/{tenant}/trial` | `handleControlPanelTenantTrial` |  | admin: platform.console | Super Admin |
 | GET | `/api/v1/platform/tenants` | `handlePlatformTenants` |  | admin: platform.console | Super Admin |
 | ANY | `/api/v1/prefix` | `handlePrefix` |  | signed-in: prefix.default | every signed-in role |
+| GET | `/api/v1/razorpay/credentials` | `handleGetRazorpayCredentials` |  | admin: admin.integrations | Super Admin, Admin |
+| POST | `/api/v1/razorpay/credentials` | `handleRazorpayCredentials` |  | admin: admin.integrations | Super Admin, Admin |
 | GET | `/api/v1/setup/path/{step}/history` | `handleSetupStepHistory` |  | signed-in: setup.default | every signed-in role |
 | POST | `/api/v1/setup/path/{step}/note` | `handleSetupStepNote` |  | admin: admin.setup-path | Super Admin, Admin |
 | GET | `/api/v1/setup/path` | `handleSetupPath` |  | signed-in: setup.default | every signed-in role |
@@ -536,7 +555,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-bank-files.js`
 
-Screens: Bank Files (`#/view/bank-files`; help: Finance & Tax, verified 2026-09-03).  
+Screens: Bank Files (`#/view/bank-files`; help: Finance & Tax, verified 2026-11-15).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -624,6 +643,7 @@ Owners: M01, M30. Live inspection: not recorded.
 | GET | `/api/v1/platform/tenants/{tenant}/attribute-library` | `handleAttributeLibrary` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/attribute-library` | `handleApplyAttributeLibrary` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/open` | `handleControlPanelOpenTenant` |  | admin: platform.console | Super Admin |
+| POST | `/api/v1/platform/tenants/{tenant}/query-plan` | `handleControlPanelQueryPlan` |  | admin: platform.console | Super Admin |
 | GET | `/api/v1/platform/tenants/{tenant}/records` | `handlePlatformRecordTypes` |  | admin: platform.console | Super Admin |
 | POST | `/api/v1/platform/tenants/{tenant}/status` | `handleControlPanelTenantStatus` |  | admin: platform.console | Super Admin |
 | GET | `/api/v1/platform/tenants/{tenant}/tables` | `handlePlatformTables` |  | admin: platform.console | Super Admin |
@@ -631,7 +651,7 @@ Owners: M01, M30. Live inspection: not recorded.
 
 ### `public/view-crm.js`
 
-Screens: CRM (`#/view/crm`; help: CRM & Loyalty, verified 2026-09-03).  
+Screens: CRM (`#/view/crm`; help: CRM & Loyalty, verified 2026-11-15).  
 Owners: M19, M24. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -753,7 +773,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 
 ### `public/view-einvoice.js`
 
-Screens: E-Invoice (IRN) (`#/view/einvoice`; help: Finance & Tax, verified 2026-09-03).  
+Screens: E-Invoice (IRN) (`#/view/einvoice`; help: Finance & Tax, verified 2026-11-15).  
 Owners: M17, M18. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -818,7 +838,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-finance.js`
 
-Screens: Finance (`#/view/finance`; help: Open a shop and make your first sale, verified 2026-08-17; Finance & Tax, verified 2026-09-03; A day in finance, verified 2026-08-17), Vendor Invoices (`#/view/vendor-invoices`; help: Procurement, verified 2026-09-03; A day in finance, verified 2026-08-17), Payment Proposals (`#/view/payment-proposals`; help: A day in finance, verified 2026-08-17), Bank Reconciliation (`#/view/bank-reconciliation`; help: A day in finance, verified 2026-08-17), Finance Notes (`#/view/finance-notes`; help: A day in finance, verified 2026-08-17), Sales Invoices (`#/view/sales-invoices`; help: Your first order, end to end, verified 2026-08-12; A day in finance, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: Finance (`#/view/finance`; help: Open a shop and make your first sale, verified 2026-11-15; Finance & Tax, verified 2026-11-15; A day in finance, verified 2026-08-17), Vendor Invoices (`#/view/vendor-invoices`; help: Procurement, verified 2026-09-03; A day in finance, verified 2026-08-17), Payment Proposals (`#/view/payment-proposals`; help: A day in finance, verified 2026-08-17), Bank Reconciliation (`#/view/bank-reconciliation`; help: A day in finance, verified 2026-08-17), Finance Notes (`#/view/finance-notes`; help: A day in finance, verified 2026-08-17), Sales Invoices (`#/view/sales-invoices`; help: Your first order, end to end, verified 2026-11-14; A day in finance, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M17, M18. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -847,6 +867,7 @@ Owners: M17, M18. Live inspection: not recorded.
 | GET | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.default | every signed-in role |
 | POST | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/sales-invoice/{id}/cancel` | `handleCancelSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/sales-invoice/{id}/payment-link` | `handleSalesInvoicePaymentLink` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/sales-invoice/{id}/post` | `handlePostSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/finance/sales-invoice/{id}/settle` | `handleSettleSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/set-off/suggestions` | `handleSetOffSuggestions` |  | signed-in: finance.default | every signed-in role |
@@ -917,7 +938,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 
 ### `public/view-help.js`
 
-Screens: Help (`#/view/help`; help: Find help for your task, verified 2026-09-08).  
+Screens: Help (`#/view/help`; help: Find help for your task, verified 2026-11-15).  
 Owners: Shared contract across M01–M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1034,7 +1055,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/import-batches` | `handleImportBatchCreate` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/import/{doctype}` | `handleBulkImport` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/inbox` | `handleTaskInbox` |  | signed-in: approval.default | every signed-in role |
-| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.default | every signed-in role |
+| GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.view | Super Admin, Admin, Administrator, Auditor |
 | ANY | `/api/v1/labels` | `handleLabels` |  | signed-in: labels.default | every signed-in role |
 | GET | `/api/v1/localization` | `handleGetLocalization` |  | signed-in: localization.default | every signed-in role |
 | POST | `/api/v1/login` | `handleLogin` |  | public: login.default | anyone |
@@ -1055,7 +1076,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-inbox.js`
 
-Screens: Approvals (`#/view/approvals`; help: Open a shop and make your first sale, verified 2026-08-17; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Security, Roles & Approvals, verified 2026-09-03; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17).  
+Screens: Approvals (`#/view/approvals`; help: Open a shop and make your first sale, verified 2026-11-15; Point of Sale, verified 2026-11-15; Procurement, verified 2026-09-03; Security, Roles & Approvals, verified 2026-11-15; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17).  
 Owners: Shared contract across M01–M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1156,7 +1177,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-journal.js`
 
-Screens: Journal Vouchers (`#/view/journal-vouchers`; help: Finance & Tax, verified 2026-09-03).  
+Screens: Journal Vouchers (`#/view/journal-vouchers`; help: Finance & Tax, verified 2026-11-15).  
 Owners: M17, M18. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1170,7 +1191,7 @@ Owners: M17, M18. Live inspection: not recorded.
 
 ### `public/view-loyalty.js`
 
-Screens: Loyalty (`#/view/loyalty`; help: CRM & Loyalty, verified 2026-09-03).  
+Screens: Loyalty (`#/view/loyalty`; help: CRM & Loyalty, verified 2026-11-15).  
 Owners: M19, M24. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1198,7 +1219,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-manufacturing.js`
 
-Screens: Manufacturing (`#/view/manufacturing`; help: Manufacturing & MRP, verified 2026-09-03).  
+Screens: Manufacturing (`#/view/manufacturing`; help: Manufacturing & MRP, verified 2026-11-15).  
 Owners: M15, M16. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1240,7 +1261,7 @@ Owners: M02, M14. Live inspection: not recorded.
 
 ### `public/view-offline-sales.js`
 
-Screens: Offline Sales (`#/view/offline-sales`; help: Point of Sale, verified 2026-09-02).  
+Screens: Offline Sales (`#/view/offline-sales`; help: Point of Sale, verified 2026-11-15).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1284,6 +1305,8 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | GET | `/api/v1/oms/gate-passes` | `handleSearchGatePasses` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/gate-passes` | `handleCreateGatePass` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/orders/bulk` | `handleOMSBulkAction` | oms | signed-in: oms.default | every signed-in role |
+| GET | `/api/v1/oms/orders/search` | `handleOMSOrderSearch` | oms | signed-in: oms.default | every signed-in role |
+| GET | `/api/v1/oms/orders/{id}` | `handleOMSOrderDetail` | oms | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/oms/orders` | `handleOMSOrderList` | oms | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/oms/pick-queue` | `handlePickQueue` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/shipping-packages/{id}/invoice` | `handleInvoiceShippingPackage` | oms | signed-in: oms.default | every signed-in role |
@@ -1312,7 +1335,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 
 ### `public/view-oms.js`
 
-Screens: OMS (`#/view/oms`; help: Your first order, end to end, verified 2026-08-12; Channel Connectors, verified 2026-09-03; Courier Integrations, verified 2026-09-03; Order Management, verified 2026-09-03; Shopify, verified 2026-10-22; A day as a store manager, verified 2026-08-17; A day as a warehouse operator, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: OMS (`#/view/oms`; help: Your first order, end to end, verified 2026-11-14; Channel Connectors, verified 2026-09-03; Courier Integrations, verified 2026-09-03; Order Management, verified 2026-09-03; Shopify, verified 2026-10-22; A day as a store manager, verified 2026-08-17; A day as a warehouse operator, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M12, M13, M28. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1471,7 +1494,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-pim.js`
 
-Screens: PIM (`#/view/pim`; help: Channel Connectors, verified 2026-09-03; Product Groups, verified 2026-08-12; Product Information Management, verified 2026-09-03; A day as a category manager, verified 2026-08-17).  
+Screens: PIM (`#/view/pim`; help: Channel Connectors, verified 2026-09-03; Product Groups, verified 2026-11-15; Product Information Management, verified 2026-09-03; A day as a category manager, verified 2026-08-17).  
 Owners: M14, M27. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1605,7 +1628,7 @@ Owners: M05, M06, M19. Live inspection: not recorded.
 
 ### `public/view-pos.js`
 
-Screens: POS (`#/view/pos`; help: Your first order, end to end, verified 2026-08-12; Open a shop and make your first sale, verified 2026-08-17; Point of Sale, verified 2026-09-02; A day as a cashier, verified 2026-08-17; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: POS (`#/view/pos`; help: Your first order, end to end, verified 2026-11-14; Open a shop and make your first sale, verified 2026-11-15; Point of Sale, verified 2026-11-15; A day as a cashier, verified 2026-08-17; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M05, M06, M19. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1651,7 +1674,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-procurement.js`
 
-Screens: Advance Shipment Notices (`#/view/asn`; help: A day as a warehouse operator, verified 2026-08-17), Purchase Orders (`#/view/purchase-orders`; help: Open a shop and make your first sale, verified 2026-08-17; Procurement, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17), Goods Receipt (`#/view/grn`; help: Open a shop and make your first sale, verified 2026-08-17; Inventory & Warehouse Operations, verified 2026-09-03; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; A day as a store manager, verified 2026-08-17; A day as a warehouse operator, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17), Purchase Return (`#/view/purchase-returns`; help: Procurement, verified 2026-09-03).  
+Screens: Advance Shipment Notices (`#/view/asn`; help: A day as a warehouse operator, verified 2026-08-17), Purchase Orders (`#/view/purchase-orders`; help: Open a shop and make your first sale, verified 2026-11-15; Procurement, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17), Goods Receipt (`#/view/grn`; help: Open a shop and make your first sale, verified 2026-11-15; Inventory & Warehouse Operations, verified 2026-11-15; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-11-15; A day as a store manager, verified 2026-08-17; A day as a warehouse operator, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17), Purchase Return (`#/view/purchase-returns`; help: Procurement, verified 2026-09-03).  
 Owners: M03, M04. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1696,7 +1719,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-profile.js`
 
-Screens: Profile (`#/view/profile`; help: Your first sign-in, verified 2026-08-12; Security, Roles & Approvals, verified 2026-09-03).  
+Screens: Profile (`#/view/profile`; help: Your first sign-in, verified 2026-11-14; Security, Roles & Approvals, verified 2026-11-15).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1713,7 +1736,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-purchase-contracts.js`
 
-Screens: Contracts (`#/view/purchase-contracts`; no help article).  
+Screens: Contracts (`#/view/purchase-contracts`; help: Purchase contracts and service entries, verified 2026-11-14).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1780,7 +1803,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-reports.js`
 
-Screens: Reports (`#/view/reports`; help: Finding your way around, verified 2026-09-24; Keyboard shortcuts and quick codes, verified 2026-10-26; Open a shop and make your first sale, verified 2026-08-17; What this system is, verified 2026-08-17; CRM & Loyalty, verified 2026-09-03; Custom dashboards, verified 2026-10-22; Finance & Tax, verified 2026-09-03; Inventory & Warehouse Operations, verified 2026-09-03; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Report catalog (part 2), verified 2026-09-10; Report catalog (part 3), verified 2026-09-10; Report catalog (part 4), verified 2026-09-10; Report catalog, verified 2026-09-10; A day as a category manager, verified 2026-08-17; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17), Inventory (`#/view/inventory`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-08-17; Inventory & Warehouse Operations, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: Reports (`#/view/reports`; help: Finding your way around, verified 2026-09-24; Keyboard shortcuts and quick codes, verified 2026-10-26; Open a shop and make your first sale, verified 2026-11-15; What this system is, verified 2026-08-17; CRM & Loyalty, verified 2026-11-15; Custom dashboards, verified 2026-10-22; Finance & Tax, verified 2026-11-15; Inventory & Warehouse Operations, verified 2026-11-15; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-11-15; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-11-15; Report catalog (part 2), verified 2026-09-10; Report catalog (part 3), verified 2026-09-10; Report catalog (part 4), verified 2026-09-10; Report catalog, verified 2026-09-10; A day as a category manager, verified 2026-08-17; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17), Inventory (`#/view/inventory`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-11-15; Inventory & Warehouse Operations, verified 2026-11-15; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M25, M26. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1823,7 +1846,7 @@ Owners: M27. Live inspection: not recorded.
 
 ### `public/view-returns.js`
 
-Screens: Returns (`#/view/returns`; help: Returns and refunds, verified 2026-09-08).  
+Screens: Returns (`#/view/returns`; help: Returns and refunds, verified 2026-11-15).  
 Owners: M06. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1876,7 +1899,7 @@ Owners: M03, M04. Live inspection: not recorded.
 
 ### `public/view-roles.js`
 
-Screens: Roles (`#/view/roles`; help: Security, Roles & Approvals, verified 2026-09-03; A day as an administrator, verified 2026-08-17; Which journey is mine, verified 2026-08-17).  
+Screens: Roles (`#/view/roles`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17; Which journey is mine, verified 2026-08-17).  
 Owners: M29. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1907,7 +1930,7 @@ Owners: M17, M18. Live inspection: not recorded.
 
 ### `public/view-security-notify.js`
 
-Screens: Privacy approvals (`#/view/privacy-approvals`; no help article).  
+Screens: Privacy approvals (`#/view/privacy-approvals`; help: Privacy approvals, verified 2026-11-14).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1931,6 +1954,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | GET | `/api/v1/admin/audit-logs/forensic-export` | `handleForensicExport` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/audit-logs/seal-legacy` | `handleSealLegacyAudit` |  | admin: admin.audit-logs | Super Admin, Admin |
 | GET | `/api/v1/admin/security/access-reviews` | `handleListAccessReviews` |  | admin: admin.users | Super Admin, Admin |
 | POST | `/api/v1/admin/security/access-reviews` | `handleRecordAccessReview` |  | admin: admin.users | Super Admin, Admin |
 | POST | `/api/v1/admin/security/detections/run` | `handleRunSecurityDetections` |  | admin: admin.audit-logs | Super Admin, Admin |
@@ -1961,7 +1985,7 @@ Owners: M21–M24. Live inspection: not recorded.
 
 ### `public/view-service-entry.js`
 
-Screens: Service entries (`#/view/service-entry`; no help article).  
+Screens: Service entries (`#/view/service-entry`; help: Purchase contracts and service entries, verified 2026-11-14).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2018,7 +2042,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-stock-locations.js`
 
-Screens: Stock Locations (`#/view/stock-locations`; help: Inventory & Warehouse Operations, verified 2026-09-03), Move Stock (`#/view/stock-moves`; help: Inventory & Warehouse Operations, verified 2026-09-03).  
+Screens: Stock Locations (`#/view/stock-locations`; help: Inventory & Warehouse Operations, verified 2026-11-15), Move Stock (`#/view/stock-moves`; help: Inventory & Warehouse Operations, verified 2026-11-15).  
 Owners: M07, M10, M20. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2045,9 +2069,18 @@ Owners: M07, M10, M20. Live inspection: not recorded.
 | GET | `/api/v1/me/stores` | `handleMyStores` |  | signed-in: me.default | every signed-in role |
 | POST | `/api/v1/me/working-store` | `handleSwitchWorkingStore` |  | signed-in: me.default | every signed-in role |
 
+### `public/view-subscription.js`
+
+Screens: Subscription (`#/view/subscription`; help: Your Subscription, verified 2026-11-15).  
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/saas/subscription` | `handleMySubscription` |  | admin: finance.default | Super Admin, Admin |
+
 ### `public/view-supplier-portal.js`
 
-Screens: Supplier portal (`#/view/supplier-portal`; no help article).  
+Screens: Supplier portal (`#/view/supplier-portal`; help: The supplier portal, verified 2026-11-14).  
 Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2070,7 +2103,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-transfers.js`
 
-Screens: Stock Movement (`#/view/transfers`; help: Inventory & Warehouse Operations, verified 2026-09-03; A day as a store manager, verified 2026-08-17; A day as a warehouse operator, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: Stock Movement (`#/view/transfers`; help: Inventory & Warehouse Operations, verified 2026-11-15; A day as a store manager, verified 2026-08-17; A day as a warehouse operator, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M07, M10, M20. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2089,7 +2122,7 @@ Owners: M07, M10, M20. Live inspection: not recorded.
 
 ### `public/view-users.js`
 
-Screens: Users (`#/view/users`; help: Security, Roles & Approvals, verified 2026-09-03; A day as an administrator, verified 2026-08-17).  
+Screens: Users (`#/view/users`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17).  
 Owners: M29. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2148,7 +2181,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-warehouse.js`
 
-Screens: Putaway (`#/view/putaway`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Warehouse Cockpit (`#/view/warehouse-cockpit`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Appointment Calendar (`#/view/appointment-calendar`; help: Dock appointments, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Yard Board (`#/view/yard-board`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; Trailer check-in and yard movement, verified 2026-09-09), Place Hold (`#/view/place-hold`; help: Place and release an inventory hold, verified 2026-10-18; Warehouse (WMS) - what each screen is for, verified 2026-10-18), RF Receiving (`#/view/rf-receiving`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Sortation (`#/view/sortation`; help: Sort orders into put-wall slots, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Loading Dock (`#/view/loading-dock`; help: Load cartons and record departure, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Bin Conditions (`#/view/bin-conditions`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Cycle Count (`#/view/cycle-count`; help: Inventory & Warehouse Operations, verified 2026-09-03; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), License Plates (`#/view/lpn`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Bin Replenishment (`#/view/bin-replenishment`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Location Movement (`#/view/location-movement`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18), Wave Picking (`#/view/wave-picking`; help: Inventory & Warehouse Operations, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Mobile Picking (`#/view/mobile-picking`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17).  
+Screens: Putaway (`#/view/putaway`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Warehouse Cockpit (`#/view/warehouse-cockpit`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Appointment Calendar (`#/view/appointment-calendar`; help: Dock appointments, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Yard Board (`#/view/yard-board`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; Trailer check-in and yard movement, verified 2026-09-09), Place Hold (`#/view/place-hold`; help: Place and release an inventory hold, verified 2026-10-18; Warehouse (WMS) - what each screen is for, verified 2026-10-18), RF Receiving (`#/view/rf-receiving`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Sortation (`#/view/sortation`; help: Sort orders into put-wall slots, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Loading Dock (`#/view/loading-dock`; help: Load cartons and record departure, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Bin Conditions (`#/view/bin-conditions`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Cycle Count (`#/view/cycle-count`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), License Plates (`#/view/lpn`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Bin Replenishment (`#/view/bin-replenishment`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Location Movement (`#/view/location-movement`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18), Wave Picking (`#/view/wave-picking`; help: Inventory & Warehouse Operations, verified 2026-11-15; Batch, Serial & Expiry Traceability, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17), Mobile Picking (`#/view/mobile-picking`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-08-17).  
 Owners: M08–M11. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2231,7 +2264,7 @@ No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `shell-nav.js`,
 
 ## Screens missing an owner or a help article
 
-10 of 75 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
+11 of 77 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
 
 | Screen | View | File | Owner | Help article |
 |---|---|---|---|---|
@@ -2241,10 +2274,11 @@ No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `shell-nav.js`,
 | Gate entries | `gate-entry` | `public/view-gate-entry.js` | missing | yes |
 | Offline Sales | `offline-sales` | `public/view-offline-sales.js` | missing | yes |
 | Profile | `profile` | `public/view-profile.js` | missing | yes |
-| Contracts | `purchase-contracts` | `public/view-purchase-contracts.js` | missing | missing |
-| Privacy approvals | `privacy-approvals` | `public/view-security-notify.js` | missing | missing |
-| Service entries | `service-entry` | `public/view-service-entry.js` | missing | missing |
-| Supplier portal | `supplier-portal` | `public/view-supplier-portal.js` | missing | missing |
+| Contracts | `purchase-contracts` | `public/view-purchase-contracts.js` | missing | yes |
+| Privacy approvals | `privacy-approvals` | `public/view-security-notify.js` | missing | yes |
+| Service entries | `service-entry` | `public/view-service-entry.js` | missing | yes |
+| Subscription | `subscription` | `public/view-subscription.js` | missing | yes |
+| Supplier portal | `supplier-portal` | `public/view-supplier-portal.js` | missing | yes |
 
 ## Generic Setup pages
 
@@ -2298,17 +2332,18 @@ Settings → Configuration renders the settings registry by module, through the 
 | HR | 4 |
 | HR & Payroll | 3 |
 | Imports | 1 |
-| Inventory | 20 |
+| Inventory | 21 |
 | Localization | 2 |
 | Loyalty | 14 |
 | Manufacturing | 6 |
-| Navigation | 1 |
+| Navigation | 2 |
 | Notifications | 1 |
 | OMS | 10 |
 | Orders | 11 |
 | PIM | 8 |
 | PIM / PIMS | 2 |
-| Platform | 29 |
+| Platform | 30 |
+| Platform billing | 1 |
 | Point of Sale | 13 |
 | Printing | 6 |
 | Procurement | 22 |
@@ -2317,7 +2352,7 @@ Settings → Configuration renders the settings registry by module, through the 
 | Reports | 1 |
 | Sales | 3 |
 | Sales & Returns | 5 |
-| Security | 26 |
+| Security | 30 |
 | Service | 4 |
 | Stock Transfer | 1 |
 | Store app | 1 |
@@ -2352,6 +2387,11 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | GET | `/api/v1/admin/role-templates/migrations` | `handleListRoleTemplateMigrations` |  | admin: admin.role-templates | Super Admin, Admin |
 | GET | `/api/v1/admin/role-templates/plan` | `handleRoleTemplatePlan` |  | admin: admin.role-templates | Super Admin, Admin |
 | POST | `/api/v1/admin/role-templates/revert` | `handleRevertRoleTemplates` |  | admin: admin.role-templates | Super Admin, Admin |
+| GET | `/api/v1/admin/saas/costs` | `handleSaaSCosts` |  | admin: admin.tenant | Super Admin |
+| GET | `/api/v1/admin/saas/plan` | `handleSaaSPlans` |  | admin: admin.tenant | Super Admin |
+| POST | `/api/v1/admin/saas/plan` | `handleSaaSPlans` |  | admin: admin.tenant | Super Admin |
+| POST | `/api/v1/admin/saas/reconcile` | `handleSaaSReconcile` |  | admin: admin.tenant | Super Admin |
+| POST | `/api/v1/admin/saas/subscribe` | `handleSaaSSubscribe` |  | admin: admin.tenant | Super Admin |
 | POST | `/api/v1/admin/sandbox-tenants` | `handleProvisionSandboxTenant` |  | admin: admin.sandbox-tenants | Super Admin |
 | GET | `/api/v1/admin/sandbox-tenants` | `handleListSandboxTenants` |  | admin: admin.sandbox-tenants | Super Admin |
 | DELETE | `/api/v1/admin/sandbox-tenants/{id}` | `handleDeleteSandboxTenant` |  | admin: admin.sandbox-tenants | Super Admin |
@@ -2361,8 +2401,6 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/admin/tenant/host-slug` | `handleSetTenantHostSlug` |  | admin: admin.tenant | Super Admin |
 | GET | `/api/v1/admin/tenant/version` | `handleGetTenantVersion` |  | admin: admin.tenant | Super Admin |
 | POST | `/api/v1/attachments/file/{attachmentID}/remove` | `handleRemoveAttachment` |  | signed-in: attachments.default | every signed-in role |
-| POST | `/api/v1/auth/forgot-password` | `handleForgotPassword` |  | public: auth.default | anyone |
-| POST | `/api/v1/auth/reset-password` | `handleResetPassword` |  | public: auth.default | anyone |
 | GET | `/api/v1/clevertap/logs` | `handleListCleverTapLogs` |  | signed-in: clevertap.default | every signed-in role |
 | ANY | `/api/v1/crm/appointments/{id}/{action}` | `handleCRMAppointments` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/campaign-runs/{id}/{action}` | `handleCRMCampaignRun` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
@@ -2403,6 +2441,7 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/crm/voucher/redeem` | `handleRedeemVoucher` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | POST | `/api/v1/crm/voucher/validate` | `handleValidateVoucher` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | POST | `/api/v1/data-quality/{id}/status` | `handleSetDataQualityStatus` |  | signed-in: master.data-quality | every signed-in role |
+| ANY | `/api/v1/debug/panic` | `handleDebugPanic` |  | signed-in: debug.default | every signed-in role |
 | POST | `/api/v1/doc/{doctype}/{id}/reactivate` | `handleReactivateMasterDocument` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/einvoice/reconciliation` | `handleEInvoiceReconciliation` | finance | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
 | POST | `/api/v1/finance/intercompany-transaction/{id}/retry-post` | `handleRetryPostIntercompanyTransaction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
@@ -2431,6 +2470,8 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | GET | `/api/v1/import/{doctype}/load-order` | `handleImportLoadOrder` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/integration/bigcommerce/webhook/{channelCode}` | `handleBigCommerceWebhook` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/integration/courier/{provider}/tracking` | `handleCourierTrackingWebhook` | oms / oms_integration | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/integration/razorpay/subscription-webhook` | `handleSaaSSubscriptionWebhook` |  | public: finance.default | anyone |
+| POST | `/api/v1/integration/razorpay/webhook` | `handleRazorpayWebhook` |  | public: finance.default | anyone |
 | POST | `/api/v1/integration/shopify/order` | `handleShopifyOrderWebhook` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/integration/shopify/product/map` | `handleShopifyProductMap` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/integration/shopify/webhook` | `handleShopifyWebhook` | oms | public: oms.default | anyone |

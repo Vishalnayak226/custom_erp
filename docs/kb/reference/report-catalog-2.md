@@ -21,7 +21,7 @@ screens: [reports]
 # Report catalog (part 2)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **149** reports, from
+every category and explains how to run a report. It holds **150** reports, from
 HRMS to PIM / PIMS.
 
 ## Contents
@@ -32,7 +32,7 @@ HRMS to PIM / PIMS.
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data-audit) - 11 reports
 - [OMS](#oms) - 25 reports
-- [PIM](#pim) - 8 reports
+- [PIM](#pim) - 9 reports
 - [PIM / PIMS](#pim-pims) - 16 reports
 
 ## HRMS
@@ -662,7 +662,7 @@ HRMS to PIM / PIMS.
 - **From (optional)** (`start`) - date, optional
 - **To (optional)** (`end`) - date, optional
 
-**Columns:** Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User
+**Columns:** Date · SKU · Location · Qty Delta · UOM · Running Balance · Voucher Type · Voucher ID · Unit Cost · Unit Price · Tax % · From Location/Bin · To Location/Bin · From Condition · To Condition · User
 
 **Drill-down:** no.
 
@@ -1689,6 +1689,18 @@ HRMS to PIM / PIMS.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Brand on items · Items · Brand master spelling
+
+**Drill-down:** no.
+
+### R9063 Declaration gaps
+
+**Report id:** `declaration-gaps`
+
+**Parameters:**
+
+- **Category** (`category`) - text, optional
+
+**Columns:** Item · Name · Category · Pack · Channel · Missing · Turned on by
 
 **Drill-down:** no.
 

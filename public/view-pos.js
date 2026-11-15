@@ -399,6 +399,7 @@ async function refreshPOSSessionStatus() {
   }
   const data = await res.json();
   posOpenSessionId = data.open ? data.session_id : '';
+  ensureTillSeries(posLocation); // 76.10: this till's offline bill series
   if (posOpenSessionId) {
     statusEl.textContent = `Session open at ${shown}.`;
     openBtn.classList.add('hidden');
@@ -781,7 +782,7 @@ function posAvailabilityCell(line) {
   // entered, rather than discovered by the server at checkout with a customer
   // already waiting.
   const over = line.qty > sellable;
-  const main = `<div style="font-weight:600; ${over ? 'color: var(--danger-color, #b3261e);' : ''}">${sellable} sellable</div>`;
+  const main = `<div data-css="font-weight:600; ${over ? 'color: var(--danger-color, #b3261e);' : ''}">${sellable} sellable</div>`;
   const held = line.heldText || withheld > 0
     ? `<div class="s-40ab95">${line.heldText ? `Not sellable here: ${escapeHTMLText(line.heldText)}` : `${withheld} not sellable (QC hold / damaged / blocked)`}</div>`
     : '';
@@ -1104,7 +1105,7 @@ async function refreshPOSQuote() {
         ${posAppliedOffers.map(o => `<li>${cfgEsc(o.name)} <span class="s-5872de">- ${cfgEsc(o.description || '')}</span> <strong>-${Number(o.discount).toFixed(2)}</strong></li>`).join('')}
       </ul>
       <div class="s-203476">Total offer discount: -${newDiscount.toFixed(2)}</div>` : ''}
-    ${unmatched.length ? `<div style="font-size:12.5px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
+    ${unmatched.length ? `<div data-css="font-size:12.5px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
         Coupon code${unmatched.length > 1 ? 's' : ''} ${unmatched.map(c => cfgEsc(c) + ((data.coupon_messages || {})[c] ? ` (${cfgEsc(data.coupon_messages[c])})` : '')).join(', ')} did not apply to this cart.
       </div>` : ''}
   `;
@@ -1171,7 +1172,9 @@ async function submitPOSCheckoutInner() {
   const customerStep = await (await posCustomerMod()).posEnsureCustomer({ total: billTotal, cash: cashPart });
   if (!customerStep) return;
   // Stage 85.E2/85.E3: the tender's own name and reference, and the salesman.
-  const tillPayment = await posCustomerRef.posTillPayment();
+  // 185.1: what the picked tender pays - the rest after any split tenders -
+  // and the bill, so each bill asks for its own reference.
+  const tillPayment = await posCustomerRef.posTillPayment({ amount: Math.round(((parseFloat(totalBox.textContent) || 0) - posTenders.reduce((s, t) => s + t.amount, 0)) * 100) / 100, cart: posCurrentCartNumber() });
   if (!tillPayment) return;
   // Stage 72.2: a gift / free-with-item line is priced 0 by the server on
   // purpose (it used to be refused here, so no free item could ever be billed).
@@ -1258,8 +1261,10 @@ async function submitPOSCheckoutInner() {
       // start the next one" boundary - arguably more, since there is no server
       // receipt to confirm it against.
       const offlineTotal = cartItems.reduce((sum, it, i) => sum + it.qty * (posCart[i] ? posCart[i].salePrice : 0), 0);
+      const offlineBill = checkoutPayload.offline_bill_number || ''; // 76.10: the till's own number
       freezePOSTill({
         cartNumber,
+        billNumber: offlineBill,
         status: 'queued',
         heading: 'Sale queued offline',
         note: 'No connection. This sale is saved on this device and will sync automatically once the connection is back. Do not ring it up again.',
@@ -1271,7 +1276,7 @@ async function submitPOSCheckoutInner() {
         offerDiscount: 0,
         canPrint: false
       });
-      showToast(`No connection - sale ${cartNumber} queued offline and will sync automatically once reconnected.`, { variant: 'warning', title: 'Offline' });
+      showToast(`No connection - sale ${offlineBill || cartNumber} queued offline and will sync automatically once reconnected.`, { variant: 'warning', title: 'Offline' });
       return;
     }
     if (!res) return;
@@ -1462,13 +1467,13 @@ function freezePOSTill(sale) {
       <span>${(it.qty * (Number(it.sale_price) || 0)).toFixed(2)}</span>
     </div>`).join('');
   const money = (label, value, strong) => `
-    <div style="display:flex; justify-content:space-between; padding:3px 0; ${strong ? 'font-size:18px; font-weight:700; padding-top:8px; border-top:1px solid var(--border-color);' : 'font-size:13px;'}">
+    <div data-css="display:flex; justify-content:space-between; padding:3px 0; ${strong ? 'font-size:18px; font-weight:700; padding-top:8px; border-top:1px solid var(--border-color);' : 'font-size:13px;'}">
       <span>${cfgEsc(label)}</span><span>${Number(value).toFixed(2)}</span>
     </div>`;
 
   panel.innerHTML = `
     <div class="s-74f21a">
-      <span style="font-size:19px; font-weight:700; color:${colour};">${cfgEsc(sale.heading)}</span>
+      <span data-css="font-size:19px; font-weight:700; color:${colour};">${cfgEsc(sale.heading)}</span>
       <span class="s-b14cdc">${cfgEsc(sale.billNumber ? `Bill ${sale.billNumber}` : (sale.cartNumber || ''))}</span>
       <span class="s-b14cdc">${cfgEsc(posStoreLabel())}</span>
       <span class="s-b14cdc">${cfgEsc(sale.paymentMode || '')}</span>
@@ -1731,7 +1736,7 @@ function renderPOSPackagingRow() {
   }
   posPackagingShortages.forEach(s => {
     const blocking = s.action === 'block';
-    parts.push(`<div style="font-size:12.5px; color:${blocking ? 'var(--danger-color, #b3261e)' : 'var(--warning-color, #b26a00)'};">
+    parts.push(`<div data-css="font-size:12.5px; color:${blocking ? 'var(--danger-color, #b3261e)' : 'var(--warning-color, #b26a00)'};">
       Short of ${cfgEsc(s.name || s.component)}: store has ${s.available}, this sale uses ${s.needed} &mdash; ${blocking ? 'choose another option under Packaging' : 'the sale goes ahead and the shortfall is listed under Item Exceptions'}</div>`);
   });
   row.innerHTML = parts.join('');

@@ -1,3 +1,20 @@
+---
+doc_id: DOC-PRODUCT-D365-PLAYLIST-GAP-PLAN
+title: D365 F&O playlist gap plan
+type: reference
+status: draft
+owner: product-owner
+approvers: [product-owner]
+audience: [product, engineering]
+applies_to: docs/micro_checklist.md Stage 148
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-11-14
+review_by: 2027-02-12
+supersedes: none
+superseded_by: none
+---
+
 # D365 F&O playlist: what the ERP should do, smarter (Stage 148, 2026-10-31)
 
 User, 2026-10-31: *"Can you learn full playlist and prepare a checklist to update in erp. No copy, We need make it smarter thats all"* - playlist "Microsoft Dynamics 365 Finance & Operations for Beginners (D365 F&O Simplified)", 138 episodes (Ep 1-139, no Ep 114), 55 h.

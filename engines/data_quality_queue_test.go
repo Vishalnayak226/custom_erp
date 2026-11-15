@@ -96,6 +96,41 @@ func TestDataQualityScanLifecycle(t *testing.T) {
 	}
 }
 
+// 199.1: combinations of one design share their item name, so only the same
+// name in the same design with the same values is a duplicate.
+func TestDataQualityItemDupNameByDesignAndValues(t *testing.T) {
+	tenant, schema := retentionTestSetup(t)
+	defer func() {
+		db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id LIKE 'I199-DQ-%'")
+		db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'DataQualityIssue' AND data->>'record_id' LIKE 'I199-DQ-%'")
+	}()
+	item := func(id, values string) {
+		seedStaffVendor(t, schema, "Item", id, map[string]interface{}{"code": id, "name": "Zz199 Necklace",
+			"item_name": "Zz199 Necklace", "family": "I199-DQ-FAM", "variant_option_values": values})
+	}
+	item("I199-DQ-A", "COL:Red")
+	item("I199-DQ-B", "COL:Green")
+	item("I199-DQ-C", "COL:Red")
+	if _, err := ScanDataQuality(tenant, "tester"); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	dup := func(id string) bool {
+		rows, _ := ListDataQualityIssues(tenant, "Open")
+		for _, r := range rows {
+			if r.RecordID == id && r.Problem == "Same name as another item" {
+				return true
+			}
+		}
+		return false
+	}
+	if dup("I199-DQ-B") {
+		t.Error("a combination with its own values was flagged as a duplicate name")
+	}
+	if !dup("I199-DQ-A") || !dup("I199-DQ-C") {
+		t.Error("two combinations with the same name, design and values were not flagged")
+	}
+}
+
 // The queue leaves Stage 72's exception queue alone.
 func TestDataQualityScanLeavesItemExceptionAlone(t *testing.T) {
 	tenant, schema := retentionTestSetup(t)

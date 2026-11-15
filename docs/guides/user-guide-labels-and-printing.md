@@ -24,6 +24,14 @@ Part 5 of 9 of the [User Guide](user-guide.md). Previous: [Receiving goods and m
 
 **Inventory → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen is the print run itself. What a label looks like (**sticker templates**) and which template each item's label uses (**template rules**, §7A.5) are on **Setup → Printing → Templates** with every other template — the **Templates** button at the top of Sticker Printing goes there.
 
+**Day to day, in two clicks:**
+
+| To | Click |
+| --- | --- |
+| Print a GRN's stickers | **+ Print Stickers**, pick the GRN, then **Print** in the preview |
+| Print a row again | **Print history** → **Reprint** on the row, then **Print** in the preview |
+| Move the print sideways on the tags | **Printer preset** → **Line up**, **Print**, then tap the letter of the best row (§7A.6) |
+
 > **Before your first print run you need one Printer record.** Setup → Printing → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to a **TSC (TSPL)** or **Zebra (ZPL)** thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[qz-printing-setup.md](qz-printing-setup.md)**; the Printer record needs its **Printer Language** (TSPL or ZPL), **Printer DPI** and **OS Printer Name** filled in. Until that is done, printing still works, it just opens the normal browser print dialog (as roll-sized pages or an A4 sticker sheet — §7A.2, *Label tab*).
 
 ### 7A.1 Print the labels for a GRN or a Transfer Order
@@ -54,7 +62,7 @@ Three things it does for you:
 
 If the document loads but says *"That document has no stickerable lines"*, the lines were all rejected/damaged, or (for a transfer) the quantities are zero.
 
-**Where the labels go.** With the print agent — **PrintBridge** (or QZ Tray) — running on this computer and a thermal printer chosen, labels print silently, dot-sharp, at the label's own size. That needs three things once: **PrintBridge** on this computer (**Download PrintBridge** under *Printer setup on this computer*, run it, click **Yes** to the one certificate question - see §7A.6); a **Printer** record (**Setup → Printing → Printer**) with **Printer Language** = TSPL (most 4-inch label printers, e.g. Y468BT) or ZPL (Zebra), the Windows printer name in **OS Printer Name** (use **Detect Printers**), and the **Printer DPI** (203 for most); and that printer picked on the print page. The wrong language prints nothing: a TSPL printer sent ZPL feeds blank tags. Otherwise the browser's print dialog opens, and **Cancel** there prints nothing.
+**Where the labels go.** With the print agent — **PrintBridge** (or QZ Tray) — running on this computer and a thermal printer chosen, labels print silently, dot-sharp, at the label's own size. That needs three things once: **PrintBridge** on this computer (the first print offers **Install** - see §7A.6); a **Printer** record (**Setup → Printing → Printer**) with **Printer Language** = TSPL (most 4-inch label printers, e.g. Y468BT) or ZPL (Zebra), the Windows printer name in **OS Printer Name** (use **Detect Printers**), and the **Printer DPI** (203 for most); and that printer picked on the print page. The wrong language prints nothing: a TSPL printer sent ZPL feeds blank tags. Otherwise the browser's print dialog opens, and **Cancel** there prints nothing.
 
 **See it before it prints.** Every **Print** on this page — **Print Selected**, a row's **Print**, **Print Stickers** — first draws the print exactly as the printer will get it. Labels show the way the tag reads, and grey dashes mark each label's edge (the dashes don't print). The caption names the template and its size. It also says how many labels of a multi-label print (a "× 3" template, say) are left blank, and whether the print comes out turned 180°. **Print** in the preview prints it; **Close** prints nothing and adds nothing to the print history. With **Print on scan** on, each scan still prints straight away (that is what the box is for), and **Print Stickers** shows whatever is typed in the scan box, as that scan would print. The page it sends is the label's own size, but the Windows driver decides the paper: if the tag lands small or turned in the middle of a bigger label, set the driver's paper size to the roll (Printer preferences) or, better, use PrintBridge. An item with no barcode of its own prints its SKU as the barcode. **Printer setup on this computer (QZ Tray) and channel label PDFs**, collapsed at the bottom of the print page, holds the one-time setup — QZ status, **Detect Printers**, **Test Print** — and printing a marketplace label or invoice PDF exactly as the channel issued it. Its **Print** first shows a ZPL or text label file's contents, or for a PDF a link that opens it in a new browser tab; **Print** in that window prints it.
 
@@ -79,7 +87,7 @@ The **Insert** rail on the left adds elements to the middle of the label:
 | Button | What it adds |
 |---|---|
 | **Text** | Your own wording. Type plain text, or mix in item data with `{field}` tokens — `W: {weight} gm`, `MRP ₹{mrp}`, `{metal_type} {purity_karat}`. **Insert field…** under the text box drops a token in for you. |
-| **Data** | Opens the **Data fields** drawer: every field on the label (**Item name**, **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. **Drop a field onto a barcode or QR code** and that code switches to it — drop **Batch / Lot** onto a barcode to make the batch scannable. Each row shows the value it would print (Batch / Lot shows a sample in today's batch format). **Variant** prints just the variant's values — an item saved as `metal_type:Silver;size:7` prints **Silver / 7**. |
+| **Data** | Opens the **Data fields** drawer: every field on the label (**Item alias** — the item's short name, 14 characters at most, set on its item name; **Item name (full)**; **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. **Drop a field onto a barcode or QR code** and that code switches to it — drop **Batch / Lot** onto a barcode to make the batch scannable. Each row shows the value it would print (Batch / Lot shows a sample in today's batch format). **Variant** prints just the variant's values — an item saved as `metal_type:Silver;size:7` prints **Silver / 7**. |
 | **Barcode** | A barcode of the item's barcode value (or any other field, or custom text). **Code 128** takes any text; **EAN-13** is the 13-digit retail code (a value that isn't a valid EAN-13 prints as Code 128 instead, and the studio says so). |
 | **QR** | A QR code of any field or custom text — for example a product link `https://yourshop.in/p/{sku}`. |
 | **Line**, **Box** | Dividers and borders. A box can be **solid filled**. |
@@ -145,12 +153,12 @@ The template rules (§7A.5) apply here exactly as they do to a document print. P
 
 The table at the bottom of the **Print** tab is the print history: SKU, barcode, printer, who printed it, how many copies, the **Source** document, the **Lot**, the reprint reason, and when. Every print run — document-driven or manual — lands here, so a queried re-print can always be traced back to a person and a time. A run started from a GRN or Transfer Order also records which document it came from and which template it used. If that line carried a batch/lot, the run records the lot too. So when one SKU arrived on two lots in the same GRN and each lot's stickers were printed separately, the history shows two rows, one per lot (for example `LOT-JUL` ×3 and `LOT-AUG` ×5). A manual SKU scan has no lot, so that column stays blank for it, as it does for runs printed before this column existed.
 
-**To print a row again**, click **Reprint** at the end of it. The print page opens on that row's printer and copies, with the cursor in **Reprint reason**:
+**To print a row again**, click **Reprint** at the end of it, then **Print** in the preview that opens. That is all: the preview has that row's stickers on its printer, with its copies.
 
-- A row printed from a document loads that document with only that SKU and lot ticked. Check the copies and click **Print Selected**. If the line is no longer on the document, a message says so.
-- A row printed by scanning puts the SKU in the scan list (with **Print on scan** off for this print). Click **Print Stickers**.
-
-The template follows today's template rules, so a reprint looks like a fresh print; pick another in the line's dropdown if you need to.
+- A row printed from a document loads that document with only that SKU and lot ticked. If the line is no longer on the document, no preview opens and a message says so.
+- A row printed by scanning puts the SKU in the scan list (with **Print on scan** off for this print).
+- **Reprint reason** is optional. To record one, click **Close** in the preview, type it (or pick a code), and click **Print Selected** (or **Print Stickers**).
+- To change the copies or the template first, **Close** the preview, change them, and print. The template follows today's template rules, so a reprint looks like a fresh print.
 
 ### 7A.5 Which template each item uses (Template rules)
 
@@ -183,12 +191,28 @@ Set it once per printer. Every computer that prints to that printer uses it, and
 
 1. **Sticker Printing → + Print Stickers**, pick the **Printer**, and click **Printer preset** beside it (it reads **Roll: *name*** once a roll is set).
 2. **Roll loaded** — the template for the roll in the printer, for example *Seznik vertical × 3*. From then on every sticker on this printer prints on that roll: an item whose template rule picks a design of another size prints with the roll's template instead, so a print can no longer cross the tags; a design of the same roll size (a Square and a Ring design, say) still prints as itself. **None** leaves it to the template rules (§7A.5).
-3. Load the roll and click **Calibrate roll**: the printer feeds a few labels and measures the label and the gap. Do it again after changing to a different roll.
-4. Click **Test alignment**, check the label it shows, and click **Print**. Each label of the roll gets a box 0.5 mm inside its edges, a cross through the middle and the shift in use. Even gaps all round mean the printer is aligned. If the box sits nearer one edge, change **Shift right** / **Shift down** (mm; a negative number moves the other way) and test again - the test uses the numbers on screen, saved or not.
-5. **Darkness** (0-15) and **Speed**: leave blank to keep each template's own; set them when every tag is too faint or smudged.
-6. **Save**. The preset is kept on the Printer record (**Setup → Printing → Printer** shows the same fields), so it holds for every computer and every template. Only roles that may change printers can save.
+3. Load the roll with the tags in the middle of the printer, snug against its guides, and click **Calibrate roll**: the printer feeds a few labels and measures the label and the gap. Do it again after changing to a different roll. (A printer set up as **PDF** goes through its Windows driver and cannot be calibrated from here; use the printer's own label calibration from its manual.)
+4. **Line up** - put the print in the middle of the tags, no measuring:
+   1. Click **Line up**, then **Print** in the preview. Five rows of tags come out, lettered **A** to **E**. Each tag has a box just inside its edge. Each row is moved 0.5 mm further right than the one before; **C** is the shift you have now. The rows are drawn on the **Roll loaded**; with **None**, on the template ticked **Default** (or the only label-roll template). The preview names it under each row: check it is your roll before you print.
+   2. Keep the Printer preset open. Look at the rows and find the one whose boxes sit evenly inside the tags.
+   3. Tap that letter under **Best row**. Its shift is saved at once, and a message says which.
+   4. If **A** or **E** was still not even, tap it and click **Line up** again: the next strip starts from there.
+5. **Test alignment** prints one row with a box, a cross through the middle and the shift in use. Use it to check up and down too: if the box sits nearer the top or bottom of the tags, change **Shift down** (mm; a negative number moves up) and test again. The test uses the numbers on screen, saved or not.
+6. **Darkness** (0-15) and **Speed**: leave blank to keep each template's own; set them when every tag is too faint or smudged.
+7. **Save** (Line up has already saved its shift). The preset is kept on the Printer record (**Setup → Printing → Printer** shows the same fields), so it holds for every computer and every template. Only roles that may change printers can save.
 
-**PrintBridge on each computer.** **Download PrintBridge** (Sticker Printing → + Print Stickers → *Printer setup on this computer*) is one installer for every Wholeops address. Run it once and click **Yes** to the certificate question. It starts with Windows; if someone quits it from the tray, it is back at the next restart, and the ERP starts it again at the next click before that (the browser may ask once *Open PrintBridge?* - tick **Always allow**). Opened at any other address (an office IP, your own domain), PrintBridge asks once on that computer *Allow printing?* - say **Yes** only for your ERP. The panel says whether PrintBridge is running, and offers the download again when a newer one is out.
+**When a tag comes out wrong:**
+
+| You see | Do this |
+| --- | --- |
+| Text cut off at one side of every tag | **Line up** (step 4). |
+| Text cut off at the top or bottom of every tag | **Test alignment**, then change **Shift down** (step 5). |
+| The far side of the last tag never prints, whatever the shift | The roll sits off-centre under the print head. Slide it so the tags are in the middle of the printer, then **Line up** again. |
+| A blank tag or a blank row before the stickers | Update PrintBridge on that computer (**Download PrintBridge**, below), then print again. |
+| Faint or smudged print | Set **Darkness** (higher is darker) or a lower **Speed**. |
+| Each print starts part-way down a tag | **Calibrate roll** (step 3). |
+
+**PrintBridge on each computer - installed once, for good.** The first print on a Windows computer without PrintBridge shows *Install PrintBridge*. Click **Install**, open the downloaded file (Windows may first say *Windows protected your PC* - **More info → Run anyway**), and the print goes out by itself as soon as PrintBridge starts; the installer asks nothing. **Not now** prints through the browser and is not asked again in that browser - **Download PrintBridge** (Sticker Printing → + Print Stickers → *Printer setup on this computer*) is the same installer. New versions replace themselves (PrintBridge 0.3.0 and later): the panel says *updating to ... by itself*, and only a PrintBridge older than 0.3.0 needs **Download PrintBridge** once more. The computer keeps its printer choices after the browser's data is cleared. It starts with Windows; if someone quits it from the tray, it is back at the next restart, and the ERP starts it again at the next click before that (the browser may ask once *Open PrintBridge?* - tick **Always allow**). Opened at any other address (an office IP, your own domain), PrintBridge asks once on that computer *Allow printing?* - say **Yes** only for your ERP. The panel says whether PrintBridge is running and which version.
 
 ## 7B. Printing POs, GRNs, Transfers and Notes — and Designing Their Layout
 

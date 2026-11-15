@@ -10,10 +10,8 @@
 // field is asked. Shared app services (apiFetch, escapeHTMLText,
 // attachLinkTypeahead, lookupLinkDoc, ...) resolve from the classic shell.
 
-if (!document.getElementById('view-item-form-css')) {
-  const style = document.createElement('style');
-  style.id = 'view-item-form-css';
-  style.textContent = `
+// 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
+adoptCss('view-item-form-css', `
 .item-name-hint { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
 .item-name-hint strong { color: var(--text-main); font-weight: 600; }
 .item-attr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 16px; }
@@ -38,9 +36,7 @@ if (!document.getElementById('view-item-form-css')) {
 .attr-map-note { font-size: 12.5px; color: var(--text-muted); margin: 6px 0 10px; }
 .attr-map-used { font-size: 12px; color: var(--text-muted); margin-left: 26px; }
 @media (max-width: 640px) { .item-fields-table { font-size: 12.5px; } .item-fields-table th, .item-fields-table td { padding: 6px; } }
-`;
-  document.head.appendChild(style);
-}
+`);
 
 function loadItemSetup(params) {
   const qs = params ? `?${new URLSearchParams(params)}` : '';
@@ -116,8 +112,64 @@ async function fillFromItemName(scope, ref, { userPicked, hint } = {}) {
     }
     const nm = el('name');
     if (nm && !nm.value.trim() && doc.name) nm.value = doc.name;
+    // 201.1: the item prints its item name's alias unless one is typed.
+    const al = el('item_alias');
+    if (al && (!al.value.trim() || al.value === al.dataset.auto)) {
+      const made = doc.item_alias || (await loadItemSetup({ preview: 'alias', name: doc.name || '', category: doc.category || '' }))?.item_alias || '';
+      al.value = made;
+      al.dataset.auto = made;
+    }
   }
   return doc;
+}
+
+// Item 201.1: the printed alias - 14 characters, made from the name if blank.
+function prepAliasBox(scope) {
+  const box = scope.querySelector('[name="item_alias"]');
+  if (box) {
+    box.maxLength = 14;
+    box.placeholder = 'Made from the name';
+  }
+  return box;
+}
+
+// Item 201.2 (user, 2026-11-15: "Item name will be derived from Both Not typed
+// Manually. Can be overwritten"): an Item Name is filled from Category + Type
+// in the org's order and its alias from the name, as they are picked. A box
+// still showing what was filled follows the next pick; a typed one is kept.
+async function wireItemNameForm(body) {
+  if (!body || body.dataset.itemNameForm) return;
+  body.dataset.itemNameForm = '1';
+  const el = n => body.querySelector(`[name="${n}"]`);
+  const name = el('name'), alias = prepAliasBox(body), cat = el('category'), typ = el('product_type');
+  if (!name || !cat || !typ) return;
+  let autoName = null, autoAlias = null, seq = 0;
+  const follows = (box, prev) => box && (!box.value.trim() || box.value === prev);
+  const refreshAlias = async (mine = ++seq) => {
+    if (!alias) return;
+    const p = await loadItemSetup({ preview: 'alias', name: name.value.trim(), category: cat.value.trim() });
+    if (!p || mine !== seq) return;
+    if (follows(alias, autoAlias)) alias.value = p.item_alias;
+    autoAlias = p.item_alias;
+  };
+  const refreshName = async () => {
+    const mine = ++seq;
+    const p = await loadItemSetup({ preview: 'name', category: cat.value.trim(), product_type: typ.value.trim() });
+    if (!p || mine !== seq) return;
+    if (follows(name, autoName)) name.value = p.name;
+    autoName = p.name;
+    await refreshAlias(mine);
+  };
+  let timer = 0;
+  const soon = fn => () => { clearTimeout(timer); timer = setTimeout(fn, 250); };
+  [cat, typ].forEach(x => { x.addEventListener('change', soon(refreshName)); x.addEventListener('input', soon(refreshName)); });
+  name.addEventListener('input', soon(() => refreshAlias()));
+  // On open, a box already showing what would be made counts as made.
+  const p = await loadItemSetup({ preview: 'name', category: cat.value.trim(), product_type: typ.value.trim() });
+  if (p && p.name && name.value === p.name) autoName = p.name;
+  const a = alias && name.value.trim() ? await loadItemSetup({ preview: 'alias', name: name.value.trim(), category: cat.value.trim() }) : null;
+  if (a && alias.value === a.item_alias) autoAlias = a.item_alias;
+  if (!name.value.trim()) await refreshName();
 }
 
 // The Item Name box: the shared picker, with "+ Create" making a new one from
@@ -246,7 +298,16 @@ async function wireItemForm(body, { isEdit = false, record = {} } = {}) {
 
   // 5. Basics in the order a person answers them.
   const basics = groupOf('name')?.parentElement;
-  if (basics) ['item_type', 'item_name', 'name', 'code', 'category', 'product_type', 'barcode'].forEach(n => { const g = groupOf(n); if (g) basics.appendChild(g); });
+  if (basics) ['item_type', 'item_name', 'name', 'item_alias', 'code', 'category', 'product_type', 'barcode'].forEach(n => { const g = groupOf(n); if (g) basics.appendChild(g); });
+  const aliasBox = prepAliasBox(body);
+  if (aliasBox && !isEdit) aliasBox.dataset.auto = '';
+
+  // 199.1: a combination shows its design's properties (colour, polish, size,
+  // stone ...) filled in; only a value changed here is stored on the item.
+  const designRef = rec.family || rec.parent_product_code || '';
+  const designDoc = designRef && designRef !== (rec.code || rec.id) ? await lookupLinkDoc('ProductFamily', designRef).catch(() => null) : null;
+  const designPairs = new Map(String(designDoc?.design_attributes || '').split(';').map(p => p.split(':'))
+    .filter(p => p[0] && p[0].trim()).map(([k, ...v]) => [k.trim().toUpperCase(), v.join(':').trim()]));
 
   // 6. Attributes as dropdowns, each from its own list (89.3), following the
   // item name's type when the org maps them (89.5).
@@ -287,6 +348,8 @@ async function wireItemForm(body, { isEdit = false, record = {} } = {}) {
     const pairs = String(variantInput.value || '').split(';').map(p => p.split(':')).filter(p => p[0] && p[0].trim())
       .map(([k, ...v]) => [k.trim(), v.join(':').trim()]);
     const current = new Map(pairs.map(([k, v]) => [k.toUpperCase(), v]));
+    const own = new Set(current.keys());
+    designPairs.forEach((v, k) => { if (!current.has(k)) current.set(k, v); });
     const kept = pairs.filter(([k]) => !asked.some(a => a.code.toUpperCase() === k.toUpperCase()));
     attrHost.innerHTML = asked.length ? '' : `<p class="text-muted s-881487">${set.source === 'all' ? 'No item attributes yet - add them under Setup → Item Attribute.' : 'Nothing is mapped to ask for this type.'}</p>`;
     const grid = document.createElement('div');
@@ -308,16 +371,18 @@ async function wireItemForm(body, { isEdit = false, record = {} } = {}) {
       grid.appendChild(fg);
     });
     if (asked.length) attrHost.appendChild(grid);
-    if (kept.length) {
+    const fromDesign = [...designPairs].filter(([k]) => !own.has(k) && !asked.some(a => a.code.toUpperCase() === k));
+    if (kept.length || fromDesign.length) {
       const note = document.createElement('div');
       note.className = 'item-attr-kept';
-      note.textContent = `Also on this item: ${kept.map(([k, v]) => `${k}: ${v}`).join(', ')}`;
+      note.textContent = `Also on this item: ${kept.concat(fromDesign).map(([k, v]) => `${k}: ${v}`).join(', ')}`;
       attrHost.appendChild(note);
     }
     const sync = () => {
       const chosen = [...grid.querySelectorAll('[data-attr]')]
         .map(c => [c.dataset.attr, String(c.value || '').replace(/[:;]+/g, ' ').trim()])
-        .filter(([, val]) => val && val !== ADD_VALUE);
+        .filter(([, val]) => val && val !== ADD_VALUE)
+        .filter(([k, val]) => own.has(k.toUpperCase()) || designPairs.get(k.toUpperCase()) !== val);
       variantInput.value = [...chosen, ...kept].map(([k, val]) => `${k}:${val}`).join(';');
     };
     grid.addEventListener('change', sync);
@@ -749,4 +814,4 @@ async function renderConfigItemFields(outer) {
   });
 }
 
-export { wireItemForm, wireItemQuickCreate, wireAttributeMapForm, wireItemTypeForm, renderConfigItemFields, loadItemSetup };
+export { wireItemForm, wireItemNameForm, wireItemQuickCreate, wireAttributeMapForm, wireItemTypeForm, renderConfigItemFields, loadItemSetup };

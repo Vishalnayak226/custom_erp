@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 40
 summary: How roles gate what a user can see and do, how the maker-checker approval engine routes and locks high-value documents, and how field-level permission and MFA controls layer on top — the cross-cutting reference every other module handbook points back to.
 audience: admin, auditor
-last_verified: 2026-09-03
+last_verified: 2026-11-15
 screens: [users, roles, approvals, approval-rules, profile, audit-logs]
 doc_id: DOC-34820397E4
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -230,12 +230,30 @@ engine checks `total_amount` first, then falls back through `amount`,
    whole duration — specifically to stop two concurrent decide calls (a
    double-click, a retry, two checkers racing) from both reading
    `Pending Approval` before either commits and both writing a decision:
-   - **Maker-checker segregation.** The actor can never decide a document
-     they themselves submitted, regardless of role — Super Admin included.
+   - **Maker-checker segregation.** Whether the submitter may decide their
+     own document is a per-client setting, **Who can approve their own
+     documents** (Security, `approvals.self_approval`): *Anyone who can
+     approve it* (an owner-run shop or a sandbox), *Admins only*, or
+     *Nobody*. A new client starts at *Nobody* (49.10.6b), a sandbox client
+     at *Anyone*. The submitter still needs the role the rule names. Where
+     the submitter may not decide, nor may whoever made the current
+     approval round — changed it last, or sent it for approval (49.3.5). A
+     Super Admin's password reset, a second-admin treatment correction and
+     the dual-control doctypes always need a second person, whatever the
+     setting says; so do campaigns when `crm.campaign_second_approver` is
+     on. An own decision is marked "decided by the submitter" in the
+     approval history and the audit log and listed in the **Own approval
+     decisions** report. Above the amount in **Own decisions above this
+     amount need a reason** it needs a written reason of at least 10
+     characters (`APPROV-0842`).
    - **Role match.** The actor's role must equal the amount slab's
-     `required_role`, unless the actor is Super Admin (which overrides this
-     check the same way it overrides every other role gate in the
-     codebase). A mismatch surfaces as `PURCHA-0083` for PurchaseOrder
+     `required_role`, unless the actor has full access (Super Admin, Admin,
+     HR/Admin). Three others may also decide: the role a PO's rule
+     escalated it to, the role `approvals.escalate_to_role` names once a
+     document has waited past `approvals.escalation_hours`, and a user
+     covering an approver of the required role that day (73.4.9). A cover
+     never decides what they raised or sent for approval themselves, and a
+     second-admin or dual-control document is never covered. A mismatch surfaces as `PURCHA-0083` for PurchaseOrder
      specifically, or a generic 422 for every other doctype.
    - **Location match.** A non-Super-Admin actor's location must match the
      document's `location` field, when the document has one.
@@ -304,6 +322,11 @@ role, amount, and comment (a rejection's is mandatory, everything else's is
 optional). `LogAuditEvent` also records `APPROVAL_DECISION` and
 `APPROVAL_BULK_DECISION` entries visible from **Audit Logs** (screen id
 `audit-logs`).
+
+### Privacy approvals
+
+An incident's **Notify** / **Do not notify** decision is checked by a second
+person, the approver named on it. See [Privacy approvals](privacy-approvals.md).
 
 ## MFA: who must enroll, and how recovery works
 

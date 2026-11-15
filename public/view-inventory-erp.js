@@ -73,7 +73,7 @@ async function renderDashboard(container) {
     const max = Math.max(1, ...shown.map(r => num(r.units)));
     const line = r => `<tr title="${esc(`${r.name}: ${fmtQty(r.units)} qty in ${fmtQty(r.designs)} designs`)}"><td class="inv-dash-name">${esc(r.name)}</td>
       <td class="num">${fmtQty(r.designs)}</td><td class="num">${fmtQty(r.units)}</td>
-      <td class="inv-dash-share"><div class="inv-dash-bar"><span style="width:${Math.max(0, Math.min(100, num(r.units) / max * 100)).toFixed(1)}%"></span></div></td>
+      <td class="inv-dash-share"><div class="inv-dash-bar"><span data-css="width:${Math.max(0, Math.min(100, num(r.units) / max * 100)).toFixed(1)}%"></span></div></td>
       ${showValue ? `<td class="num">${formatMoney(r.value)}</td>` : ''}</tr>`;
     const others = rest.length ? `<tr class="inv-dash-other"><td class="inv-dash-name">Others (${rest.length})</td><td></td>
       <td class="num">${fmtQty(rest.reduce((t, r) => t + num(r.units), 0))}</td><td></td>
@@ -513,7 +513,7 @@ async function renderMaterials(container) {
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" data-css="width:${width}px;" ${extra}></div>`;
   form.innerHTML = `<div class="s-d9da29">
       ${field('mi-store', 'Store', 180, `value="${esc(sessionStore())}"`)}${field('mi-dept', 'Department', 180)}${field('mi-cc', 'Cost centre', 160, 'placeholder="optional"')}
       ${field('mi-emp', 'Employee', 160, 'placeholder="optional"')}${field('mi-project', 'Project', 140, 'placeholder="optional"')}
@@ -680,7 +680,7 @@ async function renderChallans(container) {
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '20px';
-  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" style="width:${width}px;" ${extra}></div>`;
+  const field = (id, label, width, extra = '') => `<div class="form-group s-116966"><label class="form-label" for="${id}">${label}</label><input class="form-input" id="${id}" autocomplete="off" data-css="width:${width}px;" ${extra}></div>`;
   form.innerHTML = `<div class="s-d9da29">
       ${field('dc-store', 'From store', 160, `value="${esc(sessionStore())}"`)}
       <div class="form-group s-116966"><label class="form-label" for="dc-purpose">Purpose</label><select class="form-select s-d52ddd" id="dc-purpose">${DC_PURPOSES.map(p => `<option>${p}</option>`).join('')}</select></div>

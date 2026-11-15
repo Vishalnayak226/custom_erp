@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 55
 summary: Group products once - by hand or by rule - then bulk edit, export and report against that group.
 audience: category manager
-last_verified: 2026-08-12
+last_verified: 2026-11-15
 screens: [pim, doctype:pimproductgroup]
 doc_id: DOC-64EC9B6A9A
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-12
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -68,7 +68,7 @@ a much bigger thing to secure and support.
 Open **Setup » Item** and choose **Group Actions**. Pick the group; the dialog
 tells you how many products it currently resolves to.
 
-**Bulk edit the group.** Choose a field and a new value. Every guard that
+**Bulk edit group.** Choose a field and a new value. Every guard that
 applies to a hand-picked selection applies here too: the maximum-documents cap,
 per-document validation, variant uniqueness, and re-approval of approved records
 whose doctype is approval-gated.
@@ -78,7 +78,7 @@ whose doctype is approval-gated.
 > when the dialog opened. If the catalog changed in between, the edit applies to
 > what matches **then**. The count in the dialog is a preview, not a promise.
 
-**Export the group.** Downloads one CSV row per product with the group's live
+**Export CSV.** Downloads one CSV row per product with the group's live
 completeness score, its missing fields, and the same title/description/tags the
 search feed publishes. This is the file to hand an agency or a translator.
 
@@ -86,7 +86,7 @@ search feed publishes. This is the file to hand an agency or a translator.
 takes a group id and lists its members with their readiness. Schedule it like
 any other report to get a standing view of a dynamic group's health.
 
-## What is not here yet
-
-Assigning a group as work to a person is part of the PIM task engine, which does
-not exist yet. Today a group drives bulk edits, exports and reporting.
+**Give the group out as work.** Open **PIM » My Work**, then **Task Templates**.
+Under **Run a task template**, pick a **Template** and the **Product group** and
+click **Create tasks**: each product in the group gets its own task, with the
+template's owner and due date.

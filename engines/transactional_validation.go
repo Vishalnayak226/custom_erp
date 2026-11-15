@@ -136,7 +136,28 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	case "Timesheet": // 170.31
 		return validateTimesheetSave(tenantID, docID, priorStatus, priorData, payload)
 	case "ExpenseClaim": // 170.29
+		if err := validateTravelRequestLink(tenantID, payload); err != nil { // 176.2
+			return err
+		}
 		return validateExpenseClaimLimit(tenantID, payload)
+	case "StaffAdvance": // 176.2
+		return validateTravelRequestLink(tenantID, payload)
+	case "TravelRequest": // 176.2
+		return validateTravelRequestSave(tenantID, priorStatus, payload)
+	case "CorporateCard": // 176.3
+		return validateCorporateCardSave(tenantID, payload)
+	case "CardStatementLine": // 176.3
+		return validateCardStatementLineSave(tenantID, docID, payload)
+	case "ServiceVisit": // 176.4
+		return validateServiceVisitSave(tenantID, priorStatus, priorData, payload)
+	case "ServiceArticle": // 176.5
+		return validateServiceArticleSave(payload)
+	case "ServiceTicket": // 176.5
+		return validateTicketHelpArticle(tenantID, priorData, payload)
+	case "Instrument": // 176.6
+		return validateInstrumentSave(payload)
+	case "CalibrationRecord": // 176.6
+		return validateCalibrationRecordSave(tenantID, priorStatus, payload)
 	case "PurchaseReturn":
 		return validatePurchaseReturnRules(tenantID, docID, priorStatus, priorData, payload)
 	case "VendorQuote": // Stage 73.2.3: the award selects a quote

@@ -112,8 +112,8 @@ function openStandardWizard(operations) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'ls-wizard';
-  const n = (id, label, unit, w = 110) => `<div class="form-group s-2a0ca8"><label class="form-label" for="${id}">${label}${unit ? ` <span class="s-d59bb5">(${unit})</span>` : ''}</label><input type="number" id="${id}" class="form-input" min="0" step="any" style="width: ${w}px;"></div>`;
-  const t = (id, label, w = 160) => `<div class="form-group s-2a0ca8"><label class="form-label" for="${id}">${label}</label><input type="text" id="${id}" class="form-input" style="width: ${w}px;"></div>`;
+  const n = (id, label, unit, w = 110) => `<div class="form-group s-2a0ca8"><label class="form-label" for="${id}">${label}${unit ? ` <span class="s-d59bb5">(${unit})</span>` : ''}</label><input type="number" id="${id}" class="form-input" min="0" step="any" data-css="width: ${w}px;"></div>`;
+  const t = (id, label, w = 160) => `<div class="form-group s-2a0ca8"><label class="form-label" for="${id}">${label}</label><input type="text" id="${id}" class="form-input" data-css="width: ${w}px;"></div>`;
   overlay.innerHTML = `
     <div class="modal-container s-c127b9" role="dialog" aria-modal="true" aria-labelledby="ls-wizard-title">
       <div class="modal-header"><h3 class="modal-title" id="ls-wizard-title">New labour standard</h3>

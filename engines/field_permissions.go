@@ -225,3 +225,32 @@ func RoleMayOnDoctype(tenantID, role, doctype, action string) (bool, error) {
 	}
 	return allowed, err
 }
+
+// RedactPrintDocument (Stage 49.3.4) takes out of a print what the role may
+// not read: the transaction's own hidden header fields, and the hidden Item
+// fields every line carries under "item" (printItemFields copies the whole
+// item, cost price and standard cost included, so a cashier printing a till
+// bill was handed each item's cost). The print endpoint is the one place a
+// print leaves the server, so it runs there, after the issued copy is chosen;
+// the issued copy's checksum is taken before this and does not change.
+func RedactPrintDocument(tenantID, role string, d *PrintDocument) error {
+	hidden, err := HiddenFieldsForRole(tenantID, role, d.Doctype)
+	if err != nil {
+		return err
+	}
+	for _, f := range hidden {
+		delete(d.Fields, f)
+	}
+	itemHidden, err := HiddenFieldsForRole(tenantID, role, "Item")
+	if err != nil || len(itemHidden) == 0 {
+		return err
+	}
+	for _, l := range d.Lines {
+		if item, ok := l["item"].(map[string]interface{}); ok {
+			for _, f := range itemHidden {
+				delete(item, f)
+			}
+		}
+	}
+	return nil
+}

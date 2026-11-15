@@ -4,7 +4,7 @@ section: Troubleshooting
 order: 1
 summary: What the three lines of an error dialog mean, and how to turn a code into an action.
 audience: everyone
-last_verified: 2026-08-12
+last_verified: 2026-11-14
 doc_id: DOC-356EF7A500
 type: procedure
 status: draft
@@ -13,7 +13,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-12
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending

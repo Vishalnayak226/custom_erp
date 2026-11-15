@@ -126,40 +126,6 @@ func SyncUnicommerceInventory(tenantID, sku, storeCode string, quantity int) err
 	return tx.Commit()
 }
 
-// ImportUnicommerceOrder is the legacy Unicommerce intake signature, kept so
-// existing callers compile. As of Stage 35.1.1 it delegates to
-// ImportUnicommerceSalesOrder, which routes the order through
-// ImportChannelSalesOrder -> CreateSalesOrder like every other channel.
-//
-// Its old body reserved stock per line and wrote a unicommerce_order_mapping
-// row, but - exactly like ImportChannelOrder - never created the document its
-// own comment claimed ("creates a local POSCart document"). The reservations
-// it made therefore hung off nothing.
-//
-// The ORDER_ALREADY_IMPORTED replay error is preserved; the delegate returns
-// the existing order id idempotently instead, so new code should call it.
-func ImportUnicommerceOrder(tenantID, channelOrderID, storeCode string, items []map[string]interface{}) (string, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return "", err
-	}
-
-	var exists bool
-	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT EXISTS(
-			SELECT 1 FROM %s.unicommerce_order_mapping
-			WHERE channel_order_id = $1 AND store_code = $2
-		)`, schema), channelOrderID, storeCode).Scan(&exists)
-	if err != nil {
-		return "", err
-	}
-	if exists {
-		return "", fmt.Errorf("ORDER_ALREADY_IMPORTED")
-	}
-
-	return ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode, channelLinesFromLooseItems(items))
-}
-
 // ListUnicommerceOrders returns imported Unicommerce orders for a tenant.
 func ListUnicommerceOrders(tenantID string) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)

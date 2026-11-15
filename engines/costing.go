@@ -140,44 +140,6 @@ func grnPurchaseOrderID(schema, grnID string) string {
 	return poID
 }
 
-// RecordGRNReceiptCosting is PostGRNReceiptWithQC's one call into this file:
-// for each accepted line, resolves its base unit cost from the GRN's own PO
-// (falling back to skipping that line's costing - logged, not fatal - the
-// same "goods are already in the building" reasoning the batch/serial
-// registration loops right above this call site's insertion point already
-// use), updates item_cost, and posts ONE real GL entry for the whole
-// receipt: Dr 1200 Inventory / Cr 2100 GRN Suspense - closing the
-// previously-total gap where nothing ever credited 2100. Best-effort by
-// design: a failure here must never unwind stock that has already posted.
-func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []struct {
-	SKU string
-	Qty float64
-}) {
-	recordGRNReceiptCostingPart(tenantID, schema, grnID, "", acceptedLines)
-}
-
-// recordGRNReceiptCostingPart is RecordGRNReceiptCosting for one child of a
-// receipt that posts in parts (Stage 94): the GL key carries the part, so the
-// second child's entry is not taken for a replay of the first. Best-effort, in
-// a transaction of its own: what PostGRNReceiptPart itself runs is the Tx
-// variant below, inside the receipt's transaction (Stage 132.20).
-func recordGRNReceiptCostingPart(tenantID, schema, grnID, part string, acceptedLines []struct {
-	SKU string
-	Qty float64
-}) {
-	tx, err := db.DB.Begin()
-	if err == nil {
-		defer tx.Rollback()
-		if err = recordGRNReceiptCostingPartTx(tx, tenantID, schema, grnID, part, acceptedLines); err == nil {
-			err = tx.Commit()
-		}
-	}
-	if err != nil {
-		LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
-			fmt.Sprintf("GRN %s: receipt costing failed (stock already received, not rolled back): %v", grnID, err), "")
-	}
-}
-
 // recordGRNReceiptCostingPartTx costs the accepted lines (item_cost) and posts
 // the receipt's GL entry (Dr 1200 or the item's expense account / Cr 2100) in
 // the caller's transaction - an error fails the caller. A line whose base cost
@@ -221,6 +183,16 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 	for _, line := range lines {
 		stockIn[line.SKU] += max(line.Qty, 0)
 	}
+	// 170.1: the GRN line each SKU came in on, when the GL names source lines.
+	lineNo := grnSKULineNo(tx, schema, grnID)
+	var invShares, allShares []sourceLineShare
+	expShares := map[string][]sourceLineShare{}
+	share := func(sku string, v int64) sourceLineShare {
+		if n := lineNo[sku]; n > 0 {
+			return sourceLineShare{ID: lineNoID(n), Weight: v}
+		}
+		return sourceLineShare{Weight: v}
+	}
 	for _, line := range lines {
 		if line.Qty <= 0 {
 			continue
@@ -237,8 +209,14 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 			continue
 		}
 		chargeLines = append(chargeLines, receiptChargeLine{SKU: line.SKU, Qty: line.Qty, Value: unitCostPaise * int64(line.Qty), Costed: true})
+		if lineNo != nil {
+			allShares = append(allShares, share(line.SKU, unitCostPaise*int64(line.Qty)))
+		}
 		if policy, _, known := ItemPolicyForSKU(tenantID, line.SKU); known && !policy.Valuated() {
 			expenseByAccount[policy.ExpenseAccount] += unitCostPaise * int64(line.Qty)
+			if lineNo != nil {
+				expShares[policy.ExpenseAccount] = append(expShares[policy.ExpenseAccount], share(line.SKU, unitCostPaise*int64(line.Qty)))
+			}
 			continue
 		}
 		if err := blendIntoCostTx(tx, schema, line.SKU, line.Qty, unitCostPaise*int64(line.Qty), stockIn[line.SKU], true); err != nil {
@@ -247,17 +225,24 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 		stockIn[line.SKU] -= line.Qty
 		totalValuePaise += unitCostPaise * int64(line.Qty)
 		inventoryLines = append(inventoryLines, groupLine{Sku: line.SKU, Weight: unitCostPaise * int64(line.Qty)})
+		if lineNo != nil {
+			invShares = append(invShares, share(line.SKU, unitCostPaise*int64(line.Qty)))
+		}
 	}
 	debits := map[string]int64{}
+	var parts []sourceLinePart
 	if totalValuePaise > 0 {
-		for acct, v := range grnInventoryDebits(tenantID, grnID, poID, inventoryLines, totalValuePaise) {
+		inv := grnInventoryDebits(tenantID, grnID, poID, inventoryLines, totalValuePaise)
+		for acct, v := range inv {
 			debits[acct] += v
 		}
+		parts = append(parts, sourceLinePart{Debits: inv, Shares: invShares})
 	}
 	for acct, v := range expenseByAccount {
 		if v > 0 {
 			debits[acct] += v
 			totalValuePaise += v
+			parts = append(parts, sourceLinePart{Debits: map[string]int64{acct: v}, Shares: expShares[acct]})
 		}
 	}
 	if totalValuePaise <= 0 {
@@ -267,9 +252,10 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 	if part != "" {
 		key = fmt.Sprintf("GRN:%s:RECEIPT_COST:%s", grnID, part)
 	}
+	parts = append(parts, sourceLinePart{Credits: map[string]int64{"2100": totalValuePaise}, Shares: allShares})
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "GRN", grnID,
 		debits, map[string]int64{"2100": totalValuePaise},
-		"", key); err != nil {
+		"", key, withSourceLineParts(schema, nil, parts...)...); err != nil {
 		return fmt.Errorf("receipt GL entry: %w", err)
 	}
 	return applyReceiptChargesTx(tx, tenantID, schema, grnID, part, chargeLines)
@@ -334,7 +320,7 @@ func CreateLandedCostVoucher(tenantID, grnID string, chargeLines []map[string]in
 // landed-cost allocation method. A line this GRN received with no
 // resolvable base cost is excluded from the allocation base entirely
 // (stated limitation: it receives no share of the landed cost either,
-// consistent with RecordGRNReceiptCosting never having costed it). One-shot:
+// consistent with the receipt costing never having costed it). One-shot:
 // a voucher already Applied refuses a second application, since re-running
 // it would double the cost every time.
 func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {

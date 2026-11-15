@@ -598,6 +598,30 @@ func storedBillCost(invData map[string]interface{}) map[string]int64 {
 	return stored
 }
 
+// storedBillRound is the rounding a bill has put to Round Off so far, per SKU
+// (Stage 173.1).
+func storedBillRound(invData map[string]interface{}) map[string]int64 {
+	stored := map[string]int64{}
+	if m, ok := invData["bill_round_adjust"].(map[string]interface{}); ok {
+		for sku, v := range m {
+			stored[sku] = int64(math.Round(numFromInterface(v)))
+		}
+	}
+	return stored
+}
+
+// unionKeys is every key of a and b.
+func unionKeys(a, b map[string]int64) map[string]bool {
+	all := make(map[string]bool, len(a)+len(b))
+	for k := range a {
+		all[k] = true
+	}
+	for k := range b {
+		all[k] = true
+	}
+	return all
+}
+
 // billValuePaise is what a bill puts through 2100: its value before tax without
 // the charge booked at the receipt. A bill never matched has no value before tax
 // and clears whole; a foreign one clears at what the ledger carries.
@@ -635,6 +659,9 @@ func billsElsewhereTx(tx *sql.Tx, tenantID, schema, invoiceID, grnID, noteBill s
 		}
 		var booked int64
 		for _, v := range storedBillCost(d) {
+			booked += v
+		}
+		for _, v := range storedBillRound(d) { // 173.1: its rounding too
 			booked += v
 		}
 		if id == noteBill {
@@ -725,14 +752,19 @@ func billAwaitedStepGRN(bill map[string]interface{}, status string) (bool, float
 // not settle here: a held bill, a foreign currency bill (realised FX books at
 // payment), no GRN (nothing was booked to differ from), a receipt with no rates,
 // or a step GRN still being posted.
-func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map[string]interface{}, grnID string, matched, rateMissing bool) (target map[string]int64, units, received map[string]float64, skipped string, err error) {
-	target, units, received = map[string]int64{}, map[string]float64{}, map[string]float64{}
+//
+// Stage 173.1: round is the part of the difference that is our own rounding -
+// stock that went in at a price rounded to the paisa (148.35 / 148.51). It goes
+// to Round Off, not into cost: a few paise spread over the units in hand do not
+// move a piece's cost, so in stock they would leave 1200 off the valuation.
+func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map[string]interface{}, grnID string, matched, rateMissing bool) (target, round map[string]int64, units, received map[string]float64, skipped string, err error) {
+	target, round, units, received = map[string]int64{}, map[string]int64{}, map[string]float64{}, map[string]float64{}
 	if grnID == "" {
-		return target, units, received, "No GRN", nil
+		return target, round, units, received, "No GRN", nil
 	}
 	grnData, _, ferr := fetchDocData(tenantID, "GRN", grnID)
 	if ferr != nil {
-		return target, units, received, "GRN not readable", nil
+		return target, round, units, received, "GRN not readable", nil
 	}
 	lines := grnLineMaps(grnData)
 	bases := grnCostBases(tenantID, schema, grnID, lines)
@@ -741,35 +773,37 @@ func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map
 	}
 	switch {
 	case !matched:
-		return target, units, received, "Bill on hold", nil
+		return target, round, units, received, "Bill on hold", nil
 	case rateMissing:
-		return target, units, received, "No rates on the PO", nil
+		return target, round, units, received, "No rates on the PO", nil
 	case documentFXPosition(tenantID, invData, "invoice_amount").Foreign:
-		return target, units, received, "Foreign currency bill", nil
+		return target, round, units, received, "Foreign currency bill", nil
 	}
 	noteBill, noteRatio := "", 1.0
 	roundOff := int64(100) // paise under which a difference is left as round-off
+	gap := map[string]int64{} // 173.1: per SKU, how far stock went in over the lines' value
 	if IsGRNStepFlow(grnData) {
 		if strField(grnData, "grn_step") != GRNStepPosted {
-			return target, units, received, billSkipStepNotPosted, nil
+			return target, round, units, received, billSkipStepNotPosted, nil
 		}
 		bases = stepBillBases(lines)
 		for _, l := range lines {
 			if grnLineSettlesRound(l) { // 148.51: this rounding is ours, so it clears to the paisa
 				roundOff = 1
+				gap[strField(l, "sku")] += grnStockRoundGapPaise(l)
 			}
 		}
 		if noteBill, noteRatio, err = stepNoteBillTx(tx, tenantID, schema, grnID, grnData, lines); err != nil {
-			return nil, nil, nil, "", err
+			return nil, nil, nil, nil, "", err
 		}
 	}
 	returned, err := postedPurchaseReturnAcceptedQty(tx, schema, grnID)
 	if err != nil {
-		return nil, nil, nil, "", err
+		return nil, nil, nil, nil, "", err
 	}
 	others, err := billsElsewhereTx(tx, tenantID, schema, invoiceID, grnID, noteBill, noteRatio)
 	if err != nil {
-		return nil, nil, nil, "", err
+		return nil, nil, nil, nil, "", err
 	}
 	left := map[string]float64{}
 	var booked int64
@@ -777,9 +811,18 @@ func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map
 		b := &bases[i]
 		if r := returned[b.sku]; r > 0 {
 			b.value -= sharePaise(b.value, math.Min(r, b.qty), b.qty)
+			gap[b.sku] -= sharePaise(gap[b.sku], math.Min(r, b.qty), b.qty)
 		}
 		left[b.sku] = b.qty - math.Min(returned[b.sku], b.qty)
 		booked += b.value
+	}
+	// The rounding on the units this bill settles: billed at the lines' value,
+	// the bill is that much under what stock booked.
+	roundOn := func(sku string, settled float64) int64 {
+		if gap[sku] == 0 || left[sku] <= 0 {
+			return 0
+		}
+		return -sharePaise(gap[sku], settled, left[sku])
 	}
 	if billLines := vendorBillLines(invData); len(billLines) > 0 {
 		// Only what the bill lists settles: those units at the bill's rate against
@@ -795,15 +838,29 @@ func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map
 				continue
 			}
 			units[b.sku] = math.Min(billedQty[b.sku], others.openUnits(b.sku, left[b.sku]))
-			if d := billed[b.sku] - sharePaise(b.value, units[b.sku], left[b.sku]); d >= roundOff || d <= -roundOff {
+			r := roundOn(b.sku, units[b.sku])
+			if r != 0 {
+				round[b.sku] = r
+			}
+			if d := billed[b.sku] - sharePaise(b.value, units[b.sku], left[b.sku]) - r; d >= roundOff || d <= -roundOff {
 				target[b.sku] = d
 			}
 		}
 	} else {
+		if booked <= 0 {
+			return target, round, units, received, "", nil
+		}
+		var rounding int64
+		for _, b := range bases {
+			if r := roundOn(b.sku, others.openUnits(b.sku, left[b.sku])); r != 0 {
+				round[b.sku] = r
+				rounding += r
+			}
+		}
 		// Stage 148.8: a charge on the bill was booked when the receipt posted.
-		diff := billValuePaise(tenantID, invData) + others.accounted - booked
-		if diff > -roundOff && diff < roundOff || booked <= 0 {
-			return target, units, received, "", nil
+		diff := billValuePaise(tenantID, invData) + others.accounted - booked - rounding
+		if diff > -roundOff && diff < roundOff {
+			return target, round, units, received, "", nil
 		}
 		// Across what is still to bill, so a second bill's difference lands on the
 		// items it is for.
@@ -833,7 +890,7 @@ func billCostTargets(tx *sql.Tx, tenantID, schema, invoiceID string, invData map
 			target[sku] = sharePaise(d, noteRatio, 1)
 		}
 	}
-	return target, units, received, "", nil
+	return target, round, units, received, "", nil
 }
 
 // settleBillCostDifferenceTx books a matched bill's difference from the GRN at
@@ -849,15 +906,30 @@ func settleBillCostDifferenceTx(tx *sql.Tx, tenantID, schema, invoiceID string, 
 			return err
 		}
 	}
-	target, units, received, skipped, err := billCostTargets(tx, tenantID, schema, invoiceID, invData, grnID, matched, rateMissing)
+	target, round, units, received, skipped, err := billCostTargets(tx, tenantID, schema, invoiceID, invData, grnID, matched, rateMissing)
 	if err != nil {
 		return err
 	}
-	stored := storedBillCost(invData)
+	stored, storedRound := storedBillCost(invData), storedBillRound(invData)
 	// A matched bill that does not settle here keeps what it booked; only a hold
 	// takes it back.
 	if matched && skipped != "" {
-		target = stored
+		target, round = stored, storedRound
+	}
+	// Stage 173.1: a bill that booked before its rounding went to Round Off keeps
+	// it in cost, so a re-match never moves the books it has.
+	_, routed := invData["bill_round_adjust"]
+	if legacy := !routed && len(stored) > 0; legacy && len(round) > 0 {
+		folded := map[string]int64{}
+		for sku, v := range target {
+			folded[sku] = v
+		}
+		for sku, v := range round {
+			folded[sku] += v
+		}
+		target, round = folded, map[string]int64{}
+	} else if !legacy {
+		routed = true
 	}
 	all := map[string]bool{}
 	for sku := range target {
@@ -884,6 +956,12 @@ func settleBillCostDifferenceTx(tx *sql.Tx, tenantID, schema, invoiceID string, 
 		onHand += h
 		sold += s
 	}
+	var totalRound int64
+	for sku := range unionKeys(round, storedRound) {
+		totalRound += round[sku]
+		legs[accountRoundOff] += round[sku] - storedRound[sku]
+		moved += round[sku] - storedRound[sku]
+	}
 	legs["2100"] -= moved
 	posts := int(numFromInterface(invData["bill_cost_posts"])) + 1
 	if err := postSignedLegsTx(tx, tenantID, schema, "VendorInvoice", invoiceID, legs,
@@ -896,13 +974,17 @@ func settleBillCostDifferenceTx(tx *sql.Tx, tenantID, schema, invoiceID string, 
 	} else if skipped == "" {
 		invData["bill_cost_units"] = units
 	}
-	if len(target) == 0 && len(stored) == 0 {
+	if len(target) == 0 && len(stored) == 0 && len(round) == 0 && len(storedRound) == 0 {
 		if skipped != "" {
 			details["cost_difference_skipped"] = skipped
 		}
 		return nil
 	}
 	invData["bill_cost_adjust"] = target
+	if routed {
+		invData["bill_round_adjust"] = round
+		details["round_off"] = PaiseToRupees(totalRound)
+	}
 	invData["bill_cost_posts"] = posts
 	invData["bill_cost_on_hand"] = onHand
 	invData["bill_cost_sold"] = sold
@@ -976,7 +1058,7 @@ func ReverseVendorBillDifference(tenantID, invoiceID, userID string) error {
 	if vendorInvoiceHasPayments(data) || status == "Paid" || status == "Approved" || status == "Pending Approval" {
 		return &ValidationError{Code: "FIN-0910", Message: "This bill has a payment or an approval on it."}
 	}
-	if len(storedBillCost(data)) == 0 && data["bill_cost_units"] == nil {
+	if len(storedBillCost(data)) == 0 && len(storedBillRound(data)) == 0 && data["bill_cost_units"] == nil {
 		return nil
 	}
 	details, _ := data["match_details"].(map[string]interface{})
@@ -1499,6 +1581,7 @@ func creditNotePieceBackTx(tx *sql.Tx, tenantID, schema, noteID, userID string, 
 	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: location, Qty: 1, VoucherType: "CreditNote", VoucherID: noteID,
 		IdempotencyKey: fmt.Sprintf("CreditNote:%s:STOCK", noteID), ToStatus: "available", SerialNo: no, UserID: userID,
+		stockLineSnapshot: stockLineSnapshot{ValuationRate: PaiseToRupees(cost)}, // 49.5.5b.11: the piece's own cost
 	}); err != nil {
 		return err
 	}

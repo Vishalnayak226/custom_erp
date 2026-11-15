@@ -58,7 +58,7 @@
             "profile",
             "configuration"
           ],
-          "last_verified": "2026-08-12",
+          "last_verified": "2026-11-14",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "tutorial",
@@ -154,7 +154,7 @@
           "screens": [
             "help"
           ],
-          "last_verified": "2026-09-08",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -262,7 +262,7 @@
             "pos",
             "sales-invoices"
           ],
-          "last_verified": "2026-08-12",
+          "last_verified": "2026-11-14",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "tutorial",
@@ -320,7 +320,7 @@
             "finance",
             "reports"
           ],
-          "last_verified": "2026-08-17",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "tutorial",
@@ -352,7 +352,7 @@
             },
             {
               "level": 2,
-              "text": "5. Approve it, as the other user",
+              "text": "5. Approve it (as the other user)",
               "slug": "5-approve-it-as-the-other-user"
             },
             {
@@ -839,7 +839,7 @@
             "approvals",
             "configuration"
           ],
-          "last_verified": "2026-09-02",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -926,7 +926,7 @@
           "screens": [
             "returns"
           ],
-          "last_verified": "2026-09-08",
+          "last_verified": "2026-11-15",
           "owner": "returns-process-owner",
           "status": "draft",
           "topic_type": "how-to",
@@ -1077,7 +1077,7 @@
             "module:inventory",
             "reports"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -1229,7 +1229,7 @@
             "doctype:lottableconstraint",
             "reports"
           ],
-          "last_verified": "2026-08-31",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -1431,6 +1431,11 @@
             },
             {
               "level": 2,
+              "text": "Contracts, services and the supplier portal",
+              "slug": "contracts-services-and-the-supplier-portal"
+            },
+            {
+              "level": 2,
               "text": "Reports",
               "slug": "reports"
             },
@@ -1457,6 +1462,81 @@
           ]
         },
         {
+          "slug": "purchase-contracts-and-service-entries",
+          "title": "Purchase contracts and service entries",
+          "section": "Module Handbooks",
+          "order": 31,
+          "summary": "Buy against a vendor contract's rates and cap, and pay for services only for work you accepted.",
+          "audience": "procurement officer, store manager",
+          "screens": [
+            "purchase-contracts",
+            "service-entry"
+          ],
+          "last_verified": "2026-11-14",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "procurement",
+          "task": "Purchase contracts and service entries",
+          "prerequisites": "Signed-in account with procurement access; an approver for Activate and Accept",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "module-handbooks/purchase-contracts-and-service-entries.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "A contract with a vendor",
+              "slug": "a-contract-with-a-vendor"
+            },
+            {
+              "level": 2,
+              "text": "Buying under it",
+              "slug": "buying-under-it"
+            },
+            {
+              "level": 2,
+              "text": "Paying for a service",
+              "slug": "paying-for-a-service"
+            }
+          ]
+        },
+        {
+          "slug": "supplier-portal",
+          "title": "The supplier portal",
+          "section": "Module Handbooks",
+          "order": 32,
+          "summary": "What a supplier sees when it signs in, and how it tells you a delivery is coming.",
+          "audience": "procurement officer, admin, supplier",
+          "screens": [
+            "supplier-portal"
+          ],
+          "last_verified": "2026-11-14",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "procurement",
+          "task": "The supplier portal",
+          "prerequisites": "A user with the Supplier role, linked to its vendor",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "module-handbooks/supplier-portal.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Giving a supplier a login",
+              "slug": "giving-a-supplier-a-login"
+            },
+            {
+              "level": 2,
+              "text": "What the supplier sees",
+              "slug": "what-the-supplier-sees"
+            },
+            {
+              "level": 2,
+              "text": "Telling you a delivery is coming",
+              "slug": "telling-you-a-delivery-is-coming"
+            }
+          ]
+        },
+        {
           "slug": "security-approvals",
           "title": "Security, Roles \u0026 Approvals",
           "section": "Module Handbooks",
@@ -1471,7 +1551,7 @@
             "profile",
             "audit-logs"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -1547,6 +1627,11 @@
               "slug": "audit-trail"
             },
             {
+              "level": 3,
+              "text": "Privacy approvals",
+              "slug": "privacy-approvals"
+            },
+            {
               "level": 2,
               "text": "MFA: who must enroll, and how recovery works",
               "slug": "mfa-who-must-enroll-and-how-recovery-works"
@@ -1565,6 +1650,38 @@
               "level": 2,
               "text": "What is not here yet",
               "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "privacy-approvals",
+          "title": "Privacy approvals",
+          "section": "Module Handbooks",
+          "order": 41,
+          "summary": "Approve or send back an incident notification decision you were named on.",
+          "audience": "admin, privacy approver",
+          "screens": [
+            "privacy-approvals"
+          ],
+          "last_verified": "2026-11-14",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "security-approvals",
+          "task": "Privacy approvals",
+          "prerequisites": "Named as the approver of an incident notification decision",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "module-handbooks/privacy-approvals.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Deciding",
+              "slug": "deciding"
+            },
+            {
+              "level": 2,
+              "text": "Who can be the approver",
+              "slug": "who-can-be-the-approver"
             }
           ]
         },
@@ -1891,7 +2008,7 @@
             "pim",
             "doctype:pimproductgroup"
           ],
-          "last_verified": "2026-08-12",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -1915,11 +2032,6 @@
               "level": 2,
               "text": "Using one",
               "slug": "using-one"
-            },
-            {
-              "level": 2,
-              "text": "What is not here yet",
-              "slug": "what-is-not-here-yet"
             }
           ]
         },
@@ -2297,7 +2409,7 @@
             "einvoice",
             "bank-files"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -2399,7 +2511,7 @@
             "reports",
             "configuration"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -2659,7 +2771,7 @@
           "screens": [
             "manufacturing"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-11-15",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -2848,6 +2960,38 @@
               "level": 2,
               "text": "Troubleshooting",
               "slug": "troubleshooting"
+            }
+          ]
+        },
+        {
+          "slug": "subscription",
+          "title": "Your Subscription",
+          "section": "Admin \u0026 Operations",
+          "order": 30,
+          "summary": "See your plan, when the paid period ends, this month's use against what the plan includes, and the GST invoices for each payment.",
+          "audience": "admin",
+          "screens": [
+            "subscription"
+          ],
+          "last_verified": "2026-11-15",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "operations",
+          "task": "Your Subscription",
+          "prerequisites": "Signed-in Admin of the client",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "admin-operations/subscription.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "What the screen shows",
+              "slug": "what-the-screen-shows"
+            },
+            {
+              "level": 2,
+              "text": "When something looks wrong",
+              "slug": "when-something-looks-wrong"
             }
           ]
         }
@@ -3208,6 +3352,11 @@
               "level": 3,
               "text": "R9028 Missing regulatory print data",
               "slug": "r9028-missing-regulatory-print-data"
+            },
+            {
+              "level": 3,
+              "text": "R9062 Own approval decisions",
+              "slug": "r9062-own-approval-decisions"
             },
             {
               "level": 3,
@@ -3591,8 +3740,18 @@
             },
             {
               "level": 3,
+              "text": "R5175 Card lines not matched",
+              "slug": "r5175-card-lines-not-matched"
+            },
+            {
+              "level": 3,
               "text": "R5171 Employee advance balance",
               "slug": "r5171-employee-advance-balance"
+            },
+            {
+              "level": 3,
+              "text": "R5174 Travel requests",
+              "slug": "r5174-travel-requests"
             },
             {
               "level": 2,
@@ -3628,6 +3787,11 @@
               "level": 3,
               "text": "R5061 Cash Flow Statement",
               "slug": "r5061-cash-flow-statement"
+            },
+            {
+              "level": 3,
+              "text": "R5173 Cash position",
+              "slug": "r5173-cash-position"
             },
             {
               "level": 3,
@@ -3868,6 +4032,11 @@
               "level": 3,
               "text": "R8018 Attendance Summary",
               "slug": "r8018-attendance-summary"
+            },
+            {
+              "level": 3,
+              "text": "R8019 Certificate Expiry",
+              "slug": "r8019-certificate-expiry"
             },
             {
               "level": 3,
@@ -4573,6 +4742,11 @@
             },
             {
               "level": 3,
+              "text": "R9063 Declaration gaps",
+              "slug": "r9063-declaration-gaps"
+            },
+            {
+              "level": 3,
               "text": "R7969 Listing drift",
               "slug": "r7969-listing-drift"
             },
@@ -5012,6 +5186,11 @@
               "level": 3,
               "text": "R9061 Inspections due by stock age",
               "slug": "r9061-inspections-due-by-stock-age"
+            },
+            {
+              "level": 3,
+              "text": "R7971 Instruments due for calibration",
+              "slug": "r7971-instruments-due-for-calibration"
             },
             {
               "level": 2,
@@ -5566,6 +5745,11 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-11-15",
+              "slug": "2026-11-15"
+            },
+            {
+              "level": 2,
               "text": "2026-11-14",
               "slug": "2026-11-14"
             },
@@ -5673,11 +5857,6 @@
               "level": 2,
               "text": "2026-10-18",
               "slug": "2026-10-18"
-            },
-            {
-              "level": 2,
-              "text": "2026-10-17",
-              "slug": "2026-10-17"
             }
           ]
         },
@@ -5686,7 +5865,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-08-11 to 2026-10-17, continued from the release notes.",
+          "summary": "Earlier releases, 2026-08-16 to 2026-10-18, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5698,6 +5877,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-10-18",
+              "slug": "2026-10-18"
+            },
             {
               "level": 2,
               "text": "2026-10-17",
@@ -5902,7 +6086,26 @@
               "level": 2,
               "text": "2026-08-16",
               "slug": "2026-08-16"
-            },
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-3",
+          "title": "Release notes (part 3)",
+          "section": "Reference",
+          "order": 27,
+          "summary": "Earlier releases, 2026-07-27 to 2026-08-15, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-3.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-08-15",
@@ -5927,26 +6130,7 @@
               "level": 2,
               "text": "2026-08-11",
               "slug": "2026-08-11"
-            }
-          ]
-        },
-        {
-          "slug": "release-notes-3",
-          "title": "Release notes (part 3)",
-          "section": "Reference",
-          "order": 27,
-          "summary": "Earlier releases, 2026-07-27 to 2026-08-10, continued from the release notes.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Release notes (part 3)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/release-notes-3.md",
-          "headings": [
+            },
             {
               "level": 2,
               "text": "2026-08-10",
@@ -6059,7 +6243,10 @@
           "summary": "How an integration gets a key, what a key may do, and what every response tells you about your budget.",
           "audience": "integrator",
           "public": true,
-          "last_verified": "2026-08-12",
+          "screens": [
+            "api-access"
+          ],
+          "last_verified": "2026-11-14",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "reference",
@@ -6139,7 +6326,7 @@
           "order": 1,
           "summary": "What the three lines of an error dialog mean, and how to turn a code into an action.",
           "audience": "everyone",
-          "last_verified": "2026-08-12",
+          "last_verified": "2026-11-14",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "troubleshooting",
@@ -6455,11 +6642,6 @@
               "level": 2,
               "text": "Global",
               "slug": "global"
-            },
-            {
-              "level": 2,
-              "text": "Global / Common",
-              "slug": "global-common"
             }
           ]
         },
@@ -6468,7 +6650,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for Goods Receipt to PIM, continued from the error code reference.",
+          "summary": "Error codes for Global / Common to Order Management, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6484,6 +6666,11 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Global / Common",
+              "slug": "global-common"
             },
             {
               "level": 2,
@@ -6569,11 +6756,6 @@
               "level": 2,
               "text": "Order Management",
               "slug": "order-management"
-            },
-            {
-              "level": 2,
-              "text": "PIM",
-              "slug": "pim"
             }
           ]
         },
@@ -6582,7 +6764,7 @@
           "title": "Error code reference (part 3)",
           "section": "Troubleshooting",
           "order": 22,
-          "summary": "Error codes for PIM / Product Publishing to Tax / GST / E-Invoice, continued from the error code reference.",
+          "summary": "Error codes for PIM to SaaS / Multi-Tenant, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6598,6 +6780,11 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "PIM",
+              "slug": "pim"
             },
             {
               "level": 2,
@@ -6688,6 +6875,30 @@
               "level": 2,
               "text": "SaaS / Multi-Tenant",
               "slug": "saas-multi-tenant"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-4",
+          "title": "Error code reference (part 4)",
+          "section": "Troubleshooting",
+          "order": 23,
+          "summary": "Error codes for Sales / POS to WMS / Logistics, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 4)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-4.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -6723,30 +6934,6 @@
               "level": 2,
               "text": "Tax / GST / E-Invoice",
               "slug": "tax-gst-e-invoice"
-            }
-          ]
-        },
-        {
-          "slug": "error-code-reference-4",
-          "title": "Error code reference (part 4)",
-          "section": "Troubleshooting",
-          "order": 23,
-          "summary": "Error codes for User Access \u0026 Security to WMS / Logistics, continued from the error code reference.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Error code reference (part 4)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "troubleshooting/error-code-reference-4.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -6774,6 +6961,9 @@
     }
   ],
   "screen_map": {
+    "api-access": [
+      "public-api-authentication"
+    ],
     "appointment-calendar": [
       "appointment-calendar",
       "wms-start-here"
@@ -7101,9 +7291,15 @@
     "prefix-configs": [
       "journey-admin"
     ],
+    "privacy-approvals": [
+      "privacy-approvals"
+    ],
     "profile": [
       "security-approvals",
       "first-login"
+    ],
+    "purchase-contracts": [
+      "purchase-contracts-and-service-entries"
     ],
     "purchase-orders": [
       "procurement",
@@ -7170,6 +7366,9 @@
       "journey-finance",
       "troubleshooting-index"
     ],
+    "service-entry": [
+      "purchase-contracts-and-service-entries"
+    ],
     "sortation": [
       "sortation",
       "wms-start-here"
@@ -7184,6 +7383,12 @@
     ],
     "stock-moves": [
       "inventory-wms-operations"
+    ],
+    "subscription": [
+      "subscription"
+    ],
+    "supplier-portal": [
+      "supplier-portal"
     ],
     "system-status": [
       "backup-and-restore",
@@ -7225,5 +7430,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 63
+  "article_count": 67
 }

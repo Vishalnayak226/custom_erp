@@ -116,6 +116,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/admin/api-traffic":                                 {LevelAdmin, "admin.api-traffic"},
 	"GET /api/v1/admin/audit-logs/evidence":                         {LevelAdmin, "admin.audit-logs"},
 	"POST /api/v1/admin/audit-logs/checkpoint":                      {LevelAdmin, "admin.audit-logs"},
+	"POST /api/v1/admin/audit-logs/seal-legacy":                     {LevelAdmin, "admin.audit-logs"},
 	"GET /api/v1/admin/audit-logs/verify":                           {LevelAdmin, "admin.audit-logs"},
 	"POST /api/v1/admin/audit-logs/archive":                         {LevelAdmin, "admin.audit-logs"},
 	"GET /api/v1/admin/audit-logs/archives":                         {LevelAdmin, "admin.audit-logs"},
@@ -271,7 +272,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/doc-find":                                          {LevelAuthenticated, "doc.default"},      // Stage 139.3
 	"GET /api/v1/inbox":                                             {LevelAuthenticated, "approval.default"}, // Stage 73.3.3
 	"GET /api/v1/integration/logs":                                  {LevelAuthenticated, "integration.default"},
-	"GET /api/v1/jobs":                                              {LevelAuthenticated, "jobs.default"},
+	"GET /api/v1/jobs":                                              {LevelAuthenticated, "jobs.view"}, // 49.3.1
 	"GET /api/v1/localization":                                      {LevelAuthenticated, "localization.default"},
 	"GET /api/v1/loyalty/ledger":                                    {LevelAuthenticated, "crm_loyalty.default"},
 	"/api/v1/loyalty/adjustments":                                   {LevelAuthenticated, "crm_loyalty.default"}, // Stage 73.2.11, manager-only to post
@@ -590,6 +591,12 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/auth/mfa/activate":                             {LevelAuthenticated, "auth.default"},
 	"POST /api/v1/auth/mfa/enroll":                               {LevelAuthenticated, "auth.default"},
 	"POST /api/v1/auth/mfa/verify":                               {LevelAuthenticated, "auth.default"},
+	"POST /api/v1/auth/passkey/options":                          {LevelAuthenticated, "auth.default"},
+	"POST /api/v1/auth/passkey/verify":                           {LevelAuthenticated, "auth.default"},
+	"GET /api/v1/me/passkeys":                                    {LevelAuthenticated, "me.default"},
+	"POST /api/v1/me/passkeys/options":                           {LevelAuthenticated, "me.default"},
+	"POST /api/v1/me/passkeys":                                   {LevelAuthenticated, "me.default"},
+	"DELETE /api/v1/me/passkeys/{id}":                            {LevelAuthenticated, "me.default"},
 	"POST /api/v1/auth/reset-password":                           {LevelPublic, "auth.default"},
 	"POST /api/v1/auth/operator-handoff":                         {LevelPublic, "auth.default"},
 	"POST /api/v1/checkout":                                      {LevelAuthenticated, "checkout.default"},
@@ -711,6 +718,18 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/finance/set-off/{id}/reverse":                     {LevelAuthenticated, "finance.post"},
 	"POST /api/v1/finance/sales-invoice/{id}/post":                  {LevelAuthenticated, "finance.post"},
 	"POST /api/v1/finance/sales-invoice/{id}/settle":                {LevelAuthenticated, "finance.post"},
+	"POST /api/v1/finance/sales-invoice/{id}/payment-link":          {LevelAuthenticated, "finance.post"},        // 185.3
+	"GET /api/v1/razorpay/credentials":                              {LevelAdmin, "admin.integrations"},          // 185.3
+	"POST /api/v1/razorpay/credentials":                             {LevelAdmin, "admin.integrations"},          // 185.3
+	"POST /api/v1/integration/razorpay/webhook":                     {LevelPublic, "finance.default"},            // 185.3 (public, HMAC)
+	"POST /api/v1/integration/razorpay/subscription-webhook":        {LevelPublic, "finance.default"},            // 50.12 (public, HMAC)
+	"POST /api/v1/admin/tenant/package/impact":                      {LevelAdmin, "admin.tenant"},                // 50.12
+	"GET /api/v1/saas/subscription":                                 {LevelAdmin, "finance.default"},             // 50.12
+	"GET /api/v1/admin/saas/plan":                                   {LevelAdmin, "admin.tenant"},                // 50.12
+	"POST /api/v1/admin/saas/plan":                                  {LevelAdmin, "admin.tenant"},                // 50.12
+	"POST /api/v1/admin/saas/subscribe":                             {LevelAdmin, "admin.tenant"},                // 50.12
+	"POST /api/v1/admin/saas/reconcile":                             {LevelAdmin, "admin.tenant"},                // 50.12
+	"GET /api/v1/admin/saas/costs":                                  {LevelAdmin, "admin.tenant"},                // 50.12
 	"POST /api/v1/finance/receipts":                                 {LevelAuthenticated, "finance.post"},        // 140.12.5
 	"GET /api/v1/finance/receipts":                                  {LevelAuthenticated, "finance.statements"},  // 140.12.5
 	"GET /api/v1/finance/receipts/open-items":                       {LevelAuthenticated, "finance.statements"},  // 140.12.5
@@ -760,8 +779,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/oms/orders/{id}/channel-change-done":              {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/integration/shopify/product/map":                  {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/integrations/clevertap/segment-sync":              {LevelAuthenticated, "crm_loyalty.default"},
-	"POST /api/v1/jobs/{id}/cancel":                                 {LevelAuthenticated, "jobs.default"},
-	"POST /api/v1/jobs/{id}/retry":                                  {LevelAuthenticated, "jobs.default"},
+	"POST /api/v1/jobs/{id}/cancel":                                 {LevelAuthenticated, "jobs.manage"}, // 49.3.1
+	"POST /api/v1/jobs/{id}/retry":                                  {LevelAuthenticated, "jobs.manage"}, // 49.3.1
 	"POST /api/v1/login":                                            {LevelPublic, "login.default"},
 	"POST /api/v1/logs/browser-error":                               {LevelAuthenticated, "system.default"}, // 158.3: any signed-in browser reports its own errors
 	"POST /api/v1/loyalty/redeem":                                   {LevelAuthenticated, "crm_loyalty.default"},
@@ -956,6 +975,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/inventory/attribute-value":                        {LevelAuthenticated, "doc.default"},       // Stage 89, ItemAttribute update/create in handler
 	"POST /api/v1/pos/price-override":                               {LevelAuthenticated, "pos.price_override"},
 	"POST /api/v1/pos/offline-heartbeat":                            {LevelAuthenticated, "pos.default"},
+	"POST /api/v1/pos/till-series":                                  {LevelAuthenticated, "pos.default"}, // 76.10
 	"GET /api/v1/pos/offline-sales":                                 {LevelAuthenticated, "pos.offline_validate"},
 	"GET /api/v1/pos/offline-sales/{id}":                            {LevelAuthenticated, "pos.offline_validate"},
 	"POST /api/v1/pos/offline-sales/{id}/validate":                  {LevelAuthenticated, "pos.offline_validate"},
@@ -1156,6 +1176,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/platform/tenants/{tenant}/trial":                   {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/open":                    {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/query-baseline":                           {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/query-plan":              {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/attribute-library":        {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/attribute-library":       {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/attribute-library/rules": {LevelAdmin, "platform.console"},
@@ -1268,6 +1289,11 @@ var restrictedCapabilities = []string{
 	// 140.12.9: posting and settling money documents - invoices, receipts,
 	// notes, journals, bank reconciliation, period close, payments.
 	"finance.post",
+	// 49.3.1: the background-job list shows every job's last error, and retry /
+	// cancel re-drive or stop deliveries, exports and postings. Both were open to
+	// every signed-in role (the SoD catalog's connector-secret-and-event-replay
+	// note). Only the Logs screen uses them.
+	"jobs.view", "jobs.manage",
 }
 
 // supplierCapabilities is every capability a Supplier login may use (168.4).

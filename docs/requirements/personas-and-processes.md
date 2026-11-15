@@ -2,23 +2,24 @@
 doc_id: DOC-REQ-PROCESS
 title: Personas and business processes
 type: normative
-status: draft
+status: approved
 owner: product-owner
 approvers: [product-owner, process-owners]
 audience: [product, process-owners, QA, implementation]
 applies_to: proposed reference configurations
-authority: proposed-policy
+authority: canonical
 confidentiality: internal
-last_verified: 2026-09-07
-review_by: 2026-10-07
+last_verified: 2026-11-15
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 ---
 
 # Personas and business processes
 
-These are research hypotheses derived from current module intent, not validated interviews.
-Process owners must observe real users, record sample/context and accept their requirements.
+These personas and processes are research hypotheses derived from module intent. The product
+owner approved them as the working set on 2026-11-15 (ask 193); no user interviews back them yet.
+Process owners must still observe real users, record sample/context and accept their requirements.
 
 | Persona | Job and success evidence | Research owner |
 |---|---|---|

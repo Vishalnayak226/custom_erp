@@ -499,7 +499,7 @@ ${employeePickerField('payroll-run-employee', '200px')}
       <tbody>
   `;
   // Stage 55.14: the deductions between gross and net, itemised on hover.
-  const dedParts = p => [['PF', p.pf_deduction], ['ESI', p.esi_deduction], ['PT', p.pt_deduction], ['TDS', p.tds_deduction], ['Loan', p.loan_deduction]]
+  const dedParts = p => [['PF', p.pf_deduction], ['ESI', p.esi_deduction], ['PT', p.pt_deduction], ['TDS', p.tds_deduction], ['Loan', p.loan_deduction], ['LWF', p.lwf_deduction], ['Benefits', p.benefit_deductions]]
     .filter(([, v]) => Number(v) > 0);
   html += payslips.length === 0
     ? `<tr><td colspan="8" class="s-306094">No payslips yet. Click <b>+ Run Payroll</b> &mdash; each employee needs a Salary Structure first.</td></tr>`
@@ -1039,12 +1039,12 @@ function hrWhen(s) {
 
 function hrProgress(done, total) {
   const pct = total ? Math.round(done * 100 / total) : 0;
-  return `<span class="s-1d5290"><span class="s-62ca27"><span style="display:block;height:100%;width:${pct}%;background:${total && done === total ? 'var(--success-color)' : 'var(--primary-color)'};"></span></span><span class="s-6cb285">${done} of ${total}</span></span>`;
+  return `<span class="s-1d5290"><span class="s-62ca27"><span data-css="display:block;height:100%;width:${pct}%;background:${total && done === total ? 'var(--success-color)' : 'var(--primary-color)'};"></span></span><span class="s-6cb285">${done} of ${total}</span></span>`;
 }
 
 function hrSelect(id, label, options, value, width = '180px') {
   return `<div class="form-group s-ef0b7a"><label class="form-label" for="${id}">${label}</label>
-    <select id="${id}" class="form-input" style="width:${width};">${options.map(([v, l]) =>
+    <select id="${id}" class="form-input" data-css="width:${width};">${options.map(([v, l]) =>
       `<option value="${hrEsc(v)}"${v === value ? ' selected' : ''}>${hrEsc(l)}</option>`).join('')}</select></div>`;
 }
 

@@ -19,8 +19,8 @@ func TestHSNMasterIsWellFormed(t *testing.T) {
 	if len(master) < 250 || len(index) != len(master) {
 		t.Fatalf("master list has %d entries (%d indexed) - expected the full list", len(master), len(index))
 	}
-	// GST 2.0 rates plus the precious-metal / diamond special rates.
-	allowed := map[float64]bool{0: true, 0.25: true, 1.5: true, 3: true, 5: true, 18: true, 40: true}
+	// GST 2.0 rates, the precious-metal / diamond special rates, and the 12% building-brick scheme (66.7: Notification 14/2025-CT(Rate)).
+	allowed := map[float64]bool{0: true, 0.25: true, 1.5: true, 3: true, 5: true, 12: true, 18: true, 40: true}
 	for _, e := range master {
 		if e.Description == "" || len(e.Keywords) == 0 || len(e.Industries) == 0 {
 			t.Errorf("%s: needs a description, keywords and an industry", e.HSN)

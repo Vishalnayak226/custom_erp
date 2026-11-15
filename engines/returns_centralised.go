@@ -291,7 +291,7 @@ func moveCentralisedTransfer(tenantID, schema, returnID, toID, stockTo, user str
 		return err
 	}
 	if status == "Approved" || status == "Packed" {
-		if err := DispatchTransferOrderOpts(tenantID, toID, user, DispatchOptions{Picks: lines}); err != nil {
+		if err := DispatchTransferOrderOpts(tenantID, toID, user, DispatchOptions{Picks: lines, internal: true}); err != nil {
 			// A second run may have dispatched it first.
 			if s, _, _ := centralisedTransferState(schema, toID); s != "Dispatched" {
 				return err
@@ -302,7 +302,7 @@ func moveCentralisedTransfer(tenantID, schema, returnID, toID, stockTo, user str
 	if status != "Dispatched" {
 		return nil // received already, or taken over by hand
 	}
-	req := TransferReceiptRequest{ReceiptKey: "return:" + returnID + ":" + toID, StockTo: stockTo}
+	req := TransferReceiptRequest{ReceiptKey: "return:" + returnID + ":" + toID, StockTo: stockTo, internal: true}
 	for _, l := range lines {
 		rl := TransferReceiptLine{Sku: l.Sku, Qty: l.Qty, Serials: l.Serials}
 		if len(l.Lots) == 1 {

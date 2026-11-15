@@ -9,6 +9,8 @@ function aiWhen(value) {
 }
 
 async function renderAIAccessPanel(container) {
+  // Ask 191: with the module off the route refuses (403), so do not ask it.
+  if (typeof isMenuModuleVisible === 'function' && !isMenuModuleVisible('ai_access')) return;
   const panel = document.createElement('div');
   panel.id = 'ai-access-panel';
   panel.style.marginTop = '24px';
@@ -76,7 +78,7 @@ async function renderAIAccessPanel(container) {
       await window.showOneTimeSecretDialog('AI assistant made',
         `Client ID: ${body.client_id}. Token URL: ${body.token_endpoint}. Secret, shown once:`, body.client_secret);
       txnDone('ai-access');
-      renderView('extension-hooks');
+      renderView('api-access');
     });
   });
 
@@ -86,7 +88,7 @@ async function renderAIAccessPanel(container) {
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'Not revoked.'); return; }
     showToast('Revoked.');
-    renderView('extension-hooks');
+    renderView('api-access');
   }));
 }
 

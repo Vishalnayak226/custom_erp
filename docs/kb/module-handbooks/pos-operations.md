@@ -4,7 +4,7 @@ section: Module Handbooks
 order: 10
 summary: Open a till, ring up a sale with automatic offers and tax, take a return, print silently, and reconcile the drawer at close — all backed by the same server-side checks whether the till is online or not.
 audience: cashier, store manager, admin
-last_verified: 2026-09-02
+last_verified: 2026-11-15
 screens: [pos, offline-sales, module:pos, module:sales, doctype:offer, reports, approvals, configuration]
 doc_id: DOC-446204194D
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -62,20 +62,36 @@ mode, invoice number series, a default opening float) but it is not
 required — opening a session only actually needs a location.
 
 **Closing one**, at end of shift: enter the cash counted. The server, never
-the browser, computes what was **expected** — the opening float plus every
-Cash-mode `Paid` cart tagged with this session — and shows it against what
-was **counted**. The gap is the **variance**.
+the browser, computes what was **expected** and shows it against what was
+**counted**. The gap is the **variance**.
 
+- The expected cash is the X-report's own figure (140.12): opening float +
+  cash sales − cash refunds + paid in − paid out − safe drops + cash
+  advances taken − advances refunded, plus cash from offline sales still
+  waiting on validation. A close therefore never disagrees with the
+  X-report.
 - A cart with no `payment_mode` recorded at all (data from before payment
   modes existed) is treated as Cash for this sum, so an old cart's cash
   still lands in the expected total.
+- When the till's bills took card or UPI, the close also asks for the card
+  terminal's and the UPI app's totals and keeps their difference from what
+  the bills say.
 - If `|variance|` exceeds the configured tolerance (**₹50 by default** —
   **Settings → Configuration**, "Cash drawer variance tolerance",
   `pos.drawer_variance_tolerance`), the close is refused
-  (`POSOFF-0240`) until a written reason is supplied. Below tolerance, the
-  session closes with the variance simply recorded — no reason required.
+  (`POSOFF-0240`) until a written reason is supplied. If an approval rule
+  for `POSSession` covers the amount of the variance, the session then goes
+  to **Pending Approval** instead of closing, and a manager decides it in
+  **Approvals**. Below tolerance, the session closes with the variance
+  simply recorded — no reason required.
+- The variance posts to the ledger when the session closes, in the same
+  transaction (or when the manager approves an over-tolerance close): a
+  shortage to Dr 5295 Cash Short / Over, an excess to Cr 5295.
 - Closing is refused for anyone other than the cashier who opened that
   session.
+- **Reports → Sales & POS → Z-report (till close)** (R1033) shows each
+  closed till: bills and bill range, the whole drawer, counted cash,
+  variance, tenders and the declared card / UPI totals.
 
 ## Ringing up a sale
 
@@ -176,7 +192,7 @@ in this engine that works that way.
 
 ## Returns
 
-The **Process a Return** panel now starts with **Look Up Bill**. The server
+The **Process a Return** panel now starts with **Find Bill**. The server
 returns the sold quantities, quantities already returned, remaining eligibility
 and original prices. Choose the return location and quantities, then choose
 **Raise Return**. The displayed total is conditional on inspection; raising a
@@ -330,8 +346,9 @@ does not cover another.
 
 **Session close refuses to complete, asking for a reason.** The
 counted-vs-expected variance is beyond the configured tolerance (₹50 by
-default). Either recount the drawer, or enter a written reason — the close
-proceeds either way once a reason is given.
+default). Either recount the drawer, or enter a written reason. With a
+reason the close proceeds — straight to Closed, or to Pending Approval when
+an approval rule for `POSSession` covers the variance's amount.
 
 **A sale I rang up doesn't show in the expected-cash total at close.** Only
 `Paid` carts tagged to *this* session count, and only Cash-mode ones (Card

@@ -130,39 +130,6 @@ func logCleverTapEventInSchema(schema, eventName, customerID string, eventData m
 	return tx.Commit()
 }
 
-// LogCleverTapEvent records a customer event to be synced to CleverTap.
-// This uses the outbox pattern - the event is queued and the background
-// worker dispatches it asynchronously.
-func LogCleverTapEvent(tenantID, eventName, customerID string, eventData map[string]interface{}) error {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
-	return logCleverTapEventInSchema(schema, eventName, customerID, eventData)
-}
-
-// LogCheckoutToCleverTap logs a completed POS checkout as a CleverTap event.
-// This is called from handleCheckout after a sale completes successfully.
-func LogCheckoutToCleverTap(tenantID, customerID, cartNumber string, totalSalePrice int, items []map[string]interface{}) error {
-	if customerID == "" {
-		return nil // No customer to associate the event with
-	}
-
-	eventData := map[string]interface{}{
-		"cart_number": cartNumber,
-		"total":       totalSalePrice,
-		"items":       items,
-		"currency":    "INR",
-	}
-	return LogCleverTapEvent(tenantID, "Checkout Completed", customerID, eventData)
-}
-
-// LogCustomerEventToCleverTap logs a generic customer event (e.g., registration,
-// loyalty earn, return) to CleverTap via the outbox.
-func LogCustomerEventToCleverTap(tenantID, eventName, customerID string, properties map[string]interface{}) error {
-	return LogCleverTapEvent(tenantID, eventName, customerID, properties)
-}
-
 // ListCleverTapEventLogs returns the CleverTap event log for a tenant.
 func ListCleverTapEventLogs(tenantID string) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)

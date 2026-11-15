@@ -985,7 +985,7 @@ func (b *bpRun) itemName(l *bpLine) (*bpItemName, error) {
 			}
 		}
 	}
-	inm.New, inm.Name = true, l.Category+" "+l.PType
+	inm.New, inm.Name = true, engines.ItemNameForSchema(b.sw.schema, l.Category, l.PType) // 199.1: the org's order
 	if !b.apply {
 		if err := b.mayCreate("ItemName"); err != nil {
 			return fail(err)
@@ -1518,17 +1518,16 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 
 // newItem makes one combination of a design, as the PO's Add design does.
 func (b *bpRun) newItem(d *bpDesign, l *bpLine, key string, axes []string) (string, error) {
-	// Every value in the name: designs share their item name's name.
+	// 199.1 (user, 2026-11-15: "Item name should be Category and Type"): a
+	// combination is named by its item name; its values (colour, size, ...)
+	// are its attributes, not part of the name.
 	var vals []string
 	for _, a := range bpSortedKeys(l.codes) {
 		if v := l.codes[a]; v != "" {
 			vals = append(vals, v)
 		}
 	}
-	name := d.name
-	if len(vals) > 0 {
-		name += " " + strings.Join(vals, " ")
-	}
+	name := firstNonEmptyStr(d.inm.Name, d.name)
 	body := map[string]interface{}{
 		"name": name, "family": d.id, "parent_product_code": d.id, "category": d.inm.CategoryName,
 		"hsn_code": d.inm.HSN, "gst_rate": d.inm.GST, "mrp": l.MRP, "standard_cost": l.Rate,

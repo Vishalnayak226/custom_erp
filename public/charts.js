@@ -157,7 +157,7 @@ function drawBars(host, result, groups, measures, title, onPick, stacked) {
     const tv = stacked ? totals[ci] : val(c, series[0]).v;
     svg += `<text x="${W - 4}" y="${y0 + lane / 2 + 4}" text-anchor="end" font-size="12" fill="${textColor(true)}">${esc(shortValue(tv, series[0].col))}</text>`;
   });
-  const legend = series.length > 1 ? `<div class="dash-legend">${series.map((s, i) => `<span><i style="background:${chartColor(i)}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
+  const legend = series.length > 1 ? `<div class="dash-legend">${series.map((s, i) => `<span><i data-css="background:${chartColor(i)}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
   host.innerHTML = `<svg viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" role="img" aria-label="${esc(title)}">${svg}</svg>${legend}${srTable(result, title)}`;
   wirePicks(host, result.rows, onPick);
 }
@@ -187,7 +187,7 @@ function drawLine(host, result, g, measures, title, onPick) {
       svg += `<circle cx="${x(i)}" cy="${y(typeof r[s.key] === 'number' ? r[s.key] : 0)}" r="3.5" fill="${chartColor(si)}" data-pick="${i}"><title>${esc(r[g.key])} · ${esc(s.label)}: ${esc(fmtValue(r[s.key], s))}</title></circle>`;
     });
   });
-  const legend = series.length > 1 ? `<div class="dash-legend">${series.map((s, i) => `<span><i style="background:${chartColor(i)}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
+  const legend = series.length > 1 ? `<div class="dash-legend">${series.map((s, i) => `<span><i data-css="background:${chartColor(i)}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(title)}">${svg}</svg>${legend}${srTable(result, title)}`;
   wirePicks(host, rows, onPick);
 }
@@ -214,6 +214,6 @@ function drawDonut(host, result, g, m, title, onPick) {
   });
   svg += `<text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="15" font-weight="600" pointer-events="none" fill="${textColor(false)}">${esc(shortValue(total, m))}</text>`;
   host.innerHTML = `<div class="dash-donut"><svg viewBox="0 0 200 200" role="img" aria-label="${esc(title)}">${svg}</svg>
-    <ul class="dash-legend dash-legend-list">${slices.map((s, k) => `<li><i style="background:${chartColor(k)}"></i>${esc(s.label)} <b>${Math.round(s.v / total * 100)}%</b></li>`).join('')}</ul></div>${srTable(result, title)}`;
+    <ul class="dash-legend dash-legend-list">${slices.map((s, k) => `<li><i data-css="background:${chartColor(k)}"></i>${esc(s.label)} <b>${Math.round(s.v / total * 100)}%</b></li>`).join('')}</ul></div>${srTable(result, title)}`;
   wirePicks(host, result.rows, onPick);
 }

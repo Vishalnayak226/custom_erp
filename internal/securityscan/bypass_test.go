@@ -37,6 +37,11 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			SB-021 cannot detect a credential it does not hold. Guarded by
 			TestSeededCredentialHashesCoverMigrationSQL, which fails if this set and
 			db/migrations/migration.sql's ever disagree.`},
+		"db/migrations/migrations_stage178_1_bootstrap_accounts.sql": {1, `cashier1's shipped hash,
+			read only to retire it (177.7, approved by the owner 2026-11-15): the migration flags
+			cashier1 must_change_password while it still carries the hash migration.sql shipped, so
+			the cashier sets their own at the next sign-in. It writes no password hash and leaves a
+			password anyone has set alone.`},
 	},
 	"security-disabling-flag": {
 		"engines/environment.go": {1, `ERP_DISABLE_EXTERNAL_SIDE_EFFECTS - the 47.0.5 emergency kill

@@ -102,7 +102,7 @@ func TestInvokeBeforeSaveHooksSignatureAndPayloadShape(t *testing.T) {
 	hookID := seedExtensionHook(t, schema, "document.before_save", doctype, server.URL, secret, 3000)
 
 	data := map[string]interface{}{"name": "Widget", "price": float64(42)}
-	if err := InvokeBeforeSaveHooks(tenantID, doctype, "DOC-001", data); err != nil {
+	if err := InvokeBeforeSaveHooks(tenantID, "test-user", doctype, "DOC-001", data); err != nil {
 		t.Fatalf("InvokeBeforeSaveHooks: unexpected error: %v", err)
 	}
 	if atomic.LoadInt32(&callCount) != 1 {
@@ -116,6 +116,10 @@ func TestInvokeBeforeSaveHooksSignatureAndPayloadShape(t *testing.T) {
 	if payload["hook_point"] != "document.before_save" || payload["doctype"] != doctype ||
 		payload["document_id"] != "DOC-001" || payload["tenant_id"] != tenantID {
 		t.Fatalf("unexpected payload shape: %v", payload)
+	}
+	// 49.3.2: the actor rides inside the signed body, so the receiver can trust it.
+	if payload["actor"] != "test-user" {
+		t.Fatalf("the payload must name the actor the save acts for, got %v", payload["actor"])
 	}
 	gotData, _ := payload["data"].(map[string]interface{})
 	if gotData["name"] != "Widget" {
@@ -133,6 +137,15 @@ func TestInvokeBeforeSaveHooksSignatureAndPayloadShape(t *testing.T) {
 	db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".extension_hook_log WHERE hook_id = $1", hookID).Scan(&logCount)
 	if logCount != 1 {
 		t.Fatalf("expected 1 extension_hook_log row for this call, got %d", logCount)
+	}
+
+	// 49.3.2: a save that names no actor is refused before the hook is called,
+	// so no receiver ever gets an anonymous change.
+	if err := InvokeBeforeSaveHooks(tenantID, "  ", doctype, "DOC-001b", data); err == nil {
+		t.Fatal("a save with no actor must be refused")
+	}
+	if atomic.LoadInt32(&callCount) != 1 {
+		t.Fatalf("a save with no actor must not reach the hook, calls=%d", callCount)
 	}
 }
 
@@ -158,7 +171,7 @@ func TestInvokeBeforeSaveHooksBlocksOnNon2xx(t *testing.T) {
 
 	seedExtensionHook(t, schema, "document.before_save", doctype, server.URL, "secret", 3000)
 
-	err = InvokeBeforeSaveHooks(tenantID, doctype, "DOC-002", map[string]interface{}{})
+	err = InvokeBeforeSaveHooks(tenantID, "test-user", doctype, "DOC-002", map[string]interface{}{})
 	if err == nil {
 		t.Fatalf("expected a rejecting before_save hook to block the save")
 	}
@@ -192,7 +205,7 @@ func TestInvokeBeforeSaveHooksBlocksOnTimeout(t *testing.T) {
 	seedExtensionHook(t, schema, "document.before_save", doctype, server.URL, "secret", 100)
 
 	start := time.Now()
-	err = InvokeBeforeSaveHooks(tenantID, doctype, "DOC-003", map[string]interface{}{})
+	err = InvokeBeforeSaveHooks(tenantID, "test-user", doctype, "DOC-003", map[string]interface{}{})
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -212,7 +225,7 @@ func TestInvokeBeforeSaveHooksBlocksOnTimeout(t *testing.T) {
 // error and no network call.
 func TestInvokeBeforeSaveHooksNoMatchIsNoop(t *testing.T) {
 	db.InitDB(testConnStr())
-	if err := InvokeBeforeSaveHooks("default", "TEST_EXT_DOC_NEVER_REGISTERED", "DOC-005", map[string]interface{}{}); err != nil {
+	if err := InvokeBeforeSaveHooks("default", "test-user", "TEST_EXT_DOC_NEVER_REGISTERED", "DOC-005", map[string]interface{}{}); err != nil {
 		t.Fatalf("expected no matching hooks to be a no-op, got error: %v", err)
 	}
 }
@@ -246,7 +259,7 @@ func TestInvokeAfterSaveHooksAsyncDoesNotBlockCaller(t *testing.T) {
 	seedExtensionHook(t, schema, "document.after_save", doctype, server.URL, "secret", 3000)
 
 	start := time.Now()
-	InvokeAfterSaveHooksAsync(tenantID, doctype, "DOC-004", map[string]interface{}{})
+	InvokeAfterSaveHooksAsync(tenantID, "test-user", doctype, "DOC-004", map[string]interface{}{})
 	elapsed := time.Since(start)
 	if elapsed > 50*time.Millisecond {
 		t.Fatalf("expected InvokeAfterSaveHooksAsync to return immediately, took %v", elapsed)

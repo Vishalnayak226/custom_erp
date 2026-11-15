@@ -322,7 +322,7 @@ function openTransferDialog({ title, body, submitLabel, wide, onSubmit, onOpen, 
   overlay.className = 'modal-overlay';
   overlay.id = 'transfer-dialog';
   overlay.innerHTML = `
-    <div class="modal-container" style="max-width: ${wide ? '860px' : '560px'};" role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title">
+    <div class="modal-container" data-css="max-width: ${wide ? '860px' : '560px'};" role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title">
       <div class="modal-header">
         <h3 class="modal-title" id="transfer-dialog-title">${escapeHTMLText(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-transfer-close>

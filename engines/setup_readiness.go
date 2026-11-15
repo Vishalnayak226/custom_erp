@@ -97,7 +97,7 @@ var setupDoctypeNames = map[string]string{
 	"LegalEntity": "legal entity", "Location": "store or warehouse", "Department": "department",
 	"CostCenter": "cost centre", "HSNCode": "HSN code", "UOM": "unit", "ItemType": "item type",
 	"Category": "category", "Item": "item", "Vendor": "vendor", "Customer": "customer",
-	"PrintTemplate": "print format",
+	"PrintTemplate": "print format", "Brand": "brand", "Style": "style", "Color": "colour",
 }
 
 func setupDoctypeName(dt string) string {

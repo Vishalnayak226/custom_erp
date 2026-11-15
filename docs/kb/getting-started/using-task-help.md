@@ -9,8 +9,8 @@ audience: everyone
 applies_to: Knowledge Center in source release 0.1.0
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-08
-review_by: 2026-10-08
+last_verified: 2026-11-15
+review_by: 2027-02-13
 supersedes: none
 superseded_by: none
 section: Getting Started
@@ -27,7 +27,10 @@ failure_behavior: Keep the task and error reference, then ask support when help 
 # Find help for your task
 
 Choose **Help for this screen** in the application header to open related
-instructions. Use **Knowledge Center** in the navigation to browse all topics.
+instructions. The help opens over the screen with the cursor on its close
+button; press **Esc** or choose **Close** to go back to where you were. Use
+**Knowledge Center** in the navigation to browse all topics: pick a section,
+then a topic.
 Screen coverage is still being completed; a general topic is not evidence that
 every operation on that screen is documented.
 

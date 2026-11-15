@@ -31,7 +31,7 @@ import (
 //
 // What is deliberately still OUTSIDE the transaction, and why:
 //
-//   - The stock LEDGER rows (WriteStockLedgerLines). They are append-only and
+//   - The stock LEDGER rows (WriteStockLedgerLinesTx). They are append-only and
 //     idempotency-keyed, so a crash between commit and write leaves entries a
 //     replay writes exactly once. Inside the transaction they would be correct
 //     too, but WriteStockLedgerEntry is called from ~20 other places with its
@@ -91,6 +91,10 @@ type posCart struct {
 	// finalization path gets the same behavior for free with no call-site
 	// change.
 	OfflineSynced bool `json:"offline_synced"`
+	// OfflineBillNumber (Stage 76.10) is the number the till gave the sale
+	// from its own series while offline (pos_till_series.go); stamped by
+	// handleCheckout only with offline_synced.
+	OfflineBillNumber string `json:"offline_bill_number"`
 	// Consumption (Stage 72.3) is what the sale uses up with its lines -
 	// resolved from the Backflush Rules and the cashier's Packaging choices by
 	// handleCheckout and stored here, so an approval-gated or authorise-only
@@ -258,6 +262,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		totalCostPaise += resolvedCostPaise * int64(item.Qty)
 		saleCosts = append(saleCosts, newSaleCostLine(tenantID, item.Sku, item.Qty, resolvedCostPaise, item.SerialNos, item.BatchNo))
 		markStockLineBatch(issue.stock, item.BatchNo)
+		markStockLineRates(issue.stock, item.Sku, PaiseToRupees(resolvedCostPaise), item.SalePrice)
 	}
 
 	// Stage 130.9 (72.D f): lines whose product type allows negative stock.
@@ -454,7 +459,14 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 	// Stage 85.D1: the bill number is drawn here, in the sale's transaction -
 	// a sale that rolls back gives it back, so the store's series has no gap.
-	billNumber, err := issuePOSBillNumberTx(tx, schema, cart.Location, time.Now())
+	// Stage 76.10: a sale an offline till numbered from its own series keeps
+	// that number - it is on the customer's receipt.
+	var billNumber string
+	if cart.OfflineSynced && strings.TrimSpace(cart.OfflineBillNumber) != "" {
+		billNumber, err = offlineTillBillNumberTx(tx, schema, cart.Location, cart.OfflineBillNumber)
+	} else {
+		billNumber, err = issuePOSBillNumberTx(tx, schema, cart.Location, time.Now())
+	}
 	if err != nil {
 		return nil, err
 	}

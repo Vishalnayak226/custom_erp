@@ -29,6 +29,7 @@ New architecture decisions receive a stable ADR ID before implementation. A desc
 | ADR-006 | Independently signed audit events with range checkpoints | Model selected and implemented in 47.7; archive/restore and qualified evidence acceptance remain open |
 | ADR-007 | PostgreSQL-backed jobs/outbox with in-process workers | Current pattern; replica, cancellation and recovery/load proof required |
 | ADR-008 | Native JavaScript and no speculative dependencies | Standing project constraint; any exception needs measured benefit and review |
+| ADR-009 | SaaS subscription billing through Razorpay, behind a small internal adapter | Owner decision 2026-11-15 (ask 193, tracker 50.12 / BLD-026); live keys and provider acceptance stay with the owner |
 
 ## ADR-002 — Tenant isolation
 
@@ -62,3 +63,20 @@ an immutability or compliance certification.
 ## ADR-007 / ADR-008 — Execution cost
 
 Current jobs, outbox and browser assets reuse the existing process and database. External brokers, caches, search services and UI frameworks would introduce lifecycle and failure modes. Propose them only against measured constraints, with a migration/rollback and operating-cost comparison. Current topology does not establish representative-scale performance.
+
+## ADR-009 — SaaS subscription billing
+
+Decided by the owner on 2026-11-15 (ask 193: "all recommended approved", tracker 50.12). The
+recommended order was to choose the provider first and let metering and quotas follow. The
+provider is Razorpay. The ERP already integrates Razorpay for payment links
+(`engines/finance_payment_links.go`), so its key storage, webhook signature check and
+idempotency are reused rather than adding a second provider (Article 1). The ERP keeps a small
+internal adapter that owns plans, entitlements, trial, grace and cancellation state. Razorpay
+owns card mandates and collection. A webhook only moves the internal state through the existing
+idempotent path, and a nightly reconciliation compares the two. Currency is INR. Tax invoices for
+the subscription fee are the platform's own GST invoices, not Razorpay's receipts. Alternatives
+were a second provider, which needs a second integration, key store and webhook path, and an
+internal-only ledger with manual collection, which does not scale past a few clients.
+Consequences: live keys, a settlement account and Razorpay's own merchant acceptance are owner
+actions on the [owner checklist](../../operations/owner-checklist.md). Sandbox (test-mode) proof
+is local.

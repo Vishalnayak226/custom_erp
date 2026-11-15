@@ -3,7 +3,7 @@
   "title": "ERP Extension Hook Payload",
   "description": "The JSON body POSTed to a registered extension hook's target_url. See README.md for the full contract, including how to verify the X-Signature header.",
   "type": "object",
-  "required": ["hook_point", "doctype", "document_id", "tenant_id", "data"],
+  "required": ["hook_point", "doctype", "document_id", "tenant_id", "actor", "data"],
   "properties": {
     "hook_point": {
       "type": "string",
@@ -20,6 +20,10 @@
     "tenant_id": {
       "type": "string",
       "description": "Which client/tenant this document belongs to. A hook is always scoped to a single tenant's registered hooks - this field is provided for your own logging/routing, not as an access boundary you need to enforce yourself."
+    },
+    "actor": {
+      "type": "string",
+      "description": "Who the save acts for: the signed-in user's id, or system:<worker> for background work. It is inside the signed body, so once the X-Signature checks out you can trust it. Never empty: a save that names no actor does not call a before_save hook at all."
     },
     "data": {
       "type": "object",

@@ -85,6 +85,75 @@ func TestStage4937FloorRolesHoldNoDangerousGrant(t *testing.T) {
 	}
 }
 
+// 55.5a (approved 2026-11-15): a new client's Cashier is its template - the
+// till, its returns and customer lookup - and both it and Store Manager can
+// add a customer at the till. An existing client keeps its rows.
+func TestStage555aNewClientCashierIsTheTill(t *testing.T) {
+	db.InitDB(testConnStr())
+	before, err := StoredRoleGrants("default", RoleCashier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newClient, schema := uniqueLifecycleTenant(t)
+	t.Cleanup(func() { dropLifecycleTenant(newClient, schema) })
+	if _, err := ProvisionTenantSchema(newClient, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	template, _ := RoleTemplateFor(RoleCashier)
+	want, err := TemplateGrants(newClient, template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := StoredRoleGrants(newClient, RoleCashier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(want) {
+		t.Errorf("a new client's Cashier holds %d grants, its template %d", len(got), len(want))
+	}
+	for doctype, level := range want {
+		if got[doctype] != level {
+			t.Errorf("a new client's Cashier holds %s at %s, its template %s", doctype, got[doctype], level)
+		}
+	}
+	for doctype, level := range map[string]AccessLevel{
+		"Customer": AccessOperate, "POSInvoice": AccessOperate, "Item": AccessRead,
+		"ReturnRequest": AccessRead, "ReasonCode": AccessRead, "Location": AccessRead,
+	} {
+		if got[doctype] != level {
+			t.Errorf("a new client's Cashier holds %s at %s, the till needs %s", doctype, got[doctype], level)
+		}
+	}
+	modules, err := doctypeModules(newClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for doctype := range got {
+		if _, named := template.Doctypes[doctype]; named {
+			continue // the till's own reads and HR self-service
+		}
+		switch modules[doctype] {
+		case "PIM", "Finance", "OMS", "Procurement", "Master Data", "Inventory", "HR":
+			t.Errorf("a new client's Cashier still reads %s (%s)", doctype, modules[doctype])
+		}
+	}
+	manager, err := StoredRoleGrants(newClient, RoleStoreManager)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manager["Customer"] != AccessOperate {
+		t.Errorf("a new client's Store Manager holds Customer at %s, want operate", manager["Customer"])
+	}
+	after, err := StoredRoleGrants("default", RoleCashier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) || after["Customer"] != before["Customer"] {
+		t.Errorf("provisioning a new client changed the existing client's Cashier: %d grants (Customer %s), was %d (%s)",
+			len(after), after["Customer"], len(before), before["Customer"])
+	}
+}
+
 // Stage 49.3.7a: an existing client's Store Manager keeps what it holds until
 // the owner applies the role-template plan, and the plan shows the change.
 func TestStage4937aExistingClientChangesOnlyThroughThePlan(t *testing.T) {

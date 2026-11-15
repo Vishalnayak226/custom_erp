@@ -15,8 +15,7 @@ import (
 // (db/migrations/migrations_stage26_7_4_campaign.sql) - create/list/edit come free
 // from the generic doctype machinery, zero bespoke code for those.
 // StartCampaignWorker is the only new engine logic: a daily-granularity
-// scan that calls the already-built-but-previously-uncalled
-// LogCustomerEventToCleverTap for every customer newly matching an Active
+// scan that calls logCleverTapEventInSchema for every customer newly matching an Active
 // campaign's trigger.
 
 func alreadySentCampaignToday(schema, campaignID, customerID string) bool {

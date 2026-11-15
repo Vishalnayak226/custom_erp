@@ -49,6 +49,7 @@ export function posCustomerSummary(code, shown) {
 }
 
 async function loadPolicy() {
+  if (!policy && !navigator.onLine) return {}; // 76.10: offline, the server checks it when the sale syncs
   if (!policy) {
     const res = await apiFetch('/api/v1/pos/high-value-policy').catch(() => null);
     policy = res && res.ok ? await res.json() : {};
@@ -59,7 +60,7 @@ async function loadPolicy() {
 async function refreshAttached() {
   const code = (hiddenEl() || {}).value || '';
   if (!code) { attached = null; return null; }
-  if (attached && attached.id === code && attached.fresh) return attached;
+  if ((attached && attached.id === code && attached.fresh) || !navigator.onLine) return attached;
   const res = await apiFetch(`/api/v1/doc/Customer/${encodeURIComponent(code)}`).catch(() => null);
   if (!res || !res.ok) return attached;
   const d = await res.json();
@@ -92,6 +93,9 @@ export async function posCustomerFind() {
 }
 
 export async function posAttachWalkIn() {
+  // 76.10: with no connection the bill goes on with no customer; the server
+  // bills the store's walk-in customer when the queued sale syncs (85.C3).
+  if (!navigator.onLine) { showToast('Offline · Walk-in on sync'); return true; }
   const res = await apiFetch('/api/v1/pos/walk-in-customer', { method: 'POST', body: JSON.stringify({ store: posLocation }) });
   if (!res) return false;
   if (!res.ok) { await showApiError(res, 'The walk-in customer could not be used.'); return false; }
@@ -168,7 +172,7 @@ export async function posEnsureCustomer({ total = 0, cash = 0 } = {}) {
     if (!(await posAskMobile())) return null;
     // The customer changes the quote (their price list, offers, points): the
     // sale goes on with the fresh one, not a stale quote the server would query.
-    if (typeof window.refreshPOSQuote === 'function') await window.refreshPOSQuote();
+    if (navigator.onLine && typeof window.refreshPOSQuote === 'function') await window.refreshPOSQuote();
   }
   const p = await loadPolicy();
   const c = await refreshAttached();
@@ -475,7 +479,7 @@ export async function posLoadTillOptions(store) {
   const sel = document.getElementById('pos-payment-mode');
   if (sel && storeTenders.length) {
     const was = sel.selectedOptions[0] ? (sel.selectedOptions[0].dataset.tender || sel.value) : '';
-    sel.innerHTML = storeTenders.map(t => `<option value="${esc(t.kind)}" data-tender="${esc(t.name)}" data-ref="${t.needs_reference ? '1' : ''}">${esc(t.name)}</option>`).join('');
+    sel.innerHTML = storeTenders.map(t => `<option value="${esc(t.kind)}" data-tender="${esc(t.name)}" data-ref="${t.needs_reference ? '1' : ''}" data-upi="${esc(t.upi_id || '')}" data-payee="${esc(t.payee || '')}">${esc(t.name)}</option>`).join('');
     const keep = [...sel.options].find(o => o.dataset.tender === was);
     if (keep) keep.selected = true;
     sel.dispatchEvent(new Event('change', { bubbles: true }));
@@ -495,10 +499,25 @@ export async function posLoadTillOptions(store) {
 
 export function posStoreTenders() { return storeTenders; }
 
+// upiPayQR is the NPCI pay link for a store's UPI ID and the exact amount
+// (185.1), drawn as an SVG by sticker-engine.js's QR encoder. Any UPI app
+// (BharatPe, PhonePe, Paytm, a bank's) reads it.
+async function upiPayQR(upiID, payee, amount, bill) {
+  const text = `upi://pay?pa=${upiID}&pn=${encodeURIComponent(payee || upiID)}&am=${amount.toFixed(2)}&cu=INR${bill ? `&tn=${encodeURIComponent('Bill ' + bill)}` : ''}`;
+  const { encodeQR } = await import('./sticker-engine.js' + new URL(import.meta.url).search);
+  const qr = encodeQR(text, 'M');
+  if (!qr) return '';
+  const n = qr.size, q = 4, cells = [];
+  qr.modules.forEach((row, y) => row.forEach((on, x) => { if (on) cells.push(`M${x + q},${y + q}h1v1h-1z`); }));
+  return `<div id="pos-upi-qr"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" width="100%" shape-rendering="crispEdges" role="img" aria-label="UPI pay QR"><rect width="100%" height="100%" fill="#fff"/><path d="${cells.join('')}" fill="#000"/></svg></div>`;
+}
+
 // posTillPayment is what Complete Sale sends about the money and the
 // salesman, after asking for a reference when the tender takes one. null =
-// the cashier cancelled, or a salesman is needed.
-export async function posTillPayment() {
+// the cashier cancelled, or a salesman is needed. amount is what this tender
+// pays; a UPI tender with a UPI ID shows a pay QR for it (185.1). cart is the
+// bill's number, so the next bill asks again.
+export async function posTillPayment({ amount = 0, cart = '' } = {}) {
   const sel = document.getElementById('pos-payment-mode');
   const opt = sel && sel.selectedOptions[0];
   const out = { payment_tender: opt ? (opt.dataset.tender || opt.value) : '', payment_reference: '', salesman_id: (document.getElementById('pos-salesman') || {}).value || '' };
@@ -507,12 +526,18 @@ export async function posTillPayment() {
     document.getElementById('pos-salesman')?.focus();
     return null;
   }
-  if (opt && opt.dataset.ref) {
+  const upi = opt && opt.value === 'UPI' && amount > 0 ? opt.dataset.upi : '';
+  if (opt && (opt.dataset.ref || upi)) {
     // Asked once per bill and tender - a re-try (a discount reason, a changed
-    // price) does not ask again.
-    const key = `${typeof posCurrentCartNumber === 'function' ? posCurrentCartNumber() : ''}|${out.payment_tender}`;
+    // price) does not ask again. A QR is for one amount, so a new amount asks.
+    const key = `${cart}|${out.payment_tender}${upi ? '|' + amount.toFixed(2) : ''}`;
     if (refCache.key !== key) {
-      const ref = await showCustomPrompt(`${out.payment_tender}: the card slip, approval code or UPI reference (UTR).`, '', 'Payment Reference');
+      const qr = upi ? await upiPayQR(upi, opt.dataset.payee, amount, cart).catch(() => '') : '';
+      const asked = qr
+        ? showCustomPrompt(`UPI ₹${amount.toFixed(2)} · scan, then type the UTR.`, '', 'UPI Payment')
+        : showCustomPrompt(`${out.payment_tender}: the card slip, approval code or UPI reference (UTR).`, '', 'Payment Reference');
+      if (qr) document.getElementById('custom-dialog-extra')?.insertAdjacentHTML('afterbegin', qr);
+      const ref = await asked;
       if (ref === null) return null;
       refCache = { key, ref: ref.trim() };
     }

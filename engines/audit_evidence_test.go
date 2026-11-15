@@ -300,12 +300,12 @@ func TestAuditVerificationOverdueDetectsSilence(t *testing.T) {
 	// Force every pooled connection into a non-UTC session. A naive timestamp
 	// scanned as UTC is then 5.5 hours in the future on this host, making the
 	// age negative and hiding the exact silence this check is meant to detect.
-	tenantID := auditTestTenantInTimeZone(t, "Asia/Calcutta")
+	tenantID := auditTestTenantInTimeZone(t, "Asia/Kolkata")
 	var sessionTimeZone string
 	if err := db.DB.QueryRow(`SHOW TIME ZONE`).Scan(&sessionTimeZone); err != nil {
 		t.Fatalf("read test session timezone: %v", err)
 	}
-	if sessionTimeZone != "Asia/Calcutta" {
+	if sessionTimeZone != "Asia/Kolkata" {
 		t.Fatalf("test requires a non-UTC database session, got %q", sessionTimeZone)
 	}
 
