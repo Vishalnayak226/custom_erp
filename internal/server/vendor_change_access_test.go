@@ -77,7 +77,8 @@ func TestStage14810RequestIsNeitherForgedNorRead(t *testing.T) {
 	}
 	edit["bank_account_number"] = newBank
 	edit["id"] = vendorID
-	w := call(handleGenericDoc, http.MethodPost, engines.RoleSuperAdmin, "admin", "Vendor", "", edit)
+	// Through /{id}, as every screen edits: a create of a live code is refused (57.26(j)).
+	w := call(handleGenericDoc, http.MethodPost, engines.RoleSuperAdmin, "admin", "Vendor", vendorID, edit)
 	if w.Code != http.StatusOK {
 		t.Fatalf("vendor save: %d %s", w.Code, w.Body.String())
 	}

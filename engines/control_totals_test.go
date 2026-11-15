@@ -11,7 +11,9 @@ import (
 
 func runWithControls(t *testing.T, tenantID, reportID, role string, params map[string]string) ([]map[string]interface{}, *ReportControlTotals) {
 	t.Helper()
-	_, rows, _, ct, err := RunReportWithControlTotals(context.Background(), tenantID, reportID, role, "system", params)
+	// An active user with every store: `system` is Inactive since 178.1, so a
+	// store-scoped role (Cashier) resolved it to no stores and got no totals.
+	_, rows, _, ct, err := RunReportWithControlTotals(context.Background(), tenantID, reportID, role, "admin", params)
 	if err != nil {
 		t.Fatalf("%s: %v", reportID, err)
 	}

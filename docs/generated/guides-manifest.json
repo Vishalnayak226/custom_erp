@@ -296,7 +296,7 @@
     },
     {
       "path": "docs/security/command-catalog.md",
-      "sha256": "f0a8655043e05191b384afcd66a1ad6cf4286bad01049b8a21b0e7e186da4c56",
+      "sha256": "6353ce5af31eda39c7ccef1ba3ba1bee504b745d9782e93b94f0281cfb13fb43",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

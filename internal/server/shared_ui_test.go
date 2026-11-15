@@ -52,7 +52,8 @@ func TestStage55PhoneDecoratorHonorsSemanticMetadata(t *testing.T) {
 	if len(function) != 2 {
 		t.Fatal("phone field matcher not found")
 	}
-	for _, required := range []string{"fieldSemantic(n)", "return semantic === 'phone'", "!Object.keys(FIELD_SEMANTICS).length"} {
+	// 188.1: the raw name, so camelCase words still split.
+	for _, required := range []string{"fieldSemantic(name)", "return semantic === 'phone'", "!Object.keys(FIELD_SEMANTICS).length"} {
 		if !strings.Contains(function[1], required) {
 			t.Errorf("country phone decorator missing semantic safeguard %q", required)
 		}

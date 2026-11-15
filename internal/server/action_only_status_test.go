@@ -35,10 +35,12 @@ func TestActionOnlyStatusRefusedOnPlainSave(t *testing.T) {
 			"id": id, "transfer_number": id, "from_warehouse": "HO", "to_warehouse": "T13217-STORE",
 			"items": `[{"sku":"T13217-SKU","qty":2}]`, "status": status,
 		})
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/doc/TransferOrder", bytes.NewReader(payload))
+		// Through /{id}, as the form saves an edit: a create of a live code is refused (57.26(j)).
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/doc/TransferOrder/"+id, bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.SetPathValue("doctype", "TransferOrder")
+		req.SetPathValue("id", id)
 		rec := httptest.NewRecorder()
 		apiMiddleware(handleGenericDoc)(rec, req)
 		var body map[string]interface{}

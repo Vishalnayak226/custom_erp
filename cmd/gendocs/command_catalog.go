@@ -384,6 +384,11 @@ var commandNotes = map[string]commandNote{
 		Inputs: "each key validated against the settings registry; each change stamped", Preconditions: "an administrator", Invariants: "only registered keys change; every key = value is audited (config_change_burst detection)"},
 	"POST /api/v1/admin/tenant/package": {
 		Inputs: "module entitlements from the package", Preconditions: "an administrator", Invariants: "core modules stay on; dependents follow their prerequisite"},
+	"POST /api/v1/admin/tenant/package/impact": {
+		Inputs: "the client and the packages it would move to; modules gained and lost and the open work left frozen, computed by the server", Preconditions: "a platform operator", Invariants: "a preview only - nothing changes", Idempotency: "a repeat recomputes the same preview"},
+	"POST /api/v1/razorpay/credentials": {
+		Inputs: "key ID, key secret and webhook secret from the Razorpay dashboard; an optional expiry; who saved them", Preconditions: "an administrator; every field filled; the key ID starts with rzp_",
+		Invariants: "stored encrypted as the client's Razorpay credential; the list shows only the key ID and whether each secret is set"},
 	"POST /api/v1/admin/api-credentials": {
 		Inputs: "credential id, the secret shown once, scopes", Preconditions: "an administrator", Invariants: "the secret is stored hashed; scopes never exceed the issuer's"},
 	"POST /api/v1/integrations/credentials/disconnect": {

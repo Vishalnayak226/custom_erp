@@ -36,8 +36,8 @@ var printShapes = map[string]printShape{
 		{Key: "package_code", Label: "Package"}, {Key: "order_id", Label: "Order"}, {Key: "weight_kg", Label: "Weight (kg)"}}},
 }
 
-// jvPrintLines: each account by its name, debit and credit in rupees (the
-// voucher keeps them in paise).
+// jvPrintLines: each account by its name, debit and credit in rupees (item
+// 193.2: the voucher's lines hold rupees with up to two decimals).
 func jvPrintLines(tenantID, _ string, data map[string]interface{}) []map[string]interface{} {
 	var lines []JournalVoucherLine
 	raw, _ := data["lines"].(string)

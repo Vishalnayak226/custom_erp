@@ -480,9 +480,8 @@ func TestStage14835BillOfWholePacksAddsUp(t *testing.T) {
 }
 
 // Stock costs whole paise a piece, so a pack line goes in a little off its value:
-// the bill settles the gap. Once paid, 2100 is clear and 1200 holds the true value.
-// The item's own average stays whole paise, on any item, so it can sit up to half a
-// paisa a piece from 1200.
+// the bill settles the gap to Round Off 5280 (173.1), so 1200 keeps what the
+// receipt booked and still ties to the units in hand. Once paid, 2100 is clear.
 func TestStage14835StockSettlesToTheBill(t *testing.T) {
 	packOn(t, true)
 	m := newMC1481(t)
@@ -539,8 +538,11 @@ func TestStage14835StockSettlesToTheBill(t *testing.T) {
 			if got := m.gl(grn, "1200"); got != c.bookedFirst {
 				t.Errorf("receipt booked %d, want %d", got, c.bookedFirst)
 			}
-			if got := m.glAll("1200", grn, v.VendorBillID); got != c.value {
-				t.Errorf("1200 after the bill %d, want %d", got, c.value)
+			if got := m.glAll("1200", grn, v.VendorBillID); got != c.bookedFirst {
+				t.Errorf("1200 after the bill %d, want %d (the receipt's own value)", got, c.bookedFirst)
+			}
+			if got := m.glAll(accountRoundOff, grn, v.VendorBillID); got != c.value-c.bookedFirst {
+				t.Errorf("5280 after the bill %d, want %d (the lines' value less what went in)", got, c.value-c.bookedFirst)
 			}
 			m.payStep(s)
 			if got := m.glAll("2100", grn, v.VendorBillID); got != 0 {

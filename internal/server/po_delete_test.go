@@ -44,11 +44,12 @@ func TestPurchaseOrderDeleteUntilGoodsReceived(t *testing.T) {
 	if rec := request("manager1", "Store Manager", "/api/v1/doc/PurchaseOrder/"+freePO); rec.Code != http.StatusForbidden {
 		t.Errorf("role without Delete: status=%d, want 403 (%s)", rec.Code, rec.Body.String())
 	}
-	if rec := request("system", "Super Admin", "/api/v1/doc/PurchaseOrder/"+freePO); rec.Code != http.StatusOK {
+	// An active Super Admin: `system` is Inactive since 178.1 and nothing signs in as it.
+	if rec := request("admin", "Super Admin", "/api/v1/doc/PurchaseOrder/"+freePO); rec.Code != http.StatusOK {
 		t.Errorf("approved + sent PO with no receipt: status=%d, want 200 (%s)", rec.Code, rec.Body.String())
 	}
 	for _, po := range []string{receivedPO, multiPO} {
-		rec := request("system", "Super Admin", "/api/v1/doc/PurchaseOrder/"+po)
+		rec := request("admin", "Super Admin", "/api/v1/doc/PurchaseOrder/"+po)
 		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "PURCHA-0320") {
 			t.Errorf("%s with goods received: status=%d body=%s, want 422 PURCHA-0320", po, rec.Code, rec.Body.String())
 		}
@@ -57,7 +58,7 @@ func TestPurchaseOrderDeleteUntilGoodsReceived(t *testing.T) {
 	if _, err := db.DB.Exec(`UPDATE tenant_default.documents SET status = 'Cancelled' WHERE id = $1`, grnID); err != nil {
 		t.Fatal(err)
 	}
-	if rec := request("system", "Super Admin", "/api/v1/doc/PurchaseOrder/"+receivedPO); rec.Code != http.StatusOK {
+	if rec := request("admin", "Super Admin", "/api/v1/doc/PurchaseOrder/"+receivedPO); rec.Code != http.StatusOK {
 		t.Errorf("after the receipt was cancelled: status=%d, want 200 (%s)", rec.Code, rec.Body.String())
 	}
 }

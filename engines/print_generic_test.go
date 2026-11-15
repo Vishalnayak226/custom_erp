@@ -73,8 +73,9 @@ func TestStage127_3GenericPrint(t *testing.T) {
 
 	// Stage 127.3.1 shapes. A journal voucher keeps paise; it prints rupees,
 	// each account by its name, debit and credit totalled.
+	// 193.2: the lines hold rupees with up to two decimals; the print shows them as stored.
 	insert("JV-G1", "JournalVoucher", "Draft", map[string]interface{}{"voucher_number": "JV-G1", "narration": "Rent",
-		"lines": `[{"account_code":"5400","debit":1250050},{"account_code":"1100","credit":1250050}]`})
+		"lines": `[{"account_code":"5400","debit":12500.5},{"account_code":"1100","credit":12500.5}]`})
 	d, err = BuildPrintDocument(tenantID, "JournalVoucher", "JV-G1", "", false)
 	if err != nil || d.Title != "Journal Voucher" || len(d.Lines) != 2 || d.Lines[0]["debit"] != 12500.5 || d.Lines[1]["account_name"] == "" ||
 		d.Fields["total__debit"] != 12500.5 || d.Fields["total__credit"] != 12500.5 {
