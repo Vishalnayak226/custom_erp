@@ -123,6 +123,12 @@ if ($onGitHub) {
     if (-not (Get-Command 'gh' -ErrorAction SilentlyContinue)) { Stop-Release 'gh (GitHub CLI) is not on PATH - install it, or run with -LocalTests' }
     & gh auth status 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { Stop-Release 'gh is not signed in - run "gh auth login", or run with -LocalTests' }
+    # 204.1: GitHub's Linux runner has no TEMP or USERPROFILE. 0.25.0's run died loading
+    # ReleaseCommon.ps1 there, before any test ran. Load it here the same way.
+    $probe = "`$ErrorActionPreference = 'Stop'; Remove-Item Env:TEMP, Env:TMP, Env:USERPROFILE -ErrorAction SilentlyContinue; . '$PSScriptRoot/ReleaseCommon.ps1'"
+    $probeOut = & pwsh -NoProfile -NonInteractive -Command $probe 2>&1
+    if ($LASTEXITCODE -ne 0) { Stop-Release "release/scripts/ReleaseCommon.ps1 does not load without TEMP/USERPROFILE, as on GitHub's runner: $(($probeOut | Out-String).Trim())" }
+    Note 'release scripts load as on GitHub''s runner (no TEMP)'
 }
 $branch =(Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
 if ($branch -ne 'main') { Stop-Release "the repo is on '$branch', not main" }

@@ -2,6 +2,9 @@
 # Invoke-Cleanup.ps1 (Stage 109). Dot-source it: . "$PSScriptRoot\ReleaseCommon.ps1"
 $script:ReleaseDir = Split-Path $PSScriptRoot -Parent      # release\ - the clicks, config.json, hold.txt, reports\
 $script:RepoRoot = Split-Path $script:ReleaseDir -Parent   # the repository
+# GitHub's Linux runners have no TEMP, and Invoke-GuardTests / Invoke-TestShard load
+# this file there: 0.25.0's run died on Join-Path $env:TEMP before a test ran (204.1).
+if (-not $env:TEMP) { $env:TEMP = [IO.Path]::GetTempPath().TrimEnd('/', '\') }
 
 function Get-ReleaseConfig {
     $path = Join-Path $script:ReleaseDir 'config.json'
