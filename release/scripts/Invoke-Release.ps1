@@ -129,6 +129,15 @@ if ($onGitHub) {
     $probeOut = & pwsh -NoProfile -NonInteractive -Command $probe 2>&1
     if ($LASTEXITCODE -ne 0) { Stop-Release "release/scripts/ReleaseCommon.ps1 does not load without TEMP/USERPROFILE, as on GitHub's runner: $(($probeOut | Out-String).Trim())" }
     Note 'release scripts load as on GitHub''s runner (no TEMP)'
+    # 204.1: 0.25.0's promote job passed every test and still could not move main: it
+    # ran `git push` from actions/checkout's depth-1 clone, which never saw main's tip
+    # ("fetch first"). Trial runs never reach promote, so only a real release finds this.
+    $promote = ((Get-Content -Raw (Join-Path $repo '.github/workflows/release.yml')) -split '(?m)^  promote:', 2)[1]
+    if (-not $promote) { Stop-Release '.github/workflows/release.yml has no promote job - nothing would move main' }
+    if ($promote -match 'git push[^\r\n]*refs/heads/main' -and $promote -notmatch 'fetch-depth:\s*0') {
+        Stop-Release '.github/workflows/release.yml promote pushes main from a depth-1 checkout, which GitHub refuses ("fetch first") - move main through the API (gh api -X PATCH .../git/refs/heads/main -F force=false) or check out with fetch-depth: 0'
+    }
+    Note 'release.yml promote can move main'
 }
 $branch =(Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
 if ($branch -ne 'main') { Stop-Release "the repo is on '$branch', not main" }

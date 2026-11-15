@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `7c43c56e` |
-| Brain redrawn | source graph 7c43c56e |
+| Graph built from commit | `81b7a924` |
+| Brain redrawn | source graph 81b7a924 |
 | Regions / lobes | 38 / 8 |
 | Files in the working tree | 3095 (2388 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
 | Symbols in the graph | 27786 |
-| Cross-region relationships | 11415 extracted (98% inferred) + 8 declared by hand |
+| Cross-region relationships | 11416 extracted (98% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -103,7 +103,7 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 643 | 7793 | 3156 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 79 | 1352 | 8 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 22 | 276 | 32 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 456 | 5866 | 103 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 456 | 5866 | 104 |
 | **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 72 | 337 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 910 | 4550 | 0 |
 
@@ -189,7 +189,7 @@ flowchart LR
   n_pim -.->|106| n_api_errors
   n_oms -.->|103| n_doc_kernel
   n_inventory -->|102| n_procurement
-  n_brain -->|100| n_docs_memory
+  n_brain -->|101| n_docs_memory
   n_procurement -.->|100| n_api_errors
   n_pim -.->|99| n_doc_kernel
   n_crm -.->|97| n_doc_kernel
@@ -495,7 +495,7 @@ flowchart LR
   n_inventory -.->|106| n_doc_kernel
   n_oms -.->|103| n_doc_kernel
   n_inventory -->|102| n_procurement
-  n_brain -->|100| n_docs_memory
+  n_brain -->|101| n_docs_memory
   n_pim -.->|99| n_doc_kernel
   n_crm -.->|97| n_doc_kernel
   n_procurement -->|97| n_tax
@@ -1019,8 +1019,8 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 17 | 239 | → Persistence & Migrations (38) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 10 | 101 | ← Product Information (PIM) (26) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 12 | 175 | ← Warehouse Management (WMS) (80) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 449 | 5746 | ← The Brain Map (this) (100) |
-| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 120 | → Project Documentation (100) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 449 | 5746 | ← The Brain Map (this) (101) |
+| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 120 | → Project Documentation (101) |
 | [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 72 | 337 | → Identity, RBAC & MFA (14) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 57 | 507 | → Logging, Alerting & Notifications (54) |
 | [Test Suite](#test-suite) | Cerebellum — Verification | 910 | 4550 | — |
@@ -3916,7 +3916,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - → **Expense Management** — 1 relationship, 1 inferred
 - → **HTTP Edge & Middleware** — 1 relationship, 1 inferred
 - → **Persistence & Migrations** — 1 relationship, 1 inferred
-- ← **The Brain Map (this)** — 100 relationships, 1 inferred
+- ← **The Brain Map (this)** — 101 relationships, 1 inferred
 - ← **Build, Deploy & Operate** — 10 relationships, 9 inferred
 - ← **Error & Message Catalog** — 3 relationships, 3 inferred
 - ← **Procurement & Vendors** — 3 relationships, 3 inferred
@@ -4394,7 +4394,7 @@ The map you are reading and the generator that draws it. brain.map.json is the o
 
 **Wired to**
 
-- → **Project Documentation** — 100 relationships, 1 inferred
+- → **Project Documentation** — 101 relationships, 1 inferred
 - → **Extension Platform** — 1 relationship, all extracted
 - → **Build, Deploy & Operate** — 1 relationship, all extracted
 - → **Security Baseline & Attack Surface** — 1 relationship, all extracted
@@ -4427,7 +4427,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - `Invoke-Action()` — [manage.ps1](../../manage.ps1#L614) · degree 13
 - `pageInventoryFiles()` — [cmd/gendocs/pages.go](../../cmd/gendocs/pages.go#L41) · degree 13
 - `scorecardFiles()` — [cmd/gendocs/scorecard.go](../../cmd/gendocs/scorecard.go#L36) · degree 12
-- `.note()` — [cmd/gendocs/command_catalog.go](../../cmd/gendocs/command_catalog.go#L629) · degree 11
+- `.note()` — [cmd/gendocs/command_catalog.go](../../cmd/gendocs/command_catalog.go#L634) · degree 11
 - `Test-PortOpen()` — [manage.ps1](../../manage.ps1#L107) · degree 10
 
 **Wired to**

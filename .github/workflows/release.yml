@@ -176,7 +176,10 @@ jobs:
           # meanwhile - stop; the release must be cut again from the new main.
           status=$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq .status)
           case "$status" in
-            ahead) git push origin "${GITHUB_SHA}:refs/heads/main" ;;
+            # 204.1: through the API, which checks the fast-forward on GitHub's side
+            # (force=false). A git push from this depth-1 checkout is refused ("fetch
+            # first"): the runner has never seen main's tip. 0.25.0 stopped here.
+            ahead) gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/heads/main" -f sha="${GITHUB_SHA}" -F force=false --silent ;;
             identical|behind) echo "main already holds ${GITHUB_SHA}" ;;
             *) echo "::error::main and ${GITHUB_SHA} have diverged ($status) - run Release.cmd again from the new main"; exit 1 ;;
           esac
