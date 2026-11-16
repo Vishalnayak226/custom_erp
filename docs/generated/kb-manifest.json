@@ -289,7 +289,7 @@
     },
     {
       "path": "internal/kb/content/articles/keyboard-shortcuts.html",
-      "sha256": "013c1d1e2bff95c8b6ab2b82922199a2e82444d4b1f006e76be941adb2853046",
+      "sha256": "c0e237f1f69c71e277d5968ce97e00d4e0b0cb9ee875dabc2d0e2b0f307b2c5f",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -811,7 +811,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "d6f6d2d98cc23a268937de3c31edfe57434367e0a5cb451ca23777be4b7c6fd5",
+      "sha256": "ceeefa2e1446dee06abb363f050f24ed4d765e5d8bedc8bd135641032c1eff4a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

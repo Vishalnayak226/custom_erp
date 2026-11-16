@@ -125,9 +125,10 @@ func TestCatalogWaveAFigures(t *testing.T) {
 	}
 	is("design no", l1["design_no"], "D-100")
 	is("category", l1["category_name"], "Kurtas")
-	near("I1 gross value", l1["gross_value"], 2000)      // 2 x 1,050 / 1.05
-	near("I1 item discount", l1["item_discount"], 95.24) // 2 x 50 / 1.05
-	near("I1 bill discount", l1["bill_discount"], 95.24) // 100 / 1.05
+	near("I1 gross value", l1["gross_value"], 2000)        // 2 x 1,050 / 1.05
+	near("I1 item discount", l1["item_discount"], 95.24)   // 2 x 50 / 1.05
+	near("I1 offer discount", l1["offer_discount"], 95.24) // 100 / 1.05; an offer, not a bill discount (215.11)
+	near("I1 bill discount", l1["bill_discount"], 0)
 	near("I1 taxable", l1["item_taxable_amount"], 1809.52)
 	near("I1 GST", l1["gst_amount"], 90.48)
 	near("I1 net", l1["item_net_amount"], 1900)

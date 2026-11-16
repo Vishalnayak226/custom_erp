@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **688**; keyed: **38**; findings (money / stock without a key): **147**.
+Routes audited: **691**; keyed: **38**; findings (money / stock without a key): **147**.
 
 ## Findings
 
@@ -463,6 +463,8 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/gstr2b/import` | `handleGSTR2BImport` | no | - | document |
 | `POST /api/v1/gstr2b/lines/{id}/decision` | `handleGSTR2BDecision` | no | - | document |
 | `POST /api/v1/gstr2b/reconcile` | `handleGSTR2BReconcile` | no | - | document |
+| `POST /api/v1/heals/past-names/apply` | `handlePastRenameApply` | no | - | document |
+| `POST /api/v1/heals/past-names/preview` | `handlePastRenamePreview` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/heals/{id}/run` | `handleRunHeal` | no | - | document |
 | `POST /api/v1/hr/appraisals/{id}/calibrate` | `handleCalibrateAppraisal` | no | - | document |
 | `POST /api/v1/hr/disburse-loan` | `handleDisburseEmployeeLoan` | yes (command key `hr.loan.disburse`) | 7 days (command claim) | money |
@@ -673,6 +675,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/pos/held-bills/{id}/{action}` | `handleHeldPOSBillAction` | no | - | document |
 | `POST /api/v1/pos/loyalty/redemption/start` | `handleStartPOSRedemption` | no | - | document |
 | `POST /api/v1/pos/loyalty/redemption/verify` | `handleVerifyPOSRedemption` | n.a. (a question, not a command) | - | document |
+| `POST /api/v1/pos/offers/item-lists` | `handleOfferItemListImport` | no | - | document |
 | `POST /api/v1/pos/offers/preview` | `handlePOSOffersPreview` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/pos/offline-heartbeat` | `handlePOSOfflineHeartbeat` | no | - | document |
 | `POST /api/v1/pos/offline-sales/{id}/reject` | `handleRejectOfflineSale` | no | - | money, stock |

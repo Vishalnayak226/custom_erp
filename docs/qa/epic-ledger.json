@@ -1015,8 +1015,8 @@
     {
       "id": "release-0.26.0",
       "label": "release 0.26.0",
-      "recorded_at": "2026-11-16T00:48:04Z",
-      "commit": "fb01463366c7941890d2f6c1d761c318047f11bb",
+      "recorded_at": "2026-11-16T01:02:00Z",
+      "commit": "5e9fe0952723c414b8267f3996b83d2d47d075a2",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {
@@ -1061,7 +1061,7 @@
           "status": "measured"
         },
         "budget.cold_core_gzip_bytes": {
-          "value": 183789,
+          "value": 183790,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
@@ -1164,7 +1164,7 @@
           "status": "measured"
         },
         "static.public_gzip_bytes": {
-          "value": 4261625,
+          "value": 4261626,
           "unit": "bytes",
           "source": "each file gzipped on its own, summed (what a browser downloads)",
           "status": "measured"

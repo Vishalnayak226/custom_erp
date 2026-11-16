@@ -112,6 +112,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Sales | `OFR` | Offline Sync Review |
 | Sales | `OFG` | Offline Queue Gaps |
 | Sales | `OFS` | Offline Sales |
+| Sales | `SLH` | Sales History |
 | Sales | `SO` | Sales Order |
 | Sales | `PEND` | Pending Orders |
 | Sales | `SI` | Sales Invoice |
