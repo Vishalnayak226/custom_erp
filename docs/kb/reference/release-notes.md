@@ -19,24 +19,52 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **260** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **273** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-08-16 to 2026-10-18
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-15
+- [Part 2](release-notes-2.md) - 2026-08-19 to 2026-10-18
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-19
+
+## 2026-11-16
+
+**Every transaction screen has its own lesson, and every module a picture** *(KB handbooks + KB build + guides + Guide suites, ask 217; NOT COMMITTED)*
+
+**Best-practice POS: B2B bill, GST cash/PAN rules, three discounts, every standard offer, Sales History, online bills and returns at the till** *(code + migration + tests + guides + Guide suites, ask 215; NOT COMMITTED)*
+
+**PrintBridge in its own public repository, the build signs it once a certificate exists, and Test alignment on paper** *(PrintBridge repo + build script + real print, ask 218; ERP docs NOT COMMITTED)*
+
+**Data Healer rule in the constitution, and Guide's key set live** *(constitution + PR template + production config, ask 216; NOT COMMITTED)*
 
 ## 2026-11-15
 
-**"Build everything. All approved" - every buildable open item: SaaS packages and billing, passkeys, tax rules from official sources, Unicommerce, the role checks Guide found, and the owner checklist** *(code + tests + guides + docs, ask 193; NOT COMMITTED)*
+**Screens hold still when you type or click - every screen walked, all three roles** *(front end + guide + Guide suite, ask 200; the later fixes NOT COMMITTED)*
 
-**OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app** *(code + tests + guide + Guide suites, asks 197 and 198; NOT COMMITTED)*
+**Switch paper, template and printer for one print - at Print, the till and Reprint; profiles by B2B / B2C and user** *(code + migration + tests + guides, ask 213; NOT COMMITTED)*
+
+**Data Healer > Past names: change an item's name on documents already made, without SQL** *(code + tests + guides, ask 211 with 201.4; NOT COMMITTED)*
+
+**PrintBridge: "did not print" in seconds, no wake-box, and a security review - agent 0.3.2** *(ERP + PrintBridge agent + tests + guides, asks 209 and 212; NOT COMMITTED)*
+
+**Help opens the Knowledge Center at your screen's lesson: What, Why, Use case, How, with pictures** *(front end + KB + guides, ask 210; NOT COMMITTED)*
+
+**Data Healer: one-time fixes old records catch up through, starting with Item aliases** *(code + migration + tests + guides, ask 207; NOT COMMITTED)*
+
+**System Errors becomes a fix list: real faults only, one row per fault, Copy for fix and Resolve** *(code + migration + tests + guides, ask 206; NOT COMMITTED)*
+
+**Each screen's short code beside its name in the sidebar menus** *(front end + guides, ask 208; NOT COMMITTED)*
+
+**API access for every module, limited by module access - research and plan** *(plan only, ask 205; NOT COMMITTED)*
+
+**"Push all and deploy all" - release 0.25.0 once every session was done, deployed to app and minn** *(release + deploy + pipeline fixes, ask 204)*
+
+**"Build everything. All approved" - every buildable open item: SaaS packages and billing, passkeys, tax rules from official sources, Unicommerce, the role checks Guide found, and the owner checklist** *(code + tests + guides + docs, ask 193; shipped in 0.25.0, §379)*
+
+**OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app** *(code + tests + guide + Guide suites, asks 197 and 198; released in 0.25.0, 53af64d)*
 
 **A short item alias on stickers, the item name from Category + Type, and combinations named by their item name** *(code + migration + tests + guides, asks 199 and 201; NOT COMMITTED)*
 
-**PrintBridge installs once and then updates itself** *(ERP + PrintBridge agent 0.3.0 + installer + tests + guides, ask 203; NOT COMMITTED)*
-
-**A short code for every menu screen, and a switch to turn codes off for a client** *(code + tests + guides, ask 202; NOT COMMITTED)*
+**A short code for every menu screen, and a switch to turn codes off for a client** *(code + tests + guides, ask 202; released in 0.25.0, 7c43c56)*
 
 **"Build all recommended" - search on very large masters, the panic button off Activity Log, the cold-load gate re-run and three more connected-organisation journeys** *(code + tests + guides + docs, ask 192; NOT COMMITTED)*
 
@@ -491,36 +519,4 @@ From the user's Edit Item screenshots and five follow-up messages; decisions D1-
 **Stage 85 — POS billing for a real store: store access, the working store on top, store stock locations, phone-first customers, GST bill, customer advance, and the rest of Stage 77** *(committed locally - not pushed, not deployed)*
 
 Full detail in `micro_checklist.md` Stage 85; plan `docs/product/pos-store-billing-plan-2026-10-18.md`. Opened from the user's POS screenshot: *"I know i asked and it was built"* - it had been asked (Stage 77, 2026-10-17) but only its decisions were recorded.
-
-**Module 2 (Numbering / Masters), first part — 76.7, 76.8, 76.9** *(code + docs, committed with §241, not pushed; 76.7's country cap waits on Stage 86's commit)*
-
-Full detail in `micro_checklist.md` 76.7-76.9.
-
-**Module-wise build order, module 1: Procurement / GRN / Print — 84.2, 84.3, 84.4, 73.C.7** *(code + docs, committed, not pushed)*
-
-The user set a module-wise build order on 2026-10-18 (`micro_checklist.md`, top: "4,8,1,2,3,5,9,7,6", this run stops after Backups & Platform). This is the first module. Full detail under 84.2-84.5 and 73.C.7.
-
-**Stage 87 — Attributes asked in the PO's add row; a column per attribute on PO lines and the PO print** *(code + docs, NOT COMMITTED)*
-
-From the user's *"It should ask attribute in PO itself. Where is it."* on the New purchase order screen. Full detail in `micro_checklist.md` Stage 87.
-
-**Stage 86 — Refresh keeps your place; number series store code, year formats, GST length and characters, live preview; the ERP's own item attributes** *(code + docs, NOT COMMITTED)*
-
-From the user's Number Series - ASN screenshots, their attribute question, and a refresh that landed on Help. Full detail in `micro_checklist.md` Stage 86.
-
-**Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8** *(one commit, pushed + deployed)*
-
-At the user's *"if all task done, push all and deploy all to minn and app"*. This supersedes the "NOT COMMITTED" tags on §229-237. Full detail in `micro_checklist.md` 73.R and 84.7-84.9.
-
-**Stage 82 — The industry is chosen in Configuration, by the org's admin only** *(code + docs, NOT COMMITTED)*
-
-From the user's screenshot of the top bar's industry dropdown and its typed-code Override prompt. Full detail in `micro_checklist.md` Stage 82.
-
-**Stage 81 — Product attributes per client from the industry attribute library** *(code + docs, NOT COMMITTED)*
-
-From the user's message and draft workbook `ERP_Industry_Product_Attribute_Master.xlsx`. Full detail in `micro_checklist.md` Stage 81.
-
-**Stage 80 — New Item form in sections with a variant-option picker; Help opens the right article on every list; one place for print templates; WMS start-here guide** *(code + docs, NOT COMMITTED)*
-
-Four screenshots from the user on the deployed build. Full detail in `micro_checklist.md` Stage 80.
 

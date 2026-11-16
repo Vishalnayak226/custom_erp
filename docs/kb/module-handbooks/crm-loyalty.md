@@ -6,6 +6,7 @@ summary: Earn and burn loyalty points on real sales, issue vouchers and run birt
 audience: store manager, marketing, admin
 last_verified: 2026-11-15
 screens: [crm, module:crm, doctype:customer, loyalty, reports, configuration]
+screen_sections: [loyalty=loyalty-points-earn-and-burn,doctype:customer=merging-duplicate-customers]
 doc_id: DOC-F07FAE98C4
 type: procedure
 status: draft
@@ -35,6 +36,30 @@ customer earned or burned, plus the tiering, campaign and CleverTap
 integration logic that reads it.
 
 ## Loyalty points: earn and burn
+
+> [!WHAT]
+> Loyalty points are earned automatically on a completed sale and spent with
+> **Redeem Points** at checkout.
+
+> [!WHY]
+> The balance is never stored or edited. It is the sum of earns minus burns
+> from the ledger, and redeeming more than the balance is refused. An
+> abandoned cart never costs the customer points.
+
+> [!USECASE]
+> A customer's sale earns points from the net sale amount at the configured
+> rupees per point. At the next checkout they use **Redeem Points**, and the
+> points burn only when the sale completes.
+
+![Customer Points: pick a customer to see points earned and redeemed, and any adjustments](../img/loyalty.webp)
+
+> [!HOW]
+
+1. Set **loyalty.rupees_per_point** and **loyalty.point_expiry_days** in
+   **Settings → Configuration**.
+2. Complete a sale for the customer: points are earned on their own.
+3. To spend points, enter them in **Redeem Points** at checkout. They are
+   spent only when the sale completes.
 
 A customer's balance is never a stored number — it is always computed as
 `SUM(Earn) − SUM(Burn)` from the ledger. This is deliberate: the ledger is
@@ -84,6 +109,28 @@ customer can never be pushed to a negative balance by a lot a later
 redemption already effectively consumed.
 
 ## Vouchers (coupons)
+
+> [!WHAT]
+> A Voucher is a code with a **Discount Type** (Percentage or Flat), a value,
+> and an optional expiry, **Max Uses** and **Customer** restriction.
+
+> [!WHY]
+> Redemption is row-locked, so two concurrent redemptions of a one-use voucher
+> cannot both succeed. A voucher at its max use count becomes **Exhausted**.
+
+> [!USECASE]
+> A welcome voucher is flat ₹100 for one customer. The cashier types the code
+> into the POS **Coupon code** box, the panel shows the discount, and the
+> voucher is spent only when the sale completes.
+
+> [!HOW]
+
+1. Create a **Voucher** in **Setup → Master Data → Voucher**, or import many
+   by CSV: discount type, value, and an optional expiry, **Max Uses** and
+   **Customer**.
+2. At the till, type the code into the POS **Coupon code** box. One voucher
+   per bill.
+3. See each voucher's use on **CRM → Loyalty → Vouchers & campaigns**.
 
 A **Voucher** (**Setup → Master Data → Voucher**, individually or via bulk
 CSV import — both come free from the same generic doctype/import machinery
@@ -158,6 +205,27 @@ number of points. (The till calls `/api/v1/pos/loyalty/redemption/start` and
 remain for integrations.)
 
 ## Merging duplicate customers
+
+> [!WHAT]
+> A row action on the Customer list merges a duplicate customer into a
+> surviving one.
+
+> [!WHY]
+> Every order, invoice, voucher and loyalty-point history moves to the
+> surviving customer, so the history is not split. The action cannot be
+> undone, and the screen warns you before it runs.
+
+> [!USECASE]
+> Two records exist for the same shopper with different contact details. You
+> merge the duplicate into the main record, and all its orders and points move
+> across.
+
+> [!HOW]
+
+1. On the Customer list, find the duplicate record.
+2. Use its merge action and choose the customer record that stays.
+3. Read the warning: orders, invoices, vouchers and points move across, and it
+   cannot be undone.
 
 On the Customer record list, a row action lets you merge a duplicate
 customer record into a surviving one — every order, invoice, voucher and

@@ -424,7 +424,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '83';
+const VIEW_MODULE_VERSION = '84';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -486,6 +486,7 @@ const LAZY_VIEW_MODULES = {
   oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS', 'oms.css'],
   approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
   dataquality: ['view-data-quality.js', 'renderDataQualityView', 'Data quality'],
+  datahealer: ['view-data-healer.js', 'renderDataHealerView', 'Data Healer', 'txn-screen.css'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
   'gate-entry': ['view-gate-entry.js', 'renderGateEntryView', 'Gate entries', 'txn-screen.css'],
@@ -499,6 +500,7 @@ const LAZY_VIEW_MODULES = {
   // Stage 127.6: every document printed, by the client's modules; print it again.
   reprint: ['view-reprint.js', 'renderReprintView', 'Reprint'],
   'offline-sales': ['view-offline-sales.js', 'renderOfflineSalesView', 'Offline Sales', 'txn-screen.css'], // 49.5.6a
+  'sales-history': ['view-sales-history.js', 'renderSalesHistoryView', 'Sales History', 'txn-screen.css'], // ask 215 (215.12)
   hr: ['view-hr.js', 'renderHRView', 'HR'],
   assets: ['view-assets.js', 'renderAssetsView', 'Fixed Assets'],
   transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Movement', 'txn-screen.css'],
@@ -3290,8 +3292,9 @@ function applyPhoneInputRule(input) {
   clean();
 
   // The hint sits under the field so the rule is visible before the first
-  // keystroke, not only after a rejection.
-  if (!input.parentElement || input.parentElement.querySelector('.phone-rule-hint')) return;
+  // keystroke, not only after a rejection. A compact field (the till's Mobile
+  // box, ask 215.1) opts out with data-phone-hint="off"; its placeholder says it.
+  if (input.dataset.phoneHint === 'off' || !input.parentElement || input.parentElement.querySelector('.phone-rule-hint')) return;
   const hint = document.createElement('div');
   hint.className = 'empty-state-hint phone-rule-hint';
   hint.innerHTML = `${escapeHTMLText(rule.name)} numbers are ${escapeHTMLText(rule.length_label)}. ` +
@@ -3908,6 +3911,8 @@ async function init() {
   fetchAndApplyProfile();
   loadAppVersion();
   loadViewModule('/view-store.js?v=1').then(m => m.mountStoreSwitch()).catch(() => {});
+  // Ask 207: the Data Healer strip on every screen and its save check.
+  loadViewModule('/view-data-healer.js?v=1').then(() => window.dataHealer?.mount(currentView, currentView === 'doctype-table' ? currentDoctype : '')).catch(() => {});
 }
 
 // Stage 47.0.5: fetch once at boot and show a strip at the top of the page.
@@ -4394,6 +4399,12 @@ const MENU_MODULE_MAP = {
       "offline-sales"
     ]
   },
+  "menu-pos-sales-history": {
+    "module": "sales",
+    "views": [
+      "sales-history"
+    ]
+  },
   "menu-finance": {
     "module": "finance",
     "views": [
@@ -4523,6 +4534,12 @@ const MENU_MODULE_MAP = {
     "module": "core",
     "views": [
       "dataquality"
+    ]
+  },
+  "menu-datahealer": {
+    "module": "core",
+    "views": [
+      "datahealer"
     ]
   },
   "@system-status": {
@@ -6185,6 +6202,9 @@ async function restoreLastView() {
   if ((location.pathname === '/help' || location.pathname.startsWith('/help/')) &&
       (!helpPathLink || (helpPathLink.kind === 'view' && helpPathLink.view === 'help'))) {
     currentHelpSlug = decodeURIComponent(location.pathname.slice('/help/'.length) || '');
+    // 210.1: /help/<slug>#<section> opens the article at that section.
+    const helpHash = location.hash.slice(1);
+    currentHelpAnchor = helpHash && !helpHash.startsWith('/') ? decodeURIComponent(helpHash) : '';
     await renderView('help');
     return;
   }
@@ -6304,6 +6324,8 @@ async function renderView(view, keep) {
     decorateFieldFormats(root);
     // Stage 41: in finally, so a screen that failed still names missing setup.
     renderSetupBanner(view);
+    // Ask 207: a waiting heal's strip, and its panel on a covered list.
+    window.dataHealer?.mount(view, view === 'doctype-table' ? currentDoctype : '');
     applyPhoneRulesIn(root);
     // Stage 57.1: names instead of stored codes in every table, this view and
     // whatever it renders later (installed once, then self-sustaining).
@@ -7101,6 +7123,9 @@ window.handleBulkImportPreview = lazyImportModal('handleBulkImportPreview');
 let helpIndexCache = null;
 let helpSearchCache = null;
 let currentHelpSlug = '';
+// 210.1: the section the next article render scrolls to and marks; the article
+// render clears it.
+let currentHelpAnchor = '';
 
 async function openHelpDrawer(screenID) {
   let helpModule;
@@ -7125,11 +7150,7 @@ async function openHelpAnchor(target) {
   const ok = document.getElementById('custom-dialog-ok-btn');
   if (ok) ok.click();
   currentHelpSlug = slug;
+  currentHelpAnchor = anchor || '';
   history.pushState({}, '', '/help/' + encodeURIComponent(slug));
   await renderView('help');
-  for (let i = 0; i < 20 && anchor; i++) {
-    const el = document.getElementById(anchor);
-    if (el) { el.scrollIntoView({ block: 'center' }); el.style.outline = '2px solid var(--primary, #2563eb)'; return; }
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
 }

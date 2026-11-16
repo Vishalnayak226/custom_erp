@@ -107,6 +107,7 @@ Companion to [user-guide.md](user-guide.md) (explains what each screen is *for*)
 - [ ] "Customer details" / "Redeem Points" (with a customer on the sale) return a response, not a silent failure. Customer details shows points and value, tier and benefits, the spend to the next tier, recent bills and returns, and the customer's usable vouchers (73.3.2).
 - [ ] **Discount % field (Stage 20.10)**: with a session open and at least one cart line, leave Discount % at 0 and complete the sale as normal — should complete immediately same as before. Then try a discount at or above the configured threshold (10% by default) — the sale should return "requires ... approval" instead of completing, and the cart clears. Log in as a *different* user with the required role (e.g. Store Manager) and decide it from **Approvals** (§7) — only then does the sale actually complete (stock deducted, GL posted). The *same* cashier who submitted it should be rejected as a maker-checker violation if they try to approve their own cart.
 - [ ] "Complete Sale" with at least one cart line, a payment mode selected, and an open session completes the sale, clears the cart, and offers a **Print Receipt** confirm dialog (Stage 20.14) — accepting opens the browser print dialog with a receipt layout.
+- [ ] **Print Receipt** on the finished bill opens the print window on the roll bill (or the paper the till's Print Profile sets - a B2B bill can start on A4); switching **Paper**, **Template** or **Printer** changes the preview and where that one bill prints (Stage 213).
 - [ ] **Process a Return panel (Stage 20.11)**, below the sale cart: enter the original order/cart number and a return location, add a SKU line (typeahead-backed), and submit — should confirm the return processed and restock. (The underlying return-processing feature is old; this panel is its first-ever UI entry point.)
 - [ ] Session status bar: click **Close Session**, enter a counted-cash figure — should report the expected cash and the variance (counted minus expected), not just a bare confirmation.
 
@@ -384,7 +385,9 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 Three tabs: **Audit Logs**, **System Errors**, **Integration Payloads**.
 
 - [ ] **Audit Logs tab** (default) loads a table (User, Action, Details, Timestamp) reflecting real actions — spot-check that at least one action you took earlier in this checklist (e.g. creating a PO, deciding an approval) shows up here.
-- [ ] **System Errors tab** loads without error.
+- [ ] **System Errors tab** loads without error and shows one row per open fault, with **Count** and **Last seen** columns. Signing out, or letting a session expire and then clicking around, adds no row.
+- [ ] **Copy for fix** on a row puts a fix request (module, severity, message, how often, reference, trace) on the clipboard without opening the trace dialog. Clicking anywhere else on the row opens the trace.
+- [ ] **Resolve** shows only for a Super Admin. Confirming it removes the row, and the row stays gone after a reload.
 - [ ] **No "Test Panic Recovery" button** on the page, for any role (it was removed: the route behind it exists only on development and test servers).
 - [ ] **Integration Payloads tab** loads a table of integration events; any row with status "Failed" shows a "Retry" button — clicking it asks for confirmation, then queues a retry (confirmation toast, not a silent no-op). Rows with other statuses show no Retry button — that's correct, not missing functionality.
 

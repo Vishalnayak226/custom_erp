@@ -503,3 +503,18 @@ A new item is asked once, at creation, and most of it is already answered by you
 3. Open problems also show in **My work** (Approvals).
 
 **Import order.** On **Staged imports -> New**, the line under the record type says what to load first (for example vendors and items before purchase orders). An import whose prerequisites have no rows shows a warning and carries on. Your admin can switch on *Refuse an import until what it points at is loaded* to stop it instead (DATAIM-1700).
+
+### 8i. Data Healer: one-time fixes after an update (ask 207)
+
+An update can bring a value that new records get as they are saved, such as the **Item Alias** (the short name stickers print). Records saved before the update catch up through a **heal**: a fix that runs once for your company and is then locked **Done**.
+
+While a heal waits:
+
+- A strip above every screen names it and how many records it will fix (*Item aliases · 120 to heal*). It cannot be closed. If you can run the heal, **Fix now** opens it; otherwise it says *Ask your admin*.
+- The list of the records it covers (Items and Item Names, for Item aliases) shows it at the top with **Run heal** and **Review**.
+- Those records do not save. If you can run the heal, Save offers to run it first: say yes and the save goes on. Otherwise you are told to ask your admin.
+- Bills, GRNs, POS and every other screen work as usual.
+
+**Running a heal.** Open **Data Healer** in the Settings menu (shortcut `DH`) and click **Open** on the heal. Each record shows the value it will get; type over any you want different (an alias takes 14 characters at most). Click **Run heal** and confirm. The strip goes away and the heal shows **Done**, with who ran it, when, and how many records it fixed. It never runs again; a record saved later gets its value as it is saved.
+
+**Past names.** Renaming an item changes every screen and every new print. To change the old name on documents already made, including their first print, a Super Admin opens **Data Healer → Past names**, types the old and new name, clicks **Preview**, then **Apply** and types **YES**. Documents filed with GST keep the old name. The admin guide, C.2.3, has the details.

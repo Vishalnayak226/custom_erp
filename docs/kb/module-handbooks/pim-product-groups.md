@@ -6,6 +6,7 @@ summary: Group products once - by hand or by rule - then bulk edit, export and r
 audience: category manager
 last_verified: 2026-11-15
 screens: [pim, doctype:pimproductgroup]
+screen_sections: [pim=creating-one]
 doc_id: DOC-64EC9B6A9A
 type: procedure
 status: draft
@@ -45,6 +46,24 @@ A group is one or the other. A static group with filters, or a dynamic group
 with hand-picked members, is rejected on save.
 
 ## Creating one
+
+> [!WHAT]
+> A Product Group is a named set of products you act on as a unit. It is
+> either **Static** (picked by hand) or **Dynamic** (a saved filter).
+
+> [!WHY]
+> You do not filter and select rows by hand every week. A dynamic group is re-
+> evaluated every time it is used, so products join or leave as their data
+> changes.
+
+> [!USECASE]
+> For standing quality work you create a **Dynamic** group with Family set to
+> Footwear and Completeness below 80. Every product under 80% appears in it
+> without any hand-picking.
+
+![A new product group: static or dynamic, and what it holds](../img/product-group-new.webp)
+
+> [!HOW]
 
 1. Open **PIM » Product Group** and create a record.
 2. Choose **Static** or **Dynamic**.

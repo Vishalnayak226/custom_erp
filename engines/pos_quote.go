@@ -128,6 +128,9 @@ type QuoteRequest struct {
 	// offers and vouchers.
 	ManualDiscountPct    float64 `json:"manual_discount_pct"`
 	ManualDiscountAmount float64 `json:"manual_discount_amount"`
+	// B2B (ask 215.3) is the buyer block of a B2B bill: shipped to another
+	// state it makes the bill inter-state, so the running total shows IGST.
+	B2B *POSB2BBuyer `json:"b2b,omitempty"`
 	// AsOf lets a backdated or offline-replayed sale price against the rules
 	// that were in force when it happened. Zero means "now".
 	AsOf time.Time `json:"-"`
@@ -196,6 +199,11 @@ type QuoteLine struct {
 	// is charged for the line. GST is backed out of NetTotal, not LineTotal.
 	OfferShare float64 `json:"offer_share"`
 	NetTotal   float64 `json:"net_total"`
+	// BillShare (ask 215.5) is the part of OfferShare that is the cashier's
+	// bill discount; OfferShare - BillShare is the offers' and vouchers'.
+	// OfferShare stays the whole, so GST, the ledger and returns are unchanged.
+	// The item discount is the line's own: (ReferencePrice - UnitPrice) x Qty.
+	BillShare float64 `json:"bill_share,omitempty"`
 	// NoPoints (Stage 146.2.3): this line cannot be paid with points.
 	NoPoints bool `json:"no_points,omitempty"`
 }
@@ -223,6 +231,8 @@ type QuoteResult struct {
 	Channel    string `json:"channel,omitempty"`
 	Currency   string `json:"currency"`
 	Interstate bool   `json:"interstate"`
+	// PlaceOfSupply (ask 215.3) is the state code a B2B bill is supplied in.
+	PlaceOfSupply string `json:"place_of_supply,omitempty"`
 
 	Lines []QuoteLine `json:"lines"`
 
@@ -239,9 +249,15 @@ type QuoteResult struct {
 	// number and therefore the identical approval requirement.
 	ManualDiscountPct float64 `json:"manual_discount_pct"`
 
-	AppliedOffers  []AppliedOffer `json:"applied_offers"`
-	OfferDiscount  float64        `json:"offer_discount"`
-	UnmatchedCodes []string       `json:"unmatched_coupon_codes,omitempty"`
+	AppliedOffers []AppliedOffer `json:"applied_offers"`
+	OfferDiscount float64        `json:"offer_discount"`
+	// ItemDiscount and BillDiscount (ask 215.5) are the three discounts kept
+	// apart: the lines' own cuts below their list price, and the cashier's bill
+	// discount (also inside OfferDiscount, which is everything after the
+	// charged price). Offers alone are OfferDiscount - BillDiscount.
+	ItemDiscount   float64  `json:"item_discount,omitempty"`
+	BillDiscount   float64  `json:"bill_discount,omitempty"`
+	UnmatchedCodes []string `json:"unmatched_coupon_codes,omitempty"`
 	// CouponMessages (Stage 73.2.10): why a code that IS an issued voucher
 	// cannot be used on this bill (expired, used up, another customer's).
 	CouponMessages map[string]string `json:"coupon_messages,omitempty"`
@@ -319,6 +335,10 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	placeOfSupply := ""
+	if req.B2B != nil && strings.TrimSpace(req.B2B.GSTIN) != "" {
+		placeOfSupply, req.Interstate = POSB2BPlaceOfSupply(tenantID, req.Location, req.B2B)
+	}
 
 	result := &QuoteResult{
 		QuoteID:    NewDocIDCompact("POSQ"),
@@ -330,6 +350,8 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		Currency:   currency,
 		Interstate: req.Interstate,
 		Lines:      make([]QuoteLine, 0, len(req.Lines)),
+
+		PlaceOfSupply: placeOfSupply,
 	}
 
 	for _, in := range req.Lines {
@@ -446,6 +468,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 
 		if line.ReferencePrice > 0 && line.UnitPrice < line.ReferencePrice {
 			line.DiscountPct = round2((line.ReferencePrice - line.UnitPrice) / line.ReferencePrice * 100)
+			result.ItemDiscount += (line.ReferencePrice - line.UnitPrice) * float64(in.Qty)
 		}
 		line.LineTotal = round2(line.UnitPrice * float64(in.Qty))
 
@@ -456,6 +479,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 
 	result.Subtotal = round2(result.Subtotal)
 	result.ReferenceSubtotal = round2(result.ReferenceSubtotal)
+	result.ItemDiscount = round2(result.ItemDiscount)
 	if result.ReferenceSubtotal > 0 && result.Subtotal < result.ReferenceSubtotal {
 		result.ManualDiscountPct = round2((result.ReferenceSubtotal - result.Subtotal) / result.ReferenceSubtotal * 100)
 	}
@@ -477,6 +501,8 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		Lines:       offerLines,
 		CustomerID:  req.CustomerID,
 		CouponCodes: req.CouponCodes,
+		Location:    req.Location,   // 215.8: an offer's stores
+		CartNumber:  req.CartNumber, // 215.8: this bill never counts against a use limit
 	})
 	if err != nil {
 		return nil, err
@@ -633,8 +659,12 @@ func applyManualDiscount(req QuoteRequest, result *QuoteResult, offerEval *Offer
 		if i < len(offerEval.LineDiscounts) {
 			offerEval.LineDiscounts[i] = PaiseToRupees(RupeesToPaise(offerEval.LineDiscounts[i]) + share)
 		}
+		if i < len(result.Lines) {
+			result.Lines[i].BillShare = PaiseToRupees(share) // 215.5: kept apart from the offers
+		}
 	}
 	amount := PaiseToRupees(discount)
+	result.BillDiscount = amount
 	desc := "cashier's bill discount"
 	if req.ManualDiscountAmount <= 0 {
 		desc = fmt.Sprintf("%.2f%% bill discount", req.ManualDiscountPct)
@@ -659,6 +689,23 @@ func ManualDiscountShare(q *QuoteResult) float64 {
 		return 0
 	}
 	return round2(manual / base * 100)
+}
+
+// ManualDiscountTotalPct (ask 215.5) is how far below list price the cashier's
+// own discounts take the cart: the lines' cuts below list and the bill
+// discount together, as a % of the list-price subtotal. Offers are the
+// business's own and are left out. The approval gate takes the larger of this
+// and the two parts, so a 9% line cut plus a 9% bill discount is judged as
+// the 17% it is, not as two 9%s under a 10% slab.
+func ManualDiscountTotalPct(q *QuoteResult) float64 {
+	if q.ReferenceSubtotal <= 0 {
+		return 0
+	}
+	cut := q.ReferenceSubtotal - q.Subtotal + q.BillDiscount
+	if cut <= 0 {
+		return 0
+	}
+	return round2(cut / q.ReferenceSubtotal * 100)
 }
 
 // quoteLoyalty prices the points a cart wants to redeem against what the bill

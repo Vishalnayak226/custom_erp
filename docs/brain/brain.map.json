@@ -760,6 +760,10 @@
         "engines/pos_duplicate_tender.go",
         "engines/pos_tender_master.go",
         "engines/pos_customers.go",
+        "engines/pos_b2b.go",
+        "engines/pos_offer_types.go",
+        "engines/pos_offer_lists.go",
+        "engines/pos_sales_history.go",
         "engines/pos_bill_number.go",
         "engines/pos_till_series.go",
         "engines/customer_advance.go",
@@ -996,7 +1000,9 @@
         "engines/xlsx_reader*.go",
         "internal/server/setup_workbook*.go",
         "engines/data_quality_queue.go",
-        "engines/import_load_order.go"
+        "engines/import_load_order.go",
+        "engines/data_healer*.go",
+        "internal/server/handlers_data_healer.go"
       ]
     },
     {
@@ -1108,6 +1114,7 @@
       "role": "Audit log, system error log (a PANIC alerts immediately), the ops alert monitor that watches error rates and async-job queue depth per tenant schema, the request-to-outbox-to-job correlation id, the liveness and readiness probes, user/ops notifications, the ops status surface, and the concurrency scale simulator.",
       "match": [
         "engines/logs.go",
+        "engines/platform_system_faults.go",
         "engines/audit_evidence.go",
         "engines/document_edit_audit.go",
         "engines/audit_archive.go",

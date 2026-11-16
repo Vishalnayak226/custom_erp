@@ -58,7 +58,9 @@ export async function renderReprintView(container) {
     const b = e.target.closest('[data-rp]');
     if (!b) return;
     const row = rpRows[Number(b.dataset.rp)];
-    if (row) (await docs()).printTransactionDocument(row.doctype, row.doc_id, { txn: row.txn, reprint: true, onClose: loadReprintRows });
+    // 213.4: paper, template and printer can change here too; a till bill
+    // starts on the roll unless its print profile says otherwise.
+    if (row) (await docs()).printTransactionDocument(row.doctype, row.doc_id, { txn: row.txn, reprint: true, roll: row.txn === 'POSTaxInvoice', onClose: loadReprintRows });
   });
   await loadReprintRows();
 }

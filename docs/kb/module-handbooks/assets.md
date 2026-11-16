@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 66
 summary: Register and manage fixed assets with saved-state checks and exception recovery.
 screens: [assets]
+screen_sections: [assets=create-and-capitalize]
 topic_type: how-to
 module: finance
 task: Register and manage fixed assets
@@ -29,6 +30,22 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 Use **Fixed Assets** to maintain asset records and review the calculated straight-line depreciation and net block.
 
 ## Create and capitalize
+
+> [!WHAT]
+> Fixed Assets holds the register of assets. A new asset starts as Draft and
+> becomes Capitalised only when you capitalise it.
+
+> [!WHY]
+> Creating the record does not capitalise it, so a wrongly keyed cost or life
+> can be checked with the finance owner before it counts. The screen then
+> shows the straight-line depreciation and net block.
+
+> [!USECASE]
+> A ₹1,20,000 laptop is bought for the Pune office with a useful life of 4
+> years. You create it as Draft, the finance owner checks the cost and
+> location, and then you choose **Capitalise**.
+
+> [!HOW]
 
 1. Under **New Asset (Draft)** enter **Asset Number**, **Category**, **Cost**, **Useful Life (yrs)**, **Location**, **Custodian** and **Acquisition Date**.
 2. Choose **Create** and verify the saved row is **Draft**. Creation alone does not capitalize the asset.

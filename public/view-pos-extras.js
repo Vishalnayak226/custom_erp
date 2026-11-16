@@ -38,10 +38,12 @@ export function renderPOSReturnPanel(panel) {
   panel.innerHTML = `
     <div class="txn-head pos-return-head">
       <!-- Stage 85.E4 (77.8): find the bill by its number, the customer's
-           mobile or name, or the day - at this store, or any of yours. -->
+           mobile or name, or the day - at this store, or any of yours.
+           Ask 215 (215.13): an online order's bill too, by the order no.
+           (ours or the channel's), the AWB or the OMS bill no., at any store. -->
       <div class="form-group">
-        <label class="form-label" for="pos-return-order-id">Bill no., mobile or name</label>
-        <input type="text" id="pos-return-order-id" class="form-input" placeholder="Scan the bill, or type its number / the mobile" autocomplete="off">
+        <label class="form-label" for="pos-return-order-id">Bill, order, AWB or mobile</label>
+        <input type="text" id="pos-return-order-id" class="form-input" placeholder="Scan the bill or AWB, or type the order no. / mobile" autocomplete="off">
       </div>
       <div class="form-group">
         <label class="form-label" for="pos-return-date">Bill date</label>
@@ -123,6 +125,22 @@ export function renderPOSReturnPanel(panel) {
   followTillStore();
 
   renderPOSReturnTable();
+  if (posReturnPending) openPOSReturnFor(posReturnPending.id, posReturnPending.store);
+}
+
+// openPOSReturnFor (ask 215, 215.12) is Sales History's Return: the till's
+// Return tab with that bill looked up. Called before the tab is drawn, it
+// waits for renderPOSReturnPanel.
+let posReturnPending = null;
+export function openPOSReturnFor(billID, store = '') {
+  posReturnPending = { id: billID, store };
+  const box = document.getElementById('pos-return-order-id');
+  if (!box) return;
+  posReturnPending = null;
+  window.txnShowPane('pos-screen:return');
+  box.value = billID;
+  posReturnBillStore = store || '';
+  lookUpPOSReturnBill();
 }
 
 // findPOSReturnBill (Stage 85.E4) searches the store's paid bills; one match
@@ -145,7 +163,7 @@ async function findPOSReturnBill() {
   if (!res) return;
   if (!res.ok) { errorEl.textContent = await getErrorMessage(res, 'Bills could not be searched.'); errorEl.classList.remove('hidden'); return; }
   const bills = await res.json();
-  const exact = bills.find(b => [b.cart_number, b.bill_number].some(n => n && n.toLowerCase() === q.toLowerCase()));
+  const exact = bills.find(b => [b.cart_number, b.bill_number, b.order_no, b.channel_order_id, b.awb].some(n => n && n.toLowerCase() === q.toLowerCase()));
   if (exact || bills.length === 1) return pickPOSReturnBill(exact || bills[0]);
   if (!bills.length) {
     errorEl.textContent = scope ? 'No paid bill matches at your stores.' : 'No paid bill matches at this store. Tick All my stores to look further.';
@@ -153,7 +171,7 @@ async function findPOSReturnBill() {
     return;
   }
   list.innerHTML = bills.map((b, i) => `<button type="button" class="pos-search-result" data-bill="${i}">
-    <span><b>${cfgEsc(b.bill_number || b.cart_number)}</b> · ${cfgEsc(b.date)}</span>
+    <span><b>${cfgEsc(b.bill_number || b.cart_number)}</b> · ${cfgEsc(b.date)}${b.kind === 'Online' ? ` · Online${b.channel_order_id || b.order_no ? ' ' + cfgEsc(b.channel_order_id || b.order_no) : ''}${b.awb ? ' · AWB ' + cfgEsc(b.awb) : ''}` : ''}</span>
     <span>${cfgEsc(b.customer || 'Walk-in')}${b.phone ? ' · ' + cfgEsc(b.phone) : ''} · ${Number(b.total).toFixed(2)}${b.store !== posLocation ? ' · ' + cfgEsc(b.store) : ''}</span></button>`).join('');
   list.classList.remove('hidden');
   list.querySelectorAll('[data-bill]').forEach(btn => btn.addEventListener('click', () => { list.classList.add('hidden'); pickPOSReturnBill(bills[Number(btn.dataset.bill)]); }));
@@ -1378,4 +1396,154 @@ export function printPOSReceipt(t, cartNumber, location, paymentMode, items, sal
   area.classList.add('printing');
   window.print();
   setTimeout(() => area.classList.remove('printing'), 500);
+}
+
+// Moved from view-pos.js (cold-core budget, ask 219): the price override
+// with its line-discount dialog, and the reprint of the frozen bill.
+
+// openPOSPriceOverride raises the capability-gated override command. It is
+// deliberately NOT a way to edit the price box: the server resolves its own
+// reference price, measures the real reduction against it, checks that against
+// the tenant's approval slab and writes immutable evidence - so a supervisor
+// granting a discount and a supervisor exceeding their limit are different
+// outcomes, and both are recorded.
+export async function openPOSPriceOverride(t, sku) {
+  const line = posCart.find(l => l.sku === sku);
+  if (!line) return;
+  const newPrice = await posLineDiscountDialog(line);
+  if (newPrice === null) return;
+  // Stage 74.1.1: a reason from the reason codes, with an optional note.
+  const rp = await import('./reason-picker.js' + new URL(import.meta.url).search);
+  const picked = await rp.chooseReason({ category: 'Price Override', title: 'Override Reason', question: `Why is ${sku} being sold below its list price?` });
+  if (!picked) return;
+  const res = await apiFetch('/api/v1/pos/price-override', {
+    method: 'POST',
+    body: JSON.stringify({
+      cart_number: t.cart,
+      sku,
+      qty: line.qty,
+      location: posLocation,
+      customer_id: (document.getElementById('pos-customer') || {}).value || '',
+      override_price: newPrice,
+      reason: picked.text,
+      reason_code: picked.code
+    })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'The price override was not applied.');
+    await t.quote();
+    return;
+  }
+  await t.quote();
+  showToast(`Override recorded for ${sku}.`, { variant: 'success', title: 'Price Override' });
+}
+
+// posLineDiscountDialog (215.6) asks for the line's discount the way a
+// cashier says it - % off, rupees off each, or a new price - always measured
+// from the list price, and shows the price it comes to before Apply. It
+// resolves to the new unit price, or null when cancelled. The override is
+// still one server command, so approval limits and evidence are unchanged.
+function posLineDiscountDialog(line) {
+  const base = Number(line.referencePrice) || Number(line.salePrice) || 0;
+  const r2 = n => Math.round(n * 100) / 100;
+  const sku = window.escapeHTMLText(String(line.sku));
+  return new Promise(resolve => {
+    const returnFocus = document.activeElement;
+    document.getElementById('pos-line-discount')?.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open quick-create-overlay';
+    overlay.id = 'pos-line-discount';
+    overlay.innerHTML = `
+      <div class="modal-container customer-form" role="dialog" aria-modal="true" aria-labelledby="pos-ld-title">
+        <div class="modal-header"><h3 class="modal-title" id="pos-ld-title">Line discount · ${sku}</h3>
+          <button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+        <form novalidate>
+          <div class="modal-body">
+            <div class="login-error hidden" role="alert" data-ld-error></div>
+            <div class="form-section-grid">
+              <div class="form-group"><label class="form-label" for="pos-ld-mode">Discount</label>
+                <select id="pos-ld-mode" name="mode" class="form-select">
+                  <option value="pct">% off</option><option value="amt">₹ off each</option><option value="price">New price</option></select></div>
+              <div class="form-group"><label class="form-label" for="pos-ld-value">Value</label>
+                <input id="pos-ld-value" name="value" type="number" inputmode="decimal" min="0" step="0.01" class="form-input" autocomplete="off"></div>
+            </div>
+            <p class="text-muted" data-ld-preview>List ${base.toFixed(2)}</p>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-ld-cancel>Cancel</button>
+            <button type="submit" class="btn btn-primary">Apply</button></div>
+        </form>
+      </div>`;
+    const form = overlay.querySelector('form');
+    const f = form.elements;
+    const errorEl = overlay.querySelector('[data-ld-error]');
+    const preview = overlay.querySelector('[data-ld-preview]');
+    // price works out the new unit price, or returns why it cannot.
+    const price = () => {
+      const raw = String(f.value.value).trim();
+      if (raw === '') return { why: 'Enter a value.' };
+      const v = Number(raw);
+      if (!Number.isFinite(v) || v < 0) return { why: 'Enter a number, 0 or more.' };
+      if (f.mode.value === 'pct') return v > 100 ? { why: 'At most 100%.' } : { p: r2(base * (1 - v / 100)) };
+      if (f.mode.value === 'amt') return v > base ? { why: `At most ${base.toFixed(2)}.` } : { p: r2(base - v) };
+      return { p: r2(v) };
+    };
+    const show = () => {
+      const r = price();
+      preview.textContent = r.why || r.p === undefined
+        ? `List ${base.toFixed(2)}`
+        : `List ${base.toFixed(2)} → ${r.p.toFixed(2)} each${base > r.p ? ` · -${(base - r.p).toFixed(2)}` : ''}`;
+    };
+    f.mode.addEventListener('change', () => { f.value.value = ''; errorEl.classList.add('hidden'); show(); f.value.focus(); });
+    f.value.addEventListener('input', () => { errorEl.classList.add('hidden'); show(); });
+    const done = v => {
+      overlay.remove();
+      if (returnFocus && typeof returnFocus.focus === 'function' && document.contains(returnFocus)) returnFocus.focus();
+      resolve(v);
+    };
+    overlay.querySelector('.modal-close').addEventListener('click', () => done(null));
+    overlay.querySelector('[data-ld-cancel]').addEventListener('click', () => done(null));
+    overlay.addEventListener('keydown', e => { if (e.key === 'Escape') done(null); });
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const r = price();
+      if (r.why) {
+        errorEl.textContent = r.why;
+        errorEl.classList.remove('hidden');
+        f.value.focus();
+        return;
+      }
+      done(r.p);
+    });
+    document.body.appendChild(overlay);
+    f.value.focus();
+  });
+}
+
+// printCompletedPOSSale reprints the frozen bill. Same two-path behaviour the
+// old inline confirm had (31.1.9): the server's own ESC-POS rebuild first, the
+// browser print sheet as the fallback. Moved onto a button so a receipt can be
+// printed twice - a customer asking for one after saying no is not an error
+// state the cashier should have to re-ring a sale to recover from.
+export async function printCompletedPOSSale(t) {
+  const sale = t.completedSale;
+  if (!sale) return;
+  // Stage 106.3: the roll tax invoice (trade-docs.js); below is the fallback.
+  try {
+    const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
+    if (await docs.printPOSBill(sale.cartNumber, sale.cashTendered)) return;
+  } catch (e) {
+    console.debug('[POS] roll bill unavailable, using the plain receipt', e);
+  }
+  // 31.1.9: silent path first - the server rebuilds the receipt from the
+  // Paid POSCart, so a thermal till printer gets ESC-POS with no browser
+  // dialog in the cashier's way. quiet: true because a shop with no
+  // Receipt printer configured is the normal case, not an error, and
+  // must simply fall through to the print sheet below.
+  // Stage 127.2: set up for silent print, a failure explains itself instead.
+  const routing = await loadViewModule('./print-routing.js');
+  await routing.printNoDialog('Receipt', posLocation,
+    (why) => qzTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true, why }),
+    () => printPOSReceipt(t, sale.billNumber || sale.cartNumber, posLocation, sale.paymentMode, sale.items,
+      sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0));
 }

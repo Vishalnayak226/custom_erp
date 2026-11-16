@@ -5,7 +5,8 @@ order: 70
 summary: Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.
 audience: accountant, finance manager, admin
 last_verified: 2026-11-15
-screens: [finance, module:finance, journal-vouchers, reports, configuration, einvoice, bank-files]
+screens: [finance, module:finance, journal-vouchers, reports, configuration, einvoice, bank-files, approvals, vendor-invoices, payment-proposals, finance-notes, sales-invoices, bank-reconciliation]
+screen_sections: [journal-vouchers=manual-journal-entries-journal-vouchers, approvals=approvals-inbox, vendor-invoices=accounts-payable-vendor-invoices, payment-proposals=payment-proposals-paying-many-bills-at-once, finance-notes=debit-and-credit-notes, sales-invoices=accounts-receivable-sales-invoices, bank-reconciliation=bank-reconciliation]
 doc_id: DOC-DDBD8E5B5F
 type: procedure
 status: draft
@@ -52,6 +53,34 @@ real, working finance actions still have **no screen at all yet** — see
 [What is not here yet](#what-is-not-here-yet) before assuming something
 doesn't exist just because it isn't here.
 
+## Approvals inbox
+
+> [!WHAT]
+> One list of every document waiting for your sign-off, from every module:
+> purchase orders, payments over a limit, write-offs, price changes and more.
+
+> [!WHY]
+> A rule decides which documents need a second person. Nothing waiting for you
+> is buried in its own screen, and every decision is recorded with who made it.
+
+> [!USECASE]
+> A buyer raises a ₹2,40,000 purchase order, above the limit that needs a
+> manager. It appears in the manager's **Approvals**. The manager checks the
+> amount and location, clicks **Approve**, and the buyer can send the order.
+
+> [!HOW]
+
+1. Open **Financial Accounting → Approvals**.
+2. Check each row's record type, reference, amount and location.
+3. Click **Approve** or **Reject** on its row. A reject asks for an optional
+   reason.
+4. To decide many at once, tick them and click **Approve ticked** or **Reject
+   ticked**.
+
+Password resets and client data removal are decided one at a time. Which
+documents need approval, and who may approve, is set under **Security and
+approvals** ([handbook](security-approvals.md)).
+
 ## Chart of Accounts
 
 Every GL account has a **code**, a **name**, and a fixed **type** (Asset,
@@ -94,19 +123,46 @@ company, without anyone tagging a sale by hand.
 
 ## Accounting periods and closing
 
-**Create** a period (Finance → Accounting Periods) with a name and a
-date range — a range overlapping any existing period (Open or Closed) is
-refused outright, since an ambiguous "which period is today in" question is
-worse than refusing the second period.
+> [!WHAT]
+> An accounting period is a named date range. **Close** locks it so nothing
+> more can post inside it.
 
-**Close** is one-way. There is deliberately no reopen action — correcting
-something in a closed period means a fresh, dated reversal, never mutating
-history, the same correction model this whole feature exists to enforce.
-Once a period is Closed, any posting dated inside it is refused
-(`FIN-0260`), checked from the database's own clock, not the app server's.
+> [!WHY]
+> A closed period cannot be changed by a late posting. Five signed close tasks
+> stand behind each close, and reopening needs a reason and a second person.
 
-**Before closing**, the checklist panel runs four read-only checks and
-shows which ones pass — it does not itself block the close, it's advisory:
+> [!USECASE]
+> You create a period for April. Each close task's owner signs it off with
+> evidence, then you close it. A correction found in May is a reopen request,
+> another accountant's approval and a reversing entry.
+
+> [!HOW]
+
+1. On **Financial Accounting → Accounting Periods**, click **+ New Period**:
+   name, start and end date.
+2. Click **Close tasks**, assign an owner to each of the five tasks, and each
+   owner clicks **Sign off** with the evidence.
+3. Click **Close period**. If a pre-close check still fails, give the reason.
+4. To correct a closed period, click **Request reopen** with a reason. Another
+   Accountant, Admin or Super Admin approves it in **Approvals**.
+
+**Create** a period (**Financial Accounting → Accounting Periods**,
+**+ New Period**) with a name and a date range — a range overlapping any
+existing period (Open or Closed) is refused outright, since an ambiguous
+"which period is today in" question is worse than refusing the second period.
+
+**Close** needs all five close tasks signed off by their owners (Bank
+reconciliation, Stock valuation, Payables, Receivables, Marketplace / POS
+settlement), and is refused while a till is still open or offline sales are
+waiting to sync. Once a period is Closed, any posting dated inside it is
+refused (`FIN-0260`), checked from the database's own clock, not the app
+server's. **Reopening** needs a written reason and a second person: **Request
+reopen** waits in **Approvals**, the period then starts a new close round, and
+corrections are posted as new reversing entries, never by editing history.
+
+**Before closing**, four read-only pre-close checks show which ones pass. A
+failing one does not block the close, but the close then asks why and keeps
+the reason in the period's close log:
 
 | Check | What it means if it fails |
 |---|---|
@@ -130,6 +186,27 @@ what the pre-close checklist above is designed to catch before you try to
 close the period it happened in.
 
 ## Accounts Receivable: Sales Invoices
+
+> [!WHAT]
+> Sales Invoices lists invoices with **Post** and **Settle** as two separate
+> actions. Posting books the receivable. Settling records that it was
+> collected.
+
+> [!WHY]
+> Once an invoice is Approved or Paid its money is fixed. You correct it with
+> a credit or debit note, not by editing the amounts.
+
+> [!USECASE]
+> A ₹1,01,500 invoice is raised for a customer in Pune. You **Post** it to
+> book the receivable, and **Settle** it when the payment actually comes in.
+
+> [!HOW]
+
+1. On **Financial Accounting → Sales Invoice**, open the invoice or click **+
+   New Sales Invoice**.
+2. Click **Post** to book the receivable.
+3. Click **Settle** once the money is collected. To change a posted amount,
+   raise a credit or debit note.
 
 **Sidebar → Sales Invoices**: list, then **Post** and **Settle** as two
 separate, explicit actions on an invoice — posting books the receivable
@@ -169,27 +246,133 @@ signed QR, or *IRN PENDING*. Outage path: generate it on the portal, then
 **Enter portal IRN** (verified by a second person). Reports: E-Invoice /
 IRN Status Register, Error / Retry Report, IRN Portal Manual Upload Report.
 
-## Accounts Payable: Vendor Invoices and payment runs
+## Accounts Payable: Vendor Invoices
 
-**Sidebar → Vendor Invoices**: pay a single invoice directly, with or
-without TDS deduction (`/vendor-invoice/pay` vs. `/vendor-invoice/pay-with-tds`
-— reached from the invoice's own action buttons). For paying many invoices
-in one run:
+> [!WHAT]
+> The vendor's bill, checked against the purchase order and the goods
+> actually received before anything is paid.
 
-1. **Create Proposal from Selected** — a batch of invoices selected for payment.
-2. **Execute** it — every invoice in the batch is paid through the exact
-   same vendor-invoice payment path a single manual payment uses, not a
-   parallel mechanism.
+> [!WHY]
+> You pay only for what you ordered and accepted. A bill that does not agree
+> is held, so an overcharge is caught before the money leaves.
+
+> [!USECASE]
+> A vendor bills ₹59,000 but the goods receipt accepted ₹53,100 worth after a
+> damaged carton was rejected. **Match** puts the bill on hold and shows both
+> figures. The accountant asks the vendor for a corrected bill instead of
+> paying the difference.
+
+> [!HOW]
+
+1. Open **Financial Accounting → Vendor Invoice**, click **+ New Vendor
+   Invoice** and enter the bill against its purchase order and goods receipt.
+2. Click **Match**. It compares the bill with the accepted goods and the
+   purchase order.
+3. If it is **Matched**, click **Pay** and enter the amount; less than the
+   balance is a part-payment.
+4. If it is on hold, correct the bill, or click **Override & Pay** and give a
+   reason; the payment then waits for approval.
+
+**Advance** sets an advance already paid to this vendor against the bill.
+**Pay w/ TDS** picks the TDS section and withholds it; it is offered only
+before any part of the bill is paid, because TDS is withheld on the whole
+bill.
+
+## Payment Proposals: paying many bills at once
+
+> [!WHAT]
+> A payment run: a batch of matched vendor bills paid together in one step.
+
+> [!WHY]
+> Paying on a fixed day keeps the cash plan simple. Each bill in the run is
+> paid exactly as if it were paid on its own, so the books are the same either
+> way.
+
+> [!USECASE]
+> Every Friday the accountant ticks the bills due that week, creates one
+> proposal and executes it. One bill fails because it was already part-paid
+> by hand; the result names that bill and the rest are paid.
+
+> [!HOW]
+
+1. Open **Financial Accounting → Payment Proposals**.
+2. Click **+ New Proposal** and tick the matched bills to pay.
+3. Click **Create Proposal from Selected**.
+4. Click **Execute** on the proposal and confirm.
+
+Any bill that could not be paid is listed with its reason; the others are
+paid.
 
 > [!WARNING]
-> **Generating the actual bank payment file, and recording the UTR once a
-> payment clears, are both real, working endpoints with no button anywhere
-> in the app.** `GET /api/v1/finance/payment-proposal/{id}/payment-file` and
-> `POST .../record-utr` (plus `GET .../utrs` to list them) have zero matches
-> anywhere in `public/app.js`, confirmed by grep — proposal creation and
-> execution work from the screen, but producing the file your bank actually
-> needs, and marking a proposal's payments as cleared with their UTR
-> reference, both need a direct API call today.
+> **The bank payment file has no button yet.** `GET
+> /api/v1/finance/payment-proposal/{id}/payment-file` works but nothing in
+> the app calls it, so producing the file your bank needs takes a direct API
+> call today. The UTRs that come back are recorded from the screen: load the
+> bank's response file in [Bank files](#bank-files-statements-and-bank-responses).
+
+## Debit and credit notes
+
+> [!WHAT]
+> Notes that correct a posted bill or invoice: a **debit note** claims money
+> back from a vendor, a **vendor credit note** records the vendor's own
+> credit, and a **customer credit note** gives money back to a customer.
+
+> [!WHY]
+> A posted document's money cannot be edited. A note books the correction as
+> its own entry, which is what GST law expects and what an auditor can follow.
+
+> [!USECASE]
+> A customer returns a ₹4,720 kurta after the invoice was posted. The
+> accountant raises a customer credit note against that invoice for ₹4,720
+> and posts it. The output GST and the receivable go down by the right
+> amounts.
+
+> [!HOW]
+
+1. Open **Financial Accounting → Debit Notes**, **Vendor Credit Notes** or
+   **Customer Credit Notes**.
+2. Click **+ New Debit Note**, **+ New Vendor Credit Note** or **+ New Credit
+   Note** and fill in the note against its bill or invoice.
+3. Click **Post** and confirm. Posting books the entry at once and cannot be
+   undone.
+4. Click **Print** for the copy you send.
+
+A goods receipt billed above the purchase order price raises its debit note
+by itself.
+
+## Bank Reconciliation
+
+> [!WHAT]
+> Each line of the bank statement matched to the entry in your books that it
+> pays or receives.
+
+> [!WHY]
+> It proves the books agree with the bank. Anything left over is a missing
+> entry, a bank charge or a mistake, and it is found while it is still fresh.
+
+> [!USECASE]
+> At month end 212 of 215 lines match on **Exact match**. One is a ₹590 bank
+> charge, so the accountant posts the charge and matches it. One customer
+> payment covers two invoices: **Find match**, tick both, **Match selected**.
+> The last is unknown: **Raise exception** with an owner and a reason.
+
+> [!HOW]
+
+1. Open **Financial Accounting → Bank Reconciliation** and pick the bank
+   account and dates.
+2. Load the statement with **Statement Lines / Import CSV**, or under **Bank
+   files**.
+3. Click **Exact match**: same amount, within 3 days.
+4. For what is left, click **Rule match**, set the amount tolerance and date
+   window, and click **Run rule match**.
+5. On each open line, click **Find match**, tick the book entries and click
+   **Match selected** (or **Part match** when they cover only part of the
+   line). Otherwise use **Explain** or **Raise exception**.
+
+**Show** narrows the list to open lines, the exception queue, matched or
+explained lines. **Unmatch** undoes a match and asks why. **Settlement file**
+and **Match card / UPI** match the card and UPI payouts to their bank
+credits.
 
 ## Bank files: statements and bank responses
 
@@ -276,14 +459,33 @@ discrepancy between the GRN, PO and invoice needs resolving first; this is
 also one of the four pre-close checklist items, so it will block a clean
 close if left unresolved.
 
-**Need to generate a bank payment file or record a UTR, but there's no
-button.** See the warning under Accounts Payable above — both are real
-endpoints reachable only via a direct API call today.
+**Need to generate a bank payment file, but there's no button.** See the
+warning under Payment Proposals above: it is a real endpoint reachable only
+via a direct API call today. UTRs are recorded by loading the bank's response
+in **Bank files**.
 
 ## Manual journal entries (Journal Vouchers)
 
+> [!WHAT]
+> A Journal Voucher is a manual accounting entry for something no other screen
+> makes, such as an accrual, a correction or an opening balance.
+
+> [!WHY]
+> You can only save it when the bar shows **Balanced**. Approval by another
+> user is what posts it, and a posted voucher is never edited: you **Reverse**
+> it instead.
+
+> [!USECASE]
+> At month end you accrue ₹45,000 of electricity charges. You enter the
+> **Date** and **Narration**, add one debit and one credit line, **Save as
+> Draft**, and **Submit for Approval** so another user can approve it.
+
 For an entry no other screen makes — an accrual, a correction, an opening
 balance — use **Financial Accounting → Journal Vouchers**:
+
+![A new journal voucher: debit and credit lines that must balance before it can be saved](../img/journal-voucher-new.webp)
+
+> [!HOW]
 
 1. Click **+ New Journal Voucher**. Enter the **Date** (the voucher books on
    that date, even if it is approved later) and a **Narration**; **Cost
@@ -312,8 +514,8 @@ a search of `public/` (2026-10-24):
   consolidated trial balance reports, are API-only.
 - **Landed Cost Vouchers** — allocating freight/duty/other charges onto
   landed cost (`POST /api/v1/finance/landed-cost-voucher`) is API-only.
-- **FX revaluation** and **bank-payment-file generation/UTR recording** —
-  see the warnings above.
+- **FX revaluation** and **bank-payment-file generation** — see the warnings
+  above.
 
 In every one of these cases the underlying feature is real, tested, and
 already how the reports listed above get their data — this is a coverage

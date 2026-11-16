@@ -419,6 +419,12 @@ func registerStage282Settings() {
 		Label: "Cash refused from (per bill)", Type: SettingTypeFloat, Default: "", Optional: true, Min: settingBound(0),
 		Description: "Cash of this much or more on one bill is refused; the rest is taken by card or UPI. Blank uses your country's rule (India: 2,00,000, s.269ST). 0 turns it off.",
 	})
+	// Ask 215.2: a B2B bill asks for the buyer's purchase order by default.
+	RegisterSetting(SettingDefinition{
+		Key: "pos.b2b.po_optional", Module: "Point of Sale",
+		Label: "B2B bill: PO number optional", Type: SettingTypeBool, Default: "false",
+		Description: "Off: a bill with a buyer GSTIN needs the buyer's PO number and date. On: they can be left blank. GSTIN, legal name and address are always needed (CGST Rule 46).",
+	})
 	RegisterSetting(SettingDefinition{
 		Key: "pos.default_price_list", Module: "Point of Sale",
 		Label: "Default price list", Type: SettingTypeString, Default: "",

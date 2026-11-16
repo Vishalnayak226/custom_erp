@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 26
 summary: Put a lot away, issue it, update a serial or run an expiry sweep from the floor task screen.
 screens: [rf-traceability]
+screen_sections: [rf-traceability=choose-and-complete-a-task]
 topic_type: how-to
 module: wms
 task: Record a lot or serial movement
@@ -36,6 +37,28 @@ mobile browser or poor-network workflow is not certified by that source check;
 use the device configuration approved for your site.
 
 ## Choose and complete a task
+
+> [!WHAT]
+> RF Lot & Serial is the scan screen for putting a lot away, issuing a lot,
+> changing a serial's status and sweeping expired lots.
+
+> [!WHY]
+> You read the outcome before moving on, because a refused command is not a
+> successful movement. A serial status update alone is not proof that the
+> shipment or refund is complete.
+
+> [!USECASE]
+> At a warehouse in Nagpur you choose **Put a lot away**, scan the bin, item
+> and lot, enter the quantity and condition, and check that the physical goods
+> match before you submit.
+
+> [!HOW]
+
+1. Open **WMS → RF Lot & Serial** and choose the task.
+2. Read the instruction at the top, then scan.
+3. For a serial, choose its status: **In Stock**, **Allocated**, **Shipped**,
+   **Returned** or **Scrapped**.
+4. Read the outcome before the next item. A refusal is not a movement.
 
 | Task | Enter or scan | Check before submitting |
 |---|---|---|

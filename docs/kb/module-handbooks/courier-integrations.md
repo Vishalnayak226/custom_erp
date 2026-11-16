@@ -5,7 +5,8 @@ order: 46
 summary: Book a shipment, check serviceability, print a label, and track it to delivery or RTO — the manual carrier-agnostic flow every warehouse uses today, and the real Delhivery/Shiprocket API layer built alongside it but not yet reachable from a screen.
 audience: warehouse operator, admin
 last_verified: 2026-09-03
-screens: [oms, doctype:courierservicearea, doctype:ndrcase, doctype:couriertrackingevent, doctype:manifest]
+screens: [doctype:courierservicearea, doctype:ndrcase, doctype:couriertrackingevent, doctype:manifest, oms]
+screen_sections: [oms=day-to-day-the-oms-pack-and-ship-pages]
 doc_id: DOC-1512253FF0
 type: procedure
 status: draft
@@ -138,9 +139,26 @@ forever — whichever one reports a status first wins.
 
 ## Day to day: the OMS Pack and Ship pages
 
+> [!WHAT]
+> **OMS → Pack** books the courier as part of **Pack, bill and label**. **OMS
+> → Ship** books a parcel left without a PIN, builds manifests, records the
+> gate pass and hands over.
+
+> [!WHY]
+> **Hand over** dispatches every fulfillment task in a manifest and flips an
+> order to Shipped only when all its tasks have shipped. The AWB shown is
+> generated locally and is not a live courier account.
+
+> [!USECASE]
+> At a Delhi warehouse, 20 parcels for one courier are booked. You choose
+> **Make manifest**, record the **Gate pass** for the vehicle, and **Hand
+> over** to dispatch them.
+
 **OMS → Pack** books the courier as part of **Pack, bill and label**, and
 **OMS → Ship** (`view-oms-steps.js`) does the rest - what a warehouse
 actually uses today:
+
+> [!HOW]
 
 1. **Book** a shipment: packing books it on its own from the order's PIN; a
    parcel left without one waits under **Book the courier** on Ship with its

@@ -42,6 +42,11 @@ func planLoyaltyBonus(tenantID string, in LoyaltyEarnInput) []LoyaltyEarnRow {
 	if offersUseCategoryScope(rules) {
 		_ = resolveLineCategories(tenantID, lines)
 	}
+	if offersUseCodeLists(rules) { // 215.7/215.8: design lists, exclusions
+		if resolveLineKeys(tenantID, lines) != nil {
+			return nil // an unseen exclusion must not earn points
+		}
+	}
 	scale := 1.0
 	if sum > float64(in.Net) && sum > 0 {
 		scale = float64(in.Net) / sum
@@ -59,6 +64,11 @@ func planLoyaltyBonus(tenantID string, in LoyaltyEarnInput) []LoyaltyEarnRow {
 	var rows []LoyaltyEarnRow
 	for _, r := range rules {
 		if !offerIsLive(r, today) || !storeListed(r.stores, in.Location) {
+			continue
+		}
+		// 215.8: days and hours are judged when the bill is made today; a past
+		// bill's points keep to its date alone.
+		if today == BusinessToday() && !offerOpenNow(r, offerClock()) {
 			continue
 		}
 		if r.customerTier != "" && !strings.EqualFold(r.customerTier, tier) {

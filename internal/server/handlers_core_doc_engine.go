@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -2126,45 +2128,54 @@ func handleAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 func handleSystemLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 		return
 	}
 
-	rows, err := db.DB.Query(fmt.Sprintf("SELECT log_id, correlation_id, severity, module_source, error_message, stack_trace, created_at FROM %s.system_error_logs ORDER BY created_at DESC LIMIT 100", schema))
+	// 206.2: open faults only, one row per fault with its count - refusals
+	// (sign-in, validation, permission) stay in the log for the correlation
+	// trail but are not errors to fix.
+	faults, err := engines.ListSystemFaults(tenantID)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer rows.Close()
+	_ = json.NewEncoder(w).Encode(faults)
+}
 
-	type SystemLog struct {
-		LogID         string         `json:"log_id"`
-		CorrelationID sql.NullString `json:"correlation_id"`
-		Severity      string         `json:"severity"`
-		ModuleSource  string         `json:"module_source"`
-		ErrorMessage  string         `json:"error_message"`
-		StackTrace    string         `json:"stack_trace"`
-		CreatedAt     string         `json:"created_at"`
+// handleResolveSystemFault (206.3) closes every open occurrence of one fault
+// on the System Errors screen. Super Admin only (admin.patch): it is the
+// owner's fix list. A new occurrence opens the fault again by itself.
+func handleResolveSystemFault(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
+		return
 	}
-
-	logs := []SystemLog{}
-	for rows.Next() {
-		var l SystemLog
-		if err := rows.Scan(&l.LogID, &l.CorrelationID, &l.Severity, &l.ModuleSource, &l.ErrorMessage, &l.StackTrace, &l.CreatedAt); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-			return
-		}
-		logs = append(logs, l)
+	var body struct {
+		LogID string `json:"log_id"`
 	}
-
-	_ = json.NewEncoder(w).Encode(logs)
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil || body.LogID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Choose an error to resolve.")
+		return
+	}
+	tenantID, userID, _ := resolvedContext(r)
+	by := r.Header.Get("Resolved-Username")
+	if by == "" {
+		by = userID
+	}
+	n, err := engines.ResolveSystemFault(tenantID, body.LogID, by)
+	if errors.Is(err, engines.ErrSystemFaultNotFound) {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "That error is no longer in the log.")
+		return
+	}
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	engines.LogAuditEventCtx(r.Context(), tenantID, userID, "SYSTEM_ERROR_RESOLVED", "Success",
+		fmt.Sprintf("Resolved %d occurrence(s) of system error %s", n, body.LogID))
+	_ = json.NewEncoder(w).Encode(map[string]any{"resolved": n})
 }
 
 func handleDebugPanic(w http.ResponseWriter, r *http.Request) {

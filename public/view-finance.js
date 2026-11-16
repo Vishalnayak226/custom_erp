@@ -630,7 +630,8 @@ async function renderVendorInvoicesView(container) {
     }
     currentDoctype = 'VendorInvoice'; currentSearchQuery = ''; currentTablePage = 1;
     await renderView('doctype-table');
-    if (fromGRN && currentView === 'doctype-table' && currentDoctype === 'VendorInvoice' && canCreateDoctype('VendorInvoice')) {
+    // 210.9: New opens the form, from a GRN or not - not a second list to click New on again.
+    if (currentView === 'doctype-table' && currentDoctype === 'VendorInvoice' && canCreateDoctype('VendorInvoice')) {
       await openDynamicModal(undefined, defaults);
     }
   });

@@ -100,11 +100,37 @@ func RenderMarkdown(source string) string {
 				body = append(body, strings.TrimSpace(strings.TrimPrefix(trimmed, ">")))
 				i++
 			}
-			out.WriteString(`<aside class="kb-admonition kb-admonition-` + kind + `" role="note"><p class="kb-admonition-title">`)
+			if !lessonKinds[kind] {
+				out.WriteString(`<aside class="kb-admonition kb-admonition-` + kind + `" role="note"><p class="kb-admonition-title">`)
+				out.WriteString(admonitionLabel(kind))
+				out.WriteString("</p><p>")
+				out.WriteString(renderInline(strings.Join(body, " ")))
+				out.WriteString("</p></aside>\n")
+				continue
+			}
+			// 210.3: a lesson block (What it is / Why it matters / Use case /
+			// How to do it). Its body is Markdown in its own right, so a use case
+			// can run to two paragraphs (a bare ">" line) or a list. A [!HOW]
+			// with no body of its own takes the list straight below it, so an
+			// existing numbered procedure becomes the lesson's "How" by adding
+			// one line above it rather than re-quoting every step.
+			out.WriteString(`<aside class="kb-admonition kb-lesson kb-lesson-` + kind + `" role="note"><p class="kb-admonition-title">`)
 			out.WriteString(admonitionLabel(kind))
-			out.WriteString("</p><p>")
-			out.WriteString(renderInline(strings.Join(body, " ")))
-			out.WriteString("</p></aside>\n")
+			out.WriteString("</p>")
+			if strings.TrimSpace(strings.Join(body, "")) != "" {
+				out.WriteString(RenderMarkdown(strings.Join(body, "\n")))
+			} else if kind == "how" {
+				next := i
+				for next < len(lines) && strings.TrimSpace(lines[next]) == "" {
+					next++
+				}
+				if next < len(lines) {
+					if _, _, _, _, isItem := listItem(lines[next]); isItem {
+						i = renderList(lines, next, 0, &out)
+					}
+				}
+			}
+			out.WriteString("</aside>\n")
 			continue
 		}
 
@@ -304,7 +330,7 @@ func isTableDelimiter(line string) bool {
 
 func admonitionKind(line string) (string, bool) {
 	line = strings.ToUpper(strings.TrimSpace(line))
-	for _, kind := range []string{"NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"} {
+	for _, kind := range []string{"NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION", "WHAT", "WHY", "USECASE", "HOW"} {
 		if line == "> [!"+kind+"]" {
 			return strings.ToLower(kind), true
 		}
@@ -312,13 +338,24 @@ func admonitionKind(line string) (string, bool) {
 	return "", false
 }
 
+// lessonKinds are the 210.3 blocks that teach one transaction. The help dialog
+// shows What and How; the full Knowledge Center shows all four.
+var lessonKinds = map[string]bool{"what": true, "why": true, "usecase": true, "how": true}
+
 func admonitionLabel(kind string) string {
 	labels := map[string]string{
 		"note": "Note", "tip": "Tip", "important": "Important",
 		"warning": "Warning", "caution": "Caution",
+		"what": "What it is", "why": "Why it matters", "usecase": "Use case", "how": "How to do it",
 	}
 	return labels[kind]
 }
+
+// SnapshotPattern names a 210.4 snapshot: a WebP under docs/kb/img/, referenced
+// from an article as ![caption](../img/<name>.webp). The build copies the file
+// into the embedded content and the browser fetches it through the
+// authenticated help API, so the image is never a public file.
+var SnapshotPattern = regexp.MustCompile(`^(?:\.\./)*img/([a-z0-9][a-z0-9-]*\.webp)$`)
 
 func safeLanguage(language string) string {
 	var out strings.Builder
@@ -372,6 +409,13 @@ func renderInline(input string) string {
 					closeURL += closeAlt + 2
 					alt := input[2:closeAlt]
 					url := safeURL(input[closeAlt+2 : closeURL])
+					if snap := SnapshotPattern.FindStringSubmatch(strings.TrimSpace(url)); snap != nil {
+						// No src: the Knowledge Center loads it when it scrolls into
+						// view, and the help dialog never loads it at all.
+						out.WriteString(`<span class="kb-snap"><img data-kb-img="` + snap[1] + `" alt="` + html.EscapeString(alt) + `"><span class="kb-snap-caption">` + html.EscapeString(alt) + `</span></span>`)
+						input = input[closeURL+1:]
+						continue
+					}
 					out.WriteString(`<img src="` + html.EscapeString(url) + `" alt="` + html.EscapeString(alt) + `" loading="lazy">`)
 					input = input[closeURL+1:]
 					continue

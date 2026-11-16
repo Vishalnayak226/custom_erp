@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"custom_erp/engines"
@@ -10,11 +11,21 @@ import (
 
 // Stage 85.C: the customer at the till (engines/pos_customers.go).
 
-// handlePOSCustomerLookup finds the customer with a mobile number.
+// handlePOSCustomerLookup finds the customer with a mobile number, or (ask
+// 215.2, gstin=) with a GSTIN for the till's B2B panel.
 func handlePOSCustomerLookup(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if ok, err := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "Customer", "read"); err != nil || !ok {
 		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	if g := strings.TrimSpace(r.URL.Query().Get("gstin")); g != "" {
+		c, found, err := engines.LookupCustomerByGSTIN(tenantID, g)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"found": found, "gstin": strings.ToUpper(g), "customer": c})
 		return
 	}
 	c, found, phone, err := engines.LookupCustomerByPhone(tenantID, strings.TrimSpace(r.URL.Query().Get("phone")))
@@ -46,9 +57,21 @@ func handlePOSWalkInCustomer(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePOSHighValuePolicy is when a bill needs the buyer's address or PAN,
-// and the cash limit - so the till asks before Complete Sale.
+// and the cash limit - so the till asks before Complete Sale. With
+// customer_id (ask 215.4) it adds the cash that customer paid today.
 func handlePOSHighValuePolicy(w http.ResponseWriter, r *http.Request) {
-	_ = json.NewEncoder(w).Encode(engines.HighValuePolicyFor(r.Header.Get("Resolved-Tenant-ID")))
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	out := struct {
+		engines.HighValuePolicy
+		CashToday     float64 `json:"cash_today"`
+		B2BPOOptional bool    `json:"b2b_po_optional"` // 215.2: the till's B2B panel
+	}{HighValuePolicy: engines.HighValuePolicyFor(tenantID), B2BPOOptional: engines.GetSettingBool(tenantID, "pos.b2b.po_optional")}
+	if id := strings.TrimSpace(r.URL.Query().Get("customer_id")); id != "" && out.CashLimit > 0 {
+		if ok, err := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "Customer", "read"); err == nil && ok {
+			out.CashToday, _ = engines.CustomerCashToday(tenantID, id, r.URL.Query().Get("cart_number"))
+		}
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // --- Stage 85.D3: customer advances at the till ------------------------------
@@ -175,17 +198,9 @@ func handlePOSSalesmen(w http.ResponseWriter, r *http.Request) {
 func handlePOSBills(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	q := r.URL.Query()
-	stores := []string{r.Header.Get("Resolved-Location")}
-	if q.Get("scope") == "mine" {
-		access, err := engines.UserStoreAccess(tenantID, r.Header.Get("Resolved-User-ID"))
-		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Unable to read your stores - please retry shortly")
-			return
-		}
-		stores = nil
-		if !access.All {
-			stores = access.List()
-		}
+	stores, ok := posSearchStores(w, r)
+	if !ok {
+		return
 	}
 	bills, err := engines.SearchStoreBills(tenantID, stores, q.Get("q"), q.Get("date"))
 	if err != nil {
@@ -193,4 +208,41 @@ func handlePOSBills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(bills)
+}
+
+// posSearchStores is the stores a bill search covers: the working store, or
+// (scope=mine) every store the user has been given - nil when that is all.
+func posSearchStores(w http.ResponseWriter, r *http.Request) ([]string, bool) {
+	if r.URL.Query().Get("scope") != "mine" {
+		return []string{r.Header.Get("Resolved-Location")}, true
+	}
+	access, err := engines.UserStoreAccess(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Unable to read your stores - please retry shortly")
+		return nil, false
+	}
+	if access.All {
+		return nil, true
+	}
+	return access.List(), true
+}
+
+// handlePOSSalesHistory (ask 215, 215.12) is POS > Sales History: store and
+// online bills and returns, newest first, between two dates and/or by any
+// field - at the working store or (scope=mine) the user's stores.
+func handlePOSSalesHistory(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	stores, ok := posSearchStores(w, r)
+	if !ok {
+		return
+	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	h, err := engines.SearchSalesHistory(r.Header.Get("Resolved-Tenant-ID"), engines.SalesHistoryFilter{Stores: stores,
+		From: q.Get("from"), To: q.Get("to"), Q: q.Get("q"), Kind: q.Get("kind"), Source: q.Get("source"), Limit: limit, Offset: offset})
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(h)
 }

@@ -33,6 +33,8 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 	switch doctype {
 	case "DataQualityIssue":
 		return validateDataQualityIssueRules(payload)
+	case "DataHeal":
+		return validateDataHealRules()
 	case "Item":
 		return validateItemMasterRules(tenantID, docID, payload)
 	case "Vendor":

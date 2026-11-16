@@ -90,6 +90,19 @@ func ArticleHTML(slug string) (Article, string, error) {
 	return article, string(body), nil
 }
 
+// Snapshot returns one embedded 210.4 snapshot. Only a name the build could
+// have written is read, so this can never open an arbitrary embedded path.
+func Snapshot(name string) ([]byte, error) {
+	if SnapshotPattern.FindStringSubmatch("img/"+name) == nil {
+		return nil, ErrArticleNotFound
+	}
+	body, err := contentFS.ReadFile("content/img/" + name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, ErrArticleNotFound
+	}
+	return body, err
+}
+
 // SearchIndexJSON returns the prebuilt inverted index verbatim, so the handler
 // streams bytes rather than re-encoding a structure on every request.
 func SearchIndexJSON() ([]byte, error) {

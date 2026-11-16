@@ -26,13 +26,31 @@ failure_behavior: Keep the task and error reference, then ask support when help 
 
 # Find help for your task
 
-Choose **Help for this screen** in the application header to open related
-instructions. The help opens over the screen with the cursor on its close
-button; press **Esc** or choose **Close** to go back to where you were. Use
-**Knowledge Center** in the navigation to browse all topics: pick a section,
-then a topic.
+Choose **Help for this screen** in the application header. A short dialog opens
+over the screen with the part of the handbook for that screen: what it is and
+how to do it. Press **Esc** or choose **Close** to go back to where you were.
 Screen coverage is still being completed; a general topic is not evidence that
 every operation on that screen is documented.
+
+## The full lesson
+
+Choose **Open the full Knowledge Center** in that dialog. The Knowledge Center
+opens on the same handbook, at the section for your screen, with that section
+outlined. In the sidebar, the handbook sits under its main module (the same
+names as the app's menu) with that module expanded, and the handbook lists its
+own sections. Choose a section there to jump to it.
+
+A screen's lesson has up to four parts:
+
+| Part | Tells you |
+|---|---|
+| **What it is** | The transaction in one or two lines |
+| **Why it matters** | What it protects or saves you from |
+| **Use case** | A worked example from a store |
+| **How to do it** | The steps, in order |
+
+Screen pictures load as you scroll to them. Use **Knowledge Center** in the
+navigation to browse every topic yourself.
 
 ## Search or browse
 

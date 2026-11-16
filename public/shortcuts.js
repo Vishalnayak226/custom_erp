@@ -72,6 +72,24 @@ function codeOpen(c) {
 // own screen (canCreateDoctype says no to the record form) still counts.
 const codeCanNew = c => !!c.doctype && codeOpen(c) && (state.permissions.isAdmin || state.permissions.create.has(c.doctype));
 
+// 208.1: each screen's code left of its name in the sidebar pop-out menus,
+// like SAP's "display technical names" (shortcuts.css draws it). Waits for
+// /me/modules (shell-nav.js calls it again then), so a company that switched
+// codes off never sees them flash. The top rail stays as it is.
+function markMenuCodes() {
+  if (!state.modules?.loaded) return;
+  if (!codesOn()) {
+    document.querySelectorAll('a[data-menu-code]').forEach(a => a.removeAttribute('data-menu-code'));
+    return;
+  }
+  codes.forEach(c => {
+    const a = c.menu && document.getElementById(c.menu);
+    if (a && a.closest('.menu-flyout')) a.dataset.menuCode = c.code;
+  });
+}
+window.markMenuCodes = markMenuCodes;
+codesReady.then(markMenuCodes);
+
 let reports = null, reportsTried = 0;
 async function loadReports() {
   if (reports) return reports;

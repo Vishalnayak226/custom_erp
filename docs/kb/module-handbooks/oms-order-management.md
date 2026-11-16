@@ -6,6 +6,7 @@ summary: Every channel and manual order lands through one Order Engine - validat
 audience: order desk, store manager, admin
 last_verified: 2026-09-03
 screens: [oms]
+screen_sections: [oms=allocation-sourcing,oms=manual-order-entry]
 doc_id: DOC-C98ADC2B59
 type: procedure
 status: draft
@@ -71,6 +72,29 @@ already reserved, shipped, or cancelled before the hold was placed is left
 alone.
 
 ## Allocation & sourcing
+
+> [!WHAT]
+> Allocation decides which location fulfils an order. The first Active
+> Allocation Rule that gives a usable plan wins, in ascending priority.
+
+> [!WHY]
+> If rules exist and none gives a plan, the order is held with reason
+> `ALLOCATION_FAILED` and is never silently routed elsewhere. That On Hold
+> queue is the allocation exception queue.
+
+> [!USECASE]
+> A web order arrives for two SKUs. The first rule, **Highest ATS**, picks the
+> location with the most available stock. If no one location covers the order,
+> a **Split Shipment** rule can fill the lines from different locations.
+
+> [!HOW]
+
+1. Add an **Allocation Rule** for each strategy you want, with a priority and
+   a channel (blank covers every channel).
+2. Put a **Manual** rule last, as the catch-all that routes an order to a
+   person.
+3. Work the orders held with reason `ALLOCATION_FAILED` from the On Hold
+   queue.
 
 Once an order passes validation, the **Allocation/Sourcing Engine**
 (`ResolveAllocationPlan`) decides which location(s) fulfil it, running every
@@ -140,6 +164,27 @@ Bulk hold/release/cancel are also available directly from the order queue,
 reporting a per-order outcome rather than an all-or-nothing batch result.
 
 ## Manual order entry
+
+> [!WHAT]
+> A manual order goes through the same Order Engine every channel import uses.
+
+> [!WHY]
+> There is no shortcut path, so the same allocation, reservations and holds
+> apply to a hand-keyed order.
+
+> [!USECASE]
+> A phone order is keyed by hand. It is allocated and held under the same
+> rules as an order that came in from a channel.
+
+![A new manual order: customer, payment, delivery address and items](../img/oms-order-new.webp)
+
+> [!HOW]
+
+1. Go to **OMS → Orders** and click **+ New Order**.
+2. Fill the customer, **Payment**, **Address line 1** and **PIN code**.
+3. Add items with **+ Add item** by Design ID, Combination ID or barcode, and
+   set each quantity.
+4. Click **Create Order**. It is allocated and reserved like a channel order.
 
 A manual order goes through the identical Order Engine every channel import
 uses — the same allocation, reservations and holds all apply, there is no

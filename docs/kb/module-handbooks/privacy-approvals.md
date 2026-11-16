@@ -6,6 +6,7 @@ summary: Approve or send back an incident notification decision you were named o
 audience: admin, privacy approver
 last_verified: 2026-11-14
 screens: [privacy-approvals]
+screen_sections: [privacy-approvals=deciding]
 doc_id: DOC-6CF3130465
 type: procedure
 status: draft
@@ -31,6 +32,22 @@ When a security incident may need people told, someone decides **Notify** or
 checks it here.
 
 ## Deciding
+
+> [!WHAT]
+> Privacy approvals is the list of **Notify** or **Do not notify** decisions,
+> about a security incident, that are waiting for you as the named approver.
+
+> [!WHY]
+> A second person checks the decision, so one person cannot decide alone. You
+> cannot approve a decision you made yourself.
+
+> [!USECASE]
+> A security incident may need customers told. A colleague decided **Notify**
+> and named you. You read the incident, the evidence reference and the reason,
+> then click **Approve**, or **Send back** with a note of at least 5
+> characters.
+
+> [!HOW]
 
 1. Open **Settings » Monitoring » Privacy approvals**. The list shows only the
    decisions waiting for you.

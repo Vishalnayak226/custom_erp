@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 62
 summary: Trailer check-in and yard movement with saved-state checks and exception recovery.
 screens: [yard-board]
+screen_sections: [yard-board=receive-and-move-a-trailer]
 topic_type: how-to
 module: warehouse
 task: Trailer check-in and yard movement
@@ -29,6 +30,22 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 Use **Yard Board** when a trailer arrives, moves to a door or departs.
 
 ## Receive and move a trailer
+
+> [!WHAT]
+> Yard Board tracks a trailer from check-in through its dock door to check-
+> out.
+
+> [!WHY]
+> Each trailer has one status, such as **InYard** or **AtDoor**, so the
+> supervisor can see what is in the yard. The board is not a replacement for a
+> physical yard check.
+
+> [!USECASE]
+> A trailer from Ahmedabad arrives. You enter **Trailer No**, **Carrier** and
+> **Yard Slot** and choose **Check In**, then **Assign to Door** when the
+> supervisor confirms, and **Check Out** after it leaves.
+
+> [!HOW]
 
 1. Match the physical trailer number with the planned arrival. Enter **Trailer No** and, where available, **Carrier**, **Driver** and **Yard Slot**.
 2. Choose **Check In** once. Verify the trailer appears with status **InYard** and the correct slot.

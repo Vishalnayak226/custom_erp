@@ -42,6 +42,13 @@
   var INSECURE_HOST = '127.0.0.1';
 
   var CONNECT_TIMEOUT_MS = 2000;
+  // 203.1: after a page's sockets have failed a few times (PrintBridge down,
+  // a wake, the install wait) the browser holds each new try back by up to
+  // ~5 s before it starts. A 2 s cut-off then drops the try - another failure
+  // - and in Edge a connect kept failing with PrintBridge running. The plain
+  // loopback socket is refused at once when nothing listens, so its only slow
+  // case is that hold: it gets long enough to outlast it.
+  var FIRST_TRY_TIMEOUT_MS = 6000;
   var CALL_TIMEOUT_MS = 30000;
 
   // Mirrors qz-tray.js `_qz.printing.defaultConfig`. Sent in full rather than
@@ -172,10 +179,15 @@
     // content - and that is what lets PrintBridge install with no certificate
     // question. A browser that refuses it fails that try at once and the
     // secure socket is tried next, as before.
-    return insecure.concat(secure);
+    var list = insecure.concat(secure);
+    // 212.1: the address that answered last time goes first.
+    var last = lastUrl();
+    return list.indexOf(last) > 0 ? [last].concat(list.filter(function (u) { return u !== last; })) : list;
   }
+  var URL_KEY = 'erp_printbridge_url';
+  function lastUrl(v) { try { if (v) localStorage.setItem(URL_KEY, v); return localStorage.getItem(URL_KEY) || ''; } catch (e) { return ''; } }
 
-  function openSocket(url) {
+  function openSocket(url, ms) {
     return new Promise(function (resolve, reject) {
       var ws;
       try { ws = new WebSocket(url); } catch (e) { reject(e); return; }
@@ -185,12 +197,13 @@
         settled = true;
         try { ws.close(); } catch (e) { /* already gone */ }
         reject(new Error('timeout'));
-      }, CONNECT_TIMEOUT_MS);
+      }, ms || CONNECT_TIMEOUT_MS);
 
       ws.onopen = function () {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        ws.pbUrl = url; // ws.url adds a trailing slash
         resolve(ws);
       };
       ws.onerror = function () {
@@ -338,10 +351,46 @@
     });
   }
 
-  function openAny() {
-    return candidates().reduce(function (chain, url) {
-      return chain.catch(function () { return openSocket(url); });
+  // 212.1: `until` (a time) ends the round early - a browser holding tries
+  // back made the eight of them take up to 20 s.
+  function openAny(until) {
+    return candidates().reduce(function (chain, url, i) {
+      return chain.catch(function (err) {
+        var left = until ? until - Date.now() : Infinity;
+        if (left <= 0) throw err;
+        return openSocket(url, Math.min(i === 0 ? FIRST_TRY_TIMEOUT_MS : CONNECT_TIMEOUT_MS, left));
+      });
     }, Promise.reject(new Error('start')));
+  }
+
+  /* 212.1: wait for a PrintBridge that was just woken or is reinstalling -
+   * one socket a second to the address that answered last time, never past
+   * `until`. Full rounds here (24 tries) are what made "did not print" take
+   * up to a minute. */
+  function waitUp(until) {
+    var url = lastUrl() || candidates()[0];
+    function poll() {
+      var left = until - Date.now();
+      if (left <= 0) return Promise.reject(new Error('not answering'));
+      return openSocket(url, left).catch(function (err) {
+        if (until - Date.now() <= 1000) throw err;
+        return later(1000).then(poll);
+      });
+    }
+    return later(1000).then(poll);
+  }
+
+  /* 203.1: is PrintBridge answering? One try - the plain socket, or with
+   * secure the first secure one, for a browser that refuses the plain one -
+   * left to finish. A page waiting for PrintBridge (the install box) asks this
+   * every few seconds instead of connect(), whose eight tries a round are what
+   * make the browser start holding tries back. */
+  function listening(secure) {
+    var url = secure ? 'wss://' + SECURE_HOST + ':' + SECURE_PORTS[0] : 'ws://' + INSECURE_HOST + ':' + INSECURE_PORTS[0];
+    return openSocket(url, FIRST_TRY_TIMEOUT_MS).then(function (ws) {
+      try { ws.close(); } catch (e) { /* already gone */ }
+      return true;
+    }, function () { return false; });
   }
   function later(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -352,7 +401,7 @@
    * tray or a crash is undone. Never on a PC that has not had it (Windows
    * would only ask which app opens the link), and three wakes with no answer
    * stop the waking, for a PC where it was removed. */
-  var SEEN = 'erp_printbridge_seen', wokeAt = 0, firstClick = true;
+  var SEEN = 'erp_printbridge_seen', wokeAt = 0, firstClick = true, failedAt = 0;
   function seen(v) { try { if (v) localStorage.setItem(SEEN, v); return parseInt(localStorage.getItem(SEEN), 10) || 0; } catch (e) { return 0; } }
 
   /* 203.3: PrintBridge replaces itself. Once per page load, a few seconds
@@ -404,16 +453,26 @@
     if (connecting) return connecting;
 
     connecting = loadCertificate().then(function () {
-      return openAny().catch(function (err) {
-        var waitFor = updating();
-        if (!waitFor && !wake()) throw err;
-        var again = later(2500).then(openAny).catch(function () { return later(2500).then(openAny); });
-        // A reinstall takes a few seconds more than a wake.
-        return waitFor ? again.catch(function () { return later(5000).then(openAny); }) : again;
+      // 212.1: soon after a failed connect the browser is holding tries back,
+      // so one try to the address that answered last time stands for the
+      // round; otherwise a round, cut off at 6 s.
+      var last = lastUrl();
+      var first = last && Date.now() - failedAt < 120000
+        ? openSocket(last, FIRST_TRY_TIMEOUT_MS)
+        : openAny(Date.now() + FIRST_TRY_TIMEOUT_MS);
+      return first.catch(function (err) {
+        // Reinstalling: up to 25 s. Woken now: up to 10 s. Woken a moment ago
+        // (another print, the first click): what is left of 15 s from then.
+        // Otherwise PrintBridge is not coming - say so now.
+        if (updating()) return waitUp(Date.now() + 25000);
+        if (wake()) return waitUp(Date.now() + 10000);
+        if (Date.now() - wokeAt < 15000) return waitUp(wokeAt + 15000);
+        throw err;
       });
     }).then(function (ws) {
       socket = ws;
       seen('1');
+      lastUrl(ws.pbUrl);
       attachHandlers(ws);
       // Handshake order matters and matches the official client: an
       // unsigned getVersion first, then the certificate.
@@ -427,6 +486,7 @@
       return true;
     }).catch(function (err) {
       connecting = null;
+      failedAt = Date.now();
       if (socket) { try { socket.close(); } catch (e) { /* noop */ } socket = null; }
       throw new Error('PrintBridge is not running or not reachable on this computer.');
     });
@@ -471,6 +531,7 @@
     connect: connect,
     disconnect: disconnect,
     isConnected: function () { return !!socket && socket.readyState === 1; },
+    listening: listening,
     version: function () { return trayVersion; },
     listOSPrinters: listOSPrinters,
     getDefaultPrinter: getDefaultPrinter,

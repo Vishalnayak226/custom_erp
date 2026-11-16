@@ -28,6 +28,13 @@ type PrintProfile struct {
 // ResolvePrintProfile picks the profile for one print. txn is the print
 // transaction, doctype its doctype; a profile names either.
 func ResolvePrintProfile(tenantID, txn, doctype, store string) *PrintProfile {
+	return ResolvePrintProfileFor(tenantID, txn, doctype, store, "", "")
+}
+
+// ResolvePrintProfileFor (213.2) is ResolvePrintProfile for a party type
+// ("B2B" / "B2C") and the user printing; "" matches only profiles that name
+// neither.
+func ResolvePrintProfileFor(tenantID, txn, doctype, store, party, user string) *PrintProfile {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil
@@ -40,7 +47,8 @@ func ResolvePrintProfile(tenantID, txn, doctype, store string) *PrintProfile {
 	var best *PrintProfile
 	bestScore := -1
 	// Stage 130.16 (74.3.4): a profile may also name a legal entity and a
-	// channel; profileScore ranks document, store, entity, channel.
+	// channel; profileScore ranks document, B2B / B2C, user (213.2), store,
+	// entity, channel.
 	entity, channel := locationLegalEntity(tenantID, store), printChannel(txn)
 	for rows.Next() {
 		var id, raw string
@@ -51,7 +59,7 @@ func ResolvePrintProfile(tenantID, txn, doctype, store string) *PrintProfile {
 		if json.Unmarshal([]byte(raw), &data) != nil {
 			continue
 		}
-		score := profileScore(data, txn, doctype, store, entity, channel)
+		score := profileScore(data, txn, doctype, store, entity, channel, party, user)
 		if score < 0 {
 			continue
 		}
@@ -65,6 +73,15 @@ func ResolvePrintProfile(tenantID, txn, doctype, store string) *PrintProfile {
 	return best
 }
 
+// partyType (213.2) is "B2B" when the other party on the print has a GSTIN
+// (the invoice's own buyer GSTIN first), else "B2C".
+func (d *PrintDocument) partyType() string {
+	if strings.TrimSpace(firstNonEmpty(strField(d.Fields, "buyer_gstin"), d.Party.GSTIN)) != "" {
+		return "B2B"
+	}
+	return "B2C"
+}
+
 func splitCopyLabels(s string) []string {
 	var out []string
 	for _, p := range strings.Split(s, ",") {
@@ -76,9 +93,10 @@ func splitCopyLabels(s string) []string {
 }
 
 // applyPrintProfile puts the resolved profile on the print data, where the
-// page (trade-docs.js) reads it: fields.print_profile.
-func (d *PrintDocument) applyPrintProfile(tenantID, txn string) {
-	p := ResolvePrintProfile(tenantID, txn, d.Doctype, d.Store.Code)
+// page (trade-docs.js) reads it: fields.print_profile. user is the login
+// name printing ("" when no one is, such as a scheduled export).
+func (d *PrintDocument) applyPrintProfile(tenantID, txn, user string) {
+	p := ResolvePrintProfileFor(tenantID, txn, d.Doctype, d.Store.Code, d.partyType(), user)
 	// Stage 130.16 (74.3.1): with no profile of its own, a delivery challan
 	// prints Rule 55's three copies as one set.
 	if p == nil && txn == PrintTxnDeliveryChallan {

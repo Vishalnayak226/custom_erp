@@ -16,7 +16,8 @@ superseded_by: none
 section: Module Handbooks
 order: 90
 summary: For whoever runs the platform - every client on one page, which release is live and what number it carries, pausing a client or giving it a free trial, and repairing a record in any client with the Data Console.
-screens: [control-panel, platform-console]
+screens: [control-panel, platform-console, tenant-entitlements, tenant-usage]
+screen_sections: [control-panel=the-control-panel,platform-console=the-data-console,tenant-entitlements=tenant-entitlements,tenant-usage=tenant-usage]
 topic_type: how-to
 module: platform
 task: Run the platform for every client
@@ -34,6 +35,29 @@ the app. Anyone else who opens these screens sees a short note saying so, or
 the error `PLATFORM-0317`.
 
 ## The Control Panel
+
+> [!WHAT]
+> **Settings → Control Panel** shows every client on one page: the running
+> release, client counts, hosting domain and the last backup.
+
+> [!WHY]
+> Each client row shows its version, active users, records and errors in the
+> last 24 hours. **Pause / Resume** signs a client out without deleting
+> anything, and your own client's row hides Pause and Trial so you cannot lock
+> yourself out.
+
+> [!USECASE]
+> A client's trial ends and the client is paused automatically. You open
+> **Settings → Control Panel**, check the row, and click **Mark paid** or
+> extend the **Trial** in days.
+
+> [!HOW]
+
+1. Open **Settings → Control Panel** and read the release, clients and backup
+   panels.
+2. On a client's row, use **Modules**, **Data** or **Attributes** to work on
+   that client.
+3. Use **Pause / Resume** or **Trial** with a reason. Nothing is deleted.
 
 **Settings → Control Panel** shows every client on one page.
 
@@ -81,9 +105,26 @@ profile chip, with the release date.
 
 ## The Data Console
 
+> [!WHAT]
+> **Settings → Data Console** opens any client's records for a repair that has
+> no screen of its own.
+
+> [!WHY]
+> The console does not re-run the business rules a screen does, so you prefer
+> the normal screen when there is one. Passwords and secrets show as `••••••`,
+> and every change is recorded in the client's Activity Log as
+> `PLATFORM_DATA_EDIT` with before and after values.
+
+> [!USECASE]
+> A user reports an error. You open the `system_error_logs` table in the
+> console, search the correlation id from the error dialog, and read the log
+> behind it.
+
 **Settings → Data Console** opens any client's records for a repair that has
 no screen of its own. Prefer the normal screen when there is one: the console
 does not re-run the business rules a screen does.
+
+> [!HOW]
 
 1. Choose the **Client** and the **Table** (one per record type, for example
    PurchaseOrder, GRN or Vendor, each with its row count).
@@ -99,3 +140,58 @@ client's Activity Log as `PLATFORM_DATA_EDIT`, with the before and after values.
 To find the log behind a client's problem, open its `system_error_logs` table
 in the console and search by the correlation id the user saw in the error
 dialog. `audit_logs` holds every change.
+
+## Tenant Entitlements
+
+> [!WHAT]
+> Which modules each client has: start a new client with chosen packages, and
+> switch a client's modules on or off afterwards.
+
+> [!WHY]
+> A client pays for the modules it uses. The modules it has not bought stay
+> off, so its menu shows only what it can use and the server does no work for
+> the rest.
+
+> [!USECASE]
+> A new chain buys the store and warehouse packages with a 14-day free trial.
+> The operator provisions it with just those two packages. A month later the
+> chain adds manufacturing, so the operator switches that module on for it.
+
+> [!HOW]
+
+1. Open **Settings → Platform → Tenant Entitlements**.
+2. To start a client, click **+ Provision New Tenant**, enter the **Tenant
+   ID** and **Schema Name**, tick its packages (none ticked means the full
+   suite), set the **Free trial (days)**, and click **Provision Tenant**.
+3. To change a client, pick it in **Tenant**.
+4. Click a plan under **Apply a Plan** to match a package exactly, or switch
+   single modules on or off under **Module Entitlements**.
+
+Applying a plan switches off every optional module not in it. **Always On**
+modules cannot be switched off. Only a platform operator sees this screen.
+
+## Tenant Usage
+
+> [!WHAT]
+> A live view of every client's load: users signed in, requests running now,
+> and the limits each client is set to.
+
+> [!WHY]
+> When one client is slow, this shows at once whether it is at its own limit
+> or the whole server is busy.
+
+> [!USECASE]
+> A client reports that screens hang at 11 am. The operator opens **Tenant
+> Usage**: that client's in-flight requests are red at its cap while the
+> others are green, so its limit is raised instead of the server.
+
+> [!HOW]
+
+1. Open **Settings → Platform → Tenant Usage**.
+2. Read **Tenants**, **In-Flight Requests (all tenants)** and **Tenants At
+   Concurrency Cap** at the top.
+3. In the table, check each client's **Active Users** and **In-Flight
+   Requests** against its **Configured Limits**.
+
+A red badge means the client is at its limit; amber means half way. The
+screen is read-only. Only a platform operator sees it.

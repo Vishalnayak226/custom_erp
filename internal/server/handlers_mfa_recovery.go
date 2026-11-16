@@ -187,7 +187,8 @@ func handleMFAReenrollConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	if recErr != nil {
 		codes = nil
-		engines.LogSystemError(tenantID, username, "Medium", "User Access & Security",
+		// 206.5: the correlation id, not the user name - that column is a uuid.
+		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "Medium", "User Access & Security",
 			fmt.Sprintf("authenticator moved but recovery codes could not be reissued for %s: %v", username, recErr), "")
 	}
 

@@ -3,9 +3,22 @@
 <h2 id="giving-a-supplier-a-login">Giving a supplier a login <a class="kb-anchor" href="#giving-a-supplier-a-login" aria-label="Copy link to this section">#</a></h2>
 <p>An administrator opens <strong>Setup » Users</strong>, adds the user with the role <strong>Supplier</strong> and links it to the vendor. That user opens straight on the supplier portal.</p>
 <h2 id="what-the-supplier-sees">What the supplier sees <a class="kb-anchor" href="#what-the-supplier-sees" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>The supplier portal is the screen a supplier&#39;s own login opens on: its orders, delivery notices, bills and payments, read-only.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Suppliers stop calling to ask what is still open, whether a bill matched or when it was paid, and they see none of your rates, MRP or internal notes.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>A mill wants to know whether last month&#39;s bill was paid. It signs in, opens <strong>Bills</strong> and sees it matched and paid, with the reference under <strong>Payments</strong>.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>The supplier signs in; the portal opens on their name.</li><li><strong>Orders</strong> shows their open POs and <strong>ASNs</strong> the delivery notices sent.</li><li><strong>Bills</strong> shows each bill&#39;s match and payment status, and <strong>Payments</strong> each payment.</li></ol></aside>
 <p>The portal opens on the supplier&#39;s name with four tabs:</p>
 <table><thead><tr><th>Tab</th><th>Shows</th></tr></thead><tbody><tr><td><strong>Orders</strong></td><td>Approved and closed POs, with the items still open</td></tr><tr><td><strong>ASNs</strong></td><td>The delivery notices sent</td></tr><tr><td><strong>Bills</strong></td><td>Each bill&#39;s match and payment status, amount paid and owed</td></tr><tr><td><strong>Payments</strong></td><td>Date, amount and reference of each payment</td></tr></tbody></table>
 <p>A supplier never sees rates, MRP, discounts, totals, charges, internal notes or approvals. Another supplier&#39;s record answers <em>Not found</em>.</p>
 <h2 id="telling-you-a-delivery-is-coming">Telling you a delivery is coming <a class="kb-anchor" href="#telling-you-a-delivery-is-coming" aria-label="Copy link to this section">#</a></h2>
-<ol><li>On <strong>Orders</strong>, click <strong>Send notice</strong> on an open order.</li><li>Change the quantity if needed. It can never be more than is still open, counting earlier notices.</li><li>Add the expected date, carrier and tracking.</li><li>Click <strong>Send notice</strong>.</li></ol>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>A delivery notice (ASN) tells your warehouse what is on its way, against which order, and when.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>The warehouse sees it as an <strong>Expected</strong> ASN, so it can plan the dock, and the goods receipt loads its lines with <strong>Load Items from ASN</strong>.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>The mill dispatches 150 of the 300 sarees ordered. It sends a notice for 150 with the carrier and tracking number, and the receiver later loads those lines from the ASN.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>On <strong>Orders</strong>, click <strong>Send notice</strong> on an open order.</li><li>Change the quantity if needed. It can never be more than is still open, counting earlier notices.</li><li>Add the expected date, carrier and tracking.</li><li>Click <strong>Send notice</strong>.</li></ol></aside>
 <p>The notice reaches the warehouse as an ordinary ASN with the status <strong>Expected</strong>.</p>

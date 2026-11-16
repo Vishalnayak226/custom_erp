@@ -7,7 +7,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 async function getJSON(url) {
   const res = await apiFetch(url);
   if (!res || !res.ok) { if (res) await showApiError(res, 'Failed to load.', 'Load Failed'); return []; }
-  return res.json();
+  return (await res.json()) || []; // an empty list comes back as null (200.2: People threw on a tenant with no employees)
 }
 
 async function post(url, body, out) {

@@ -59,9 +59,10 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .td-dialog-controls .form-input { min-width: 200px; }
 .td-txn { font-weight: 600; padding-bottom: 8px; }
 .td-dialog-actions { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-/* Stage 98.4: where this kind prints on this computer. */
-.td-printer { align-self: center; font-size: 12px; color: var(--text-muted); }
-.td-printer strong { color: var(--text-main); }
+/* Stage 98.4: where this kind prints on this computer. 213.1: a printer list
+   for this print, and Change for the computer's choice. */
+.td-printer { display: flex; align-items: flex-end; gap: 8px; font-size: 12px; }
+.td-printer .link-btn { padding-bottom: 8px; }
 /* Stage 98.3: the Send dialog. */
 .td-dialog.td-send { width: min(560px, 100%); height: auto; max-height: 92vh; }
 .td-send-body { display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: auto; }

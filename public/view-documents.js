@@ -1896,7 +1896,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   }
 
   // Stage 57.10: an Offer's Scope Value follows its Scope.
-  if (currentDoctype === 'Offer') wireOfferScopeValue(body);
+  if (currentDoctype === 'Offer') { wireOfferScopeValue(body); wireOfferTypeFields(body); }
   // Stage 93.6: a location's cost center is suggested ("New: <name>"), never blank.
   if (currentDoctype === 'Location') wireLocationCostCenter(body);
   // Stage 108: a new location's boxes filled in (Short Code, Facility Code, Type-led Level / Sellable, HO parent).
@@ -1977,7 +1977,7 @@ function wireOfferScopeValue(body) {
 
   const rebuild = async (keepValue) => {
     const scope = scopeEl.value;
-    const isList = scope === 'SKU List';
+    const isList = scope === 'SKU List' || scope === 'Design List';
     const fresh = document.createElement(isList ? 'textarea' : 'input');
     if (!isList) fresh.type = 'text';
     fresh.className = 'form-input';
@@ -2000,6 +2000,9 @@ function wireOfferScopeValue(body) {
     } else if (scope === 'SKU List') {
       fresh.placeholder = 'SKU codes, separated by commas or one per line';
       hint.textContent = 'Only these SKUs get the offer.';
+    } else if (scope === 'Design List') {
+      fresh.placeholder = 'Design numbers, commas or one per line';
+      hint.textContent = 'Every item of these designs.';
     } else if (scope === 'Category') {
       fresh.placeholder = 'Category, as set on the items';
       // The categories already in use, offered as suggestions. Item.category
@@ -2032,6 +2035,87 @@ function wireOfferScopeValue(body) {
   };
   rebuild(true);
   scopeEl.addEventListener('change', () => rebuild(false));
+}
+
+// 215.9 (user, 2026-11-15: "All std offer should be build and admin can
+// choose the type of offer"): the Offer form shows only the boxes the chosen
+// type reads. A hidden box keeps its value - the engine reads only its own
+// type's fields, and the check (POSOFF-0882) judges only those - so switching
+// type and back loses nothing.
+const OFFER_TYPE_FIELDS = {
+  'Percentage Off': ['discount_pct'],
+  'Flat Off': ['discount_amount'],
+  'Buy X Get Y': ['buy_qty', 'get_qty', 'get_discount_pct'],
+  'Buy A Get B': ['buy_qty', 'get_qty', 'get_list', 'get_discount_pct'],
+  'Bundle Price': ['bundle_qty', 'bundle_price'],
+  'Spend Slabs': ['slabs'],
+  'Quantity Slabs': ['slabs'],
+  'Fixed Price': ['offer_price'],
+  'Combo': ['combo_lists', 'offer_price'],
+  'Gift With Purchase': ['gift_item', 'gift_qty', 'buy_qty'],
+  'Bonus Points': ['bonus_basis', 'bonus_points', 'bonus_spend_step'],
+};
+const OFFER_NO_CAP = new Set(['Gift With Purchase', 'Bonus Points']);
+
+function wireOfferTypeFields(body) {
+  const typeEl = body.querySelector('[name="offer_type"]');
+  if (!typeEl) return;
+  const groupOf = name => body.querySelector(`[name="${name}"]`)?.closest('.form-group');
+  const asTextarea = (name, placeholder) => {
+    const el = body.querySelector(`input[name="${name}"]`);
+    if (!el) return body.querySelector(`[name="${name}"]`);
+    const ta = document.createElement('textarea');
+    ta.className = 'form-input';
+    ta.id = el.id;
+    ta.name = el.name;
+    ta.rows = 3;
+    ta.value = el.value;
+    ta.placeholder = placeholder;
+    el.replaceWith(ta);
+    return ta;
+  };
+  asTextarea('get_list', 'SKUs or design numbers');
+  asTextarea('exclude_list', 'SKUs or design numbers');
+  asTextarea('combo_lists', 'One list per line');
+  const slabs = asTextarea('slabs', '2000=200; 5000=10%');
+  const days = body.querySelector('[name="days"]');
+  if (days) days.placeholder = 'Mon-Fri, Weekend';
+  // A time box, when the stored value reads as one ("9" -> 09:00). 24:00
+  // clears: no end time means the same thing. Anything else stays as typed.
+  for (const name of ['hour_from', 'hour_to']) {
+    const el = body.querySelector(`input[name="${name}"]`);
+    if (!el) continue;
+    const m = el.value.trim().match(/^(\d{1,2})(?::(\d{2}))?$/);
+    if (el.value.trim() && !m) continue;
+    const hh = m ? Number(m[1]) : 0;
+    const value = m && hh < 24 && Number(m[2] || 0) < 60 ? `${String(hh).padStart(2, '0')}:${m[2] || '00'}` : '';
+    el.type = 'time';
+    el.value = value;
+  }
+
+  const all = [...new Set(Object.values(OFFER_TYPE_FIELDS).flat())];
+  const paint = () => {
+    const type = typeEl.value;
+    const shown = new Set(OFFER_TYPE_FIELDS[type] || []);
+    for (const name of all) {
+      const g = groupOf(name);
+      if (g) g.hidden = !shown.has(name);
+    }
+    const cap = groupOf('max_discount_amount');
+    if (cap) cap.hidden = OFFER_NO_CAP.has(type);
+    // A combo is priced on its own lists; Applies To is not read.
+    const scope = body.querySelector('[name="scope"]');
+    if (scope) {
+      if (type === 'Combo' && !scope.value) scope.value = 'Bill';
+      const g = scope.closest('.form-group');
+      if (g) g.hidden = type === 'Combo';
+      const sv = groupOf('scope_value');
+      if (sv && sv !== g) sv.hidden = type === 'Combo';
+    }
+    if (slabs) slabs.placeholder = type === 'Quantity Slabs' ? '3=5%; 5=15%' : '2000=200; 5000=10%';
+  };
+  paint();
+  typeEl.addEventListener('change', paint);
 }
 
 // 21.9 QA-follow-up: the generic record-list screens (Vendors,
@@ -2078,6 +2162,17 @@ window.handleDynamicFormSubmit = async function(e) {
 };
 
 async function handleDynamicFormSubmitInner(form) {
+  // Ask 207: a record type a waiting heal covers saves only once it has run.
+  const heal = window.dataHealer ? await window.dataHealer.allowSave(currentDoctype) : true;
+  if (!heal) return;
+  if (heal === 'ran' && editingDocID) {
+    // The heal may have just written this record; save on top of that.
+    const fresh = await apiFetch(`/api/v1/doc/${currentDoctype}/${encodeURIComponent(editingDocID)}`);
+    if (fresh && fresh.ok) {
+      const rec = await fresh.json();
+      if (typeof rec.version === 'number') editingDocVersion = rec.version;
+    }
+  }
   const payload = {};
 
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);

@@ -18,7 +18,8 @@ import (
 //     log records which version printed (74.1.4).
 //   - A profile can be for a legal entity and a channel (POS, Online, B2B,
 //     ERP) as well as a document and store; the most specific wins:
-//     document + store, store, entity + channel, entity, all.
+//     document + store, store, entity + channel, entity, all. 213.2 adds
+//     B2B / B2C and a user (profileScore).
 //   - A tax document from a store whose legal entity has no GSTIN is refused
 //     when print.tax_document_needs_gstin is on - and a client with no GSTIN
 //     anywhere (not registered) prints a Bill of Supply instead.
@@ -260,13 +261,31 @@ func printChannel(txn string) string {
 	return "ERP"
 }
 
-// profileScore is how specifically a profile fits a print: document 8,
-// store 4, legal entity 2, channel 1; -1 when it names something else.
-func profileScore(data map[string]interface{}, txn, doctype, store, entity, channel string) int {
+// profileScore is how specifically a profile fits a print: document 32,
+// B2B / B2C 16, user 8, store 4, legal entity 2, channel 1; -1 when it names
+// something else. 213.2 (user, 2026-11-15: "Same pos will do b2c and b2b bill
+// ... or same for diff user"): party is "B2B" when the other party has a
+// GSTIN, else "B2C"; user is the login name printing. Each weight is above
+// every lower one added together, so the order reads as a list.
+func profileScore(data map[string]interface{}, txn, doctype, store, entity, channel, party, user string) int {
 	score := 0
 	switch t := strings.TrimSpace(strField(data, "transaction")); {
 	case t == "" || strings.EqualFold(t, "All"):
 	case t == txn || t == doctype:
+		score += 32
+	default:
+		return -1
+	}
+	switch p := strings.TrimSpace(strField(data, "party_type")); {
+	case p == "" || strings.EqualFold(p, "All"):
+	case strings.EqualFold(p, party):
+		score += 16
+	default:
+		return -1
+	}
+	switch u := strings.TrimSpace(strField(data, "user")); {
+	case u == "":
+	case strings.EqualFold(u, strings.TrimSpace(user)):
 		score += 8
 	default:
 		return -1

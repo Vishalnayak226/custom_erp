@@ -6,6 +6,7 @@ summary: Push product content out to Shopify, BigCommerce, Magento, Amazon, Flip
 audience: category manager, admin, integrator
 last_verified: 2026-09-03
 screens: [pim, oms, doctype:channel, doctype:channelvalidationrule, doctype:channelcategorymap, doctype:channelfieldmap, doctype:channelsyncrun, doctype:channelskuexception]
+screen_sections: [oms=operating-channels-day-to-day-the-oms-workbench]
 doc_id: DOC-79BB2AA4C0
 type: procedure
 status: draft
@@ -248,6 +249,27 @@ fields `consumer_key`/`consumer_secret` — registered as `kind: webstore`
 rather than `marketplace`. `RateLimit()` is 100/minute.
 
 ## Operating channels day to day: the OMS Workbench
+
+> [!WHAT]
+> **OMS → Orders** is where you watch each channel connector's health once
+> credentials exist, and fix unmapped SKUs.
+
+> [!WHY]
+> The Channel connectors panel shows last sync status, lag, 24-hour failures
+> and open SKU-mapping exceptions. An unmapped SKU stops an inbound order from
+> resolving until you map it.
+
+> [!USECASE]
+> An order from a channel names a SKU with no ERP item. It appears under
+> **Unmapped SKU exceptions**, you map it to a SKU, and the exception is
+> resolved.
+
+> [!HOW]
+
+1. Open **OMS → Orders** and read the **Channel connectors** panel: last sync,
+   lag and failures for each channel.
+2. Click **Pull orders** or **Push ATS** on a channel's row to sync it now.
+3. In **Unmapped SKU exceptions**, map each channel SKU to an ERP item.
 
 **OMS → Orders** (`renderOMSWorkbenchView`) is where a connector's
 ongoing health is watched and acted on, once credentials exist:

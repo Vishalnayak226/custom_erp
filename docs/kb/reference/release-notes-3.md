@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-08-15, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-19, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,29 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **38** earlier entries, 2026-07-27 to 2026-08-15.
+This page continues the [release notes](release-notes.md) with **42** earlier entries, 2026-07-27 to 2026-08-19.
+
+## 2026-08-19
+
+**Stage 42.1 CLOSED — outbound lottable validation, UOM conversion, real Code 128, and two bugs live verification caught** *(code + schema + docs)*
+
+Asked to build through the whole open backlog. Picked up Phase 42.1 where the prior session left it (42.1.1-42.1.9 already closed) and finished the remaining three items — 42.1.7, 42.1.10, 42.1.11 — closing the phase at 11/11. Full item-by-item detail in `micro_checklist.md` Stage 42.
+
+## 2026-08-17
+
+**Stage 39.11/39.12/39.16/39.17 — the Knowledge Center gets its content, 6 articles → 23** *(content + code)*
+
+Asked to start writing Stage 39's content, which was 11 open items described as "mostly content authoring". Four of them are now closed. Full item-by-item detail in `micro_checklist.md` Stage 39.
+
+## 2026-08-16
+
+**Stage 37.1.3-37.1.5 — multi-currency finished, and the 98.8% receivable understatement it uncovered** *(code + schema + docs)*
+
+Asked to start building from the open parity backlog, whose first row is **Stage 37 — ERP core depth**, annotated "incl. finishing multi-currency (37.1.3-37.1.5)". That was the right place to start for a reason beyond ordering: 37.1 was the only half-built item in the list, and half-built multi-currency is not a missing feature, it is a live correctness liability. Full item-by-item detail in `micro_checklist.md` Stage 37.1. A concurrent session's Stage 42.1 work was uncommitted in this tree throughout — see the note at the end.
+
+**Stage 42.1 — the traceability foundation: batch, FEFO and recall** *(code + schema + docs)*
+
+Asked to start building Stage 42 (WMS parity), which had been planning-only since 2026-08-11. The plan is unusually emphatic about where to begin — Phase 42.1, "start here, nothing else first" — because grep-verified there was **no lot/batch concept anywhere in the tree**: no `batch_no`, no `expiry`, no shelf life in `engines/` or `db/`. That absence is what made FEFO, expiry blocking and recall unbuildable, and it is why this WMS could not be sold into food, pharma, cosmetics or electronics. Six of the phase's eleven items are now closed (42.1.1–42.1.6) plus the recall traceability the plan asked for as proof the model is right. Full item-by-item detail in `micro_checklist.md` Stage 42.
 
 ## 2026-08-15
 

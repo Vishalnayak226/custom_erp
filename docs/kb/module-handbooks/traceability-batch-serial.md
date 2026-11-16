@@ -6,6 +6,7 @@ summary: Track a lot or an individual unit from receipt to dispatch, pick the ri
 audience: warehouse operator, category manager, admin
 last_verified: 2026-11-15
 screens: [grn, wave-picking, doctype:batch, doctype:serialnumber, doctype:lottableconstraint, reports]
+screen_sections: [grn=receiving-capturing-a-batch-or-serial,wave-picking=picking-oldest-expiry-first-automatically]
 doc_id: DOC-60557E41E3
 type: procedure
 status: draft
@@ -56,6 +57,27 @@ about untracked stock changes.
 
 ## Receiving: capturing a batch or serial
 
+> [!WHAT]
+> Batch and serial numbers are captured on the GRN Workbench. A tracked SKU's
+> row grows a **Batch / Lot** field or a **Serial Numbers** field.
+
+> [!WHY]
+> A serial-tracked line needs one serial per accepted unit, no more and no
+> fewer. A lot's manufacture and expiry dates are set once, on the first
+> receipt, and a later receipt never overwrites them.
+
+> [!USECASE]
+> You receive 24 units of a serial-tracked item at a Chennai store. You enter
+> 24 serial numbers, one per line, so the count matches the accepted quantity.
+
+> [!HOW]
+
+1. On the **GRN Workbench**, add a line for the tracked SKU.
+2. For a batch item, enter the **Batch / Lot** from the carton, with the
+   manufacture and expiry dates if known.
+3. For a serial item, enter one serial per line in **Serial Numbers**, as many
+   as the accepted quantity.
+
 Batch and serial numbers are captured on the **GRN Workbench**, the same
 screen every goods receipt already goes through — there is no separate
 capture step. Add a line for a tracked SKU and the row grows the fields the
@@ -79,6 +101,27 @@ If you do need to correct a lot's dates, edit the `Batch` record directly
 (**Setup → Master Data → Batch**).
 
 ## Picking: oldest-expiry-first, automatically
+
+> [!WHAT]
+> For a Batch-tracked item, wave and bin pick-list generation allocate stock
+> first-expiry-first-out (FEFO) instead of FIFO.
+
+> [!WHY]
+> Lots with no recorded expiry are picked last, and an Expired or quarantined
+> lot is never offered. A lot is offered only if the days left meet **Min
+> Shelf Life on Pick**.
+
+> [!USECASE]
+> Two lots of a batch-tracked item are in a bin: one expires sooner and one
+> has no expiry. The pick list takes the sooner-expiring lot first and the no-
+> expiry lot last.
+
+> [!HOW]
+
+1. Receive the lot on a GRN with its expiry date.
+2. Record its bin with **WMS → RF Lot & Serial → Put a lot away**.
+3. Generate the wave or bin pick list: the lot that expires first is offered
+   first.
 
 For a Batch-tracked item, wave and bin pick-list generation allocate stock
 **FEFO** (first-expiry-first-out) instead of FIFO — you don't choose this per

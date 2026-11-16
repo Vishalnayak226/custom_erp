@@ -1,13 +1,27 @@
 <h1 id="release-notes">Release notes <a class="kb-anchor" href="#release-notes" aria-label="Copy link to this section">#</a></h1>
-<p>Generated from <code>docs/project_ledger.md</code>&#39;s own Stage sections - <strong>260</strong> entries as of this build. Each excerpt is that section&#39;s own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.</p>
+<p>Generated from <code>docs/project_ledger.md</code>&#39;s own Stage sections - <strong>273</strong> entries as of this build. Each excerpt is that section&#39;s own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.</p>
 <p>Newest first. Earlier entries continue on:</p>
-<ul><li><a href="/help/release-notes-2">Part 2</a> - 2026-08-16 to 2026-10-18</li><li><a href="/help/release-notes-3">Part 3</a> - 2026-07-27 to 2026-08-15</li></ul>
+<ul><li><a href="/help/release-notes-2">Part 2</a> - 2026-08-19 to 2026-10-18</li><li><a href="/help/release-notes-3">Part 3</a> - 2026-07-27 to 2026-08-19</li></ul>
+<h2 id="2026-11-16">2026-11-16 <a class="kb-anchor" href="#2026-11-16" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Every transaction screen has its own lesson, and every module a picture</strong> <em>(KB handbooks + KB build + guides + Guide suites, ask 217; NOT COMMITTED)</em></p>
+<p><strong>Best-practice POS: B2B bill, GST cash/PAN rules, three discounts, every standard offer, Sales History, online bills and returns at the till</strong> <em>(code + migration + tests + guides + Guide suites, ask 215; NOT COMMITTED)</em></p>
+<p><strong>PrintBridge in its own public repository, the build signs it once a certificate exists, and Test alignment on paper</strong> <em>(PrintBridge repo + build script + real print, ask 218; ERP docs NOT COMMITTED)</em></p>
+<p><strong>Data Healer rule in the constitution, and Guide&#39;s key set live</strong> <em>(constitution + PR template + production config, ask 216; NOT COMMITTED)</em></p>
 <h2 id="2026-11-15">2026-11-15 <a class="kb-anchor" href="#2026-11-15" aria-label="Copy link to this section">#</a></h2>
-<p><strong>&#34;Build everything. All approved&#34; - every buildable open item: SaaS packages and billing, passkeys, tax rules from official sources, Unicommerce, the role checks Guide found, and the owner checklist</strong> <em>(code + tests + guides + docs, ask 193; NOT COMMITTED)</em></p>
-<p><strong>OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app</strong> <em>(code + tests + guide + Guide suites, asks 197 and 198; NOT COMMITTED)</em></p>
+<p><strong>Screens hold still when you type or click - every screen walked, all three roles</strong> <em>(front end + guide + Guide suite, ask 200; the later fixes NOT COMMITTED)</em></p>
+<p><strong>Switch paper, template and printer for one print - at Print, the till and Reprint; profiles by B2B / B2C and user</strong> <em>(code + migration + tests + guides, ask 213; NOT COMMITTED)</em></p>
+<p><strong>Data Healer &gt; Past names: change an item&#39;s name on documents already made, without SQL</strong> <em>(code + tests + guides, ask 211 with 201.4; NOT COMMITTED)</em></p>
+<p><strong>PrintBridge: &#34;did not print&#34; in seconds, no wake-box, and a security review - agent 0.3.2</strong> <em>(ERP + PrintBridge agent + tests + guides, asks 209 and 212; NOT COMMITTED)</em></p>
+<p><strong>Help opens the Knowledge Center at your screen&#39;s lesson: What, Why, Use case, How, with pictures</strong> <em>(front end + KB + guides, ask 210; NOT COMMITTED)</em></p>
+<p><strong>Data Healer: one-time fixes old records catch up through, starting with Item aliases</strong> <em>(code + migration + tests + guides, ask 207; NOT COMMITTED)</em></p>
+<p><strong>System Errors becomes a fix list: real faults only, one row per fault, Copy for fix and Resolve</strong> <em>(code + migration + tests + guides, ask 206; NOT COMMITTED)</em></p>
+<p><strong>Each screen&#39;s short code beside its name in the sidebar menus</strong> <em>(front end + guides, ask 208; NOT COMMITTED)</em></p>
+<p><strong>API access for every module, limited by module access - research and plan</strong> <em>(plan only, ask 205; NOT COMMITTED)</em></p>
+<p><strong>&#34;Push all and deploy all&#34; - release 0.25.0 once every session was done, deployed to app and minn</strong> <em>(release + deploy + pipeline fixes, ask 204)</em></p>
+<p><strong>&#34;Build everything. All approved&#34; - every buildable open item: SaaS packages and billing, passkeys, tax rules from official sources, Unicommerce, the role checks Guide found, and the owner checklist</strong> <em>(code + tests + guides + docs, ask 193; shipped in 0.25.0, §379)</em></p>
+<p><strong>OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app</strong> <em>(code + tests + guide + Guide suites, asks 197 and 198; released in 0.25.0, 53af64d)</em></p>
 <p><strong>A short item alias on stickers, the item name from Category + Type, and combinations named by their item name</strong> <em>(code + migration + tests + guides, asks 199 and 201; NOT COMMITTED)</em></p>
-<p><strong>PrintBridge installs once and then updates itself</strong> <em>(ERP + PrintBridge agent 0.3.0 + installer + tests + guides, ask 203; NOT COMMITTED)</em></p>
-<p><strong>A short code for every menu screen, and a switch to turn codes off for a client</strong> <em>(code + tests + guides, ask 202; NOT COMMITTED)</em></p>
+<p><strong>A short code for every menu screen, and a switch to turn codes off for a client</strong> <em>(code + tests + guides, ask 202; released in 0.25.0, 7c43c56)</em></p>
 <p><strong>&#34;Build all recommended&#34; - search on very large masters, the panic button off Activity Log, the cold-load gate re-run and three more connected-organisation journeys</strong> <em>(code + tests + guides + docs, ask 192; NOT COMMITTED)</em></p>
 <p><strong>&#34;start building all next 40 itms&#34; + &#34;all recomennded approved&#34; - 37 buildable items: the Customer-create migration, CI that always tests, jobs capabilities, a strict style CSP, a second-replica job test, an API access page, and the doc and walk items</strong> <em>(code + tests + guides + docs, ask 191; NOT COMMITTED)</em></p>
 <h2 id="2026-11-14">2026-11-14 <a class="kb-anchor" href="#2026-11-14" aria-label="Copy link to this section">#</a></h2>
@@ -235,19 +249,3 @@
 <p>From the user&#39;s Edit Item screenshots and five follow-up messages; decisions D1-D5 asked (<code>micro_checklist.md</code> Stage 89). Full detail there.</p>
 <p><strong>Stage 85 — POS billing for a real store: store access, the working store on top, store stock locations, phone-first customers, GST bill, customer advance, and the rest of Stage 77</strong> <em>(committed locally - not pushed, not deployed)</em></p>
 <p>Full detail in <code>micro_checklist.md</code> Stage 85; plan <code>docs/product/pos-store-billing-plan-2026-10-18.md</code>. Opened from the user&#39;s POS screenshot: <em>&#34;I know i asked and it was built&#34;</em> - it had been asked (Stage 77, 2026-10-17) but only its decisions were recorded.</p>
-<p><strong>Module 2 (Numbering / Masters), first part — 76.7, 76.8, 76.9</strong> <em>(code + docs, committed with §241, not pushed; 76.7&#39;s country cap waits on Stage 86&#39;s commit)</em></p>
-<p>Full detail in <code>micro_checklist.md</code> 76.7-76.9.</p>
-<p><strong>Module-wise build order, module 1: Procurement / GRN / Print — 84.2, 84.3, 84.4, 73.C.7</strong> <em>(code + docs, committed, not pushed)</em></p>
-<p>The user set a module-wise build order on 2026-10-18 (<code>micro_checklist.md</code>, top: &#34;4,8,1,2,3,5,9,7,6&#34;, this run stops after Backups &amp; Platform). This is the first module. Full detail under 84.2-84.5 and 73.C.7.</p>
-<p><strong>Stage 87 — Attributes asked in the PO&#39;s add row; a column per attribute on PO lines and the PO print</strong> <em>(code + docs, NOT COMMITTED)</em></p>
-<p>From the user&#39;s <em>&#34;It should ask attribute in PO itself. Where is it.&#34;</em> on the New purchase order screen. Full detail in <code>micro_checklist.md</code> Stage 87.</p>
-<p><strong>Stage 86 — Refresh keeps your place; number series store code, year formats, GST length and characters, live preview; the ERP&#39;s own item attributes</strong> <em>(code + docs, NOT COMMITTED)</em></p>
-<p>From the user&#39;s Number Series - ASN screenshots, their attribute question, and a refresh that landed on Help. Full detail in <code>micro_checklist.md</code> Stage 86.</p>
-<p><strong>Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8</strong> <em>(one commit, pushed + deployed)</em></p>
-<p>At the user&#39;s <em>&#34;if all task done, push all and deploy all to minn and app&#34;</em>. This supersedes the &#34;NOT COMMITTED&#34; tags on §229-237. Full detail in <code>micro_checklist.md</code> 73.R and 84.7-84.9.</p>
-<p><strong>Stage 82 — The industry is chosen in Configuration, by the org&#39;s admin only</strong> <em>(code + docs, NOT COMMITTED)</em></p>
-<p>From the user&#39;s screenshot of the top bar&#39;s industry dropdown and its typed-code Override prompt. Full detail in <code>micro_checklist.md</code> Stage 82.</p>
-<p><strong>Stage 81 — Product attributes per client from the industry attribute library</strong> <em>(code + docs, NOT COMMITTED)</em></p>
-<p>From the user&#39;s message and draft workbook <code>ERP_Industry_Product_Attribute_Master.xlsx</code>. Full detail in <code>micro_checklist.md</code> Stage 81.</p>
-<p><strong>Stage 80 — New Item form in sections with a variant-option picker; Help opens the right article on every list; one place for print templates; WMS start-here guide</strong> <em>(code + docs, NOT COMMITTED)</em></p>
-<p>Four screenshots from the user on the deployed build. Full detail in <code>micro_checklist.md</code> Stage 80.</p>

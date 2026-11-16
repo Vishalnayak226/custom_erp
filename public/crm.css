@@ -14,6 +14,14 @@
 .crm-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .crm-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .crm-root .table-wrapper { overflow-x: auto; }
+/* Customers keeps its columns while Find narrows the list (200.2). A narrow
+   window scrolls the panel (min-width) instead of squeezing the columns. */
+#crm-clist .crm-table { table-layout: fixed; width: 100%; min-width: 960px; }
+#crm-clist th:nth-child(1) { width: 21%; }
+#crm-clist th:nth-child(2), #crm-clist th:nth-child(6) { width: 13%; }
+#crm-clist th:nth-child(3), #crm-clist th:nth-child(7), #crm-clist th:nth-child(8) { width: 12%; }
+#crm-clist th:nth-child(4) { width: 9%; }
+#crm-clist th:nth-child(5) { width: 8%; }
 .crm-empty { padding: 12px 0; }
 .crm-small { font-size: 12px; }
 .crm-sub { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
@@ -58,6 +66,8 @@ button.crm-tile:hover { border-color: var(--primary-color); }
 .crm-form .form-group { margin-bottom: 0; }
 .crm-form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .crm-form-row > .form-group { flex: 1 1 180px; }
+/* a journey's trigger Type keeps its width while the fields beside it change (200.2) */
+.crm-form-row > .form-group:has(> #jr-tt) { flex: 0 0 220px; }
 .crm-form-row > textarea { flex: 1 1 300px; }
 .crm-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 10px; }
 .crm-form-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; max-width: none; }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -55,6 +56,7 @@ type OfferCartLine struct {
 	SalePrice float64 `json:"sale_price"`
 
 	category string
+	keys     []string // 215.7: the item and design codes a list can name it by (resolveLineKeys)
 }
 
 // OfferEvaluationInput is everything the evaluator needs about a sale.
@@ -62,6 +64,10 @@ type OfferEvaluationInput struct {
 	Lines       []OfferCartLine `json:"lines"`
 	CustomerID  string          `json:"customer_id"`
 	CouponCodes []string        `json:"coupon_codes"`
+	// 215.8: the store an offer's Stores list is checked against, and the
+	// bill being priced, which never counts against an offer's use limit.
+	Location   string `json:"location,omitempty"`
+	CartNumber string `json:"cart_number,omitempty"`
 }
 
 // AppliedOffer is one offer that matched, and what it took off the bill.
@@ -142,6 +148,27 @@ type offerRule struct {
 	bonusStep   float64
 	stores      string
 	customerTag string
+
+	// Ask 215.7/215.8 (pos_offer_types.go): the new types' values and the
+	// conditions. getSet, comboSets and excludeSet are resolved per
+	// evaluation like skuSet. days nil = every day; hourFrom/hourTo are
+	// minutes after midnight, -1 = no bound, used only when timed. never is
+	// a rule whose days or times do not read: it applies nowhere.
+	getDiscountPct     float64
+	getList            string
+	getSet             map[string]bool
+	slabs              []offerSlab
+	offerPrice         float64
+	comboLists         []string
+	comboSets          []map[string]bool
+	excludeList        string
+	excludeSet         map[string]bool
+	days               []bool
+	timed              bool
+	hourFrom, hourTo   int
+	never              bool
+	maxUses            int
+	maxUsesPerCustomer int
 }
 
 // EvaluatePOSOffers resolves every Active Offer against a cart and returns the
@@ -195,6 +222,11 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 			return nil, err
 		}
 	}
+	if offersUseCodeLists(rules) { // 215.7: designs, get, combo and exclude lists
+		if err := resolveLineKeys(tenantID, input.Lines); err != nil {
+			return nil, err
+		}
+	}
 
 	suppliedCodes := map[string]bool{}
 	for _, c := range normalizedCoupons(input.CouponCodes) {
@@ -213,12 +245,17 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	})
 
 	today := BusinessToday()
+	now := offerClock()
 	remaining := gross
 
-	result.Gifts = evaluateGiftOffers(tenantID, rules, input.Lines, gross, tier, suppliedCodes, usedCodes, today)
+	result.Gifts = evaluateGiftOffers(tenantID, rules, input, gross, tier, suppliedCodes, usedCodes, today, now)
 
 	for _, rule := range rules {
 		if !offerIsLive(rule, today) || rule.offerType == offerTypeGiftWithPurchase || rule.offerType == offerTypeBonusPoints {
+			continue
+		}
+		// 215.8: its days and hours, and its stores (every offer type now).
+		if !offerOpenNow(rule, now) || !storeListed(rule.stores, input.Location) {
 			continue
 		}
 		if rule.customerTier != "" && !strings.EqualFold(rule.customerTier, tier) {
@@ -246,6 +283,10 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 			discount = remaining
 		}
 		if discount <= 0 {
+			continue
+		}
+		// 215.8: checked last - it is the only check that counts past bills.
+		if !offerUsesLeft(tenantID, rule, input.CustomerID, input.CartNumber) {
 			continue
 		}
 		discount = round2(discount)
@@ -304,10 +345,22 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 // otherwise the lines in its scope - the same reading offerScopedAmount uses
 // to size the discount in the first place.
 func offerAppliesToLine(rule offerRule, line OfferCartLine) bool {
-	if rule.scope == offerScopeBill || (rule.scopeValue == "" && rule.skuSet == nil) {
-		return true
+	switch rule.offerType {
+	case offerTypeBuyAGetB: // 215.7: the discount is on the get items
+		return !offerExcluded(rule, line) && offerSetHas(rule.getSet, line)
+	case offerTypeCombo:
+		return offerComboIndex(rule, line) >= 0
 	}
-	return offerLineMatches(rule, line)
+	return offerInScope(rule, line)
+}
+
+// offerInScope is a line inside a rule's scope: every line of a whole-bill
+// rule, else the lines its scope matches - never an excluded line (215.8).
+func offerInScope(rule offerRule, line OfferCartLine) bool {
+	if offerExcluded(rule, line) {
+		return false
+	}
+	return offerWholeBill(rule) || offerLineMatches(rule, line)
 }
 
 // offerDiscountFor computes one rule's rupee discount against the cart, and a
@@ -348,6 +401,19 @@ func offerDiscountFor(rule offerRule, lines []OfferCartLine, gross float64) (flo
 			return 0, ""
 		}
 		return offerBundleDiscount(rule, lines)
+
+	// 215.7 (pos_offer_types.go)
+	case offerTypeBuyAGetB:
+		if rule.buyQty <= 0 || rule.getQty <= 0 || len(rule.getSet) == 0 {
+			return 0, ""
+		}
+		return offerBuyAGetBDiscount(rule, lines)
+	case offerTypeSpendSlabs, offerTypeQtySlabs:
+		return offerSlabDiscount(rule, lines, gross)
+	case offerTypeFixedPrice:
+		return offerFixedPriceDiscount(rule, lines)
+	case offerTypeCombo:
+		return offerComboDiscount(rule, lines)
 	}
 	return 0, ""
 }
@@ -364,12 +430,16 @@ func offerBuyXGetYDiscount(rule offerRule, lines []OfferCartLine) (float64, stri
 	sort.Float64s(prices) // cheapest first
 	groups := len(prices) / group
 	freeUnits := groups * rule.getQty
+	pct := offerGetPct(rule) // 215.7: free, or the get units at a % off
 	discount := 0.0
 	for i := 0; i < freeUnits && i < len(prices); i++ {
-		discount += prices[i]
+		discount += prices[i] * pct / 100
 	}
 	if discount <= 0 {
 		return 0, ""
+	}
+	if pct < 100 {
+		return discount, fmt.Sprintf("buy %d get %d at %.4g%% off on %s (%d unit(s))", rule.buyQty, rule.getQty, pct, offerScopeLabel(rule), freeUnits)
 	}
 	return discount, fmt.Sprintf("buy %d get %d free on %s (%d free unit(s))", rule.buyQty, rule.getQty, offerScopeLabel(rule), freeUnits)
 }
@@ -421,12 +491,12 @@ func offerQualifyingUnitPrices(rule offerRule, lines []OfferCartLine) []float64 
 // offerScopedAmount is the rupee value of the part of the cart a rule applies
 // to - the whole bill for a Bill-scoped offer, otherwise just its lines.
 func offerScopedAmount(rule offerRule, lines []OfferCartLine, gross float64) float64 {
-	if rule.scope == offerScopeBill || (rule.scopeValue == "" && rule.skuSet == nil) {
+	if offerWholeBill(rule) && len(rule.excludeSet) == 0 {
 		return gross
 	}
 	sum := 0.0
 	for _, l := range lines {
-		if offerLineMatches(rule, l) {
+		if offerInScope(rule, l) {
 			sum += l.SalePrice * float64(l.Qty)
 		}
 	}
@@ -434,16 +504,9 @@ func offerScopedAmount(rule offerRule, lines []OfferCartLine, gross float64) flo
 }
 
 func offerQualifyingQty(rule offerRule, lines []OfferCartLine) int {
-	if rule.scope == offerScopeBill || (rule.scopeValue == "" && rule.skuSet == nil) {
-		total := 0
-		for _, l := range lines {
-			total += l.Qty
-		}
-		return total
-	}
 	total := 0
 	for _, l := range lines {
-		if offerLineMatches(rule, l) {
+		if offerInScope(rule, l) {
 			total += l.Qty
 		}
 	}
@@ -455,9 +518,14 @@ func offerQualifyingQty(rule offerRule, lines []OfferCartLine) int {
 // evaluation via the cache the caller primes (offerCategoryOf), so a
 // category-scoped offer doesn't issue a query per line.
 func offerLineMatches(rule offerRule, line OfferCartLine) bool {
+	if offerExcluded(rule, line) { // 215.8
+		return false
+	}
 	switch rule.scope {
 	case offerScopeBill:
 		return true
+	case offerScopeDesignList: // 215.7: resolved by resolveOfferCodeLists
+		return offerSetHas(rule.skuSet, line)
 	case offerScopeItem:
 		return strings.EqualFold(strings.TrimSpace(rule.scopeValue), strings.TrimSpace(line.Sku))
 	case offerScopeCategory:
@@ -481,6 +549,8 @@ func offerScopeLabel(rule offerRule) string {
 		return "product group " + rule.scopeValue
 	case offerScopeSKUList:
 		return fmt.Sprintf("%d selected SKU(s)", len(rule.skuSet))
+	case offerScopeDesignList:
+		return fmt.Sprintf("%d listed design(s)", len(splitSKUList(rule.scopeValue)))
 	}
 	return "the bill"
 }
@@ -681,7 +751,7 @@ func loadActiveOffers(tenantID string) ([]offerRule, error) {
 		if err := json.Unmarshal([]byte(dataStr), &d); err != nil {
 			continue // a malformed offer row must never break checkout
 		}
-		out = append(out, offerRule{
+		r := offerRule{
 			id:                id,
 			name:              strField(d, "name"),
 			offerType:         strField(d, "offer_type"),
@@ -709,7 +779,9 @@ func loadActiveOffers(tenantID string) ([]offerRule, error) {
 			bonusStep:         numFromInterface(d["bonus_spend_step"]),
 			stores:            strings.TrimSpace(strField(d, "stores")),
 			customerTag:       strings.TrimSpace(strField(d, "customer_tag")),
-		})
+		}
+		parseOfferRuleExtras(&r, d) // 215.7/215.8
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }
@@ -719,9 +791,9 @@ func loadActiveOffers(tenantID string) ([]offerRule, error) {
 // customer tier, coupon, minimum bill, minimum quantity and scope - judged on
 // the PAID lines only, so a gift already on the bill never qualifies itself.
 // Independent of discount stacking: a gift does not use up a discount slot.
-func evaluateGiftOffers(tenantID string, rules []offerRule, lines []OfferCartLine, gross float64, tier string, supplied, used map[string]bool, today string) []EligibleGift {
-	paid := make([]OfferCartLine, 0, len(lines))
-	for _, l := range lines {
+func evaluateGiftOffers(tenantID string, rules []offerRule, input OfferEvaluationInput, gross float64, tier string, supplied, used map[string]bool, today string, now time.Time) []EligibleGift {
+	paid := make([]OfferCartLine, 0, len(input.Lines))
+	for _, l := range input.Lines {
 		if l.SalePrice > 0 {
 			paid = append(paid, l)
 		}
@@ -729,6 +801,9 @@ func evaluateGiftOffers(tenantID string, rules []offerRule, lines []OfferCartLin
 	var gifts []EligibleGift
 	for _, rule := range rules {
 		if rule.offerType != offerTypeGiftWithPurchase || rule.giftItem == "" || !offerIsLive(rule, today) {
+			continue
+		}
+		if !offerOpenNow(rule, now) || !storeListed(rule.stores, input.Location) { // 215.8
 			continue
 		}
 		if rule.customerTier != "" && !strings.EqualFold(rule.customerTier, tier) {

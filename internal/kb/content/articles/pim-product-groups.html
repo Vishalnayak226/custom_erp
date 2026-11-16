@@ -5,7 +5,14 @@
 <p><strong>Dynamic</strong> - you save a filter, and the group is whatever currently matches. It is re-evaluated every time it is used, so a product joins or leaves the moment its data changes. Use this for standing quality work: &#34;everything in Footwear below 80% complete&#34;, &#34;everything missing a care label&#34;.</p>
 <p>A group is one or the other. A static group with filters, or a dynamic group with hand-picked members, is rejected on save.</p>
 <h2 id="creating-one">Creating one <a class="kb-anchor" href="#creating-one" aria-label="Copy link to this section">#</a></h2>
-<ol><li>Open <strong>PIM » Product Group</strong> and create a record.</li><li>Choose <strong>Static</strong> or <strong>Dynamic</strong>.</li><li>For a static group, add Item rows. Each must be a real Item, and no product may appear twice.</li><li>For a dynamic group, set at least one filter:</li></ol>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>A Product Group is a named set of products you act on as a unit. It is either <strong>Static</strong> (picked by hand) or <strong>Dynamic</strong> (a saved filter).</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>You do not filter and select rows by hand every week. A dynamic group is re- evaluated every time it is used, so products join or leave as their data changes.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>For standing quality work you create a <strong>Dynamic</strong> group with Family set to Footwear and Completeness below 80. Every product under 80% appears in it without any hand-picking.</p>
+</aside>
+<p><span class="kb-snap"><img data-kb-img="product-group-new.webp" alt="A new product group: static or dynamic, and what it holds"><span class="kb-snap-caption">A new product group: static or dynamic, and what it holds</span></span></p>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>PIM » Product Group</strong> and create a record.</li><li>Choose <strong>Static</strong> or <strong>Dynamic</strong>.</li><li>For a static group, add Item rows. Each must be a real Item, and no product may appear twice.</li><li>For a dynamic group, set at least one filter:</li></ol></aside>
 <table><thead><tr><th>Filter</th><th>Matches</th></tr></thead><tbody><tr><td>Family</td><td>Products in one product family</td></tr><tr><td>Completeness below</td><td>Products scoring under a threshold, 0-100</td></tr><tr><td>Missing attribute</td><td>Products with no value for a named attribute</td></tr><tr><td>Status</td><td>Active or Inactive products</td></tr></tbody></table>
 <p>Filters are combined with AND. There is deliberately no query language here - the four typed filters cover the standing work, and a scripting surface would be a much bigger thing to secure and support.</p>
 <h2 id="using-one">Using one <a class="kb-anchor" href="#using-one" aria-label="Copy link to this section">#</a></h2>

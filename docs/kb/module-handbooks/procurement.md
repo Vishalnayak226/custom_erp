@@ -5,7 +5,8 @@ order: 30
 summary: Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.
 audience: procurement officer, store manager, admin
 last_verified: 2026-09-03
-screens: [purchase-orders, purchase-requisitions, grn, gate-entry, rfq, purchase-returns, module:procurement, module:inbound, vendor-invoices, reports, approvals, configuration]
+screens: [purchase-orders, purchase-requisitions, grn, gate-entry, rfq, purchase-returns, module:procurement, module:inbound, vendor-invoices, reports, approvals, configuration, doctype:vendor, asn]
+screen_sections: [asn=advance-shipment-notice-asn, doctype:vendor=vendor-onboarding, purchase-requisitions=1-purchase-requisition, rfq=2-rfq-and-vendor-quote-comparison, purchase-orders=3-purchase-order-composer, gate-entry=gate-entry, grn=4-goods-receipt-grn, purchase-returns=sending-goods-back-purchase-return, vendor-invoices=after-the-grn-vendor-invoice-and-payment]
 doc_id: DOC-7252AA9770
 type: procedure
 status: draft
@@ -49,6 +50,26 @@ GRN to match against, and nothing to send a vendor. Everything from
 ## Before the first PO
 
 ### Vendor onboarding
+
+> [!WHAT]
+> A vendor is the supplier record every PO, goods receipt and bill points at:
+> its code, name, GSTIN, bank details, address and state.
+
+> [!WHY]
+> The vendor's GSTIN or state decides whether a PO charges CGST + SGST or IGST,
+> and its address is where the printed PO is addressed. A vendor with neither
+> GSTIN nor state puts an amber banner on every PO raised against it.
+
+> [!USECASE]
+> You start buying fabric from a mill in Surat. Before the first order an
+> admin adds the mill with its GSTIN, so a PO for your Maharashtra store knows
+> it is an inter-state purchase and charges IGST.
+
+> [!HOW]
+> 1. Open **Procurement → Vendors** and add a vendor.
+> 2. Fill in **Vendor Code**, **Vendor Name**, **GSTIN** (or at least
+>    **State**) and **Address**.
+> 3. Add the bank details if you will pay by bank, then save.
 
 A vendor is a **Master** doctype (**Procurement → Vendors**, the same
 `doctype-table` screen every Master record uses with `currentDoctype =
@@ -110,6 +131,30 @@ silently allowed.
 
 ### 1. Purchase Requisition
 
+> [!WHAT]
+> A requisition records that someone needs something: what, how many, for
+> which department and roughly what it costs. It buys nothing and moves no
+> stock.
+
+> [!WHY]
+> The need goes through approval before anyone commits money to a vendor. A
+> Store Manager, who cannot create a PO, can still start a purchase this way,
+> and an approved requisition becomes an RFQ or a PO in one click, exactly once.
+
+> [!USECASE]
+> The Pune store needs 50 storage bins. The store manager raises a requisition
+> for ₹18,000. Being under ₹50,000 it goes to a Store Manager for approval,
+> and purchasing then converts it straight to a PO for the usual supplier.
+
+![A new requisition: description, quantity, department and estimated amount](../img/requisition-new.webp)
+
+> [!HOW]
+> 1. Open **Procurement → Purchase Requisitions** and add one: description,
+>    quantity, department and estimated amount.
+> 2. Click **Submit for Approval** on its row.
+> 3. Once it is **Approved**, click **PO** (or **RFQ** to compare quotes
+>    first) and give the store code and financial year.
+
 **Procurement → Purchase Requisitions** is a plain `doctype-table` screen —
 the requisition's schema is flat enough (no line items) that the generic
 form/table already covers create and edit, with two row actions layered on
@@ -150,12 +195,29 @@ the missing `prefix_configs` row.
 
 ### 2. RFQ and vendor quote comparison
 
+> [!WHAT]
+> An RFQ (request for quotation) asks several vendors to price the same items,
+> records each quote and lays them side by side.
+
+> [!WHY]
+> It finds the lowest landed cost (price, tax and freight together) among the
+> quotes that cover every line, keeps the choice of vendor on record, and
+> turns the winning quote into a PO with no retyping. It is optional: skip it
+> when you already know who you are buying from.
+
+> [!USECASE]
+> You need 2,000 printed carry bags. Three printers quote and the cheapest per
+> bag charges freight. **Compare** shows the landed totals, you **Award** the
+> second printer, and its prices, freight and terms land on a Draft PO.
+
 **Procurement → RFQ / Quotes** is a bespoke screen (`rfq`) layered on the
 same generic `RFQ`/`VendorQuote` doc API Vendor/Customer use, adding the
 comparison view and the winner-selection action the generic endpoint doesn't
-provide on its own.
+provide on its own. User Guide §6.4 has every field.
 
-The steps (User Guide §6.4 has every field):
+![A new RFQ: where to deliver, when quotes are due, and the items asked for](../img/rfq-new.webp)
+
+> [!HOW]
 
 1. **+ New RFQ** — choose **Deliver to**, when quotes are due and when you
    need the goods, add the items asked for (**Item** or a description,
@@ -180,6 +242,35 @@ Open the Draft PO on the composer (§3 below) and submit it for approval as
 usual — the same approval table above applies.
 
 ### 3. Purchase Order composer
+
+> [!WHAT]
+> A Purchase Order commits you to buy set items from one vendor, at set
+> prices, delivered to one warehouse. Its tax is worked out for you from the
+> Item and Vendor records.
+
+> [!WHY]
+> It is what the vendor works to and what the goods receipt is checked
+> against: goods not on an approved PO, or more than it ordered, are refused
+> at receipt. Approval means nobody commits money alone: up to ₹49,999 a
+> Store Manager approves, from ₹50,000 a Super Admin.
+
+> [!USECASE]
+> Festival stock: you order 300 kurtas from your Jaipur supplier for the Mumbai
+> warehouse. The PO charges IGST because the vendor is in Rajasthan, goes to a
+> Super Admin because it is over ₹50,000, and is printed and sent once
+> approved.
+
+![A new Purchase Order: vendor, addresses and GST at the top, item lines below](../img/po-composer.webp)
+
+> [!HOW]
+> 1. Open **Procurement → Purchase Order** and click **+ New Purchase Order**.
+> 2. Pick the **Vendor**, the **Location** that is buying and the **Target
+>    Warehouse** the goods go to.
+> 3. Add lines: SKU, quantity and rate. HSN, GST and totals fill in as you
+>    type. A red line means its Item has no HSN code or GST rate.
+> 4. Click **Create Draft** (the PO number is issued now), then **Submit for
+>    Approval** on its row.
+> 5. Once approved, **Print** it or **Send to Vendor**.
 
 **Procurement → Purchase Order** (`purchase-orders`) is the rebuilt
 composer. The four header fields:
@@ -351,13 +442,86 @@ or return instead), and if an admin has set a **Purchase Order edit window**
 no limit), an edit past that many days from creation is refused with a plain
 message naming the PO's age and the configured window.
 
+### Advance Shipment Notice (ASN)
+
+> [!WHAT]
+> The vendor's notice that goods are on the way: which purchase order, which
+> items and how many, the carrier, the tracking number and the expected date.
+
+> [!WHY]
+> The store knows what is coming before the truck arrives, so it can plan the
+> unloading. At the goods receipt the expected lines fill in by themselves,
+> and the receiver only checks the count.
+
+> [!USECASE]
+> A vendor ships 300 shirts against a PO by road, arriving Thursday. The buyer
+> records the ASN with the transporter's docket number. On Thursday the
+> receiver enters the ASN number on the goods receipt, clicks **Load Items
+> from ASN**, finds 296 in the boxes and corrects that one line.
+
+> [!HOW]
+
+1. Open **Procurement → ASN (Advance Shipment)** and click **+ New ASN**.
+2. Enter the **PO Reference**, **Location**, **Vendor**, **Carrier**,
+   **Tracking Number** and **Expected Date**.
+3. Add each **SKU** with its **Expected Qty** and click **Add Line**.
+4. Click **Save ASN**.
+5. When the goods arrive, enter the ASN number in **ASN Reference** on the
+   goods receipt and click **Load Items from ASN**.
+
+### Gate entry
+
+> [!WHAT]
+> A gate entry logs a truck at the gate: vendor, PO, parcels, transporter, LR
+> number, vehicle and a photo.
+
+> [!WHY]
+> The arrival is on record before anyone counts the goods, so no truck waits
+> unnoticed, and the goods receipt starts from it already filled in.
+
+> [!USECASE]
+> A truck with 12 cartons arrives at 6 pm, after receiving has closed.
+> Security logs it with a photo of the LR. Next morning the receiver clicks
+> **Start GRN** on that entry.
+
+![A new gate entry: vendor, PO, parcels, LR and vehicle number, and a photo](../img/gate-entry-new.webp)
+
+> [!HOW]
+> 1. Open **Procurement → Gate Entry** and click **New gate entry**.
+> 2. Record the vendor, PO, parcels, transporter, LR number and vehicle, and
+>    add a photo.
+> 3. When the goods are unloaded, click **Start GRN** on the entry.
+
+**Procurement > Gate Entry** (`gate-entry`) records each arriving truck: vendor, PO, parcels, transporter, LR no, vehicle and a photo. **Start GRN** on an open entry opens Goods Receipt with those details filled in and links the two. The report *Gate entries with no GRN after N hours* lists trucks still waiting.
+
 ### 4. Goods Receipt (GRN)
+
+> [!WHAT]
+> A Goods Receipt Note (GRN) records what actually arrived against one or more
+> POs, checks it, prices it and puts it into stock. It is the only purchase
+> document that moves stock.
+
+> [!WHY]
+> Stock, the vendor's bill and what you owe all follow the GRN, not the PO.
+> Checking quantity, damage and price before posting means you pay for what
+> arrived in good condition at the agreed price, and a debit or credit note is
+> raised for any difference.
+
+> [!USECASE]
+> The kurtas arrive. The bill says 300, the cartons hold 296, and 4 of those
+> are torn. You key 296 received against the bill's 300, mark 4 damaged with
+> a reason at **Verify**, set the MRP and post: 292 go into stock and a note
+> for the difference is raised to the vendor.
 
 **Procurement → Goods Receipt** (`grn`) is where stock actually moves — a
 Purchase Order by itself never changes the stock count, only a posted GRN
 does. Since Stage 94 a receipt is worked in **steps**, each on its own page
 with one main button and a Back (User Guide §6.10 is the full walk; Admin
-Guide §B.3.6.1 the settings, rights and accounting):
+Guide §B.3.6.1 the settings, rights and accounting).
+
+![A new goods receipt: the vendor's bill at the top, then received, rejected and damaged quantities per line](../img/grn-new.webp)
+
+> [!HOW]
 
 1. **Receive.** Pick the **Vendor**; tick their open POs and **Load ticked
    POs** (or add a PO by number, or **Load Items from ASN**). Key what
@@ -432,9 +596,27 @@ refused the same way a PO's edit window is.
 
 ## Sending goods back: Purchase Return
 
+> [!WHAT]
+> A purchase return sends goods back to the supplier against the goods receipt
+> they arrived on.
+
+> [!WHY]
+> The stock leaves and, for goods you had accepted, a debit note cuts what you
+> owe and takes back the GST claimed on them, so stock, payables and tax still
+> agree. Goods QC rejected or found damaged at receipt go back at no cost.
+
+> [!USECASE]
+> Twenty shirts from last week's receipt have a print fault. You return them
+> against that GRN with the reason "print fault". Posting takes them out of
+> stock and raises a debit note for their cost.
+
 **Procurement → Purchase Return** (`purchase-returns`) sends goods back to the
 supplier against the goods receipt they arrived on, so the supplier, PO,
 location, lot and price are already known.
+
+![A new purchase return: pick the GRN and the reason, then what goes back](../img/purchase-return-new.webp)
+
+> [!HOW]
 
 1. Click **+ New Purchase Return** and choose the **Goods Receipt (GRN)**. Each
    line shows what can still go back: **Accepted** stock (with its unit cost,
@@ -459,8 +641,36 @@ posted), `PURCHA-0120` (Debit Note raised but not posted - post it from
 
 ## After the GRN: vendor invoice and payment
 
+> [!WHAT]
+> The vendor invoice is the supplier's bill, matched against its PO and goods
+> receipt before it is paid.
+
+> [!WHY]
+> The three-way match pays only for what was ordered and received. A bill
+> further off than the tolerance (2% by default) is held until someone
+> overrides it.
+
+> [!USECASE]
+> A supplier bills ₹1,01,500 for goods received worth ₹1,00,000. The 1.5% gap
+> is inside the 2% tolerance, so the bill matches and can be paid.
+
+![A new vendor invoice: invoice number, vendor, PO, GRN, amount and financial year](../img/vendor-invoice-new.webp)
+
+> [!HOW]
+
+1. On **Procurement → Goods Receipt**, click **Record vendor invoice** on the
+   receipt's row, then **+ New Vendor Invoice**. The form opens with the GRN,
+   PO and vendor filled in. Enter the vendor's invoice number, amount and
+   financial year, and save.
+2. On **Financial Accounting → Vendor Invoice**, click **Match** on the row. A
+   bill inside the tolerance becomes **Matched**; one outside it goes to
+   **MismatchHold**, where **Override & Pay** asks for a reason and goes for
+   approval.
+3. Click **Pay** on a Matched bill, or pick a TDS section and click **Pay w/
+   TDS** to withhold tax on it.
+
 Matching the vendor's actual invoice against the PO and GRN (`Match3Way`,
-**Procurement → Vendor Invoice**, `vendor-invoices`) and paying it — with or
+**Financial Accounting → Vendor Invoice**, `vendor-invoices`) and paying it — with or
 without TDS withheld — is the natural next step after receipt, but it's a
 large enough topic (3-way match tolerance, `MismatchHold`/Override-and-Pay,
 Payment Proposals batching multiple invoices) that it belongs to its own
@@ -579,7 +789,3 @@ as you type.
 work (`Match3Way`, `PayVendorInvoiceWithTDS`, the Payment Proposals screen)
 but are the natural subject of their own handbook rather than covered here —
 see § After the GRN above.
-
-## Gate entry
-
-**Procurement > Gate Entry** (`gate-entry`) records each arriving truck: vendor, PO, parcels, transporter, LR no, vehicle and a photo. **Start GRN** on an open entry opens Goods Receipt with those details filled in and links the two. The report *Gate entries with no GRN after N hours* lists trucks still waiting.

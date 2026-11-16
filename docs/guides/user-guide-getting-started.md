@@ -251,6 +251,8 @@ A code, number or document opens only if your role can open it from the menu; on
 
 The same codes work for every company. A code shows only if your role has the screen.
 
+The sidebar menus show each screen's code in a small grey column left of its name (**GRN** Goods Receipt), so you can learn them as you go.
+
 Your administrator can switch codes off for the company (**Configuration ▸ Navigation ▸ Short codes**); screens are then found by name, and keys, favourites and report numbers still work.
 
 | Area | Code | Opens |
@@ -402,6 +404,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `CRED` | Credentials |
 | Admin | `DGOV` | Data governance |
 | Admin | `DQ` | Data quality |
+| Admin | `DH` | Data Healer |
 | Admin | `USR` | Users |
 | Admin | `ROLE` | Roles |
 | Admin | `RULE` | Approval Rules |

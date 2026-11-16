@@ -431,12 +431,13 @@ function ensureEditPrefixModal() {
         <div class="form-group">
           <span class="form-label">Next number looks like</span>
           <div id="edit-prefix-preview" class="s-0b748d"></div>
-          <div id="edit-prefix-length" role="status" aria-live="polite"></div>
         </div>
         <div class="form-group" id="edit-prefix-stores-group">
           <span class="form-label">Store-wise code and suffix (optional - blank uses the store's Short Code and the series' suffix)</span>
           <div id="edit-prefix-stores" class="s-7e76f2"></div>
         </div>
+        <!-- last in the form (200.2): a problem runs to three lines, and here growing moves nothing -->
+        <div id="edit-prefix-length" role="status" aria-live="polite"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-act="closeEditPrefixModal">Cancel</button>
@@ -517,11 +518,13 @@ function openEditPrefixModal(c) {
       <td>${input(i, 'code', o.code, 'Code in the number for ' + label, 10)}</td>
       ${legacy ? `<td>${input(i, 'prefix', o.prefix, 'Own prefix for ' + label, 20)}</td>` : ''}
       <td>${input(i, 'suffix', o.suffix, 'Suffix for ' + label, 20)}</td>
-      <td class="s-355794" data-store-sample="${i}"></td>
+      <td class="s-355794" data-store-sample="${i}" data-css="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></td>
     </tr>`;
   }).join('');
+  // Fixed columns (200.2): each Next number refills on every key, and an
+  // auto-width table re-fit every column - and every box in it - as you typed.
   box.innerHTML = stores.length
-    ? `<table><thead><tr><th>Store</th><th>Short Code</th><th>Code in number</th>${legacy ? '<th>Own prefix (older setting)</th>' : ''}<th>Suffix</th><th>Next number</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table data-css="table-layout: fixed; width: 100%;"><thead><tr><th>Store</th><th>Short Code</th><th>Code in number</th>${legacy ? '<th>Own prefix (older setting)</th>' : ''}<th>Suffix</th><th data-css="width: 30%;">Next number</th></tr></thead><tbody>${rows}</tbody></table>`
     : '<p class="text-muted">No stores yet. Each store appears here once it is created under Setup -> Location.</p>';
 
   previewEditPrefix();
@@ -1312,11 +1315,17 @@ async function renderLogHubView(container) {
       retryIntegrationEvent(retry.dataset.integrationRetryId);
       return;
     }
+    // 206.3: the fix list's two actions sit inside the clickable row.
+    const copyFix = event.target.closest('[data-fault-copy]');
+    if (copyFix) { copyFaultBrief(copyFix); return; }
+    const resolve = event.target.closest('[data-fault-resolve]');
+    if (resolve) { resolveFault(resolve.dataset.faultResolve); return; }
     const logRow = event.target.closest('[data-log-id]');
     if (logRow && window.viewStackTrace) window.viewStackTrace(logRow.dataset.logId);
   });
   tabContent.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target.closest('button')) return;
     const logRow = event.target.closest('[data-log-id]');
     if (logRow && window.viewStackTrace) {
       event.preventDefault();
@@ -1355,10 +1364,14 @@ async function renderLogHubView(container) {
     `;
   }
 
+  // 206.2/206.3: open faults only, one row per fault (the server groups them).
+  // Copy for fix hands the fault to a developer; Resolve (Super Admin) hides it
+  // until it happens again.
   function renderSystemPane() {
+    const canResolve = !!state.permissions.isSuperAdmin;
     tabContent.innerHTML = `
       <div class="table-panel">
-        <h3 class="s-d965ea">System Panic & Error Logs</h3>
+        <h3 class="s-d965ea">Open errors</h3>
         ${sysLoadFailed ? `<p class="s-3b614c">Failed to load system logs. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['audit-logs'])}>Try Again</button></p>` : ''}
         <div class="table-wrapper">
           <table>
@@ -1367,16 +1380,23 @@ async function renderLogHubView(container) {
                 <th>Severity</th>
                 <th>Module</th>
                 <th>Error Message</th>
-                <th>Timestamp</th>
+                <th>Count</th>
+                <th>Last seen</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              ${systemLogs.length === 0 ? '<tr><td colspan="4" class="s-306094">No system logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : systemLogs.map(l => `
+              ${systemLogs.length === 0 ? '<tr><td colspan="6" class="s-306094">No open errors.</td></tr>' : systemLogs.map(l => `
                 <tr class="s-3b6a3a" data-log-id="${escapeHTMLText(l.log_id)}" tabindex="0" role="button">
                   <td><span class="badge badge-secondary">${escapeHTMLText(l.severity)}</span></td>
                   <td>${escapeHTMLText(l.module_source)}</td>
                   <td class="s-8cadba">${escapeHTMLText(l.error_message)}</td>
-                  <td class="s-73e1c9">${escapeHTMLText(l.created_at)}</td>
+                  <td>${escapeHTMLText(String(l.count || 1))}</td>
+                  <td class="s-73e1c9">${escapeHTMLText(l.created_at ? formatDateTime(l.created_at) : '')}</td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-outline" data-fault-copy="${escapeHTMLText(l.log_id)}">Copy for fix</button>
+                    ${canResolve ? `<button type="button" class="btn btn-sm btn-outline" data-fault-resolve="${escapeHTMLText(l.log_id)}">Resolve</button>` : ''}
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1384,6 +1404,47 @@ async function renderLogHubView(container) {
         </div>
       </div>
     `;
+  }
+
+  // 206.3: a ready brief to paste to the developer (or Claude) - which
+  // client, what failed, how often, and the trace.
+  function faultBrief(l) {
+    const seen = (l.count || 1) > 1
+      ? `${l.count} times, first ${formatDateTime(l.first_seen)}, last ${formatDateTime(l.created_at)}`
+      : `once, ${formatDateTime(l.created_at)}`;
+    return [
+      `Fix this ERP system error (System Errors on ${location.host}).`,
+      `Module: ${l.module_source}`,
+      `Severity: ${l.severity}`,
+      `Error: ${l.error_message}`,
+      `Seen: ${seen}`,
+      `Reference: ${l.correlation_id || l.log_id}`,
+      '',
+      'Trace:',
+      l.stack_trace || 'No trace available.',
+    ].join('\n');
+  }
+
+  function copyFaultBrief(btn) {
+    const log = systemLogs.find(x => x.log_id === btn.dataset.faultCopy);
+    if (!log) return;
+    btn.dataset.copyValue = encodeURIComponent(faultBrief(log));
+    window.copyValueToClipboard(btn);
+  }
+
+  async function resolveFault(logId) {
+    if (!await showCustomConfirm('Resolve this error? It comes back if it happens again.')) return;
+    const res = await apiFetch('/api/v1/logs/system/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ log_id: logId }),
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Could not resolve this error.'); return; }
+    const i = systemLogs.findIndex(x => x.log_id === logId);
+    if (i >= 0) systemLogs.splice(i, 1);
+    showToast('Resolved.');
+    renderSystemPane();
   }
 
   function renderIntegrationPane() {
@@ -1522,7 +1583,9 @@ async function renderLogHubView(container) {
     const log = systemLogs.find(x => x.log_id === logId);
     if (!log) return;
     // 47.14.1: named by module and time, not by the log row's UUID (kept as the last line for support).
-    await showCustomAlert(`${log.module_source || 'System'} - ${log.created_at ? formatDateTime(log.created_at) : ''}
+    // 206.2: a grouped fault also says how often it happened.
+    const seen = (log.count || 1) > 1 ? `\n${log.count} times since ${formatDateTime(log.first_seen)}` : '';
+    await showCustomAlert(`${log.module_source || 'System'} - ${log.created_at ? formatDateTime(log.created_at) : ''}${seen}
 
 ${log.stack_trace || 'No trace available.'}
 

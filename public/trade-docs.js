@@ -204,7 +204,8 @@ const TXN_INFO = {
   TransferIn: [['Master transfer order: {number}', 0, 0], ['Receipt status: {fields.receipt_status}', 1, 0], ['Transfer type: {fields.supply_type}', 0, 1], ['Stock status after posting: {fields.stock_status_after}', 1, 1]],
   DebitNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Against GRN: {fields.grn_id}', 0, 1], ['PO: {fields.po_numbers}', 1, 1], ['Document direction: {fields.document_direction}', 0, 2], ['Place of supply: {fields.place_of_supply}', 1, 2], ['Reason: {fields.reason}', 2, 3]],
   CreditNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Reason: {fields.reason}', 2, 1]],
-  POSTaxInvoice: [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Place of supply: {fields.place_of_supply}', 1, 0], ['Supply: {fields.supply_type} · Reverse charge: {fields.reverse_charge}', 0, 1], ['Payment: {fields.payment_mode}', 1, 1]],
+  POSTaxInvoice: [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Place of supply: {fields.place_of_supply}', 1, 0], ['Supply: {fields.supply_type} · Reverse charge: {fields.reverse_charge}', 0, 1], ['Payment: {fields.payment_mode}', 1, 1],
+    ['Buyer PO: {fields.po_number}', 0, 2], ['PO date: {fields.po_date|date}', 1, 2], ['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city} {ship_to.pincode} {ship_to.state}', 2, 3]],
   SalesReturn: [['Original bill no.: {fields.original_order}', 0, 0], ['Original bill date: {fields.original_invoice_date|date}', 1, 0], ['Refund method: {fields.refund_method}', 0, 1], ['Refund no.: {fields.refund_no}', 1, 1], ['Return type: {fields.return_type}', 0, 2]]
 };
 TXN_INFO.VendorPO = TXN_INFO.PurchaseOrder;
@@ -798,14 +799,74 @@ export async function printPages(pages, layout) {
   setTimeout(() => { if (document.body.classList.contains('trade-printing')) done(); }, 60000);
 }
 
-async function fetchPrintData(txn, id, store, images) {
+// quiet (213.3): a caller with its own fallback says nothing on failure.
+async function fetchPrintData(txn, id, store, images, quiet = false) {
   const qs = new URLSearchParams();
   if (store) qs.set('store', store);
   if (images) qs.set('images', '1');
   const res = await window.apiFetch(`/api/v1/print/document/${encodeURIComponent(txn)}/${encodeURIComponent(id)}?${qs}`);
   if (!res) return null;
-  if (!res.ok) { await window.showApiError(res, 'Could not prepare this document for printing.'); return null; }
+  if (!res.ok) { if (!quiet) await window.showApiError(res, 'Could not prepare this document for printing.'); return null; }
   return res.json();
+}
+
+// --- 213.1 / 213.2: paper, template and their defaults -------------------
+//
+// User, 2026-11-15: "If user want to change the paper. They can change
+// easily for that txn before print. choose the template ... It will default
+// mapped and it can changed aswell while saving or printing". A print offers
+// each template on its paper, the built-in standard layout and, on a bill,
+// the built-in roll in both widths; the Print Profile says which it starts on.
+
+const ROLL_PAPERS = ['80 mm roll (3 inch)', '58 mm roll (2 inch)'];
+// paperOf is a layout's paper: one of PAGE_SIZES, A4 when it names none.
+const paperOf = (layout) => (PAGE_SIZES[layout?.page?.size] ? layout.page.size : 'A4');
+
+// printChoices lists what a print can use: {id, name, recommended, paper}.
+function printChoices(data, txn) {
+  const doc = data.document;
+  const list = (data.templates || []).map(t => ({ id: t.id, name: t.name, recommended: !!t.recommended, paper: paperOf(parseLayout(t.layout, txn, doc)) }));
+  list.push({ id: '', name: 'Standard layout (built-in)', paper: paperOf(defaultLayout(txn, doc)) });
+  if (offersRollBill(txn)) ROLL_PAPERS.forEach(paper => list.push({ id: ROLL_TEMPLATE_ID, name: 'Roll bill (built-in)', paper }));
+  return list;
+}
+
+// bestForPaper is the template a paper starts on: the profile's, the best
+// match, any saved one, then the built-in.
+function bestForPaper(choices, paper, profile = {}) {
+  const on = choices.filter(c => c.paper === paper);
+  return on.find(c => c.id && c.id === profile.template_id) || on.find(c => c.recommended)
+    || on.find(c => c.id && c.id !== ROLL_TEMPLATE_ID) || on[0] || null;
+}
+
+// defaultPrintChoice is where a print starts, {templateId, paper}: the print
+// profile's template, then its paper, then - preferRoll, the till - a roll,
+// then the best match, then the standard layout.
+export function defaultPrintChoice(data, txn, preferRoll = false) {
+  const choices = printChoices(data, txn);
+  const profile = data.document?.fields?.print_profile || {};
+  const roll = (c) => isRollPage({ size: c.paper });
+  const c = choices.find(x => x.id && x.id !== ROLL_TEMPLATE_ID && x.id === profile.template_id)
+    || (profile.paper && bestForPaper(choices, profile.paper, profile))
+    || (preferRoll && (choices.find(x => x.recommended && roll(x)) || choices.find(x => x.id && x.id !== ROLL_TEMPLATE_ID && roll(x))
+      || choices.find(x => x.id === ROLL_TEMPLATE_ID)))
+    || choices.find(x => x.recommended) || choices.find(x => x.id === '');
+  return { templateId: c.id, paper: c.paper };
+}
+
+// choiceLayout is the layout a choice prints with.
+function choiceLayout(data, txn, templateId, paper) {
+  if (templateId === ROLL_TEMPLATE_ID) return rollBillLayout(txn, paper);
+  const t = (data?.templates || []).find(x => x.id === templateId);
+  return parseLayout(t ? t.layout : '', txn, data?.document);
+}
+
+// addChangeText (Stage 130.16, 74.3.4) puts the change handed back on a till
+// bill - the till's own arithmetic.
+function addChangeText(doc, cashTendered) {
+  const fields = doc.fields || (doc.fields = {});
+  const cash = (fields.tender_list || []).filter(t => /cash/i.test(t.mode)).reduce((s, t) => s + Number(t.amount || 0), 0);
+  if (Number(cashTendered) > cash && cash > 0) fields.change_text = `Cash given ${Number(cashTendered).toFixed(2)} · Change ${(Number(cashTendered) - cash).toFixed(2)}`;
 }
 
 // transactionsFor is which print transactions a document offers.
@@ -819,9 +880,13 @@ function transactionsFor(doctype, doc) {
 }
 
 // printTransactionDocument opens the print dialog: transaction (PO / Vendor
-// PO, Transfer Out / In), template (best match first, or the standard one),
-// the store the print is generated from, a live preview, Print, and for a PO
-// the Excel download.
+// PO, Transfer Out / In), paper and template (213.1: the print profile's
+// first, else the best match), the store the print is generated from, the
+// printer for this print, a live preview, Print, and for a PO the Excel
+// download. opts.roll (the till, a till bill's reprint) starts on a roll when
+// no profile says otherwise; opts.cashTendered adds the change line;
+// opts.onUnavailable runs, quietly, instead of an error when the document
+// cannot be printed this way.
 export async function printTransactionDocument(doctype, id, opts = {}) {
   await tradeStylesReady;
   // Stage 130.17 (127.3.2): opts.only prints one transaction of the record
@@ -832,7 +897,10 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   const only = opts.only || TRANSACTIONS.some(t => t.key === opts.txn && t.only);
   const txns = only && opts.txn ? [opts.txn] : transactionsFor(doctype, opts.doc);
   if (!txns.length) { await window.showCustomAlert?.(`${doctype} has no print layout.`, 'Print'); return; }
-  const S = { txn: opts.txn && txns.includes(opts.txn) ? opts.txn : txns[0], store: '', templateId: '', data: null, images: false };
+  // templateId null: not chosen yet, so the default applies. printer: the
+  // Printer record this one print goes to (213.1), null for this computer's
+  // own choice for the kind.
+  const S = { txn: opts.txn && txns.includes(opts.txn) ? opts.txn : txns[0], store: '', templateId: null, paper: '', choices: [], printer: null, data: null, images: false };
 
   const overlay = document.createElement('div');
   overlay.className = 'td-overlay';
@@ -844,6 +912,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
       </div>
       <div class="td-dialog-controls">
         ${txns.length > 1 ? `<label class="form-label">Print as<select class="form-input" data-td="txn">${txns.map(t => `<option value="${t}"${t === S.txn ? ' selected' : ''}>${esc(txnLabel(t))}</option>`).join('')}</select></label>` : `<div class="td-txn">${esc(txnLabel(S.txn))}</div>`}
+        <label class="form-label">Paper<select class="form-input" data-td="paper"></select></label>
         <label class="form-label">Template<select class="form-input" data-td="template"></select></label>
         <label class="form-label">Generating store<input type="text" class="form-input" data-td="store" placeholder="Document's own store" autocomplete="off"></label>
         <div class="td-printer hidden" data-td="printer"></div>
@@ -868,11 +937,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   q('close').addEventListener('click', close);
   if (window.attachLinkTypeahead) window.attachLinkTypeahead(q('store'), 'Location');
 
-  const currentLayout = () => {
-    if (S.templateId === ROLL_TEMPLATE_ID) return rollBillLayout(S.txn, S.data?.document?.fields?.print_profile?.paper);
-    const t = (S.data?.templates || []).find(x => x.id === S.templateId);
-    return parseLayout(t ? t.layout : '', S.txn, S.data?.document);
-  };
+  const currentLayout = () => choiceLayout(S.data, S.txn, S.templateId, S.paper);
   const paint = async () => {
     const layout = currentLayout();
     await qrEncoderReady(layout);
@@ -893,29 +958,43 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     });
     q('excel').classList.toggle('hidden', !(S.txn === 'VendorPO' || S.txn === 'PurchaseOrder'));
   };
+  // renderPickers fills Paper (the papers this print has a layout for) and
+  // Template (every template; picking one sets the paper).
+  const renderPickers = () => {
+    const papers = Object.keys(PAGE_SIZES).filter(p => S.choices.some(c => c.paper === p));
+    q('paper').innerHTML = papers.map(p => `<option${p === S.paper ? ' selected' : ''}>${esc(p)}</option>`).join('');
+    const seen = new Set();
+    q('template').innerHTML = S.choices.filter(c => !seen.has(c.id) && seen.add(c.id))
+      .map(c => `<option value="${esc(c.id)}"${c.id === S.templateId ? ' selected' : ''}>${esc(c.name)}${c.recommended ? ' (best match)' : ''}</option>`).join('');
+  };
+  let first = true;
   const load = async () => {
     q('preview').innerHTML = '<div class="td-loading">Preparing…</div>';
-    let data = await fetchPrintData(S.txn, id, S.store, S.images);
-    if (!data) { close(); return; }
-    const sel = q('template');
-    const templates = data.templates || [];
-    const roll = offersRollBill(S.txn);
-    // Stage 127.4: the print profile's template first, then one drawn for its
-    // paper, then the best match.
-    const profile = data.document?.fields?.print_profile || {};
-    const forPaper = (t) => profile.paper && parseLayout(t.layout, S.txn, data.document).page?.size === profile.paper;
-    if (!templates.some(t => t.id === S.templateId) && !(roll && S.templateId === ROLL_TEMPLATE_ID)) S.templateId = (templates.find(t => t.id === profile.template_id) || templates.find(forPaper) || templates.find(t => t.recommended) || {}).id || '';
-    sel.innerHTML = templates.map(t => `<option value="${esc(t.id)}"${t.id === S.templateId ? ' selected' : ''}>${esc(t.name)}${t.recommended ? ' (best match)' : ''}</option>`).join('')
-      + `<option value=""${S.templateId ? '' : ' selected'}>Standard layout (built-in)</option>`
-      + (roll ? `<option value="${ROLL_TEMPLATE_ID}"${S.templateId === ROLL_TEMPLATE_ID ? ' selected' : ''}>3-inch roll bill (built-in)</option>` : '');
+    // 213.3: the till's own receipt is its fallback, so a bill that cannot
+    // print this way says nothing and hands over.
+    const quiet = first && !!opts.onUnavailable;
+    const fail = () => { close(); if (quiet) opts.onUnavailable(); };
+    let data = await fetchPrintData(S.txn, id, S.store, S.images, quiet);
+    if (!data) { fail(); return; }
+    S.choices = printChoices(data, S.txn);
+    // 213.2: the print profile's choice until the user picks; a pick holds
+    // across a store change while it still exists.
+    if (S.templateId === null || !S.choices.some(c => c.id === S.templateId)) {
+      ({ templateId: S.templateId, paper: S.paper } = defaultPrintChoice(data, S.txn, !!opts.roll));
+    } else if (S.templateId !== ROLL_TEMPLATE_ID) {
+      S.paper = S.choices.find(c => c.id === S.templateId).paper;
+    }
+    renderPickers();
     S.data = data;
     const needImages = layoutUsesImages(currentLayout());
     if (needImages && !S.images) {
       S.images = true;
-      data = await fetchPrintData(S.txn, id, S.store, true);
-      if (!data) { close(); return; }
+      data = await fetchPrintData(S.txn, id, S.store, true, quiet);
+      if (!data) { fail(); return; }
       S.data = data;
     }
+    if (opts.cashTendered) addChangeText(S.data.document, opts.cashTendered);
+    if (first) { first = false; q('print').focus(); }
     // 132.24: once printed, every print is the first copy (Stage 130.16),
     // store and all, so the store box is locked.
     const frozen = !!data.document.issue?.reprint;
@@ -925,12 +1004,27 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     if (!q('store').value) q('store').placeholder = `${data.document.store.name || 'Document store'} (${frozen ? 'as first printed' : "document's own"})`;
     paint();
   };
-  q('template').addEventListener('change', async () => {
-    S.templateId = q('template').value;
+  // 213.1: a paper starts on its best template; a template brings its paper.
+  // The printer follows the paper (a roll prints on the receipt printer).
+  const picked = async () => {
+    renderPickers();
     if (layoutUsesImages(currentLayout()) && !S.images) { S.images = true; await load(); } else paint();
+    if (!q('printer').classList.contains('hidden')) showPrinter();
+  };
+  q('paper').addEventListener('change', () => {
+    S.paper = q('paper').value;
+    const c = bestForPaper(S.choices, S.paper, S.data?.document?.fields?.print_profile || {});
+    if (c) S.templateId = c.id;
+    picked();
+  });
+  q('template').addEventListener('change', () => {
+    S.templateId = q('template').value;
+    if (S.templateId !== ROLL_TEMPLATE_ID) S.paper = (S.choices.find(c => c.id === S.templateId) || {}).paper || S.paper;
+    else if (!isRollPage({ size: S.paper })) S.paper = ROLL_PAPERS[0];
+    picked();
   });
   const txnSel = q('txn');
-  if (txnSel) txnSel.addEventListener('change', () => { S.txn = txnSel.value; S.templateId = ''; S.images = false; load(); });
+  if (txnSel) txnSel.addEventListener('change', async () => { S.txn = txnSel.value; S.templateId = null; S.images = false; await load(); showPrinter(); });
   const storeChanged = () => { const v = q('store').value.trim(); if (v !== S.store) { S.store = v; load(); } };
   q('store').addEventListener('change', storeChanged);
   q('store').addEventListener('blur', storeChanged);
@@ -950,24 +1044,37 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     if (opts.reprint || issue.reprint) S.data.document.reprint = true;
     // Stage 127.2: set up for silent print, a failure explains itself
     // instead of opening the browser's print dialog.
-    if (await printLayout(S.txn, currentLayout(), S.data.document)) {
+    if (await printLayout(S.txn, currentLayout(), S.data.document, { printer: S.printer })) {
       await logPrint(S.txn, id, S.data.document, reason ? 'Reprint' : 'Print', reason, { templateId: S.templateId });
       close();
     }
   }));
-  // Stage 98.4: with QZ Tray running, where this kind prints on this
-  // computer, and Change.
+  // Stage 98.4: with PrintBridge running, where this print goes on this
+  // computer. 213.1: the kind follows the paper; the list is this computer's
+  // printers, its choice for the kind first; another pick is for this print
+  // only, and Change sets the computer's choice.
+  let shownKind = '', shown = 0;
   const showPrinter = async () => {
     if (!S.data || !window.QZPrint || !window.qzTryConnect || !await window.qzTryConnect()) return;
     const r = await window.loadViewModule('./print-routing.js');
-    const kind = r.printKindFor(S.txn), store = S.data.document.store?.code || '';
-    const p = await r.chosenPrinter(kind, store);
+    const kind = isRollPage({ size: S.paper }) ? 'Receipt' : r.printKindFor(S.txn), store = S.data.document.store?.code || '';
+    if (kind !== shownKind) { S.printer = null; shownKind = kind; }
+    const mine = ++shown;
+    const [def, list] = await Promise.all([r.chosenPrinter(kind, store), r.computerPrinters()]);
     const el = q('printer');
-    if (!el) return;
+    if (!el || mine !== shown) return;
+    const name = (p) => p.qz_printer_name || p.name || p.code;
+    const others = list.filter(p => !def || p.code !== def.code);
     el.classList.remove('hidden');
-    el.innerHTML = `${esc(kind)} prints on <strong>${esc(p ? (p.qz_printer_name || p.name) : 'the printer chosen at the first print')}</strong> <button type="button" class="link-btn" data-td="change-printer">Change</button>`;
+    el.innerHTML = `<label class="form-label">${esc(kind)} printer<select class="form-input" data-td="printer-pick">
+      <option value="">${esc(def ? name(def) : 'Choose at first print')}</option>
+      ${others.map(p => `<option value="${esc(p.code)}"${S.printer?.code === p.code ? ' selected' : ''}>${esc(name(p))}</option>`).join('')}
+      </select></label><button type="button" class="link-btn" data-td="change-printer" title="This computer's printer for ${esc(kind)}">Change</button>`;
+    el.querySelector('[data-td="printer-pick"]').addEventListener('change', (e) => {
+      S.printer = others.find(p => p.code === e.target.value) || null;
+    });
     el.querySelector('[data-td="change-printer"]').addEventListener('click', async () => {
-      if (await r.choosePrinter(kind, store, { ask: true })) showPrinter();
+      if (await r.choosePrinter(kind, store, { ask: true })) { S.printer = null; showPrinter(); }
     });
   };
   q('excel').addEventListener('click', () => busy(q('excel'), () => downloadResponse(
@@ -998,7 +1105,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     const studio = await import('./print-template-studio.js' + VERSION_QUERY);
     close();
     const builtinRoll = S.templateId === ROLL_TEMPLATE_ID;
-    studio.openPrintTemplateStudio({ txn: S.txn, templateId: builtinRoll ? '' : S.templateId, startLayout: builtinRoll ? rollBillLayout(S.txn) : null, sample: { txn: S.txn, id } });
+    studio.openPrintTemplateStudio({ txn: S.txn, templateId: builtinRoll ? '' : S.templateId, startLayout: builtinRoll ? rollBillLayout(S.txn, S.paper) : null, sample: { txn: S.txn, id } });
   });
   await load();
   showPrinter();
@@ -1049,13 +1156,15 @@ export async function layoutPDF(layout, doc) {
 // print does: silently when this computer is set up for that kind, the
 // browser's print dialog only when it is not (or the user picks it after a
 // failure). Returns false when the user gave up on a failed print.
-export async function printLayout(txn, layout, doc) {
+// opts.printer (213.1) is a Printer record this one print goes to instead of
+// this computer's choice for the kind.
+export async function printLayout(txn, layout, doc, opts = {}) {
   await qrEncoderReady(layout);
-  if (isRollPage(layout.page)) return printRollBill(layout, doc);
+  if (isRollPage(layout.page)) return printRollBill(layout, doc, opts);
   const make = async () => ({ blob: await layoutPDF(layout, doc), name: printFileName(doc, 'pdf') });
   const r = await window.loadViewModule('./print-routing.js');
   return r.printNoDialog(r.printKindFor(txn), doc.store?.code || '',
-    (why) => printSilently(txn, doc, make, why),
+    (why) => printSilently(txn, doc, make, why, opts.printer),
     () => printPages(renderCopies(layout, doc), layout));
 }
 
@@ -1079,15 +1188,16 @@ async function pdfOrExplain(make) {
 // printSilently (Stage 98.4): with QZ Tray running, the print goes straight to
 // this computer's printer for its kind - chosen once (print-routing.js) - as
 // the PDF of these pages. false: no tray, or no printer was chosen; the
-// caller opens the browser's print dialog as before.
-async function printSilently(txn, doc, make, why = {}) {
+// caller opens the browser's print dialog as before. printer: this print's
+// own Printer record (213.1), else the kind's.
+async function printSilently(txn, doc, make, why = {}, printer = null) {
   if (!window.QZPrint || !window.qzTryPrint || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
   const out = await pdfOrExplain(make);
   if (!out) { why.reason = 'The PDF could not be made.'; return false; }
   const r = await window.loadViewModule('./print-routing.js');
   return window.qzTryPrint('Document', {
     documentRef: doc.number || out.name, dataBase64: await (await pdfModule()).blobToBase64(out.blob), docFormat: 'pdf',
-    printKind: r.printKindFor(txn), location: doc.store?.code || '', quiet: true, why
+    printKind: r.printKindFor(txn), printerCode: printer?.code, location: doc.store?.code || '', quiet: true, why
   });
 }
 
@@ -1096,12 +1206,12 @@ async function printSilently(txn, doc, make, why = {}) {
 // drawn as a raster image - the same picture the preview shows, logo and all -
 // and a printer driven by its Windows driver gets it as a PDF. Otherwise, or
 // if that fails, the browser's print dialog.
-export async function printRollBill(layout, doc) {
+export async function printRollBill(layout, doc, opts = {}) {
   await qrEncoderReady(layout);
   const pages = renderPages(layout, doc);
   const [w] = pageDims(layout.page);
   const h = renderedHeightMM(pages[0], layout);
-  await rollToReceipt(pages, w, h, doc.number, doc.store?.code || '', () => printPages(pages, layout));
+  await rollToReceipt(pages, w, h, doc.number, doc.store?.code || '', () => printPages(pages, layout), opts.printer);
   return true;
 }
 
@@ -1110,13 +1220,14 @@ export async function printRollBill(layout, doc) {
 // PDF. browserPrint only when this computer is not set up for receipts, or
 // the user picks it after a failure. Handled either way: a print the user
 // gave up on must not fall through to another path that opens the dialog.
-async function rollToReceipt(pages, w, h, ref, store, browserPrint) {
+// override (213.1): this print's own printer.
+async function rollToReceipt(pages, w, h, ref, store, browserPrint, override = null) {
   const r = await window.loadViewModule('./print-routing.js');
   const trySilent = async (why) => {
     if (!window.QZPrint || !window.qzTryPrint || !window.qzTryConnect || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
     // Stage 127.2: the first bill on a new computer picks (or asks once
     // for) its receipt printer, as every other print does.
-    const printer = await r.chosenPrinter('Receipt', store) || await r.choosePrinter('Receipt', store);
+    const printer = override || await r.chosenPrinter('Receipt', store) || await r.choosePrinter('Receipt', store);
     if (!printer) { Object.assign(why, { setup: true, reason: 'No receipt printer is chosen for this computer. Retry to choose one.' }); return false; }
     const pdf = await pdfModule();
     const escpos = /ESC-?POS/i.test(printer.printer_language || '');
@@ -1149,10 +1260,10 @@ export async function printSlip(html, ref, browserPrint) {
   return rollToReceipt([page], 80, h, ref, (window.erpWorkingStore || {}).code || '', browserPrint);
 }
 
-// printPOSBill is the till's Print Receipt (Stage 106.3): the sale's tax
-// invoice on the roll - the client's own roll template when its best match is
-// one, else the built-in 3-inch bill. Quiet on failure: false sends the till
-// back to its older receipt.
+// printPOSBill is the till's bill without the print dialog (Stage 106.3):
+// the sale's tax invoice where the print profile says (213.2), else on the
+// roll - the client's own roll template when there is one, else the built-in
+// bill. Quiet on failure: false sends the till back to its older receipt.
 export async function printPOSBill(cartNumber, cashTendered = 0) {
   await tradeStylesReady;
   const get = async (images) => {
@@ -1161,6 +1272,12 @@ export async function printPOSBill(cartNumber, cashTendered = 0) {
   };
   let data = await get(false);
   if (!data) return false;
+  const pick = defaultPrintChoice(data, 'POSTaxInvoice', true);
+  let layout = choiceLayout(data, 'POSTaxInvoice', pick.templateId, pick.paper);
+  if (layoutUsesImages(layout)) {
+    data = (await get(true)) || data;
+    layout = choiceLayout(data, 'POSTaxInvoice', pick.templateId, pick.paper);
+  }
   // Stage 130.16 (74.1.4): a bill printed before is a reprint; under reprint
   // control it needs its reason (and approval) - handled here either way, so
   // the till never falls back to an unchecked receipt.
@@ -1171,41 +1288,11 @@ export async function printPOSBill(cartNumber, cashTendered = 0) {
     if (!reason) return true;
   }
   data.document.reprint = !!issue.reprint;
-  // Stage 130.16 (74.3.4): the change handed back (the till's own arithmetic).
-  const cash = ((data.document.fields || {}).tender_list || []).filter(t => /cash/i.test(t.mode)).reduce((s, t) => s + Number(t.amount || 0), 0);
-  if (Number(cashTendered) > cash && cash > 0) data.document.fields.change_text = `Cash given ${Number(cashTendered).toFixed(2)} · Change ${(Number(cashTendered) - cash).toFixed(2)}`;
-  // The best match if it is a roll, else any roll template, else built-in.
-  const templates = [...(data.templates || [])].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0));
-  const layout = templates.map(x => parseLayout(x.layout, 'POSTaxInvoice', data.document)).find(l => isRollPage(l.page))
-    || rollBillLayout('POSTaxInvoice', data.document.fields?.print_profile?.paper);
-  if (layoutUsesImages(layout)) data = (await get(true)) || data;
-  const printed = await printRollBill(layout, data.document);
-  logPrint('POSTaxInvoice', cartNumber, data.document, reason ? 'Reprint' : 'Print', reason); // Stage 127.6
-  return printed;
-}
-
-// previewPOSBill (Stage 133.3, user 2026-10-22: "Need a preview option aswell
-// to how it will come") shows the till's bill as Print Receipt would print it
-// - the same data, roll layout and renderer as printPOSBill - without
-// printing or logging. A bill printed before shows as the reprint it would
-// be. Resolves true when the user presses Print, null when there is no bill.
-export async function previewPOSBill(cartNumber, cashTendered = 0) {
-  await tradeStylesReady;
-  const get = async (images) => {
-    const res = await window.apiFetch(`/api/v1/print/document/POSTaxInvoice/${encodeURIComponent(cartNumber)}${images ? '?images=1' : ''}`);
-    return res && res.ok ? res.json() : null;
-  };
-  let data = await get(false);
-  if (!data) return null;
-  data.document.reprint = !!(data.document.issue || {}).reprint;
-  const cash = ((data.document.fields || {}).tender_list || []).filter(t => /cash/i.test(t.mode)).reduce((s, t) => s + Number(t.amount || 0), 0);
-  if (Number(cashTendered) > cash && cash > 0) data.document.fields.change_text = `Cash given ${Number(cashTendered).toFixed(2)} · Change ${(Number(cashTendered) - cash).toFixed(2)}`;
-  const templates = [...(data.templates || [])].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0));
-  const layout = templates.map(x => parseLayout(x.layout, 'POSTaxInvoice', data.document)).find(l => isRollPage(l.page))
-    || rollBillLayout('POSTaxInvoice', data.document.fields?.print_profile?.paper);
-  if (layoutUsesImages(layout)) data = (await get(true)) || data;
-  await qrEncoderReady(layout);
-  return previewPages(renderPages(layout, data.document), layout, 'Receipt preview');
+  addChangeText(data.document, cashTendered);
+  if (await printLayout('POSTaxInvoice', layout, data.document)) {
+    logPrint('POSTaxInvoice', cartNumber, data.document, reason ? 'Reprint' : 'Print', reason, { templateId: pick.templateId }); // Stage 127.6
+  }
+  return true;
 }
 
 // previewLayout (Stage 143.4) shows a layout over print data as it will

@@ -173,6 +173,10 @@ numbers belong in the tracker, not in file names. There are two exceptions:
   database.
 - **A release never changes client data or resets a password a user has set.** A release that
   changes data must be confirmed with an explicit YES at the Deploy click.
+- **Old records catch up through a Heal, never at deploy.** When a change means records made
+  before it must be brought into line, the change ships a Heal: each client runs it once from
+  **Settings › Data Healer**, which lists the records first. A release never makes that change
+  itself. A Heal is added in `engines/data_healer.go`.
 - **No secrets in the repository:** no credentials, keys, customer data or workstation paths.
   Configuration comes from environment variables (see [deploy/erp.env.example](deploy/erp.env.example)).
   Private notes live in `.local/`.
@@ -257,6 +261,7 @@ These are the product owner's rules for every screen, dialog and panel:
 | Every file filed in the code map | `pwsh docs/brain/update-brain.ps1 -Check` | release G7 |
 | Shipped migrations unchanged | checksum check in [db/migrate.go](db/migrate.go) | every server start with `-migrate` |
 | Data-changing releases confirmed | Deploy click (explicit YES) | every deploy |
+| Old records catch up through a Heal, not at deploy | the pull request template asks; the Deploy click lists every data change before its YES | every change, every deploy |
 | Build without overloading the machine (first principle) | `GOFLAGS=-p=2` in the AI sessions' settings caps Go build parallelism; the rest is checked in review | every AI session's Go command |
 
 Some rules cannot be checked by a machine, such as reusing a pattern or keeping text short.
@@ -277,3 +282,4 @@ Those are checked in review against this file.
 | 2026-11-10 | Adopted. Articles 1 and 2 moved here from `CLAUDE.md`. `docs/engineering/contributing.md` was merged in and removed. The layout guard (`internal/repolayout`) was added. What changed and why is recorded in [the restructure record](docs/engineering/repository-restructure-2026-11-10.md). |
 | 2026-11-11 | Article 3 and Article 5: every migration now sits in `db/migrations/`, and the layout guard rejects a `.sql` file in the `db/` root. Stage-named Go files, docs and scripts were renamed to Article 4 names; the old-to-new list is in [the rename record](docs/archive/renamed-files-2026-11-11.md). Approved by the owner ("Implement all", items 103.3 and 160.1). |
 | 2026-11-13 | First principle added before Article 1: build without overloading the shared machine (one heavy job at a time, build and test only what changed, few helper agents, stop what you start). Article 10 gained its row. Approved by the owner ("this first priciple for building in the project", item 172.1). |
+| 2026-11-16 | Article 5: records made before a change catch up through a Heal (Settings › Data Healer), never at deploy. Article 10 and the pull request template gained its check. Approved by the owner ("all ok", item 207.5, ask 216). |

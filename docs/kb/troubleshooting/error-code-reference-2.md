@@ -20,7 +20,7 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **276** codes, from
+lists every area and explains how to read a code. It holds **282** codes, from
 Global / Common to Order Management.
 
 ## Contents
@@ -37,7 +37,7 @@ Global / Common to Order Management.
 - [Item Master](#item-master) - 4 codes
 - [Manufacturing](#manufacturing) - 7 codes
 - [Manufacturing / Production](#manufacturing-production) - 16 codes
-- [Master Data](#master-data) - 46 codes
+- [Master Data](#master-data) - 52 codes
 - [Mobile App / Device](#mobile-app-device) - 7 codes
 - [Notifications](#notifications) - 6 codes
 - [Observability / Incident](#observability-incident) - 3 codes
@@ -351,6 +351,12 @@ Global / Common to Order Management.
 | `MASTER-1700` | Data-quality problem ignored without a reason | Say why this is ignored. | Add a short reason. | Medium | 422 |
 | `MASTER-1701` | Data-quality status not Open, Fixed or Ignored | Status must be Open, Fixed or Ignored. | Pick one of the three. | Medium | 422 |
 | `MASTER-1702` | Data-quality problem not found | That problem was not found. | Refresh the list. | Medium | 404 |
+| `MASTER-1703` | Data heal not found | That heal was not found. | Refresh Settings › Data Healer. | Medium | 404 |
+| `MASTER-1704` | Data heal record created or changed by hand | Heals are recorded by Run heal only. | Use Settings › Data Healer. | Medium | 422 |
+| `MASTER-1705` | Past-document name change: names missing, the same or too long | Type the old name and a different new one. | Type both names; 200 characters at most. | Medium | 422 |
+| `MASTER-1706` | Past-document name change: dates not valid | The dates are not valid. | Pick a From date on or before the To date. | Medium | 422 |
+| `MASTER-1707` | Past-document name change applied without YES | Type YES to change past documents. | Type YES in the box, then Apply. | Medium | 422 |
+| `MASTER-1708` | Past-document name change over 20,000 documents | Too many documents at once. | Narrow the dates and apply in parts. | Medium | 422 |
 
 ## Mobile App / Device
 

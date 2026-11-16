@@ -44,6 +44,184 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 392. Every transaction screen has its own lesson, and every module a picture (2026-11-16, KB handbooks + KB build + guides + Guide suites, ask 217; NOT COMMITTED)
+
+- **Ask:** 217, "Build all of above pending": the two items ask 210 (§384) left open, 210.10 with its recommended answer.
+- **Lessons (210.10):** a new *Settings and configuration* handbook for the Settings screens. Four-block sections (What, Why, Use case, How) were added for Approvals, Vendor Invoices, Payment Proposals, debit and credit notes, Sales Invoices and Bank Reconciliation in Finance; ASN in Procurement; Cycle Count and Wave / Batch Picking in WMS; and Tenant Entitlements and Tenant Usage in the platform handbook. Help on each of those 20 screens now opens its own section under its own main module. Help itself, the record lists and the Doctype Builder stay on their journey articles, as decided.
+- **Pictures (210.7):** one per module after Procurement, before the lesson's How block: POS, Financial Accounting, OMS, CRM, Inventory, WMS, HRM, Manufacturing, PIM and Settings. They are ten WebP files of 7.2-7.9 KB, 76.6 KB in all. Two shots were retaken: the empty wave screen became Cycle Count, and the prefix list, which showed the scratch copy's test series, became the New Number Series dialog. Guide `kbsnap` can now photograph a screen as it opens, or a record list's New dialog.
+- **KB build:** `index.json` is written compact, like `search.json`. The indentation was a third of the file and had pushed the embedded content over its 2 MiB budget. With the pictures, the content is 2,080,486 bytes, 16.6 KB under the budget; 217.1 asks the owner how to give it room.
+- **Checked:** only the 20 screens' mappings changed against the old screen map. `go test ./internal/kb/` passes. Guide `kbhelp` passed all 31 screens: the address, the outlined section, only the screen's module open in the sidebar, all four blocks, and each picture loaded when scrolled to.
+- **Open:** 217.1 (size budget, needs decision).
+
+## 391. Best-practice POS: B2B bill, GST cash/PAN rules, three discounts, every standard offer, Sales History, online bills and returns at the till (2026-11-16, code + migration + tests + guides + Guide suites, ask 215; NOT COMMITTED)
+
+- **Ask:** 215 (2026-11-15), one message with a screenshot of the till. The four choices put to the owner were all taken by the ask-timeout (recommended options), not by the owner: B2B fields GSTIN + name + address + PO; PAN as the law asks; the online bill at handover replacing the Sales Invoice; discounts applied Item → Offer → Bill.
+- **B2B bill at the till (215.1-215.4):** Name and Mobile in two boxes; a GSTIN box (checksum and state checked) opens the B2B panel (legal name, address, PO number and date, ship-to); the bill prints the buyer block, PO and the place of supply (buyer's state when shipped there). Rules under the Total, as the total crosses each line: from ₹50,000 an unregistered buyer's name, address and state (Rule 46(e)); above ₹2 lakh PAN or Form 97 (Settings can lower it to ₹50,000 as a house rule); cash of ₹2 lakh or more refused (s.269ST, counting the same customer's cash that day at any store); a B2B bill needs no PAN. `engines/pos_b2b.go`, `TestPOSB2BBill`, Guide `posb2b`.
+- **Three discounts (215.5, 215.6, 215.11):** item, offer and bill discounts are kept apart on every line and bill, approval slabs judge item + bill only, and Sales Register, Itemwise Detail and Discount Analysis show the three columns; old bills are split from what they stored.
+- **Offers (215.7-215.10):** six new types (Buy X get Y at % off, buy from list A get from list B, spend slabs, quantity slabs, fixed price, combo) beside the old ones, a Design List scope, days/hours/exclude/uses limits, a form that shows only the type's boxes, and bulk upload of offers and item lists (`POST /api/v1/pos/offers/item-lists`). Migration `migrations_stage215_7_offer_types.sql`. `TestPOSOfferTypes`, `TestImportOfferItemLists`, Guide `offers` 22/22.
+- **Sales History and returns of any bill (215.12-215.14):** **POS → Sales History** (`SLH`) lists till bills, online bills and returns with the three discounts and totals; one search finds a bill by number, AWB, channel order number, OMS bill, mobile in any form, name or GSTIN, and **Return** opens the till's Return tab with it found. An online bill can be returned at any store without the OMS. Fixed on the way: the Returns screen's Refund read only the first 200 refunds. Guide `salehist` clean (30 checks, the refund and credit note against the online bill included).
+- **Two phone numbers (215.15):** an online order keeps `customer_phone_as_received` exactly as the channel sent it beside the cleaned number and country; `BillPhone` puts `+code` on a number from abroad in Sales History and on the printed bill. `TestOrderKeepsPhoneAsReceived`.
+- **Channel returns (215.17):** a Shopify refund already raised a return; it now goes against the bill holding the refunded items (an order shipped in two parcels has two), into that bill's store, and a repeated webhook replays the same return. The bill choice sits in `salesInvoiceForOrderItems`, used by every return that quotes an online order. `TestChannelReturnTakesTheRightBill`.
+- **GSTR-1 (215.18):** the B2CL limit follows the invoice date (₹2.5 lakh before 1 Aug 2024, ₹1 lakh after).
+- **Left open:** 215.16 needs the owner's decision (recommended: keep the Sales Invoice as the posting document; it already behaves as a store bill in every store view). 215.19, an IRN for a B2B till bill, is not built: until it is, a client that must e-invoice raises B2B sales as a Sales Invoice.
+
+## 390. PrintBridge in its own public repository, the build signs it once a certificate exists, and Test alignment on paper (2026-11-16, PrintBridge repo + build script + real print, ask 218; ERP docs NOT COMMITTED)
+
+- **Ask:** 218, "Approved" for the three items left waiting after ask 213: 203.8 (repository), 203.6 (code-signing certificate), 137.3 (test print on real paper).
+- **203.8, Done:** `../PrintBridge` is commit 41b28fa (79 files, agent 0.3.2) on `main` of github.com/Vishalnayak226/Printbridge. Because the repository is public, three things came out first: a client name in a test, this laptop's folder path in INSTALL.md, and a PDF of the owner's notes. The PDF was replaced by a generated A6 sample; the original is kept locally and git-ignored. Author is the GitHub noreply address. `.gitattributes` keeps PDFs and binaries byte-exact. There is no licence. The release key stays out of git, and backing it up is the owner's job.
+- **203.6, built:**
+  - `installer/build.ps1` signs the agent and the installer before the update file records the installer's hash. The settings come from `%USERPROFILE%\.printbridge\codesign.json`: a certificate thumbprint, or the signer's own command.
+  - The build stops on a missing, keyless or expired certificate, or a missing signature or time stamp.
+  - Checked with a throwaway certificate: both routes, `pbsign verify` still passing, a wrong thumbprint stopping the build, and an unsigned build unchanged.
+  - The README says what to buy: an OV certificate with a cloud or USB-token key, valid for at most 460 days. Azure Artifact Signing does not take Indian organisations. The warning goes only once a bought certificate signs a release.
+- **137.3, printed:**
+  - The app's sticker printer "Jewellery" is now the LD0801 Label Printer (PDF, shift right -0.5 mm), not the Y468BT. Guide `aligntest` ran the app's own Test alignment exactly as saved, through the real PrintBridge, onto one row of the SEZNIK-V3 roll. Nothing was saved.
+  - The first try had `print/qz/payload` blocked. That call writes nothing for a PDF job, and with it blocked the "did not print" box waited unanswered for 44 minutes.
+  - Waiting on the owner to check the label.
+
+## 389. Data Healer rule in the constitution, and Guide's key set live (2026-11-16, constitution + PR template + production config, ask 216; NOT COMMITTED)
+
+- **Ask:** 216, "all ok", the owner's answer to the list left waiting after ask 211.
+- **Constitution (207.5):** Article 5 now says that records made before a change catch up through a Heal (Settings › Data Healer), never at deploy. Article 10 got a matching row, the amendment log a row, and the PR template a line asking which Heal, if any. Admin guide C.2.2 already said the same. Commit it with or after the Data Healer code, which is not committed yet.
+- **Guide's key (195.1):** `Guide.ps1 -NewKey -Site app` made the key, and its fingerprint went into the droplet's `/etc/erp/erp.env` (backup kept), then the service restarted around midnight IST. app and minn share that file, and Guide keeps a key for app only, so on minn every robot sign-in is refused. Guide reaches minn through the operator handoff, which the check does not touch.
+- **Checked live:** a robot sign-in without the key got the same answer as a wrong password, and app's Activity Log shows it as *AUTOMATED_SIGN_IN_REFUSED*. Guide read that log with its key on, and its saved key hashes to the server's line. app and minn both answered 200 after the restart.
+- **Not taken from "all ok":** real label prints (184.1, 194.1 need someone at the printer) and renumbering minn's Zircon Earring.
+
+## 388. Screens hold still when you type or click - every screen walked, all three roles (2026-11-15, front end + guide + Guide suite, ask 200; the later fixes NOT COMMITTED)
+
+- **Ask:** the user sent a video of New purchase order on app: focusing a box made the whole form jump. They asked for every screen to "frezze like an APP", walked with Guide's help, "I should not be again asking to fix".
+- **Built (200.1, 200.2):** each fix sits at a shared point.
+  - In 0.25.0:
+    - page and dialog bodies keep scrollbar room;
+    - the on-focus setup hint floats;
+    - link names fill in before a screen shows;
+    - fixed-width saved views;
+    - bulk bars float at the window corner;
+    - the RF shell hides the sidebar at the Loading frame;
+    - the F5 repaint keeps its styles;
+    - Putaway loads before it shows.
+  - After 0.25.0:
+    - dialogs are top-anchored;
+    - table-cell setup hints open upward;
+    - CRM Customers has fixed column widths;
+    - journey Type width;
+    - prefix dialog store columns;
+    - HRM People on an empty list.
+- **Guide (200.3, `~/dev-tools/guide`, outside the repo):**
+  - A new `steady` suite: focus, type, change, leave, tick and hover on every screen and New page, with each moved box named with its cause.
+  - Walks keep real scrollbars; Playwright hides them headless, which had hidden this whole class of shift.
+  - Sticky headers are compared by size only.
+  - "+ New ..." options are skipped.
+  - cashier1's 178.1 password screen is cleared on the scratch copy.
+- **Checked:**
+  - 200.1 on app after the 0.25.0 deploy: New PO has 0 moving boxes.
+  - Full walks with real scrollbars: admin 245 steps, manager1 197, cashier1 73, with no moving box left. What remains is selects that show their own fields, kept by design (listed in 200.2).
+- **Note:** the cold-core budget measures 187,013 / 184,320. The overage is other sessions' uncommitted `view-pos.js` (+2.9 KB gz) and `qz-print.js` (+1.0 KB gz); this ask adds ~35 B in `styles.css`.
+
+## 387. Switch paper, template and printer for one print - at Print, the till and Reprint; profiles by B2B / B2C and user (2026-11-15, code + migration + tests + guides, ask 213; NOT COMMITTED)
+
+- **Ask:** 213, change the paper and template for one transaction before it prints, with a preview; the same POS printing B2C and B2B bills on different printers, per user; defaults set up front, switchable at save, print and reprint.
+- **Built:**
+  - 213.1: the print window has **Paper** (A4, A5, Letter, 80 / 58 mm roll) and **Template**: a paper picks its best template, a template sets its paper. A **Printer** row follows the paper (roll = Receipt printer); a pick there is for this print only, **Change** sets the computer's choice. `public/trade-docs.js`, `print-routing.js` (`computerPrinters`).
+  - 213.2: a Print Profile can name **B2B / B2C** (B2B = the party has a GSTIN) and **a user**; Paper gains Letter and both rolls (`migrations_stage213_2_print_profile_party_user.sql`). Ranking: document 32, B2B/B2C 16, user 8, store 4, entity 2, channel 1. The printing user reaches the profile through `BuildPrintDocumentAs`.
+  - 213.3: the till's **Print Receipt** opens that print window on the bill's defaults (it was a roll-only preview). A till bill now follows its profile's paper.
+  - 213.4: Reprint gets the same choices; the content stays the frozen first copy, the profile is today's.
+- **Checked:** `go build` / `go vet` on engines and server; `TestProfileScorePartyAndUser`, `TestStage127_4PrintProfiles`, the print-issue, standard-print and reprint tests, and the server's store-scope print test. Live in headless Edge on a scratch server (no print sent): paper and template switching, the printer row, Reprint, and four profile cases (B2C, B2C + user, B2B only, another user).
+- **Waiting:** one real print to a picked printer after the release. 213.5's second half (one Print sends two documents to two printers) needs the user.
+
+## 386. Data Healer > Past names: change an item's name on documents already made, without SQL (2026-11-15, code + tests + guides, ask 211 with 201.4; NOT COMMITTED)
+
+- **Ask:** 211, "Do the best one" (where a waiting heal holds a save), "All ok." (to renaming minn's items (199.2), the 201.4 decision, deleting two minn browser profiles and the after-release checks) and "fix this as well" (the ask-207 loose ends).
+- **Decided (211.1):** a waiting heal holds the save on the screen only. A server refusal adds no safety because every save already gives the alias, and it would stop PO/GRN quick-create, imports and integrations.
+- **Built (201.4):** **Settings > Data Healer > Past names**, Super Admin only. Type the old and new name, optional dates, Preview per record type (documents, lines, frozen prints), untick types, Apply after typing YES. Each changed document gets a new version, the edit reason and a `PAST_NAME_CHANGE` audit row. Frozen prints are changed with their checksum redone. GST-filed documents are listed, not changed. `engines/data_healer_rename.go`, two `/api/v1/heals/past-names/*` routes, MASTER-1705..1708.
+- **Loose ends (211.2):** `attack_surface.json` regenerated now (G6 tools, no high-risk changes). The local DB was 27 migrations behind and was migrated. The doc generators published. Their `-Check` runs never passed: a script waited 75 min for a quiet tree, and the one quiet moment failed on another session's unclaimed `engines/pos_b2b.go`. Release gate G7 reruns both.
+- **minn rename (199.2, Done):** on the owner's OK, Guide `act -Via app` renamed 894 of minn's 895 items to their item name (Category + Type, 39 names). First 3 with read-back, then 891, then a full read-back. Each was an audited generic save with only `name` sent, so its blank alias was filled (14 characters max). Zircon Earring has no design and was left alone. All 894 rows of the client's Excel match a design on all seven properties. Those sit on the design and show on the item form (199.1), so no item field was written.
+- **After-release checks (0.25.0):** 196.1 and 194.2 Done (app serves the released files byte-for-byte; Guide refuses minn without `-Via app`). 184.1 and 194.1 wait for the owner's real prints. 195.1 waits for the OK to set the key hash. 195.2 (the banner) could not be seen in Guide shots. The Line up run on app was refused by the classifier, not worked around.
+- **Checked:** three engine tests (copies, string-encoded lines, prints, audit, rerun = 0, bad forms, two applies at once) and the route-rights test. Live in Edge on a scratch server: preview, clear on edit, typed YES, toast, 390 px, DB rows. Guides: admin C.2.3, user §8i, KB *Data Healer*.
+- **Waiting:** a release. 207.5 (constitution amendment) still needs the owner's approval.
+
+## 385. PrintBridge: "did not print" in seconds, no wake-box, and a security review - agent 0.3.2 (2026-11-15, ERP + PrintBridge agent + tests + guides, asks 209 and 212; NOT COMMITTED)
+
+- **Ask:** 209, "What is this error? Fix this." (the *PrintBridge is already running* box at logon). 212, "I need nothing but the best software in world", built within the first principle.
+- **Built:**
+  - 209.1: the logon entry starts the agent with `-wake`, so a second start exits quietly.
+  - 212.1: `public/qz-print.js` remembers the address that answered and tries it first; when the agent is down, a print fails in about 10 s, and Retry in about 5 s (it was 22.7 s, then 50.8 s).
+  - 212.2: the CSP-report flood was the Trusted Types report-only trial, not a fault.
+  - 212.3: security review. Any page could read the PC's name and printer list unsigned; now only a trusted page can. The *Allow printing?* box shows one at a time and stops after 3 answers of No. Sockets are capped at 32. Origin matching, signatures, self-update and HTML rendering were sound as found.
+- **Checked:** Edge timings for every case of the connect path (scratch harness, never touching the real agent). New agent tests: `TestUnsignedCallsNeedTrustedPage`, `TestAskNoFlood` and `TestConnectionCap`; the agent package passes and vet is clean. The signed 0.3.2 passes `pbsign verify`, and G4d's checks hold for `public/downloads`.
+- **Waiting:** the live check after the next release. On the user: 203.8 (repository and release-key backup), 203.6 (code-signing certificate) and 137.3 (paper test).
+
+## 384. Help opens the Knowledge Center at your screen's lesson: What, Why, Use case, How, with pictures (2026-11-15, front end + KB + guides, ask 210; NOT COMMITTED)
+
+- **Ask:** **Open the full Knowledge Center** in a screen's Help dialog went to the KC home. The user wanted it to open that screen's section, inside its main module, and to teach each transaction: What, Why, a use case, How, plus pictures in the full KC only, all kept very light.
+- **Built:**
+  - 210.1-210.2: the button opens `/help/<article>#<section>` (`public/view-help.js`). The sidebar groups handbooks under the app's main menu modules, opens only the screen's module, and expands the article to the marked section. The scroll waits until the off-screen render reaches the view.
+  - 210.3: `[!WHAT]`/`[!WHY]`/`[!USECASE]`/`[!HOW]` lesson blocks and `screen_sections` front matter, checked by the KB build. The dialog shows only What and How. The author rules are in the documentation standard.
+  - 210.4-210.5: WebP pictures of 40 KB at most, served by `GET /api/v1/help/img/{name}` and loaded only when scrolled to. Nine Procurement pictures were taken with a new Guide suite, `kbsnap`.
+  - 210.6: every lesson section in all 31 handbooks has all four blocks. The Finance period section was out of date and now matches the app.
+  - 210.9 (bug found on the way): Vendor Invoice **+ New** opened a second list. It now opens the form.
+  - Also fixed: `docs/update-docs.ps1` hashed outputs as UTF-8 text, so binary pictures never matched doclint. It now hashes raw bytes.
+- **Not built / decision:**
+  - 210.7, pictures for the other modules.
+  - 210.10: 24 screens have no handbook section of their own. The recommendation is to write one in each owning handbook; this waits on the owner.
+- **Checked:**
+  - Guide `kbhelp` (new suite) on 9 screens, 0 high findings: Procurement x5, PIM, Expenses, HR and Loyalty.
+  - KB tests.
+  - `update-kb`.
+  - doclint: only the register entries the release refreshes, plus the existing handover-length warning.
+  - Brain check, 100%.
+
+## 383. Data Healer: one-time fixes old records catch up through, starting with Item aliases (2026-11-15, code + migration + tests + guides, ask 207; NOT COMMITTED)
+
+- **Ask:** the Item Alias from 201.1 filled only new saves. The user wanted existing items fixed too, by a "system healer" that runs once ("like excel randint") and then never again. While it waits, the ERP should push for it on every screen, and the item pages should not save. They also asked for a name and a module for this kind of fix, to use for future changes of the same sort. The ask-timeout picked the recommended answers: the name **Data Healer**, each fix a **Heal**, the screen in Settings beside Data quality, a strip that cannot be closed, and saves held only on the record types a heal covers.
+- **Built:**
+  - 207.1: the heal registry and `RunHeal` (`engines/data_healer.go`). Each heal is a `DataHeal` document per client, Waiting until run and then Done for good. A run takes an advisory lock, checks Done again, applies the fix and records Done in one transaction, then writes a `DATA_HEAL_RUN` audit row. Migration `migrations_stage207_1_data_heals.sql`. Three routes under `/api/v1/heals`: any signed-in user lists heals; DataHeal read sees the records; DataHeal update (Super Admin) runs one.
+  - 207.2: Settings › Data Healer (`public/view-data-healer.js`, short code DH). It lists each heal; a Waiting heal opens on its records with the proposed value, which can be typed over, and **Run heal**.
+  - 207.3: a strip above every screen while a heal waits (Fix now for admins, "Ask your admin" for others). A panel sits on each covered list, and saves of a covered record type wait for **Heal first**. The hold is in the screen only, so imports and integrations still save.
+  - 207.4: the first heal, Item aliases for Items and Item Names with a blank alias (`engines/data_healer_item_alias.go`).
+- **Not built / decision:** 207.5 makes this a standing rule ("a change old records must catch up to ships a Heal") as a constitution Article 5 amendment. It is recommended but waits on the owner (Article 11).
+- **Checked:** the engine tests and a new handler rights test pass on a scratch DB. A Playwright walk on a scratch server covered:
+  - the cashier strip on POS;
+  - the held save, where Cancel writes nothing and OK heals then saves;
+  - the screen run with one typed alias;
+  - the strip and panel gone after the run.
+
+  It found and fixed two layout faults: the header bar and the alias input at phone width. Guides: user guide §8i, admin guide security and operations C.2.2, an items and stock note, and short-code rows. Memory: `erp-data-healer-model`.
+
+## 382. System Errors becomes a fix list: real faults only, one row per fault, Copy for fix and Resolve (2026-11-15, code + migration + tests + guides, ask 206; NOT COMMITTED)
+
+- **Ask:** minn's System Errors showed eight `[GLOBAL-0009] Your session has expired` rows in three seconds. The user asked whether anyone was addressing them, how to fix errors from that screen, and that it should capture valid errors only, not sign-ins. Answered: those rows were correct refusals, one per call the page made after the session ran out, not faults. Stage 104.2 had already hidden them from the Control Panel count but not from this screen. The user chose **Fix list**.
+- **Built:**
+  - 206.1: no 401 answer is written to `system_error_logs`. The change is in the one shared logger, `logForEntry` in `apierror.go`. Sign-ins are counted and audited by the sign-in module.
+  - 206.2: `/api/v1/logs/system` lists only open faults, using the Stage 104.2 filter. Identical rows become one row with Count, first seen and Last seen (`engines/platform_system_faults.go`).
+  - 206.3: **Copy for fix** puts a ready fix brief on the clipboard. **Resolve** is Super Admin only (`POST /api/v1/logs/system/resolve`, capability `admin.patch`). It closes every open occurrence and is audited, and the fault comes back if it recurs. Additive migration `migrations_stage206_3_system_error_resolve.sql` adds `resolved_at` and `resolved_by`.
+  - 206.4: the nightly patch intake now takes faults by the same filter. Before, it read only `ERROR`/`PANIC`, so a `Critical` 500 never reached `patch_proposals`.
+  - 206.5: two MFA recovery-code failures had put the user name in the uuid correlation column and were lost. They now pass the request's correlation id.
+- **Not built:** 206.6 (skip the refused sign-out call) is unsafe, because a 401 also answers a wrong current password while the session is live. Doing that work found 206.7: a wrong current password signs the user out. It is recorded with a recommendation and was not built.
+- **Checked:** `go build` and `go vet` pass on `engines` and `internal/server`. Three new server tests and one engine test pass, along with the route-capability and authorization-matrix tests. Guide walk of System Errors found 0 issues. A Playwright pass on the scratch server checked one grouped row with count 2, the copied brief, the Resolve confirm, the row gone after a reload, and that a row click still opens the trace. Guides: admin SOP A.6, admin guide (foundation), UAT checklist §23. The patch proposal queue still has no screen; it is reached through the Super Admin API.
+
+## 381. Each screen's short code beside its name in the sidebar menus (2026-11-15, front end + guides, ask 208; NOT COMMITTED)
+
+- **Ask:** the codes from ask 202 did not show in the sidebar ("I can't see here. Is it good to show in the left of txn"). Answered yes: SAP's "display technical names" puts the code left of each menu entry, and the menu is where people learn codes.
+- **Built (208.1):** a small grey code column left of each entry in the pop-out menus and second-level menus (`public/shortcuts.js` `markMenuCodes`, `public/shortcuts.css`, one call in `public/shell-nav.js`). It follows Configuration ▸ Navigation ▸ Short codes: off removes it. The top rail, Favourites and report lists stay as they were. The code is drawn by CSS, so the entry's text, search and label lookups do not change.
+- **Checked:** scratch server with Playwright, codes on, off and on again, light, dark and phone width; details in `micro_checklist.md` 208.1. Guides: user guide §3A.3, the Help article and the admin guide's short-codes bullet.
+
+## 380. API access for every module, limited by module access - research and plan (2026-11-15, plan only, ask 205; NOT COMMITTED)
+
+- **Ask:** broaden Settings › API access to every module, controlled by module access ("if I give this module, user can expose/share those modules API only"), with a friendlier screen, never-failing behaviour and docs that can be shared from the screen.
+- **Found:** five public endpoints; four of the eight scopes on the screen unlock nothing; Admin-only issuing with no module or owner limit; rotation cuts the old key at once; the OpenAPI file is Admin-only with no viewer; webhooks cover about 10 events and no documents; ~280 document types in 23 modules cannot be reached.
+- **Plan:** [api-access-all-modules-plan-2026-11-15.md](product/api-access-all-modules-plan-2026-11-15.md).
+  - Every key has an owner and never does more than that owner can do on the screens. It is limited to ticked modules the company has enabled.
+  - Three routes in: Records through the same document engine as the screens, a reviewed Actions list and Reports. Plus document webhooks.
+  - A *Share module API* right lets non-admins share only modules they hold.
+  - The screen is rebuilt as list → New (module grid) → Created (once) → detail.
+  - Never-failing work: rotation overlap, expiry reminders and failure alerts with a one-click fix.
+  - A docs viewer, a share link per key and a one-time *Send to developer* link.
+- **State:**
+  - 205.1 is done and archived.
+  - 205.2 needs decisions D1-D14 (recommended answers written into the item).
+  - 205.3-205.24 wait on it, in 7 phases.
+
 ## 379. "Push all and deploy all" - release 0.25.0 once every session was done, deployed to app and minn (2026-11-15, release + deploy + pipeline fixes, ask 204)
 
 - Owner's words: "Once all task done, Push all and deploy all. Make sue everything happens in 10 mins. Super fast." / "Co-oridate and wait" / "Release all and deploy all in both". Ten minutes was not possible: asks 193 and 197.3 were still being built. Two answers were taken by the 5-minute auto-answer: release after 193 and 197.3 without waiting for ask 200, and accept the two public Razorpay webhook routes (G6b, `release/security-ack.txt`).
@@ -68,7 +246,7 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 - Also: the archive pass (`~/dev-tools/erp-archive-pass`) now repoints a moved item's relative links with `../` (three broke and would have stopped release G7) and takes `--only=` so another session's uncommitted Done items stay put; a Knowledge Center article for the new Subscription screen (`docs/kb/admin-operations/subscription.md`).
 - Left: the owner checklist; the release regenerates `attack_surface.json`, `page-inventory.md`, the code map and the generated pages.
 
-## 377. OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app (2026-11-15, code + tests + guide + Guide suites, asks 197 and 198; NOT COMMITTED)
+## 377. OMS picks and packs by typed SKU without a barcode; Guide runs PO → GRN → transfer → bill on app (2026-11-15, code + tests + guide + Guide suites, asks 197 and 198; released in 0.25.0, 53af64d)
 
 - Owner's words: "So, ERP will work with barcode but OMS will work with SKU. I will be able to save the order with Combination ID. Barcode is not mandatory. It should show a button in Pick/Pack/Ship also to save without barcode. ... OMS should be easy to use and test" (197). "Guide bill do one bill from existing GRN", then "do grn then make po and add inv generate barcode and bill", "do to to one store and bill", "Transfer out", "wms will will test later" (198).
 - Built: 197.1, **Without barcode** beside the scan box on Pick and Pack opens SKU + Qty; one entry confirms that many units (blank = all left), by the same rules as that many scans (`ScanPickItemQty` / `ScanPackItemQty`, optional `qty` on `pick-scan` / `pack-scan`). 197.2 needed no code: an order already saves with the Combination ID, and Ship scans nothing. Guide (local tool, outside the repo): `grnbill` bills one item from an existing GRN; `grnchain` runs PO → GRN at GUIDE-TS → barcode check → transfer to GUIDE-TS2 → one POS bill there; `omsnobarcode` walks 197 on the real screens.
@@ -82,7 +260,7 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 - Verified: `TestItemAliasMade`, `TestItemAliasSaveAndFollow` (with a sticker check), `TestStage89ItemMasterAskedOnce`, `TestItemDuplicateNameInFamilyNeedsSameValues`, `TestDataQuality*`, `TestDuplicateSuppliersAndItems`, `TestBulkPurchase*`, the sticker tests, `TestEngineErrorCodesAreCatalogued`, build and vet of `engines` and `internal/server`. Live on a scratch server: Necklace + Antique gave "Necklace Antique" / "Necklace Antq"; a typed alias and a typed name were kept; "Mangalsutra Zircon" gave "Mangsutra Zirc".
 - Open: 199.2 (rename minn's items through Guide; writes only on the owner's OK) and 201.4 (Super Admin tool for past documents; needs decision, recommendation recorded).
 
-## 375. PrintBridge installs once and then updates itself (2026-11-15, ERP + PrintBridge agent 0.3.0 + installer + tests + guides, ask 203; NOT COMMITTED)
+## 375. PrintBridge installs once and then updates itself (2026-11-15, ERP + PrintBridge agent 0.3.0 + installer + tests + guides, ask 203; released in 0.25.0, 53af64d; the live-check fixes and agent 0.3.1 (ask 209) NOT COMMITTED)
 
 - Owner's words: "printbridge setup should be deadeasy. Once I go print, one time it should ask to install. & Thats all for lifetime. It should replace if new version released. Not new install. & Setting should be auto adapted by erp. ... ANy one else can also use if they want".
 - Built:
@@ -102,7 +280,12 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
   - `go test` passes for `internal/update` and `internal/agent`.
   - The shipped installer, run by hand over 0.2.0, closed itself in 5 s and kept every setting.
   - Live on this laptop, 0.3.0 updated itself to a 0.3.1 test build in 11 s through the real client in Edge, then was put back on 0.3.0.
-  - The ERP's own calls (203.1, 203.3, 203.5) are checked on app after the release.
+  - On app 0.25.0: the ERP's update check answers "current" on 0.3.0 (203.3), and the computer's name comes from PrintBridge, with a saved name kept (203.5). Both are Done.
+- Live check of 203.1 on app 0.25.0 found two bugs, fixed afterwards and shipped at the next release:
+  - app's store default sticker printer made a new PC look set up, so it got "Sticker did not print" instead of the offer. The offer now goes to any browser PrintBridge has never answered.
+  - after a few failed sockets Edge holds each new one back by up to ~5 s. The 2 s cut-off then kept failing: the install wait printed 41 s after PrintBridge started, and a connect could fail with it running. The first try now gets 6 s and the wait probes one socket a round; the print goes 3.4 s after PrintBridge starts.
+  - Verified in headless Edge on app's data with the fixed files served in their place (offer, Not now, Install, "did not print" with Cancel/Retry/browser).
+- Ask 209 ("What is this error? Fix this."): a Windows box "PrintBridge is already running" appeared over Sticker Printing. A live test had started a second copy while the user's Edge had just woken PrintBridge. The logon entry also started it without `-wake`, so a sign-in where Edge restored the ERP first could show the same box. Agent 0.3.1 starts from the logon entry with `-wake`. Tests no longer stop or start the real agent; a down PrintBridge is simulated inside the test page.
 - The release signing key is `%USERPROFILE%\.printbridge\release-key.pem`. It is off every repository and must be backed up.
 - PCs on agents before 0.3.0 need one manual install.
 - 203.6 (a code-signing certificate) and 203.8 (PrintBridge's own repository) wait for the owner.

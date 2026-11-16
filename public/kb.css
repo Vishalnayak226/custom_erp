@@ -86,6 +86,32 @@
 .kb-nav-section a:hover { background: var(--primary-light); }
 .kb-nav-section a.active { background: var(--primary-light); font-weight: 600; }
 
+/* 210.2: groups fold. Module Handbooks are filed under the app's main modules;
+   the open article lists its own sections, the current one marked. */
+.kb-nav-section > summary,
+.kb-nav-module > summary { cursor: pointer; list-style-position: inside; }
+.kb-nav-section > summary {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.kb-nav-module { margin: 0 0 4px; }
+.kb-nav-module > summary {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.kb-nav-module > summary:hover { background: var(--primary-light); }
+.kb-nav-module > ul { padding-left: 10px; }
+.kb-nav-section .kb-nav-toc { margin: 2px 0 6px 10px; border-left: 1px solid var(--border-color); }
+.kb-nav-section .kb-nav-toc a { padding: 3px 8px; font-size: 12.5px; color: var(--text-muted); border-radius: 0 6px 6px 0; }
+.kb-nav-section .kb-nav-toc a.current { color: var(--primary-color); font-weight: 600; background: var(--primary-light); }
+
 .kb-breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
 .kb-breadcrumb a { color: var(--primary-color); text-decoration: none; }
 .kb-breadcrumb span { margin: 0 4px; }
@@ -162,7 +188,9 @@
 
 /* Admonitions: internal/kb/markdown.go emits
    <aside class="kb-admonition kb-admonition-<kind>"> for the five GitHub kinds
-   (note, tip, important, warning, caution). */
+   (note, tip, important, warning, caution), and
+   <aside class="kb-admonition kb-lesson kb-lesson-<kind>"> for the 210.3 lesson
+   kinds (what, why, usecase, how). */
 .kb-body .kb-admonition {
   margin: 0 0 16px;
   padding: 10px 14px;
@@ -178,6 +206,30 @@
 .kb-body .kb-admonition-important { border-left-color: #dc2626; }
 .kb-body .kb-admonition-tip { border-left-color: #16a34a; }
 .kb-body .kb-admonition-caution { border-left-color: #d97706; }
+.kb-body .kb-lesson .kb-admonition-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kb-body .kb-lesson-what { border-left-color: var(--primary-color); }
+.kb-body .kb-lesson-why { border-left-color: #d97706; }
+.kb-body .kb-lesson-usecase { border-left-color: #7c3aed; }
+.kb-body .kb-lesson-how { border-left-color: #16a34a; }
+.kb-body .kb-lesson ol,
+.kb-body .kb-lesson ul { margin: 0; }
+
+/* 210.4 snapshots: the image has no src until it scrolls near the screen. */
+.kb-body .kb-snap { display: block; margin: 0 0 16px; }
+.kb-body .kb-snap img {
+  display: block;
+  max-width: 100%;
+  min-height: 80px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+}
+.kb-body .kb-snap img[src] { min-height: 0; }
+.kb-body .kb-snap-caption { display: block; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+
+/* 210.1: the section a help-dialog or error-code link landed on. */
+.kb-body [id] { scroll-margin-top: 16px; }
+.kb-body .kb-target { outline: 2px solid var(--primary-color); outline-offset: 4px; border-radius: 4px; }
 
 .kb-footer {
   margin-top: 32px;
@@ -204,3 +256,8 @@
 
 .kb-drawer-container { max-width: 720px; width: 92vw; }
 .kb-drawer-container .modal-body { max-height: 65vh; overflow-y: auto; }
+/* The help dialog is the short form - what and how. Why, use case and the
+   snapshots are in the full Knowledge Center (210.1). */
+.kb-drawer-container .kb-lesson-why,
+.kb-drawer-container .kb-lesson-usecase,
+.kb-drawer-container .kb-snap { display: none; }

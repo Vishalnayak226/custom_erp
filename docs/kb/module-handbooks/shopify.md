@@ -6,6 +6,7 @@ summary: Connect a Shopify shop - products with their variants, prices and stock
 audience: admin, OMS staff, store manager
 last_verified: 2026-10-22
 screens: [oms, doctype:channel, doctype:channelsyncrun]
+screen_sections: [doctype:channel=connect-administrator]
 doc_id: DOC-578C0E348B
 type: procedure
 status: draft
@@ -31,6 +32,22 @@ their payments**. Prices and stock changed in Shopify admin are overwritten at
 the next send.
 
 ## Connect (administrator)
+
+> [!WHAT]
+> This is the one-time set-up that links the ERP to a Shopify shop: an app in
+> Shopify, a Channel in the ERP, a connection, store mapping and webhooks.
+
+> [!WHY]
+> The ERP owns products, prices and stock, and Shopify owns online orders and
+> their payments. **Test connection** names any missing access before you go
+> on.
+
+> [!USECASE]
+> An administrator links a Shopify shop. They save the shop address, token and
+> secret, run **Test connection**, map each Shopify location to a store and
+> choose **Webhooks → Register**.
+
+> [!HOW]
 
 1. In Shopify: **Settings → Apps and sales channels → Develop apps → Create an
    app**. Give it `read_products`, `write_products`, `read_inventory`,
@@ -58,7 +75,7 @@ the next send.
   waits in **OMS → Channel changes**; do it by hand, then **Done**.
 - Dispatched here: Shopify gets the fulfilment with carrier and tracking.
   Cancelled here: cancelled there. RTO here: tagged there.
-- Refunded in Shopify after invoicing: a Customer Return is raised here.
+- Refunded in Shopify after invoicing: a Customer Return is raised here, against the bill holding the refunded items (one bill per parcel), once however often Shopify sends it.
 - Shopify Payments payouts: settlement lines, reconciled with the orders; fees
   to the fees account.
 

@@ -23,6 +23,8 @@ Describe the concrete problem and resulting behavior, then record relevant valid
 - Constitution: the change follows [CONTRIBUTING.md](../CONTRIBUTING.md) - files in the
   right folder with the right names, additive migrations, no secrets or builds committed,
   trackers and guides updated. Say which rule, if any, it could not follow and why.
+- Old records: if records made before this change must catch up, name the Heal that does it
+  (Settings › Data Healer). A release never changes them at deploy.
 
 - Requirements / support scope: affected documents, or reason unchanged.
 - Architecture / ADR / API / data migration: affected contracts and compatibility.

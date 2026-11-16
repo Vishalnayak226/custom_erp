@@ -51,6 +51,12 @@ type Article struct {
 	AppliesTo     string    `json:"applies_to,omitempty"`
 	SourcePath    string    `json:"source_path"`
 	Headings      []Heading `json:"headings,omitempty"`
+	// MenuModule is the app's main-menu module this handbook is filed under in
+	// the Knowledge Center sidebar (210.2), resolved from Module.
+	MenuModule string `json:"menu_module,omitempty"`
+	// ScreenSections is the `screen_sections:` front matter: screen=anchor
+	// pairs naming the section that documents each screen (210.1).
+	ScreenSections []string `json:"-"`
 
 	// HTML is the rendered body. It is written to its own file rather than
 	// inlined in the index, so opening the Knowledge Center costs one small
@@ -81,7 +87,57 @@ type Index struct {
 	Sections     []Section           `json:"sections"`
 	ScreenMap    map[string][]string `json:"screen_map"`
 	ArticleCount int                 `json:"article_count"`
+	// ScreenSections maps a screen id to "<slug>#<anchor>" entries, so the help
+	// dialog shows that screen's own section and its Knowledge Center button
+	// lands on it (210.1). MenuModules is the sidebar order of the app's main
+	// menu (210.2).
+	ScreenSections map[string][]string `json:"screen_sections,omitempty"`
+	MenuModules    []string            `json:"menu_modules,omitempty"`
 }
+
+// menuModules files Module Handbooks under the app's own main menu
+// (public/index.html, the "Module:" groups, in that order), so help for a
+// screen sits under the module the screen sits under. Keys are handbook
+// `module:` values, or a handbook's own slug where its module is shared with
+// handbooks filed elsewhere (Fixed Assets and Expenses are `finance` but sit
+// in the HRM menu); a slug is matched before a module. A handbook matching
+// neither is filed under "Other" and the build warns.
+var menuModules = []struct {
+	Label   string
+	Modules []string
+}{
+	{"POS", []string{"pos-operations"}},
+	{"Financial Accounting", []string{"finance", "finance-tax"}},
+	{"OMS", []string{"oms-order-management", "channel-connectors", "courier-integrations", "returns"}},
+	{"CRM", []string{"crm-loyalty"}},
+	{"Reports", []string{"reports"}},
+	{"Procurement", []string{"procurement"}},
+	{"Inventory", []string{"inventory", "inventory-wms-operations", "traceability-batch-serial"}},
+	{"WMS", []string{"wms", "warehouse", "place-hold"}},
+	{"HRM", []string{"hr-payroll", "assets", "expenses"}},
+	{"Manufacturing", []string{"manufacturing-mrp"}},
+	{"PIM", []string{"pim-pxm", "pim-product-groups"}},
+	{"Settings", []string{"security-approvals", "platform", "settings"}},
+}
+
+func menuModuleFor(slug, module string) string {
+	for _, key := range []string{slug, module} {
+		for _, group := range menuModules {
+			for _, known := range group.Modules {
+				if strings.EqualFold(known, strings.TrimSpace(key)) {
+					return group.Label
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// MaxSnapshotBytes caps one 210.4 snapshot. A cropped WebP of one panel fits
+// well inside it; anything bigger is a whole-screen capture or a PNG renamed.
+const MaxSnapshotBytes = 40 * 1024
+
+var snapshotRefPattern = regexp.MustCompile(`data-kb-img="([^"]+)"`)
 
 // SearchIndex is content/search.json - a prebuilt inverted index. Prebuilt
 // because the alternative is either shipping a search library or scanning every
@@ -311,6 +367,38 @@ func Build(root string) (*BuildResult, error) {
 		article.HTML = RenderMarkdown(body)
 		article.Headings = extractHeadings(article.HTML)
 		article.Text = plainText(article.HTML)
+		if strings.EqualFold(article.Section, "Module Handbooks") {
+			article.MenuModule = menuModuleFor(article.Slug, article.Module)
+			if article.MenuModule == "" {
+				article.MenuModule = "Other"
+				result.Warnings = append(result.Warnings, fmt.Sprintf("%s: module %q is not filed under a main-menu module in internal/kb/build.go menuModules - it shows under Other", relPath, article.Module))
+			}
+		}
+		// 210.1: every screen=anchor pair must name a screen this article
+		// already lists (so the drift check validates the screen id) and a
+		// heading the article really has (so the link can never land nowhere).
+		anchors := map[string]bool{}
+		for _, h := range article.Headings {
+			anchors[h.Slug] = true
+		}
+		listed := map[string]bool{}
+		for _, screen := range article.Screens {
+			listed[strings.ToLower(strings.TrimSpace(screen))] = true
+		}
+		for _, pair := range frontmatterList(fields["screen_sections"]) {
+			screen, anchor, found := strings.Cut(pair, "=")
+			screen, anchor = strings.ToLower(strings.TrimSpace(screen)), strings.TrimSpace(anchor)
+			if !found || screen == "" || anchor == "" {
+				return nil, fmt.Errorf("%s: screen_sections entry %q must be screen=anchor", relPath, pair)
+			}
+			if !listed[screen] {
+				return nil, fmt.Errorf("%s: screen_sections names %q, which is not in this article's screens:", relPath, screen)
+			}
+			if !anchors[anchor] {
+				return nil, fmt.Errorf("%s: screen_sections points %q at #%s, which is not a heading in this article", relPath, screen, anchor)
+			}
+			article.ScreenSections = append(article.ScreenSections, screen+"="+anchor)
+		}
 		if article.Summary == "" {
 			result.Warnings = append(result.Warnings, relPath+": no summary - search results and the sidebar will show the title alone")
 		}
@@ -380,16 +468,85 @@ func Build(root string) (*BuildResult, error) {
 		})
 	}
 
+	// 210.1: screen -> the sections that document it, in the order the drawer
+	// shows them: the screen_map's article order, then each article's own.
+	screenSections := map[string][]string{}
+	sectionsOf := map[string][]string{}
+	for _, article := range result.Articles {
+		for _, pair := range article.ScreenSections {
+			screen, anchor, _ := strings.Cut(pair, "=")
+			sectionsOf[article.Slug+"\x00"+screen] = append(sectionsOf[article.Slug+"\x00"+screen], anchor)
+		}
+	}
+	for screen, slugs := range screenMap {
+		for _, slug := range slugs {
+			for _, anchor := range sectionsOf[slug+"\x00"+screen] {
+				screenSections[screen] = append(screenSections[screen], slug+"#"+anchor)
+			}
+		}
+	}
+	menuOrder := make([]string, 0, len(menuModules)+1)
+	for _, group := range menuModules {
+		menuOrder = append(menuOrder, group.Label)
+	}
+	menuOrder = append(menuOrder, "Other")
+
+	// 210.4: snapshots. Every file under img/ is a small WebP that some article
+	// shows, and every snapshot an article shows exists - a missing or stray
+	// image fails the build rather than shipping a broken frame or dead weight.
+	shown := map[string]string{}
+	for _, article := range result.Articles {
+		for _, match := range snapshotRefPattern.FindAllStringSubmatch(article.HTML, -1) {
+			shown[match[1]] = article.SourcePath
+		}
+	}
+	images, _ := os.ReadDir(filepath.Join(root, "img"))
+	present := map[string]bool{}
+	for _, entry := range images {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if SnapshotPattern.FindStringSubmatch("img/"+name) == nil {
+			return nil, fmt.Errorf("img/%s: a snapshot is a lower-case kebab-case .webp file", name)
+		}
+		data, readErr := os.ReadFile(filepath.Join(root, "img", name))
+		if readErr != nil {
+			return nil, readErr
+		}
+		if len(data) < 12 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+			return nil, fmt.Errorf("img/%s: not a WebP file", name)
+		}
+		if len(data) > MaxSnapshotBytes {
+			return nil, fmt.Errorf("img/%s: %d bytes is over the %d-byte snapshot cap; crop it to the working panel or lower the quality", name, len(data), MaxSnapshotBytes)
+		}
+		if shown[name] == "" {
+			return nil, fmt.Errorf("img/%s: no article shows this snapshot; delete it or reference it", name)
+		}
+		present[name] = true
+		result.Files["img/"+name] = data
+	}
+	for name, source := range shown {
+		if !present[name] {
+			return nil, fmt.Errorf("%s: shows snapshot %s, which is not in docs/kb/img/", source, name)
+		}
+	}
+
 	result.Index = Index{
 		// Deliberately NOT a timestamp: the output is committed, and a build
 		// stamp would make every regeneration a diff even when no content
 		// changed, which would make -Check useless as a drift signal.
-		GeneratedAt:  "content-hash build; see docs/kb/update-kb.ps1",
-		Sections:     sections,
-		ScreenMap:    screenMap,
-		ArticleCount: len(result.Articles),
+		GeneratedAt:    "content-hash build; see docs/kb/update-kb.ps1",
+		Sections:       sections,
+		ScreenMap:      screenMap,
+		ArticleCount:   len(result.Articles),
+		ScreenSections: screenSections,
+		MenuModules:    menuOrder,
 	}
-	indexJSON, err := json.MarshalIndent(result.Index, "", "  ")
+	// 217 (210.10): compact like search.json below - the indentation was a
+	// third of the file, which Help downloads on every open, and it pushed the
+	// embedded Knowledge Center over its 2 MiB budget.
+	indexJSON, err := json.Marshal(result.Index)
 	if err != nil {
 		return nil, err
 	}
@@ -444,13 +601,17 @@ func buildSearchIndex(articles []Article) SearchIndex {
 // served, and leaving its old HTML behind is exactly the kind of drift 39.7
 // exists to catch.
 func WriteTo(dir string, result *BuildResult) error {
-	if err := os.MkdirAll(filepath.Join(dir, "articles"), 0o755); err != nil {
-		return err
+	for _, sub := range []string{"articles", "img"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
+			return err
+		}
 	}
 	existing, err := filepath.Glob(filepath.Join(dir, "articles", "*.html"))
 	if err != nil {
 		return err
 	}
+	snapshots, _ := filepath.Glob(filepath.Join(dir, "img", "*"))
+	existing = append(existing, snapshots...)
 	wanted := map[string]bool{}
 	for name := range result.Files {
 		wanted[filepath.Join(dir, filepath.FromSlash(name))] = true
@@ -493,6 +654,13 @@ func Diff(dir string, result *BuildResult) []string {
 		name := "articles/" + filepath.Base(path)
 		if _, wanted := result.Files[name]; !wanted {
 			differences = append(differences, "orphaned generated file (its source article is gone): "+name)
+		}
+	}
+	snapshots, _ := filepath.Glob(filepath.Join(dir, "img", "*"))
+	for _, path := range snapshots {
+		name := "img/" + filepath.Base(path)
+		if _, wanted := result.Files[name]; !wanted {
+			differences = append(differences, "orphaned generated file (its source snapshot is gone): "+name)
 		}
 	}
 	sort.Strings(differences)

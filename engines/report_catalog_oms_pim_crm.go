@@ -888,7 +888,8 @@ func birthdaySoon(date string) bool {
 
 var catCustomers = &catSource{Label: "Customer", Doctype: "Customer", StoreField: "-", Where: "COALESCE(data->>'walk_in', '') <> 'Yes'", Cols: customerCols}
 
-// Promotions on bills: each offer applied to a paid bill.
+// Promotions on bills: each offer applied to a paid bill. The cashier's own
+// bill discount (offer type Manual) is not a promotion and is left out (215.5).
 func offerUseRows(tenantID, schema string, p map[string]string) ([]*catRow, error) {
 	bills, err := catPOSBills.docRows(schema, p, false)
 	if err != nil {
@@ -896,7 +897,7 @@ func offerUseRows(tenantID, schema string, p map[string]string) ([]*catRow, erro
 	}
 	var out []*catRow
 	for _, b := range bills {
-		for i, o := range catLineList(b.H["applied_offers"]) {
+		for i, o := range posPromoOffers(b.H) {
 			r := *b
 			r.N = i + 1
 			r.L = o
@@ -915,7 +916,7 @@ var catOfferUses = &catSource{Label: "Offer applied", Rows: offerUseRows, Custom
 		"Discount Amount": catLN("discount"),
 		"Net Amount":      catHN("amount_paid"),
 		"Net Sales Amount": func(r *catRow) interface{} {
-			return r.hn("amount_paid") / float64(len(catLineList(r.H["applied_offers"])))
+			return r.hn("amount_paid") / float64(len(posPromoOffers(r.H)))
 		},
 		"Bill Count":    func(r *catRow) interface{} { return posBillNo(r) },
 		"Achievement %": catNotHeld,

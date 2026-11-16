@@ -469,6 +469,12 @@ func docHeaderFields(data map[string]interface{}) map[string]interface{} {
 // BuildPrintDocument assembles the print data for one transaction. store
 // overrides the generating store; withImages embeds each item's picture.
 func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (PrintDocument, error) {
+	return BuildPrintDocumentAs(tenantID, "", txn, id, store, withImages)
+}
+
+// BuildPrintDocumentAs (213.2) is BuildPrintDocument for a user: a Print
+// Profile that names that login name can apply.
+func BuildPrintDocumentAs(tenantID, user, txn, id, store string, withImages bool) (PrintDocument, error) {
 	doctype := PrintTxnDoctype(tenantID, txn) // Stage 127.3: any transaction prints
 	if doctype == "" {
 		return PrintDocument{}, &ValidationError{Code: "GLOBAL-0002", SubFor: "Transaction", Message: fmt.Sprintf("%q is not a printable transaction", txn)}
@@ -482,7 +488,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		}
 		sd.Store = LoadPrintStore(tenantID, firstNonEmpty(strings.TrimSpace(store), defStore))
 		sd.Brand = map[string]string{"name": printBrandName(tenantID, sd.Store), "logo": printBrandLogo(tenantID, sd.Store.Code)}
-		sd.applyPrintProfile(tenantID, txn)
+		sd.applyPrintProfile(tenantID, txn, user)
 		sd.Fields["financial_year"] = financialYear(sd.Date)
 		if strField(sd.Fields, "currency") == "" {
 			sd.Fields["currency"] = "INR"
@@ -762,6 +768,22 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		if gb, ok := data["gst_breakdown"].(map[string]interface{}); ok {
 			d.Interstate, _ = gb["interstate"].(bool)
 		}
+		// Ask 215.3: a B2B bill's buyer is the block the cashier took, as it
+		// stood on the day - not the customer master, which may change later.
+		b2b := POSB2BFromData(data)
+		if b2b != nil {
+			d.Party.Name, d.Party.LegalName, d.Party.TradeName = b2b.LegalName, b2b.LegalName, b2b.TradeName
+			d.Party.Address, d.Party.City, d.Party.Pincode = b2b.Address, b2b.City, b2b.Pincode
+			d.Party.State, d.Party.StateCode, d.Party.GSTIN = b2b.State, b2b.StateCode, b2b.GSTIN
+			d.Party.Email = firstNonEmpty(b2b.Email, d.Party.Email)
+			d.Party.Phone = firstNonEmpty(b2b.Contact, d.Party.Phone)
+			d.Fields["po_number"] = b2b.PONumber
+			d.Fields["po_date"] = b2b.PODate
+			if b2b.Shipped() {
+				d.ShipTo = PrintStore{Name: b2b.ShipName, Address: b2b.ShipAddress, City: b2b.ShipCity, Pincode: b2b.ShipPincode,
+					State: b2b.ShipState, StateCode: StateCodeFromName(b2b.ShipState)}
+			}
+		}
 		d.Fields["supply_type"] = map[bool]string{true: "B2B", false: "B2C"}[d.Party.GSTIN != ""]
 		d.Fields["buyer_gstin"] = d.Party.GSTIN
 		// Place of supply is set below, from the store: goods handed over at
@@ -852,6 +874,15 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		// An order bill stores the customer's name, a package bill may store
 		// the Customer record; either prints.
 		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, firstNonEmpty(strField(data, "customer_id"), strField(data, "customer"))), "Buyer"
+		// 215.15: an online bill with no Customer record prints the order's
+		// cleaned phone, with + and its code for a number from abroad.
+		if orderID := strField(data, "sales_order_id"); d.Party.Phone == "" && orderID != "" {
+			if schema, err := db.GetTenantSchema(tenantID); err == nil {
+				phone, _ := orderFieldString(schema, orderID, "customer_phone")
+				country, _ := orderFieldString(schema, orderID, "customer_country")
+				d.Party.Phone = BillPhone(tenantID, phone, country)
+			}
+		}
 		d.Interstate, _ = data["interstate"].(bool)
 		d.Fields["sales_order"] = DocumentNumber(tenantID, "SalesOrder", strField(data, "sales_order_id")) // its number, not its id
 		exportPrintFields(tenantID, data, d.Fields)                                                        // 170.37: LUT declaration and shipping bill
@@ -967,10 +998,15 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		if pos != "" && d.Store.StateCode != "" {
 			pos += " (" + d.Store.StateCode + ")"
 		}
+		// Ask 215.3: a B2B bill shipped on the buyer's order is supplied in
+		// the buyer's state (IGST Act s.10(1)(b)), as checkout decided.
+		if b2b := POSB2BFromData(data); b2b != nil && b2b.PlaceOfSupply != "" && b2b.PlaceOfSupply != d.Store.StateCode {
+			pos = StateLabel(b2b.PlaceOfSupply)
+		}
 		d.Fields["place_of_supply"] = pos
 	}
 	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store), "logo": printBrandLogo(tenantID, d.Store.Code)}
-	d.applyPrintProfile(tenantID, txn)                            // Stage 127.4
+	d.applyPrintProfile(tenantID, txn, user)                      // Stage 127.4
 	if err := d.applyTaxDocumentRule(tenantID, txn); err != nil { // Stage 130.16 (DEC-20)
 		return d, err
 	}
@@ -1151,7 +1187,7 @@ func loadPrintCustomer(tenantID, customerID string) PrintStore {
 	out := PrintStore{Code: customerID, Name: customerID}
 	if c, _, err := fetchDocData(tenantID, "Customer", customerID); err == nil {
 		out.Name = firstNonEmpty(str(c, "name"), customerID)
-		out.Phone, out.Email = str(c, "phone"), str(c, "email")
+		out.Phone, out.Email = BillPhone(tenantID, str(c, "phone"), str(c, "phone_country")), str(c, "email") // 215.15
 		// Stage 85.C1: the customer's address block and GSTIN, for a tax
 		// invoice's buyer details. A walk-in's placeholder number never prints.
 		out.Address = strings.TrimSpace(strings.Join(nonEmpty(str(c, "address"), str(c, "address_line2")), ", "))

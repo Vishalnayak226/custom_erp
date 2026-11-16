@@ -584,7 +584,9 @@ const CUSTOMER_FORM_LABELS = {
 const CUSTOMER_FORM_SKIP = new Set(['id', 'code', 'status', 'loyalty_points', 'loyalty_tier', 'merged_into', 'clevertap_segments',
   'phone_country', 'consent_sms', 'consent_whatsapp', 'consent_email', 'consent_updated_at', 'consent_source', 'walk_in', 'walk_in_store']);
 
-async function openCustomerForm({ id = '', phone = '', name = '', title = '', need = '', till = false, saveLabel = '' } = {}) {
+// seed (ask 215.2): values for fields still blank on the record, such as the
+// GSTIN and address a B2B bill at the till was given.
+async function openCustomerForm({ id = '', phone = '', name = '', title = '', need = '', till = false, saveLabel = '', seed = {} } = {}) {
   let doc = {};
   if (id) {
     const res = await apiFetch(`/api/v1/doc/Customer/${encodeURIComponent(id)}`);
@@ -610,7 +612,8 @@ async function openCustomerForm({ id = '', phone = '', name = '', title = '', ne
   const required = new Set(['name', ...(till ? ['phone'] : []), ...(series && series.typed ? ['code'] : [])]);
   const labelOf = n => (n === 'pincode' && country !== 'IN' ? 'Postal code'
     : taxIdLabel(n, CUSTOMER_FORM_LABELS[n] || getTranslatedLabel(byName.get(n).label)));
-  const val = n => (walkIn ? '' : doc[n] ?? '');
+  const blank = n => (walkIn ? '' : doc[n] ?? '');
+  const val = n => (String(blank(n)) === '' && seed[n] ? seed[n] : blank(n));
   const seeded = { phone: val('phone') || phone, name: val('name') || name };
 
   const fieldHTML = (n) => {

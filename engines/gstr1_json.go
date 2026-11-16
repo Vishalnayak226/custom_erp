@@ -25,10 +25,27 @@ import (
 
 const (
 	gstr1ErrCode = "TAXGST-1700" // GSTIN or month not valid
-
-	// A B2C inter-state invoice above this value is reported invoice by invoice.
-	gstr1B2CLLimit = 250000.0
 )
+
+// gstr1B2CLFrom is when the B2CL limit fell from Rs 2.5 lakh to Rs 1 lakh
+// (Notification 12/2024-Central Tax, invoices from 1 August 2024). Ask 215.18.
+var gstr1B2CLFrom = time.Date(2024, 8, 1, 0, 0, 0, 0, time.UTC)
+
+// gstr1B2CLLimit is the value above which a B2C inter-state invoice dated day
+// is reported invoice by invoice (table 5, B2CL). day is dd-mm-yyyy or
+// yyyy-mm-dd; a day that does not parse takes the current limit.
+func gstr1B2CLLimit(day string) float64 {
+	day = strings.TrimSpace(day)
+	if len(day) > 10 {
+		day = day[:10]
+	}
+	for _, layout := range []string{"02-01-2006", "2006-01-02"} {
+		if t, err := time.Parse(layout, day); err == nil && t.Before(gstr1B2CLFrom) {
+			return 250000
+		}
+	}
+	return 100000
+}
 
 var (
 	gstinRe        = regexp.MustCompile(`^[0-9]{2}[A-Z0-9]{13}$`)
@@ -94,7 +111,7 @@ func (d gstr1Doc) section() string {
 		return "exp"
 	case !d.note && d.ctin != "":
 		return "b2b"
-	case !d.note && d.interstate && PaiseToRupees(d.val) > gstr1B2CLLimit:
+	case !d.note && d.interstate && PaiseToRupees(d.val) > gstr1B2CLLimit(d.date):
 		return "b2cl"
 	case !d.note:
 		return "b2cs"
@@ -364,7 +381,7 @@ func gstr1CanonicalDoc(c *gstr1Ctx, doctype, id string, data map[string]interfac
 		d.items = append(d.items, g)
 	}
 	if d.note && origInv != nil {
-		d.origB2CL = d.ctin == "" && d.export == "" && d.interstate && gstr1InvoiceValue(origInv) > gstr1B2CLLimit
+		d.origB2CL = d.ctin == "" && d.export == "" && d.interstate && gstr1InvoiceValue(origInv) > gstr1B2CLLimit(firstNonEmpty(strField(origInv, "invoice_date"), d.date))
 	}
 	return d, nil
 }

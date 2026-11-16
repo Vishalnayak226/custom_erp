@@ -12,7 +12,7 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 | Graph built from commit | `06fe9ae3` |
 | Brain redrawn | source graph 06fe9ae3 |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 3095 (2388 of them parsed into the graph) |
+| Files in the working tree | 3166 (2388 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
 | Symbols in the graph | 27786 |
 | Cross-region relationships | 11416 extracted (98% inferred) + 8 declared by hand |
@@ -34,14 +34,14 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 ```mermaid
 flowchart LR
-  n_cortex["Cortex — Interface<br/><small>173 files · 2687 symbols</small>"]
-  n_brainstem["Brainstem — Kernel<br/><small>740 files · 2760 symbols</small>"]
-  n_business["Functional Lobes — Business Operations<br/><small>643 files · 7793 symbols</small>"]
+  n_cortex["Cortex — Interface<br/><small>175 files · 2687 symbols</small>"]
+  n_brainstem["Brainstem — Kernel<br/><small>744 files · 2760 symbols</small>"]
+  n_business["Functional Lobes — Business Operations<br/><small>651 files · 7793 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>79 files · 1352 symbols</small>"]
-  n_autonomic["Autonomic — Background & Reflexes<br/><small>22 files · 276 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>456 files · 5866 symbols</small>"]
+  n_autonomic["Autonomic — Background & Reflexes<br/><small>23 files · 276 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>500 files · 5866 symbols</small>"]
   n_motor["Motor Cortex — Build & Delivery<br/><small>72 files · 337 symbols</small>"]
-  n_verification["Cerebellum — Verification<br/><small>910 files · 4550 symbols</small>"]
+  n_verification["Cerebellum — Verification<br/><small>922 files · 4550 symbols</small>"]
   n_business -->|4136| n_brainstem
   n_business -->|621| n_autonomic
   n_brainstem -->|560| n_business
@@ -98,14 +98,14 @@ flowchart LR
 
 | Lobe | What it is | Regions | Files | Symbols | Wiring inside the lobe |
 |---|---|---:|---:|---:|---:|
-| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 173 | 2687 | 6 |
-| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 740 | 2760 | 1073 |
-| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 643 | 7793 | 3156 |
+| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 175 | 2687 | 6 |
+| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 744 | 2760 | 1073 |
+| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 651 | 7793 | 3156 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 79 | 1352 | 8 |
-| **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 22 | 276 | 32 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 456 | 5866 | 104 |
+| **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 23 | 276 | 32 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 500 | 5866 | 104 |
 | **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 72 | 337 | 0 |
-| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 910 | 4550 | 0 |
+| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 922 | 4550 | 0 |
 
 ## 2. Region map
 
@@ -115,7 +115,7 @@ Every region, grouped by lobe, with the connections of weight **12 or more**. Th
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>138 files · 2443 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>140 files · 2443 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>1 file · 2 symbols</small>"]
     n_store_app["Store App (PWA)<br/><small>24 files · 242 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
@@ -128,7 +128,7 @@ flowchart LR
     n_identity["Identity, RBAC & MFA<br/><small>49 files · 488 symbols</small>"]
     n_tenancy["Tenancy, Packaging & Settings<br/><small>92 files · 1058 symbols</small>"]
     n_approval["Approval Engine (maker-checker)<br/><small>8 files · 63 symbols</small>"]
-    n_persistence["Persistence & Migrations<br/><small>477 files · 42 symbols</small>"]
+    n_persistence["Persistence & Migrations<br/><small>481 files · 42 symbols</small>"]
     n_mixed_handlers["Cross-module API Handlers<br/><small>3 files · 83 symbols</small>"]
     n_security_program["Security Baseline & Attack Surface<br/><small>57 files · 507 symbols</small>"]
   end
@@ -140,7 +140,7 @@ flowchart LR
     n_inventory["Inventory & Planning<br/><small>52 files · 666 symbols</small>"]
     n_wms["Warehouse Management (WMS)<br/><small>64 files · 669 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>50 files · 503 symbols</small>"]
-    n_pos["Point of Sale<br/><small>40 files · 425 symbols</small>"]
+    n_pos["Point of Sale<br/><small>44 files · 425 symbols</small>"]
     n_pim["Product Information (PIM)<br/><small>83 files · 888 symbols</small>"]
     n_crm["CRM & Loyalty<br/><small>58 files · 713 symbols</small>"]
     n_hr["HR & Payroll<br/><small>21 files · 160 symbols</small>"]
@@ -149,7 +149,7 @@ flowchart LR
     n_expenses["Expense Management<br/><small>10 files · 85 symbols</small>"]
     n_reports["Reporting Engine<br/><small>44 files · 608 symbols</small>"]
     n_logistics["Shipping & Logistics<br/><small>7 files · 117 symbols</small>"]
-    n_data_io["Bulk Data I/O<br/><small>17 files · 287 symbols</small>"]
+    n_data_io["Bulk Data I/O<br/><small>21 files · 287 symbols</small>"]
   end
   subgraph n_g_peripheral ["Peripheral Nerves — Integrations"]
     direction TB
@@ -160,11 +160,11 @@ flowchart LR
   subgraph n_g_autonomic ["Autonomic — Background & Reflexes"]
     direction TB
     n_outbox["Event Outbox & Async Job Runner<br/><small>10 files · 101 symbols</small>"]
-    n_observability["Logging, Alerting & Notifications<br/><small>12 files · 175 symbols</small>"]
+    n_observability["Logging, Alerting & Notifications<br/><small>13 files · 175 symbols</small>"]
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>449 files · 5746 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>493 files · 5746 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 120 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -433,7 +433,7 @@ flowchart LR
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>138 files · 2443 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>140 files · 2443 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>1 file · 2 symbols</small>"]
     n_store_app["Store App (PWA)<br/><small>24 files · 242 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
@@ -456,7 +456,7 @@ flowchart LR
     n_inventory["Inventory & Planning<br/><small>52 files · 666 symbols</small>"]
     n_wms["Warehouse Management (WMS)<br/><small>64 files · 669 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>50 files · 503 symbols</small>"]
-    n_pos["Point of Sale<br/><small>40 files · 425 symbols</small>"]
+    n_pos["Point of Sale<br/><small>44 files · 425 symbols</small>"]
     n_pim["Product Information (PIM)<br/><small>83 files · 888 symbols</small>"]
     n_crm["CRM & Loyalty<br/><small>58 files · 713 symbols</small>"]
     n_hr["HR & Payroll<br/><small>21 files · 160 symbols</small>"]
@@ -465,7 +465,7 @@ flowchart LR
     n_expenses["Expense Management<br/><small>10 files · 85 symbols</small>"]
     n_reports["Reporting Engine<br/><small>44 files · 608 symbols</small>"]
     n_logistics["Shipping & Logistics<br/><small>7 files · 117 symbols</small>"]
-    n_data_io["Bulk Data I/O<br/><small>17 files · 287 symbols</small>"]
+    n_data_io["Bulk Data I/O<br/><small>21 files · 287 symbols</small>"]
   end
   subgraph n_g_peripheral ["Peripheral Nerves — Integrations"]
     direction TB
@@ -479,7 +479,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>449 files · 5746 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>493 files · 5746 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 120 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -986,7 +986,7 @@ flowchart LR
 
 | Region | Lobe | Files | Symbols | Busiest connection |
 |---|---|---:|---:|---|
-| [SPA Shell](#spa-shell) | Cortex — Interface | 138 | 2443 | → Device Printing (QZ Tray) (12) |
+| [SPA Shell](#spa-shell) | Cortex — Interface | 140 | 2443 | → Device Printing (QZ Tray) (12) |
 | [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 1 | 2 | — |
 | [Store App (PWA)](#store-app-pwa) | Cortex — Interface | 24 | 242 | → Persistence & Migrations (25) |
 | [Industry Profiles](#industry-profiles) | Cortex — Interface | 10 | 0 | — |
@@ -996,7 +996,7 @@ flowchart LR
 | [Identity, RBAC & MFA](#identity-rbac--mfa) | Brainstem — Kernel | 49 | 488 | → Persistence & Migrations (85) |
 | [Tenancy, Packaging & Settings](#tenancy-packaging--settings) | Brainstem — Kernel | 92 | 1058 | → Persistence & Migrations (65) |
 | [Approval Engine (maker-checker)](#approval-engine-maker-checker) | Brainstem — Kernel | 8 | 63 | ← Inventory & Planning (24) |
-| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 477 | 42 | ← Warehouse Management (WMS) (206) |
+| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 481 | 42 | ← Warehouse Management (WMS) (206) |
 | [Cross-module API Handlers](#cross-module-api-handlers) | Brainstem — Kernel | 3 | 83 | → Error & Message Catalog (107) |
 | [Finance & General Ledger](#finance--general-ledger) | Functional Lobes — Business Operations | 79 | 993 | → Persistence & Migrations (174) |
 | [Tax & Statutory](#tax--statutory) | Functional Lobes — Business Operations | 23 | 369 | ← Procurement & Vendors (97) |
@@ -1004,7 +1004,7 @@ flowchart LR
 | [Inventory & Planning](#inventory--planning) | Functional Lobes — Business Operations | 52 | 666 | → Persistence & Migrations (124) |
 | [Warehouse Management (WMS)](#warehouse-management-wms) | Functional Lobes — Business Operations | 64 | 669 | → Persistence & Migrations (206) |
 | [Orders & Fulfillment (OMS)](#orders--fulfillment-oms) | Functional Lobes — Business Operations | 50 | 503 | → Document Kernel (103) |
-| [Point of Sale](#point-of-sale) | Functional Lobes — Business Operations | 40 | 425 | → Finance & General Ledger (129) |
+| [Point of Sale](#point-of-sale) | Functional Lobes — Business Operations | 44 | 425 | → Finance & General Ledger (129) |
 | [Product Information (PIM)](#product-information-pim) | Functional Lobes — Business Operations | 83 | 888 | → Persistence & Migrations (170) |
 | [CRM & Loyalty](#crm--loyalty) | Functional Lobes — Business Operations | 58 | 713 | → Document Kernel (97) |
 | [HR & Payroll](#hr--payroll) | Functional Lobes — Business Operations | 21 | 160 | → Persistence & Migrations (42) |
@@ -1013,17 +1013,17 @@ flowchart LR
 | [Expense Management](#expense-management) | Functional Lobes — Business Operations | 10 | 85 | → Error & Message Catalog (19) |
 | [Reporting Engine](#reporting-engine) | Functional Lobes — Business Operations | 44 | 608 | → Persistence & Migrations (67) |
 | [Shipping & Logistics](#shipping--logistics) | Functional Lobes — Business Operations | 7 | 117 | → Logging, Alerting & Notifications (15) |
-| [Bulk Data I/O](#bulk-data-io) | Functional Lobes — Business Operations | 17 | 287 | → Document Kernel (45) |
+| [Bulk Data I/O](#bulk-data-io) | Functional Lobes — Business Operations | 21 | 287 | → Document Kernel (45) |
 | [Channel Connectors](#channel-connectors) | Peripheral Nerves — Integrations | 30 | 478 | → Error & Message Catalog (74) |
 | [Device Printing (QZ Tray)](#device-printing-qz-tray) | Peripheral Nerves — Integrations | 32 | 635 | → Procurement & Vendors (72) |
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 17 | 239 | → Persistence & Migrations (38) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 10 | 101 | ← Product Information (PIM) (26) |
-| [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 12 | 175 | ← Warehouse Management (WMS) (80) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 449 | 5746 | ← The Brain Map (this) (101) |
+| [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 13 | 175 | ← Warehouse Management (WMS) (80) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 493 | 5746 | ← The Brain Map (this) (101) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 120 | → Project Documentation (101) |
 | [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 72 | 337 | → Identity, RBAC & MFA (14) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 57 | 507 | → Logging, Alerting & Notifications (54) |
-| [Test Suite](#test-suite) | Cerebellum — Verification | 910 | 4550 | — |
+| [Test Suite](#test-suite) | Cerebellum — Verification | 922 | 4550 | — |
 
 ## 5. Region detail
 
@@ -1055,7 +1055,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - ← **Document Kernel** — 1 relationship, 1 inferred
 - ← **Error & Message Catalog** — declared: error envelope
 
-<details><summary>138 files</summary>
+<details><summary>140 files</summary>
 
 - [public/app.js](../../public/app.js)
 - [public/brand-logo-dark.png](../../public/brand-logo-dark.png)
@@ -1105,6 +1105,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - [public/view-custom-orders.js](../../public/view-custom-orders.js)
 - [public/view-dashboards.js](../../public/view-dashboards.js)
 - [public/view-data-governance.js](../../public/view-data-governance.js)
+- [public/view-data-healer.js](../../public/view-data-healer.js)
 - [public/view-data-quality.js](../../public/view-data-quality.js)
 - [public/view-document-links.js](../../public/view-document-links.js)
 - [public/view-documents.js](../../public/view-documents.js)
@@ -1173,6 +1174,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - [public/view-rf-traceability.js](../../public/view-rf-traceability.js)
 - [public/view-rfq.js](../../public/view-rfq.js)
 - [public/view-roles.js](../../public/view-roles.js)
+- [public/view-sales-history.js](../../public/view-sales-history.js)
 - [public/view-sales-invoice.js](../../public/view-sales-invoice.js)
 - [public/view-security-notify.js](../../public/view-security-notify.js)
 - [public/view-security.js](../../public/view-security.js)
@@ -1750,7 +1752,7 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - ← **Document Kernel** — 90 relationships, 90 inferred
 - ← **Point of Sale** — 90 relationships, 90 inferred
 
-<details><summary>477 files</summary>
+<details><summary>481 files</summary>
 
 - [db/db.go](../../db/db.go)
 - [db/migrate.go](../../db/migrate.go)
@@ -1934,11 +1936,15 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations/migrations_stage185_2_upi_statement_rows.sql](../../db/migrations/migrations_stage185_2_upi_statement_rows.sql)
 - [db/migrations/migrations_stage18_core_module_fix.sql](../../db/migrations/migrations_stage18_core_module_fix.sql)
 - [db/migrations/migrations_stage201_1_item_alias.sql](../../db/migrations/migrations_stage201_1_item_alias.sql)
+- [db/migrations/migrations_stage206_3_system_error_resolve.sql](../../db/migrations/migrations_stage206_3_system_error_resolve.sql)
+- [db/migrations/migrations_stage207_1_data_heals.sql](../../db/migrations/migrations_stage207_1_data_heals.sql)
 - [db/migrations/migrations_stage20_13_offline_pos_sync.sql](../../db/migrations/migrations_stage20_13_offline_pos_sync.sql)
 - [db/migrations/migrations_stage20a_pos_maturity.sql](../../db/migrations/migrations_stage20a_pos_maturity.sql)
 - [db/migrations/migrations_stage20b_wms_maturity.sql](../../db/migrations/migrations_stage20b_wms_maturity.sql)
 - [db/migrations/migrations_stage20c_finance_maturity.sql](../../db/migrations/migrations_stage20c_finance_maturity.sql)
 - [db/migrations/migrations_stage20d_reports_engine.sql](../../db/migrations/migrations_stage20d_reports_engine.sql)
+- [db/migrations/migrations_stage213_2_print_profile_party_user.sql](../../db/migrations/migrations_stage213_2_print_profile_party_user.sql)
+- [db/migrations/migrations_stage215_7_offer_types.sql](../../db/migrations/migrations_stage215_7_offer_types.sql)
 - [db/migrations/migrations_stage21_user_profile.sql](../../db/migrations/migrations_stage21_user_profile.sql)
 - [db/migrations/migrations_stage24_addendum_data_integrity.sql](../../db/migrations/migrations_stage24_addendum_data_integrity.sql)
 - [db/migrations/migrations_stage24_addendum_offline_heartbeat.sql](../../db/migrations/migrations_stage24_addendum_offline_heartbeat.sql)
@@ -2944,13 +2950,14 @@ Cart → offer evaluation → GST → tender → GL posting → loyalty accrual,
 - ← **Device Printing (QZ Tray)** — 6 relationships, 6 inferred
 - ← **Identity, RBAC & MFA** — 5 relationships, 5 inferred
 
-<details><summary>40 files</summary>
+<details><summary>44 files</summary>
 
 - [engines/command_idempotency.go](../../engines/command_idempotency.go)
 - [engines/command_outbox_reconciliation.go](../../engines/command_outbox_reconciliation.go)
 - [engines/command_spine.go](../../engines/command_spine.go)
 - [engines/customer_advance.go](../../engines/customer_advance.go)
 - [engines/field_semantics.go](../../engines/field_semantics.go)
+- [engines/pos_b2b.go](../../engines/pos_b2b.go)
 - [engines/pos_batch_mrp.go](../../engines/pos_batch_mrp.go)
 - [engines/pos_bill_cancel.go](../../engines/pos_bill_cancel.go)
 - [engines/pos_bill_number.go](../../engines/pos_bill_number.go)
@@ -2962,12 +2969,15 @@ Cart → offer evaluation → GST → tender → GL posting → loyalty accrual,
 - [engines/pos_exchange.go](../../engines/pos_exchange.go)
 - [engines/pos_held_bills.go](../../engines/pos_held_bills.go)
 - [engines/pos_item_policy.go](../../engines/pos_item_policy.go)
+- [engines/pos_offer_lists.go](../../engines/pos_offer_lists.go)
+- [engines/pos_offer_types.go](../../engines/pos_offer_types.go)
 - [engines/pos_offers.go](../../engines/pos_offers.go)
 - [engines/pos_offline_backdate.go](../../engines/pos_offline_backdate.go)
 - [engines/pos_offline_sales.go](../../engines/pos_offline_sales.go)
 - [engines/pos_payment.go](../../engines/pos_payment.go)
 - [engines/pos_quote.go](../../engines/pos_quote.go)
 - [engines/pos_sale_reconciliation.go](../../engines/pos_sale_reconciliation.go)
+- [engines/pos_sales_history.go](../../engines/pos_sales_history.go)
 - [engines/pos_session.go](../../engines/pos_session.go)
 - [engines/pos_tender_master.go](../../engines/pos_tender_master.go)
 - [engines/pos_tenders.go](../../engines/pos_tenders.go)
@@ -3573,9 +3583,12 @@ BulkImportCSV — the shared CSV import path (validation, error rows, formula-in
 - ← **Orders & Fulfillment (OMS)** — 3 relationships, 3 inferred
 - ← **Tenancy, Packaging & Settings** — 3 relationships, 3 inferred
 
-<details><summary>17 files</summary>
+<details><summary>21 files</summary>
 
 - [engines/csv_safe_export.go](../../engines/csv_safe_export.go)
+- [engines/data_healer.go](../../engines/data_healer.go)
+- [engines/data_healer_item_alias.go](../../engines/data_healer_item_alias.go)
+- [engines/data_healer_rename.go](../../engines/data_healer_rename.go)
 - [engines/data_quality_queue.go](../../engines/data_quality_queue.go)
 - [engines/field_help.go](../../engines/field_help.go)
 - [engines/import.go](../../engines/import.go)
@@ -3588,6 +3601,7 @@ BulkImportCSV — the shared CSV import path (validation, error rows, formula-in
 - [engines/import_staging.go](../../engines/import_staging.go)
 - [engines/setup_workbook.go](../../engines/setup_workbook.go)
 - [engines/xlsx_reader.go](../../engines/xlsx_reader.go)
+- [internal/server/handlers_data_healer.go](../../internal/server/handlers_data_healer.go)
 - [internal/server/handlers_import_resume.go](../../internal/server/handlers_import_resume.go)
 - [internal/server/handlers_import_staging.go](../../internal/server/handlers_import_staging.go)
 - [internal/server/setup_workbook.go](../../internal/server/setup_workbook.go)
@@ -3872,7 +3886,7 @@ Audit log, system error log (a PANIC alerts immediately), the ops alert monitor 
 - ← **Orders & Fulfillment (OMS)** — 46 relationships, 46 inferred
 - ← **Product Information (PIM)** — 45 relationships, 45 inferred
 
-<details><summary>12 files</summary>
+<details><summary>13 files</summary>
 
 - [engines/alerting.go](../../engines/alerting.go)
 - [engines/audit_archive.go](../../engines/audit_archive.go)
@@ -3881,6 +3895,7 @@ Audit log, system error log (a PANIC alerts immediately), the ops alert monitor 
 - [engines/document_edit_audit.go](../../engines/document_edit_audit.go)
 - [engines/logs.go](../../engines/logs.go)
 - [engines/notifications.go](../../engines/notifications.go)
+- [engines/platform_system_faults.go](../../engines/platform_system_faults.go)
 - [engines/scale.go](../../engines/scale.go)
 - [internal/server/handlers_browser_errors.go](../../internal/server/handlers_browser_errors.go)
 - [internal/server/handlers_operations.go](../../internal/server/handlers_operations.go)
@@ -3925,7 +3940,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - ← **Product Information (PIM)** — 2 relationships, 2 inferred
 - ← **Device Printing (QZ Tray)** — 2 relationships, 2 inferred
 
-<details><summary>449 files</summary>
+<details><summary>493 files</summary>
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - [README.md](../../README.md)
@@ -4060,6 +4075,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/implementation/onboarding-workbook.md](../../docs/implementation/onboarding-workbook.md)
 - [docs/implementation/operating-procedure-template.md](../../docs/implementation/operating-procedure-template.md)
 - [docs/kb/admin-operations/backup-and-restore.md](../../docs/kb/admin-operations/backup-and-restore.md)
+- [docs/kb/admin-operations/data-healer.md](../../docs/kb/admin-operations/data-healer.md)
 - [docs/kb/admin-operations/incident-response.md](../../docs/kb/admin-operations/incident-response.md)
 - [docs/kb/admin-operations/subscription.md](../../docs/kb/admin-operations/subscription.md)
 - [docs/kb/getting-started/finding-your-way-around.md](../../docs/kb/getting-started/finding-your-way-around.md)
@@ -4069,6 +4085,25 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md](../../docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md)
 - [docs/kb/getting-started/using-task-help.md](../../docs/kb/getting-started/using-task-help.md)
 - [docs/kb/getting-started/what-is-this-system.md](../../docs/kb/getting-started/what-is-this-system.md)
+- [docs/kb/img/contract-new.webp](../../docs/kb/img/contract-new.webp)
+- [docs/kb/img/cycle-count.webp](../../docs/kb/img/cycle-count.webp)
+- [docs/kb/img/expense-claim-new.webp](../../docs/kb/img/expense-claim-new.webp)
+- [docs/kb/img/gate-entry-new.webp](../../docs/kb/img/gate-entry-new.webp)
+- [docs/kb/img/grn-new.webp](../../docs/kb/img/grn-new.webp)
+- [docs/kb/img/journal-voucher-new.webp](../../docs/kb/img/journal-voucher-new.webp)
+- [docs/kb/img/loyalty.webp](../../docs/kb/img/loyalty.webp)
+- [docs/kb/img/oms-order-new.webp](../../docs/kb/img/oms-order-new.webp)
+- [docs/kb/img/po-composer.webp](../../docs/kb/img/po-composer.webp)
+- [docs/kb/img/pos-sale.webp](../../docs/kb/img/pos-sale.webp)
+- [docs/kb/img/prefix-config-new.webp](../../docs/kb/img/prefix-config-new.webp)
+- [docs/kb/img/product-group-new.webp](../../docs/kb/img/product-group-new.webp)
+- [docs/kb/img/production-order-new.webp](../../docs/kb/img/production-order-new.webp)
+- [docs/kb/img/purchase-return-new.webp](../../docs/kb/img/purchase-return-new.webp)
+- [docs/kb/img/requisition-new.webp](../../docs/kb/img/requisition-new.webp)
+- [docs/kb/img/rfq-new.webp](../../docs/kb/img/rfq-new.webp)
+- [docs/kb/img/service-entry-new.webp](../../docs/kb/img/service-entry-new.webp)
+- [docs/kb/img/transfer-new.webp](../../docs/kb/img/transfer-new.webp)
+- [docs/kb/img/vendor-invoice-new.webp](../../docs/kb/img/vendor-invoice-new.webp)
 - [docs/kb/module-handbooks/appointment-calendar.md](../../docs/kb/module-handbooks/appointment-calendar.md)
 - [docs/kb/module-handbooks/assets.md](../../docs/kb/module-handbooks/assets.md)
 - [docs/kb/module-handbooks/channel-connectors.md](../../docs/kb/module-handbooks/channel-connectors.md)
@@ -4094,6 +4129,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/kb/module-handbooks/returns-and-refunds.md](../../docs/kb/module-handbooks/returns-and-refunds.md)
 - [docs/kb/module-handbooks/rf-lot-and-serial.md](../../docs/kb/module-handbooks/rf-lot-and-serial.md)
 - [docs/kb/module-handbooks/security-approvals.md](../../docs/kb/module-handbooks/security-approvals.md)
+- [docs/kb/module-handbooks/settings-and-configuration.md](../../docs/kb/module-handbooks/settings-and-configuration.md)
 - [docs/kb/module-handbooks/shopify.md](../../docs/kb/module-handbooks/shopify.md)
 - [docs/kb/module-handbooks/sortation.md](../../docs/kb/module-handbooks/sortation.md)
 - [docs/kb/module-handbooks/supplier-portal.md](../../docs/kb/module-handbooks/supplier-portal.md)
@@ -4147,6 +4183,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/operations/service-operations.md](../../docs/operations/service-operations.md)
 - [docs/operations/storage-forecast.md](../../docs/operations/storage-forecast.md)
 - [docs/operations/uat-run-sheet.md](../../docs/operations/uat-run-sheet.md)
+- [docs/product/api-access-all-modules-plan-2026-11-15.md](../../docs/product/api-access-all-modules-plan-2026-11-15.md)
 - [docs/product/bld-002-test-configuration-inventory.md](../../docs/product/bld-002-test-configuration-inventory.md)
 - [docs/product/bulk-purchase-upload-plan-2026-10-22.md](../../docs/product/bulk-purchase-upload-plan-2026-10-22.md)
 - [docs/product/capability-maturity.md](../../docs/product/capability-maturity.md)
@@ -4163,6 +4200,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/product/hosting-media-reports-gst-plan-2026-10-17.md](../../docs/product/hosting-media-reports-gst-plan-2026-10-17.md)
 - [docs/product/navigation-simplification-plan-2026-10-18.md](../../docs/product/navigation-simplification-plan-2026-10-18.md)
 - [docs/product/package-entitlements.md](../../docs/product/package-entitlements.md)
+- [docs/product/pos-b2b-offers-online-bills-plan-2026-11-15.md](../../docs/product/pos-b2b-offers-online-bills-plan-2026-11-15.md)
 - [docs/product/pos-store-billing-plan-2026-10-18.md](../../docs/product/pos-store-billing-plan-2026-10-18.md)
 - [docs/product/recordings-gap-plan-2026-10-31.md](../../docs/product/recordings-gap-plan-2026-10-31.md)
 - [docs/product/releases/0.1.0-development.md](../../docs/product/releases/0.1.0-development.md)
@@ -4310,6 +4348,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [internal/kb/content/articles/courier-integrations.html](../../internal/kb/content/articles/courier-integrations.html)
 - [internal/kb/content/articles/crm-loyalty.html](../../internal/kb/content/articles/crm-loyalty.html)
 - [internal/kb/content/articles/custom-dashboards.html](../../internal/kb/content/articles/custom-dashboards.html)
+- [internal/kb/content/articles/data-healer.html](../../internal/kb/content/articles/data-healer.html)
 - [internal/kb/content/articles/error-code-reference-2.html](../../internal/kb/content/articles/error-code-reference-2.html)
 - [internal/kb/content/articles/error-code-reference-3.html](../../internal/kb/content/articles/error-code-reference-3.html)
 - [internal/kb/content/articles/error-code-reference-4.html](../../internal/kb/content/articles/error-code-reference-4.html)
@@ -4358,6 +4397,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [internal/kb/content/articles/rf-lot-and-serial.html](../../internal/kb/content/articles/rf-lot-and-serial.html)
 - [internal/kb/content/articles/role-journeys-overview.html](../../internal/kb/content/articles/role-journeys-overview.html)
 - [internal/kb/content/articles/security-approvals.html](../../internal/kb/content/articles/security-approvals.html)
+- [internal/kb/content/articles/settings-and-configuration.html](../../internal/kb/content/articles/settings-and-configuration.html)
 - [internal/kb/content/articles/shopify.html](../../internal/kb/content/articles/shopify.html)
 - [internal/kb/content/articles/sortation.html](../../internal/kb/content/articles/sortation.html)
 - [internal/kb/content/articles/subscription.html](../../internal/kb/content/articles/subscription.html)
@@ -4368,6 +4408,25 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [internal/kb/content/articles/what-is-this-system.html](../../internal/kb/content/articles/what-is-this-system.html)
 - [internal/kb/content/articles/wms-start-here.html](../../internal/kb/content/articles/wms-start-here.html)
 - [internal/kb/content/articles/yard-board.html](../../internal/kb/content/articles/yard-board.html)
+- [internal/kb/content/img/contract-new.webp](../../internal/kb/content/img/contract-new.webp)
+- [internal/kb/content/img/cycle-count.webp](../../internal/kb/content/img/cycle-count.webp)
+- [internal/kb/content/img/expense-claim-new.webp](../../internal/kb/content/img/expense-claim-new.webp)
+- [internal/kb/content/img/gate-entry-new.webp](../../internal/kb/content/img/gate-entry-new.webp)
+- [internal/kb/content/img/grn-new.webp](../../internal/kb/content/img/grn-new.webp)
+- [internal/kb/content/img/journal-voucher-new.webp](../../internal/kb/content/img/journal-voucher-new.webp)
+- [internal/kb/content/img/loyalty.webp](../../internal/kb/content/img/loyalty.webp)
+- [internal/kb/content/img/oms-order-new.webp](../../internal/kb/content/img/oms-order-new.webp)
+- [internal/kb/content/img/po-composer.webp](../../internal/kb/content/img/po-composer.webp)
+- [internal/kb/content/img/pos-sale.webp](../../internal/kb/content/img/pos-sale.webp)
+- [internal/kb/content/img/prefix-config-new.webp](../../internal/kb/content/img/prefix-config-new.webp)
+- [internal/kb/content/img/product-group-new.webp](../../internal/kb/content/img/product-group-new.webp)
+- [internal/kb/content/img/production-order-new.webp](../../internal/kb/content/img/production-order-new.webp)
+- [internal/kb/content/img/purchase-return-new.webp](../../internal/kb/content/img/purchase-return-new.webp)
+- [internal/kb/content/img/requisition-new.webp](../../internal/kb/content/img/requisition-new.webp)
+- [internal/kb/content/img/rfq-new.webp](../../internal/kb/content/img/rfq-new.webp)
+- [internal/kb/content/img/service-entry-new.webp](../../internal/kb/content/img/service-entry-new.webp)
+- [internal/kb/content/img/transfer-new.webp](../../internal/kb/content/img/transfer-new.webp)
+- [internal/kb/content/img/vendor-invoice-new.webp](../../internal/kb/content/img/vendor-invoice-new.webp)
 - [internal/kb/content/index.json](../../internal/kb/content/index.json)
 - [internal/kb/content/search.json](../../internal/kb/content/search.json)
 - [internal/kb/drift.go](../../internal/kb/drift.go)
@@ -4539,7 +4598,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - `newMC1481()` — [engines/moving_cost_test.go](../../engines/moving_cost_test.go#L26) · degree 110
 - `stage140Tenant()` — [engines/guide_enhancement_till_close_test.go](../../engines/guide_enhancement_till_close_test.go#L12) · degree 65
 
-<details><summary>910 files</summary>
+<details><summary>922 files</summary>
 
 - [cmd/doclint/capabilities_test.go](../../cmd/doclint/capabilities_test.go)
 - [cmd/doclint/external_test.go](../../cmd/doclint/external_test.go)
@@ -4673,6 +4732,8 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/dashboard_kpi_contract_test.go](../../engines/dashboard_kpi_contract_test.go)
 - [engines/dashboard_test.go](../../engines/dashboard_test.go)
 - [engines/data_classification_test.go](../../engines/data_classification_test.go)
+- [engines/data_healer_rename_test.go](../../engines/data_healer_rename_test.go)
+- [engines/data_healer_test.go](../../engines/data_healer_test.go)
 - [engines/data_quality_queue_test.go](../../engines/data_quality_queue_test.go)
 - [engines/data_retention_test.go](../../engines/data_retention_test.go)
 - [engines/date_order_print_test.go](../../engines/date_order_print_test.go)
@@ -4736,6 +4797,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/gst_inclusive_grn_test.go](../../engines/gst_inclusive_grn_test.go)
 - [engines/gst_returns_files_test.go](../../engines/gst_returns_files_test.go)
 - [engines/gst_test.go](../../engines/gst_test.go)
+- [engines/gstr1_b2cl_test.go](../../engines/gstr1_b2cl_test.go)
 - [engines/gstr1_lock_test.go](../../engines/gstr1_lock_test.go)
 - [engines/guide_enhancement_channel_pack_test.go](../../engines/guide_enhancement_channel_pack_test.go)
 - [engines/guide_enhancement_till_close_test.go](../../engines/guide_enhancement_till_close_test.go)
@@ -4862,8 +4924,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/oauth_client_credentials_test.go](../../engines/oauth_client_credentials_test.go)
 - [engines/oms_backorder_test.go](../../engines/oms_backorder_test.go)
 - [engines/oms_bill_shipping_stage148_46_test.go](../../engines/oms_bill_shipping_stage148_46_test.go)
+- [engines/oms_channel_return_test.go](../../engines/oms_channel_return_test.go)
 - [engines/oms_console_test.go](../../engines/oms_console_test.go)
 - [engines/oms_freight_test.go](../../engines/oms_freight_test.go)
+- [engines/oms_order_phone_test.go](../../engines/oms_order_phone_test.go)
 - [engines/oms_payment_events_test.go](../../engines/oms_payment_events_test.go)
 - [engines/oms_pick_without_barcode_test.go](../../engines/oms_pick_without_barcode_test.go)
 - [engines/oms_risk_hold_test.go](../../engines/oms_risk_hold_test.go)
@@ -4944,6 +5008,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/planning_test.go](../../engines/planning_test.go)
 - [engines/platform_console_test.go](../../engines/platform_console_test.go)
 - [engines/platform_new_client_rehearsal_test.go](../../engines/platform_new_client_rehearsal_test.go)
+- [engines/platform_system_faults_test.go](../../engines/platform_system_faults_test.go)
 - [engines/po_approval_reminder_test.go](../../engines/po_approval_reminder_test.go)
 - [engines/po_approval_rules_stage148_39_test.go](../../engines/po_approval_rules_stage148_39_test.go)
 - [engines/po_attribute_columns_test.go](../../engines/po_attribute_columns_test.go)
@@ -4955,12 +5020,16 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/po_rule_roles_stage148_47_test.go](../../engines/po_rule_roles_stage148_47_test.go)
 - [engines/po_stickers_test.go](../../engines/po_stickers_test.go)
 - [engines/pos_allocation_test.go](../../engines/pos_allocation_test.go)
+- [engines/pos_b2b_test.go](../../engines/pos_b2b_test.go)
 - [engines/pos_bill_number_test.go](../../engines/pos_bill_number_test.go)
 - [engines/pos_customers_test.go](../../engines/pos_customers_test.go)
 - [engines/pos_manual_discount_test.go](../../engines/pos_manual_discount_test.go)
+- [engines/pos_offer_lists_test.go](../../engines/pos_offer_lists_test.go)
+- [engines/pos_offer_types_test.go](../../engines/pos_offer_types_test.go)
 - [engines/pos_offers_test.go](../../engines/pos_offers_test.go)
 - [engines/pos_offline_backdate_test.go](../../engines/pos_offline_backdate_test.go)
 - [engines/pos_offline_sales_test.go](../../engines/pos_offline_sales_test.go)
+- [engines/pos_sales_history_test.go](../../engines/pos_sales_history_test.go)
 - [engines/pos_sellable_location_test.go](../../engines/pos_sellable_location_test.go)
 - [engines/pos_tax_invoice_test.go](../../engines/pos_tax_invoice_test.go)
 - [engines/pos_tender_concurrency_test.go](../../engines/pos_tender_concurrency_test.go)
@@ -5243,6 +5312,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/kb/catalog_extensions_test.go](../../internal/kb/catalog_extensions_test.go)
 - [internal/kb/drift_test.go](../../internal/kb/drift_test.go)
 - [internal/kb/guide_parity_test.go](../../internal/kb/guide_parity_test.go)
+- [internal/kb/lessons_test.go](../../internal/kb/lessons_test.go)
 - [internal/kb/links_test.go](../../internal/kb/links_test.go)
 - [internal/kb/manual_images_test.go](../../internal/kb/manual_images_test.go)
 - [internal/kb/manuals_test.go](../../internal/kb/manuals_test.go)
@@ -5330,6 +5400,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/handlers_core_list_search_test.go](../../internal/server/handlers_core_list_search_test.go)
 - [internal/server/handlers_courier_test.go](../../internal/server/handlers_courier_test.go)
 - [internal/server/handlers_csp_test.go](../../internal/server/handlers_csp_test.go)
+- [internal/server/handlers_data_healer_test.go](../../internal/server/handlers_data_healer_test.go)
 - [internal/server/handlers_environment_sandbox_test.go](../../internal/server/handlers_environment_sandbox_test.go)
 - [internal/server/handlers_golive_test.go](../../internal/server/handlers_golive_test.go)
 - [internal/server/handlers_import_staging_test.go](../../internal/server/handlers_import_staging_test.go)
@@ -5456,10 +5527,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 3095 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 3166 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **2388 of 3095 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **2388 of 3166 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **2165 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

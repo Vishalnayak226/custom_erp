@@ -6,31 +6,10 @@
 const { txnContext, txnTabs, txnRestorePane, sessionStore, txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
 // ---------------------------------------------------------------------------
-// Stage 53: this screen rebuilt as a standard retail till.
-//
-// What it was: a form. A box labelled "Customer Code (optional)", a box
-// labelled "Scan or Enter SKU" that posted whatever string was in it straight
-// to the availability API, a location dropdown that stayed editable all shift,
-// and a Complete Sale button that emptied the cart behind a confirm dialog and
-// left the screen looking exactly as it had a moment earlier.
-//
-// What a till actually does, and what this now does:
-//
-//   * It works at ONE store: the working store chosen at the top of the
-//     screen (Stage 85.A5), never a box on the form. Switching store there is
-//     refused while a session is open, so a till cannot drift mid-shift.
-//   * Nobody knows a customer code. You search a person by name or phone, or
-//     you add them at the counter in two fields, or - the common case - you
-//     sell to nobody at all and the field reads Walk-in.
-//   * A scanner scans and a human searches, through the same box. An exact
-//     code or barcode rings straight up; anything else lists what matched.
-//   * Stock that cannot be sold is shown as such, instead of being quietly
-//     folded into one "Available" number.
-//   * Cash has a tendered box and a change-due figure, because a cashier
-//     counting change out of a drawer needs one.
-//   * A finished sale STAYS on the screen, frozen, until the cashier starts
-//     the next one. The bill the customer is looking at and the screen the
-//     cashier is looking at are the same thing until New Sale is pressed.
+// Stage 53: a standard retail till. One working store (Stage 85.A5, locked
+// while a session is open); customers by name or phone, else Walk-in; one
+// box for scan and search; unsellable stock shown apart; cash tendered and
+// change due; a finished sale stays frozen on screen until New Sale.
 // ---------------------------------------------------------------------------
 
 // Stage 53.10: the sale just completed, or null. While this is set the till is
@@ -80,6 +59,7 @@ function renderPOSView(container) {
       ${txnTabs('txnShowPane', 'pos-screen:sale', [['pos-screen:sale', 'Sale'], ['pos-screen:return', 'Return'], ['pos-screen:advance', 'Advance']])}
       ${txnContext()}${txnStockFromTo('POS Sale', 'txn-main-only')}
       <div class="txn-sum txn-main-only">
+        <span id="pos-rule-row" class="hidden pos-rule-row"></span>
         <span id="pos-tax-row" class="hidden"></span>
         <span id="pos-loyalty-discount-row" class="hidden"></span>
         <span id="pos-giftcard-row" class="hidden"></span>
@@ -114,14 +94,24 @@ function renderPOSView(container) {
              downstream call (session, availability, cart number, receipt)
              still reads its code from here. -->
         <input type="hidden" id="pos-location" value="${escapeHTMLText(posLocation)}">
+        <!-- Ask 215.1: mobile and name in their own boxes. Enter in Mobile
+             looks the number up; Name searches (Stage 53.4's split-value
+             control) and #pos-customer still carries the code. -->
         <div class="form-group">
-          <!-- Stage 53.4: same split-value control as the store box: the
-               cashier searches a NAME (phone and code match too), and
-               #pos-customer still carries the code. -->
-          <label class="form-label" for="pos-customer-display">Customer mobile</label>
-          <input type="text" id="pos-customer-display" class="form-input" placeholder="Mobile number (Enter), or a name" autocomplete="off" inputmode="tel">
+          <label class="form-label" for="pos-customer-phone">Mobile</label>
+          <input type="tel" id="pos-customer-phone" class="form-input" placeholder="Mobile (Enter)" autocomplete="off" inputmode="tel" maxlength="20" data-phone-hint="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pos-customer-display">Name</label>
+          <input type="text" id="pos-customer-display" class="form-input" placeholder="Search a name" autocomplete="off">
           <input type="hidden" id="pos-customer" value="">
           <div id="pos-customer-note" class="txn-hint">Walk-in &mdash; no customer attached.</div>
+        </div>
+        <!-- Ask 215.2: a buyer GSTIN makes it a B2B bill (view-pos-customer.js). -->
+        <div class="form-group">
+          <label class="form-label" for="pos-gstin">GSTIN</label>
+          <input type="text" id="pos-gstin" class="form-input pos-gstin" placeholder="B2B only" autocomplete="off" maxlength="15" spellcheck="false">
+          <button type="button" id="pos-gstin-note" class="txn-hint pos-gstin-note hidden"></button>
         </div>
         <div class="form-group">
           <label class="form-label" for="pos-coupon-code">Coupon code</label>
@@ -233,8 +223,9 @@ function renderPOSView(container) {
   document.getElementById('pos-customer').addEventListener('change', () => {
     renderPOSCustomerNote();
     refreshPOSQuote();
-    // Stage 85.D3: the customer's open advances, for Use advance.
-    posCustomerMod().then(m => m.posLoadOpenAdvances()).catch(() => {});
+    // Stage 85.D3: the customer's open advances, for Use advance. Ask 215.1:
+    // a name picked from the list shows its mobile and GSTIN too.
+    posCustomerMod().then(m => { m.posSyncCustomer(); return m.posLoadOpenAdvances(); }).catch(() => {});
   });
   document.getElementById('pos-advance-use-btn').addEventListener('click', () => posCustomerMod().then(m => m.posToggleAdvance()));
   // Stage 85.C3: phone first - Enter looks the number up (view-pos-customer.js).
@@ -243,8 +234,21 @@ function renderPOSView(container) {
     m.openPOSCustomerForm({ id: (document.getElementById('pos-customer') || {}).value || '' })));
   document.getElementById('pos-customer-walkin-btn').addEventListener('click', () => posCustomerMod().then(m => m.posAttachWalkIn()));
   document.getElementById('pos-customer-display').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && /\d{6}/.test(e.target.value)) { e.preventDefault(); posCustomerMod().then(m => m.posCustomerFind()); }
+    if (e.key === 'Enter' && /\d{6}/.test(e.target.value)) { e.preventDefault(); posCustomerMod().then(m => m.posCustomerFind(e.target)); }
   });
+  // Ask 215.1/215.2: the Mobile box looks its number up; the GSTIN box makes
+  // the bill B2B and opens the buyer's details.
+  const phoneBox = document.getElementById('pos-customer-phone');
+  phoneBox.addEventListener('input', () => { phoneBox.dataset.resolved = ''; });
+  phoneBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); posCustomerMod().then(m => m.posCustomerFind(phoneBox)); }
+  });
+  const gstinBox = document.getElementById('pos-gstin');
+  gstinBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); posCustomerMod().then(m => m.posGSTINEntered()); }
+  });
+  gstinBox.addEventListener('change', () => posCustomerMod().then(m => m.posGSTINEntered()));
+  document.getElementById('pos-gstin-note').addEventListener('click', () => posCustomerMod().then(m => m.openPOSB2BPanel()));
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
   document.getElementById('pos-packaging-btn').addEventListener('click', openPOSPackaging);
   document.getElementById('pos-giftcard-btn').addEventListener('click', openPOSGiftCard);
@@ -321,7 +325,9 @@ function clearPOSTillState() {
   const customerDisplay = document.getElementById('pos-customer-display');
   if (customerHidden) customerHidden.value = '';
   if (customerDisplay) { customerDisplay.value = ''; customerDisplay.dataset.resolved = ''; }
-  if (posCustomerRef) posCustomerRef.posClearCustomer();
+  const customerPhone = document.getElementById('pos-customer-phone');
+  if (customerPhone) { customerPhone.value = ''; customerPhone.dataset.resolved = ''; }
+  if (posCustomerRef) posCustomerRef.posClearCustomer(); // and the B2B buyer (215.2)
   const couponEl = document.getElementById('pos-coupon-code');
   if (couponEl) couponEl.value = '';
   const discountEl = document.getElementById('pos-discount-pct');
@@ -727,8 +733,16 @@ function renderPOSCartTable(skipQuote) {
   if (taxRow) {
     const g = posCart.length ? posGST : null;
     const parts = [];
-    if (posOfferDiscount > 0) parts.push(`Discount -${posOfferDiscount.toFixed(2)}`);
-    if (g && g.interstate && g.igst) parts.push(`IGST ${Number(g.igst).toFixed(2)}`);
+    // 215.5: the three discounts apart - the lines' own cuts below list price,
+    // the offers and vouchers, and the cashier's bill discount (a Manual offer).
+    const itemDisc = posCart.reduce((s, l) => s + Math.max(0, (Number(l.referencePrice) || 0) - (Number(l.salePrice) || 0)) * (Number(l.qty) || 0), 0);
+    const billDisc = posAppliedOffers.filter(o => o.offer_type === 'Manual').reduce((s, o) => s + (Number(o.discount) || 0), 0);
+    const offerDisc = posOfferDiscount - billDisc;
+    if (itemDisc > 0.004) parts.push(`Item -${itemDisc.toFixed(2)}`);
+    if (offerDisc > 0.004) parts.push(`Offer -${offerDisc.toFixed(2)}`);
+    if (billDisc > 0.004) parts.push(`Bill -${billDisc.toFixed(2)}`);
+    // 215.3: a B2B bill shipped to another state says where it is supplied.
+    if (g && g.interstate && g.igst) parts.push(`IGST ${Number(g.igst).toFixed(2)}${g.place_of_supply ? ` · to ${posStateName(g.place_of_supply)}` : ''}`);
     if (g && !g.interstate && (g.cgst || g.sgst)) parts.push(`CGST ${Number(g.cgst).toFixed(2)} · SGST ${Number(g.sgst).toFixed(2)}`);
     if (roundOff) parts.push(`Round off ${roundOff > 0 ? '+' : ''}${roundOff.toFixed(2)}`);
     taxRow.textContent = parts.join(' · ');
@@ -760,6 +774,33 @@ function renderPOSCartTable(skipQuote) {
   totalEl.textContent = Math.max(0, beforeAdvance - advanceUsed).toFixed(2);
   renderPOSTender();
   if (!skipQuote) refreshPOSQuote();
+}
+
+// posStateName: a GST state code (27) as its name, from the field formats.
+function posStateName(code) {
+  const r = ((window.FIELD_META && window.FIELD_META.regions) || []).find(x => x.tax_code === code);
+  return r ? r.name : code;
+}
+
+// posCashPart is the part of the bill paid in cash: all of it with Cash
+// picked, less the split tenders; otherwise the split tenders taken in cash.
+function posCashPart() {
+  const totalBox = document.getElementById('pos-cart-total');
+  const due = parseFloat(totalBox && totalBox.textContent) || 0;
+  const mode = (document.getElementById('pos-payment-mode') || {}).value;
+  return mode === 'Cash' ? due - posTenders.reduce((s, t) => s + (t.mode === 'Cash' ? 0 : t.amount), 0)
+    : posTenders.reduce((s, t) => s + (t.mode === 'Cash' ? t.amount : 0), 0);
+}
+
+// Ask 215.4: the high-value rule the bill has reached, as it grows - the
+// address, the PAN, the cash limit - before Complete Sale asks for them.
+function renderPOSRuleRow() {
+  const row = document.getElementById('pos-rule-row');
+  if (!row) return;
+  const totalBox = document.getElementById('pos-cart-total') || { dataset: {} };
+  const text = posCart.length && posCustomerRef ? posCustomerRef.posRuleHint(parseFloat(totalBox.dataset.gross) || 0, posCashPart()) : '';
+  row.textContent = text;
+  row.classList.toggle('hidden', !text);
 }
 
 // --- Stage 53.7: sellable vs non-sellable -----------------------------------
@@ -803,6 +844,7 @@ function posAvailabilityCell(line) {
 // drawer, and treating it as anything more would make a mistyped tender into a
 // pricing bug.
 function renderPOSTender() {
+  renderPOSRuleRow(); // 215.4: the cash rule follows the payment mode
   const modeEl = document.getElementById('pos-payment-mode');
   const group = document.getElementById('pos-tender-group');
   const changeEl = document.getElementById('pos-change-due');
@@ -935,45 +977,8 @@ function posPriceCell(line) {
     ${label ? `<div class="s-40ab95">${cfgEsc(label)}</div>` : ''}`;
 }
 
-// openPOSPriceOverride raises the capability-gated override command. It is
-// deliberately NOT a way to edit the price box: the server resolves its own
-// reference price, measures the real reduction against it, checks that against
-// the tenant's approval slab and writes immutable evidence - so a supervisor
-// granting a discount and a supervisor exceeding their limit are different
-// outcomes, and both are recorded.
-async function openPOSPriceOverride(sku) {
-  const line = posCart.find(l => l.sku === sku);
-  if (!line) return;
-  const newPrice = await showCustomPrompt(
-    `New unit price for ${sku} (current ${Number(line.salePrice).toFixed(2)}).`,
-    String(line.salePrice), 'Price Override', 'number');
-  if (newPrice === null || newPrice === '') return;
-  // Stage 74.1.1: a reason from the reason codes, with an optional note.
-  const rp = await import('./reason-picker.js' + new URL(import.meta.url).search);
-  const picked = await rp.chooseReason({ category: 'Price Override', title: 'Override Reason', question: `Why is ${sku} being sold below its list price?` });
-  if (!picked) return;
-  const res = await apiFetch('/api/v1/pos/price-override', {
-    method: 'POST',
-    body: JSON.stringify({
-      cart_number: posCurrentCartNumber(),
-      sku,
-      qty: line.qty,
-      location: posLocation,
-      customer_id: (document.getElementById('pos-customer') || {}).value || '',
-      override_price: parseFloat(newPrice) || 0,
-      reason: picked.text,
-      reason_code: picked.code
-    })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'The price override was not applied.');
-    await refreshPOSQuote();
-    return;
-  }
-  await refreshPOSQuote();
-  showToast(`Override recorded for ${sku}.`, { variant: 'success', title: 'Price Override' });
-}
+// openPOSPriceOverride and its line-discount dialog (215.6) are in
+// view-pos-extras.js: a cashier opens them now and then.
 
 // posCurrentCartNumber pins ONE cart number for the cart being built, so a
 // price override raised mid-cart and the checkout that consumes it agree on
@@ -1026,6 +1031,7 @@ async function refreshPOSQuote() {
         coupon_codes: currentPOSCouponCodes(),
         redeem_points: posRedeemPoints,
         ...posManualDiscount(),
+        b2b: posCustomerRef ? posCustomerRef.posB2BBlock() : null, // 215.3: place of supply, IGST
         // Selection only, plus the operator's own figure for anything the
         // tenant has not priced - which the server uses ONLY if it can find
         // no price of its own (and then flags for approval).
@@ -1062,7 +1068,7 @@ async function refreshPOSQuote() {
   // what the ERP says, every time the cart changes.
   posQuoteVersion = data.quote_version || '';
   posLoyalty = data.loyalty || null;
-  posGST = data.gst_breakdown || null;
+  posGST = data.gst_breakdown ? { ...data.gst_breakdown, place_of_supply: data.place_of_supply || '' } : null;
   (data.warnings || []).forEach(w => { if (!window._posWarned) window._posWarned = new Set(); if (!window._posWarned.has(w)) { window._posWarned.add(w); showToast(w, { variant: "warning", title: "Item lifecycle" }); } });
   { const e = document.getElementById('pos-loyalty-info'), p = posLoyalty; if (e && p) e.textContent = p.earn_blocked ? 'No points: ' + p.earn_blocked : p.earn_points ? 'Earns ' + p.earn_points + ' pts' : ''; }
   posRedeemPoints = posLoyalty ? posLoyalty.points : 0;
@@ -1168,8 +1174,8 @@ async function submitPOSCheckoutInner() {
   // buyer's address / PAN when the bill's size needs them.
   const totalBox = document.getElementById('pos-cart-total') || { dataset: {} };
   const billTotal = parseFloat(totalBox.dataset.gross || totalBox.textContent) || 0;
-  const cashPart = document.getElementById('pos-payment-mode').value === 'Cash' ? (parseFloat(totalBox.textContent) || 0) - posTenders.reduce((s, t) => s + (t.mode === 'Cash' ? 0 : t.amount), 0) : posTenders.reduce((s, t) => s + (t.mode === 'Cash' ? t.amount : 0), 0);
-  const customerStep = await (await posCustomerMod()).posEnsureCustomer({ total: billTotal, cash: cashPart });
+  // 215.2/215.4: a B2B bill's buyer details, and the day's cash for the customer.
+  const customerStep = await (await posCustomerMod()).posEnsureCustomer({ total: billTotal, cash: posCashPart(), cart: posCurrentCartNumber() });
   if (!customerStep) return;
   // Stage 85.E2/85.E3: the tender's own name and reference, and the salesman.
   // 185.1: what the picked tender pays - the rest after any split tenders -
@@ -1217,6 +1223,7 @@ async function submitPOSCheckoutInner() {
       discount_reason: posDiscountReason,
       redeem_points: redeemPoints,
       form_97: customerStep.form97,
+      b2b: posCustomerRef ? posCustomerRef.posB2BBlock() : null, // 215.2: the buyer of a B2B bill
       ...tillPayment,
       advances: posCustomerRef ? posCustomerRef.posAdvanceApplied(parseFloat(totalBox.dataset.beforeAdvance) || 0) : [],
       ...posRedemptionAuth,
@@ -1334,6 +1341,10 @@ async function submitPOSCheckoutInner() {
       errorEl.textContent = composeErrorText({ message: data.error, detail: data.detail, userAction: data.user_action }) || 'Checkout failed.';
       errorEl.classList.remove('hidden');
       if (data.code === 'POSOFF-0866' || data.code === 'POSOFF-0867') (await posCustomerMod()).posFixCustomerForBill(data);
+      // 215.2: the server refused the B2B buyer's details - open them there.
+      if (['POSOFF-0879', 'POSOFF-0880', 'POSOFF-0881'].includes(data.code) || (data.code === 'CUSTOM-0869' && posCustomerRef && posCustomerRef.posB2BBlock())) {
+        (await posCustomerMod()).openPOSB2BPanel([data.error, data.detail].filter(Boolean).join(' '));
+      }
       return;
     }
 
@@ -1399,15 +1410,8 @@ async function submitPOSCheckoutInner() {
 // posReceiptItems turns the CHECKOUT payload's lines back into lines a person
 // can read, by pairing each with the cart line it came from.
 //
-// This also fixes a defect found while building 53.10, present since Stage
-// 47.2 and never reported: the checkout payload deliberately carries
-// `sale_price: 0` for every line the SERVER priced (only an unpriced,
-// assisted-mode line sends a figure at all), and the browser-fallback receipt
-// was handed that same array - so every ordinary line printed as "0.00" and
-// the line totals summed to nothing. It went unnoticed because the QZ/ESC-POS
-// path, which rebuilds the receipt server-side from the stored cart, is the
-// one that runs wherever a receipt printer is actually configured; the
-// fallback only prints in shops without one.
+// The checkout payload sends sale_price 0 for server-priced lines, so the
+// receipt takes the cart line's resolved price (bug found in 53.10).
 //
 // The price shown is the cart line's resolved price - which is what the quote
 // and the checkout both settled on - not a figure the receipt invents.
@@ -1427,18 +1431,8 @@ function posReceiptItems(cartItems) {
 
 // --- Stage 53.10: the frozen completed bill ---------------------------------
 //
-// What this replaced: the cart was emptied, a confirm dialog asked "print
-// receipt?", and the screen went back to looking exactly as it had before the
-// sale. Nothing on it said what had just happened, what was collected, or what
-// the bill number was - so the only record of the sale a cashier could point
-// at, thirty seconds later with the next customer at the counter, was a dialog
-// they had already dismissed.
-//
-// Now the till stops. The bill stays up, the inputs below it are gone, and the
-// only way on is New Sale. That is both the standard behaviour of every retail
-// till and the fix for the specific failure mode: a second customer's items
-// being scanned onto a screen the cashier believed was still showing the first
-// customer's sale.
+// The till stops: the bill stays up, the inputs go, and New Sale is the only
+// way on, so the next customer's items cannot land on this bill.
 //
 // Every terminal outcome funnels through here - paid, queued offline, pending
 // approval - so none of them can leave a half-live cart behind. (The 409
@@ -1500,11 +1494,18 @@ function freezePOSTill(sale) {
   const newBtn = document.getElementById('pos-new-sale-btn');
   if (newBtn) { newBtn.addEventListener('click', startNewPOSSale); newBtn.focus(); }
   // Stage 143.4: Print Receipt shows the bill first; Print there prints.
+  // 213.3: in the print dialog - paper, template and printer for this bill,
+  // the print profile's (or the roll) first; the plain receipt when the bill
+  // cannot print that way.
   const printBtn = document.getElementById('pos-print-receipt-btn');
   if (printBtn) printBtn.addEventListener('click', async () => {
-    const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
-    const go = await docs.previewPOSBill(sale.cartNumber, sale.cashTendered);
-    if (go !== false) printCompletedPOSSale();
+    let docs = null;
+    try { docs = await import('./trade-docs.js' + new URL(import.meta.url).search); } catch (e) {
+      console.debug('[POS] print dialog unavailable, using the plain receipt', e);
+      printCompletedPOSSale();
+      return;
+    }
+    docs.printTransactionDocument('POSCart', sale.cartNumber, { txn: 'POSTaxInvoice', roll: true, cashTendered: sale.cashTendered, onUnavailable: printCompletedPOSSale });
   });
   // Stage 85.D2: the tax invoice, from the Stage 71 print pack.
   const gstBtn = document.getElementById('pos-print-gst-btn');
@@ -1530,7 +1531,9 @@ function startNewPOSSale() {
   const customerDisplay = document.getElementById('pos-customer-display');
   if (customerHidden) customerHidden.value = '';
   if (customerDisplay) { customerDisplay.value = ''; customerDisplay.dataset.resolved = ''; }
-  if (posCustomerRef) posCustomerRef.posClearCustomer();
+  const customerPhone = document.getElementById('pos-customer-phone');
+  if (customerPhone) { customerPhone.value = ''; customerPhone.dataset.resolved = ''; }
+  if (posCustomerRef) posCustomerRef.posClearCustomer(); // and the B2B buyer (215.2)
   const discountEl = document.getElementById('pos-discount-pct');
   if (discountEl) discountEl.value = '0';
   posDiscountReason = '';
@@ -1548,33 +1551,7 @@ function startNewPOSSale() {
   if (skuInput) skuInput.focus();
 }
 
-// printCompletedPOSSale reprints the frozen bill. Same two-path behaviour the
-// old inline confirm had (31.1.9): the server's own ESC-POS rebuild first, the
-// browser print sheet as the fallback. Moved onto a button so a receipt can be
-// printed twice - a customer asking for one after saying no is not an error
-// state the cashier should have to re-ring a sale to recover from.
-async function printCompletedPOSSale() {
-  const sale = posCompletedSale;
-  if (!sale) return;
-  // Stage 106.3: the roll tax invoice (trade-docs.js); below is the fallback.
-  try {
-    const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
-    if (await docs.printPOSBill(sale.cartNumber, sale.cashTendered)) return;
-  } catch (e) {
-    console.debug('[POS] roll bill unavailable, using the plain receipt', e);
-  }
-  // 31.1.9: silent path first - the server rebuilds the receipt from the
-  // Paid POSCart, so a thermal till printer gets ESC-POS with no browser
-  // dialog in the cashier's way. quiet: true because a shop with no
-  // Receipt printer configured is the normal case, not an error, and
-  // must simply fall through to the print sheet below.
-  // Stage 127.2: set up for silent print, a failure explains itself instead.
-  const routing = await loadViewModule('./print-routing.js');
-  await routing.printNoDialog('Receipt', posLocation,
-    (why) => qzTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true, why }),
-    () => printPOSReceipt(sale.billNumber || sale.cartNumber, posLocation, sale.paymentMode, sale.items,
-      sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0));
-}
+// printCompletedPOSSale (the reprint) is in view-pos-extras.js.
 
 // posStoreLabel is how the store reads to a human - its name, falling back to
 // the code only before the record loads. Used on the session line, the frozen
@@ -1769,6 +1746,7 @@ const posTill = {
   get exchangeActive() { return !!posExchange; },
   get storeProfile() { return posStoreProfile; },
   get cart() { return posCurrentCartNumber(); },
+  get completedSale() { return posCompletedSale; },
   get location() { return posLocation; },
   quote: refreshPOSQuote,
   get session() { return posOpenSessionId; },
@@ -1786,6 +1764,8 @@ const openPOSPackaging = posLazy('openPOSPackaging');
 const openPOSGiftCard = posLazy('openPOSGiftCard');
 const openPOSMore = posLazy('openPOSMore');
 const closePOSSessionFlow = posLazy('closePOSSessionFlow');
+const printCompletedPOSSale = posLazy('printCompletedPOSSale');
+const openPOSPriceOverride = async (sku) => (await posExtras()).openPOSPriceOverride(posTill, sku);
 const checkPOSLoyaltyBalance = posLazy('checkPOSLoyaltyBalance');
 const redeemPOSLoyaltyPoints = posLazy('redeemPOSLoyaltyPoints');
 

@@ -17,8 +17,9 @@ section: Module Handbooks
 order: 19
 summary: Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system now does for you.
 screens: [doctype:bin, doctype:zone, bin-conditions, bin-tools, doctype:homebin, lpn, bin-replenishment, doctype:binreplenishmentrule, mobile-picking, location-movement, doctype:dockdoor, doctype:trailer, doctype:holdcode, doctype:hold, doctype:holdreleaserequest, doctype:crossdockplan, doctype:wave, doctype:putawaystrategy, doctype:wavetemplate, doctype:sortstation, doctype:preshipvalidationrule, warehouse-cockpit, putaway, wave-picking, cycle-count, rf-receiving, rf-traceability, appointment-calendar, yard-board, place-hold, sortation, loading-dock]
+screen_sections: [rf-receiving=receiving-goods,putaway=receiving-goods,appointment-calendar=receiving-goods,yard-board=receiving-goods,location-movement=keeping-stock-right,bin-replenishment=keeping-stock-right,bin-conditions=keeping-stock-right,lpn=keeping-stock-right,cycle-count=cycle-count,wave-picking=wave-batch-picking]
 topic_type: how-to
-module: inventory
+module: wms
 task: Run a warehouse with the WMS screens
 prerequisites: A Location for the warehouse, and the Inventory module enabled for your role
 failure_behavior: Reload the screen before retrying; keep the record reference and the error code when you escalate.
@@ -48,6 +49,22 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 
 ## Receiving goods
 
+> [!WHAT]
+> Receiving goods is the path from the vendor's ASN to stock in a bin:
+> appointment, yard check-in, receipt and putaway.
+
+> [!WHY]
+> Accepted stock becomes available at the location. Rejected stock goes to QC
+> hold and damaged stock to Damaged. Batch-tracked stock cannot be picked
+> until you also use **Put a lot away**.
+
+> [!USECASE]
+> A truck arrives at the Bhiwandi warehouse. You check it in on the Yard
+> Board, assign it to a door, receive each carton's SKU and **Post Receipt**,
+> then **Put away** each row to a bin.
+
+> [!HOW]
+
 1. **Procurement → ASN**: record what the vendor is sending against the PO. This is a record; it moves no stock.
 2. **WMS → Inbound → Appointment Calendar**: book a dock door and a time slot (**+ New Appointment**). The door must allow that appointment type and must not be over its limit.
 3. **WMS → Inbound → Yard Board**: **+ Check In Trailer** when the truck arrives, then **Assign to Door** → **Spot here**.
@@ -61,6 +78,29 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 
 ## Keeping stock right
 
+> [!WHAT]
+> These screens keep bin stock and its condition correct after receiving:
+> **Location Movement**, **Bin Replenishment**, **Bin Conditions**, **Place
+> Hold**, **LPN / Cartons / Pallets** and **Cycle Count**.
+
+> [!WHY]
+> Moving stock between bins never changes location stock. Anything other than
+> Good condition stops being available to sell and is never picked.
+
+> [!USECASE]
+> A pick bin in Pune is below its minimum. You click **Get Suggestions** on
+> **Bin Replenishment**, then **Replenish** to move stock from a Reserve bin.
+
+> [!HOW]
+
+1. To move stock between bins, open **Location Movement**, choose the
+   location, click **Show Bin Stock**, then **Move** on a row.
+2. To refill pick bins, click **Get Suggestions** on **Bin Replenishment**,
+   then **Replenish**.
+3. To mark stock Damaged, QC-Hold or RTV, use **Bin Conditions**.
+4. To check quantities, enter count lines on **Cycle Count** and click
+   **Reconcile Session**.
+
 - **Location Movement** (under Stock): move stock from one bin to another at the same location. Choose the location, then **Show Bin Stock**, then **Move** on a row. Only Good stock moves, and quantity reserved for open picks is refused. To move between locations, use **Stock Transfer**.
 - **Bin Replenishment**: **Get Suggestions** lists bins below their minimum, from your Bin Replenishment Rules, and proposes a refill to the maximum, taking from Reserve bins first. **Replenish** moves the stock bin to bin.
 - **Bin Conditions**: change the condition of stock in a bin between Good, Damaged, QC-Hold and RTV. Anything other than Good stops being available to sell and is never picked. Moving it back to Good restores it.
@@ -70,6 +110,40 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 - **Cycle Count**: count what is physically there (**Manage Count Lines**), then **Reconcile Session**. A line with no difference posts straight away. A large difference is sent for a blind recount, and other differences go to Approvals. Each variance needs a reason before it posts.
 - **RF Lot & Serial**: besides **Put a lot away**, use **Issue a lot**, **Change a serial** and **Sweep expired lots** (which quarantines lots past their expiry date).
 
+## Cycle Count
+
+> [!WHAT]
+> Counting what is really on the shelf, a few items and bins at a time, and
+> correcting the books to match.
+
+> [!WHY]
+> Stock on screen drifts from stock on the shelf through breakage, mis-picks
+> and theft. A small count every day finds it without closing for a full
+> stocktake. No difference posts unchecked: each needs a reason, and large
+> ones are counted again by someone else.
+
+> [!USECASE]
+> The planner shows 40 fast-moving items due at the Pune store. A counter
+> counts them in one session. 38 agree and post at once. One is 3 short: the
+> manager picks the reason, approves it in **Approvals** and posts it. One is
+> 25 short, so it goes to a second counter for a blind recount.
+
+![Cycle count: enter the counted quantities, reconcile the session, then review its lines](../img/cycle-count.webp)
+
+> [!HOW]
+
+1. Open **WMS → Storage & Control → Cycle Count**. Under **ABC cycle-count
+   planner**, enter the location and click **Get Plan** to see what is due.
+2. Click **Manage Count Lines** and enter the counted quantity for each item
+   and bin in one count session.
+3. Enter that session in **Count Session** and click **Reconcile Session**.
+4. Click **Show lines** and choose a **Reason** for each difference.
+5. Once a difference is approved, click **Post** on its line. For a recount
+   line, enter the quantity and click **Save recount**.
+
+Reasons come from Reason Codes in the category *Cycle Count Variance*; if
+there are none, **Add one** opens that list.
+
 ## Shipping orders
 
 1. Releasing a sales order creates its fulfilment tasks.
@@ -78,6 +152,37 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 4. **Sortation / Put-Wall** (optional): record which order goes into which slot of a sort station.
 5. **Loading**: **Open New Load** for a dock door and trailer, scan the invoiced packages, then **Complete Load** (which runs your pre-ship checks), **Record Exchange & Depart**, and **Print Bill of Lading** if you need one.
 6. **Hand over** on **OMS → Ship** is the step that dispatches the tasks and takes the stock out of the location and its bins. Loading does not do this.
+
+## Wave / Batch Picking
+
+> [!WHAT]
+> Picking many orders in one walk: orders are grouped into a wave, and the
+> picker gets one list in bin order instead of one trip per order.
+
+> [!WHY]
+> One walk through the aisles instead of twenty saves most of the picking
+> time. Stock is reserved when the wave is released, so two pickers never
+> go for the same units, and any shortfall shows before anyone walks.
+
+> [!USECASE]
+> At 11 am the Bhiwandi warehouse has 18 online orders ready. The supervisor
+> ticks all 18, puts them into a new wave and releases it. The pick list
+> shows one short item. The picker walks the route with **Pick on a phone**,
+> confirms each line, and marks 17 orders packed; the short one waits.
+
+> [!HOW]
+
+1. Open **WMS → Outbound → Wave / Batch Picking** and choose the location.
+2. Under **Orders ready to wave**, tick the orders, choose **A new wave** in
+   **Into**, and click **Put N selected into the wave**.
+3. Under **Open waves**, click **Release**.
+4. Click **Pick list** to pick on paper in bin order, or **Pick on a phone**
+   to confirm each line with **Confirm & Next**.
+5. When nothing is left to pick, click **Complete**, then load the packed
+   orders.
+
+A wave covers one location. Batch-tracked items are allocated oldest expiry
+first (FEFO): pick the exact batch shown.
 
 ## Watching the floor
 

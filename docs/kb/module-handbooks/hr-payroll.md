@@ -6,6 +6,7 @@ summary: Track employees, attendance and leave, then run payroll against a confi
 audience: HR manager, admin
 last_verified: 2026-09-03
 screens: [hr]
+screen_sections: [hr=setting-up-an-employee]
 doc_id: DOC-70777B422A
 type: procedure
 status: draft
@@ -42,6 +43,30 @@ Onboarding/Offboarding, Appraisals, Training, Grievances.
 
 ## Setting up an employee
 
+> [!WHAT]
+> The Employee record is created under **Setup → Master Data → Employee**.
+> **Employee ID**, **Name**, **Status** and **Department** are required.
+
+> [!WHY]
+> **Department** is where the person's work is counted, and the **Linked ERP
+> User ID** makes the Employee's status control login access. A payslip cannot
+> be posted without the **Bank Account Number**.
+
+> [!USECASE]
+> A new cashier joins a Nashik store. You add the Employee with the Department
+> and Location, add the **Bank Account Number** and **Bank IFSC**, and link
+> the ERP user so deactivating the Employee also stops the login.
+
+> [!HOW]
+
+1. Open **Setup → Master Data → Employee** and add the employee.
+2. Fill **Employee ID**, **Name**, **Status** and **Department**, and pick the
+   **Location**.
+3. Add the **Bank Account Number** and **Bank IFSC** if the person is paid
+   through payroll.
+4. Set **Linked ERP User ID** so that deactivating the employee also stops the
+   login, then save.
+
 **Setup → Master Data → Employee**: **Employee ID**, **Name**, **Status**
 (Active/Inactive) and **Department** are required — Designation, Location,
 Reporting Manager and a linked ERP User ID are optional. **Department** and
@@ -67,6 +92,27 @@ A duplicate **Employee ID** is rejected outright (`HRPAYR-0149`). An
 (`HRPAYR-0156`) — always a typo, not a real employment history.
 
 ## Attendance and leave
+
+> [!WHAT]
+> Attendance records one row per employee per day. Leave is a separate request
+> and approval record.
+
+> [!WHY]
+> Payroll reads only **Approved** leave. A request still Applied or Rejected
+> has no effect on pay.
+
+> [!USECASE]
+> A cashier submits 2 days of Sick leave. A Store Manager or HR/Admin approves
+> it, and only then does payroll use it.
+
+> [!HOW]
+
+1. Mark **Attendance**: one row per employee per day (Present, Absent, Late,
+   Leave, Holiday or Weekly Off).
+2. Raise a **Leave** request (Casual, Sick, Earned or Unpaid, with a day
+   count). A Store Manager or HR/Admin approves it.
+3. To use shifts, define a **Shift** under Setup, then assign employees on the
+   **Roster** tab.
 
 **Attendance** records one row per employee per day: Present, Absent, Late,
 Leave, Holiday or Weekly Off. **Leave** is a separate request/approval
@@ -150,6 +196,25 @@ period) computes and saves a **Draft Payslip**:
    result as a Draft `Payslip` — nothing is posted to the GL yet.
 
 ### Posting a payslip
+
+> [!WHAT]
+> **Post to GL** on the Payroll tab books a Draft payslip to the ledger. It is
+> a separate step from computing it.
+
+> [!WHY]
+> Computing a payslip and paying it are not the same action. Posting needs a
+> **Bank Account Number**, a locked accounting period refuses it, and a posted
+> payslip cannot be posted again.
+
+> [!USECASE]
+> You review a Draft payslip for a store employee, then choose **Post to GL**.
+> If the period is locked or the bank number is missing, the post is refused.
+
+> [!HOW]
+
+1. Check that the employee has a **Bank Account Number** on file.
+2. On **HR → Payroll tab**, review the Draft payslip.
+3. Click **Post to GL**. A locked accounting period refuses it.
 
 **HR → Payroll tab → Post to GL** (`POST /api/v1/hr/post-payslip`) is a
 separate, explicit step — computing a payslip and disbursing it are

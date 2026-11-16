@@ -9,8 +9,80 @@ window.openImportModal = function() {
     // Stage 51.10: the SKU-from-Design template only exists for Item.
     const familyBtn = document.getElementById('import-family-template-btn');
     if (familyBtn) familyBtn.classList.toggle('hidden', currentDoctype !== 'Item');
+    // 215.10: on Offers, the file is either offers or their item lists.
+    const kind = offerImportKindSelect(modal);
+    kind.closest('.form-group').classList.toggle('hidden', currentDoctype !== 'Offer');
+    kind.value = '';
+    paintOfferImportKind(modal);
   }
 };
+
+// 215.10 (user, 2026-11-15: "All should be bulk uploaded"): an offer's item
+// lists are a CSV of offer, list, code rows - thousands of codes would not fit
+// one cell of the offers file. The server replaces each list the file names.
+const OFFER_LIST_TEMPLATE = 'offer,list,code\nWeekend BOGO,Applies to,SKU-001\nTie with a shirt,Get,D-1042\nShirt and trouser,Combo 1,SKU-101\nShirt and trouser,Combo 2,SKU-202\n';
+
+function offerImportKindSelect(modal) {
+  let sel = document.getElementById('import-kind');
+  if (sel) return sel;
+  const fileGroup = document.getElementById('import-file-input').closest('.form-group');
+  const group = document.createElement('div');
+  group.className = 'form-group hidden';
+  group.innerHTML = '<label class="form-label" for="import-kind">File</label><select id="import-kind" class="form-input"><option value="">Offers</option><option value="lists">Item lists</option></select>';
+  fileGroup.before(group);
+  sel = group.querySelector('select');
+  sel.addEventListener('change', () => { paintOfferImportKind(modal); document.getElementById('import-result-summary').classList.add('hidden'); });
+  return sel;
+}
+
+function offerListMode() {
+  return currentDoctype === 'Offer' && document.getElementById('import-kind')?.value === 'lists';
+}
+
+function paintOfferImportKind(modal) {
+  const lists = offerListMode();
+  modal.querySelector('[data-act="downloadImportTemplate"][data-act-args*="dictionary"]')?.classList.toggle('hidden', lists);
+}
+
+function summaryTone(summary, tone) {
+  const c = { ok: ['rgba(46, 213, 115, 0.1)', 'rgba(46, 213, 115, 0.3)', '#2ed573'], warn: ['rgba(255, 165, 2, 0.1)', 'rgba(255, 165, 2, 0.3)', '#ffa502'], bad: ['rgba(255, 71, 87, 0.1)', 'rgba(255, 71, 87, 0.3)', '#ff4757'] }[tone];
+  summary.classList.remove('hidden');
+  summary.style.backgroundColor = c[0];
+  summary.style.border = `1px solid ${c[1]}`;
+  summary.style.color = c[2];
+}
+
+async function runOfferListImport(dryRun) {
+  const fileInput = document.getElementById('import-file-input');
+  if (!fileInput.files.length) {
+    await showCustomAlert('Select a CSV file first.', 'No File Selected');
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  const summary = document.getElementById('import-result-summary');
+  const res = await apiUpload(`/api/v1/pos/offers/item-lists${dryRun ? '?dry_run=1' : ''}`, formData);
+  if (!res) return;
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    summaryTone(summary, 'bad');
+    summary.innerHTML = `<strong>${dryRun ? 'Preview' : 'Import'} failed:</strong> ${escapeHTMLText(data.message || data.error || 'The file could not be read.')}`;
+    return;
+  }
+  const result = await res.json();
+  const changes = result.changes || [];
+  summaryTone(summary, dryRun || result.failed_rows ? 'warn' : 'ok');
+  let html = `<div class="s-6928c9">${dryRun ? 'Preview (nothing written yet)' : 'Saved'}</div>
+    <div>Rows: ${escapeHTMLText(result.total_rows)} · Failed: ${escapeHTMLText(result.failed_rows)}</div>`;
+  if (changes.length) {
+    html += `<ul class="s-7ac255">${changes.map(c => `<li>${escapeHTMLText(c.offer)} · ${escapeHTMLText(c.list)}: ${escapeHTMLText(c.before)} → ${escapeHTMLText(c.codes)}</li>`).join('')}</ul>`;
+  }
+  if ((result.errors || []).length) {
+    html += `<div class="s-ef59b6">Row errors:</div><ul class="s-7ac255">${result.errors.map(e => `<li>Row ${escapeHTMLText(e.row_number)}: ${escapeHTMLText(e.message)}</li>`).join('')}</ul>`;
+  }
+  summary.innerHTML = html;
+  if (!dryRun && !result.failed_rows) setTimeout(() => { closeImportModal(); renderView('doctype-table'); }, 3000);
+}
 
 window.closeImportModal = function() {
   const modal = document.getElementById('import-modal');
@@ -27,6 +99,17 @@ window.closeImportModal = function() {
 // through apiFetch and hand the browser a blob it can save locally, the same
 // object-URL approach the recovery-code and report exports already take.
 window.downloadImportTemplate = async function(variant) {
+  if (offerListMode()) {
+    const objectURL = URL.createObjectURL(new Blob([OFFER_LIST_TEMPLATE], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = objectURL;
+    link.download = 'Offer_item_lists_template.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectURL);
+    return;
+  }
   const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
   const variantParam = typeof variant === 'string' && variant ? `&variant=${encodeURIComponent(variant)}` : '';
   const url = `/api/v1/import/${currentDoctype}/template?tenant_id=${tenantID}${variantParam}`;
@@ -57,6 +140,7 @@ window.downloadImportTemplate = async function(variant) {
 
 window.handleBulkImportSubmit = async function(e) {
   e.preventDefault();
+  if (offerListMode()) return runOfferListImport(false);
   const fileInput = document.getElementById('import-file-input');
   if (!fileInput.files.length) return;
 
@@ -150,6 +234,7 @@ function importTotalsHTML(result) {
 // Preview (Stage 15.2): dry-run of the same file - nothing is written,
 // shows the create/update/reject breakdown before the user commits.
 window.handleBulkImportPreview = async function() {
+  if (offerListMode()) return runOfferListImport(true);
   const fileInput = document.getElementById('import-file-input');
   if (!fileInput.files.length) {
     await showCustomAlert('Select a CSV file first.', 'No File Selected');
@@ -160,7 +245,8 @@ window.handleBulkImportPreview = async function() {
   formData.append('file', fileInput.files[0]);
 
   const summary = document.getElementById('import-result-summary');
-  const res = await apiUpload(`/api/v1/pim/import/${currentDoctype}/preview`, formData);
+  // 215.10: the plain import's dry run - the PIM preview route needs the PIM module.
+  const res = await apiUpload(`/api/v1/import/${currentDoctype}?dry_run=1`, formData);
   if (!res) return;
 
   summary.classList.remove('hidden');

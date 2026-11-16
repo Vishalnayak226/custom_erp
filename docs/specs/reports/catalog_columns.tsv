@@ -16,6 +16,9 @@ cat-sales-register	Sales Register	PO Number	Customer PO/reference number for B2B
 cat-sales-register	Sales Register	Bill Count	Number of distinct sales bills in the summarized row.
 cat-sales-register	Sales Register	Gross Amount	Gross transaction value before deductions.
 cat-sales-register	Sales Register	Discount Amount	Total discount value.
+cat-sales-register	Sales Register	Item Discount	Discount given at item level.
+cat-sales-register	Sales Register	Offer Discount	Discount from offers, promotions and vouchers.
+cat-sales-register	Sales Register	Bill Discount	Discount allocated/applied at bill level.
 cat-sales-register	Sales Register	Taxable Amount	Taxable value before GST.
 cat-sales-register	Sales Register	GST Amount	GST calculated on the applicable taxable amount.
 cat-sales-register	Sales Register	Bill Net Amount	Final net value at bill/document level.
@@ -43,6 +46,7 @@ cat-sales-itemwise-detail	Sales Itemwise Detail	MRP	Item value including applica
 cat-sales-itemwise-detail	Sales Itemwise Detail	Gross Value	Item taxable value before GST and discounts.
 cat-sales-itemwise-detail	Sales Itemwise Detail	Customer Redeem Points	Value of loyalty/customer points redeemed against the item.
 cat-sales-itemwise-detail	Sales Itemwise Detail	Item Discount	Discount given at item level.
+cat-sales-itemwise-detail	Sales Itemwise Detail	Offer Discount	Discount from offers, promotions and vouchers.
 cat-sales-itemwise-detail	Sales Itemwise Detail	Bill Discount	Discount allocated/applied at bill level.
 cat-sales-itemwise-detail	Sales Itemwise Detail	Packing Charges	Packing charge taxable value excluding GST.
 cat-sales-itemwise-detail	Sales Itemwise Detail	Item Taxable Amount	Taxable value after redeem points/discounts plus taxable packing charge.
@@ -163,6 +167,7 @@ cat-sales-discount-analysis	Sales Discount Analysis	MRP	Item value including app
 cat-sales-discount-analysis	Sales Discount Analysis	Gross Value	Item taxable value before GST and discounts.
 cat-sales-discount-analysis	Sales Discount Analysis	Customer Redeem Points	Value of loyalty/customer points redeemed against the item.
 cat-sales-discount-analysis	Sales Discount Analysis	Item Discount	Discount given at item level.
+cat-sales-discount-analysis	Sales Discount Analysis	Offer Discount	Discount from offers, promotions and vouchers.
 cat-sales-discount-analysis	Sales Discount Analysis	Bill Discount	Discount allocated/applied at bill level.
 cat-sales-discount-analysis	Sales Discount Analysis	Discount Amount	Total discount value.
 cat-sales-discount-analysis	Sales Discount Analysis	Item Taxable Amount	Taxable value after redeem points/discounts plus taxable packing charge.

@@ -54,6 +54,20 @@ func handleHelpArticle(w http.ResponseWriter, r *http.Request) {
 	writeHelpJSON(w, r, helpArticleResponse(article, body), nil)
 }
 
+// handleHelpSnapshot serves one Knowledge Center snapshot (210.4). It sits on
+// the authenticated door like the articles that show it; the browser fetches it
+// with the session's token and only when the image scrolls into view.
+func handleHelpSnapshot(w http.ResponseWriter, r *http.Request) {
+	body, err := kb.Snapshot(r.PathValue("name"))
+	if err != nil {
+		writeHelpJSON(w, r, nil, err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/webp")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	_, _ = w.Write(body)
+}
+
 func handleHelpSearchIndex(w http.ResponseWriter, r *http.Request) {
 	raw, err := kb.SearchIndexJSON()
 	if err != nil {

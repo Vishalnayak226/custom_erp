@@ -1301,14 +1301,26 @@ func handleShopifyRefund(tenantID, channel string, body []byte) (string, error) 
 		_ = mergeSalesOrderData(schema, orderID, map[string]interface{}{"channel_change_pending": "a money-only refund in Shopify (no items) - record it on the order's credit"})
 		return "to the Channel changes queue (money-only refund)", nil
 	}
-	var invoice, store string
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL AND data->>'sales_order_id' = $1 ORDER BY created_at LIMIT 1`, schema), orderID).Scan(&invoice)
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'location_code', '') FROM %s.documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 LIMIT 1`, schema), orderID).Scan(&store)
+	// 215.17: the bill that holds the refunded items (an order shipped in two
+	// parcels has two), and that bill's store takes the goods back. A repeated
+	// webhook keeps the bill its return was raised against (the return stores
+	// ClaimCommand's "returns.create:<actor>:<key>"), so it replays that return.
+	refundKey := "shopify-refund-" + r.ID.String()
+	invoice, store := "", ""
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT data->>'original_order_id' FROM %s.documents WHERE doctype = 'ReturnRequest' AND deleted_at IS NULL AND data->>'idempotency_key' = $1`, schema),
+		"returns.create:"+shopifyActor+":"+refundKey).Scan(&invoice)
+	if invoice == "" {
+		if invoice = salesInvoiceForOrderItems(tenantID, orderID, items); invoice == orderID {
+			invoice = ""
+		}
+	}
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(NULLIF((SELECT data->>'location' FROM %[1]s.documents WHERE doctype = 'SalesInvoice' AND id = $2), ''),
+		(SELECT data->>'location_code' FROM %[1]s.documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 LIMIT 1), '')`, schema), orderID, invoice).Scan(&store)
 	if invoice == "" {
 		_ = mergeSalesOrderData(schema, orderID, map[string]interface{}{"channel_change_pending": fmt.Sprintf("refunded in Shopify before it shipped (%d item lines) - cancel or edit the order", len(items))})
 		return "to the Channel changes queue (refund before shipping)", nil
 	}
-	res, err := CreateReturnRequestCommand(tenantID, "Customer Return", store, invoice, "", shopifyActor, "shopify-refund-"+r.ID.String(), "", items, nil)
+	res, err := CreateReturnRequestCommand(tenantID, "Customer Return", store, invoice, "", shopifyActor, refundKey, "", items, nil)
 	if err != nil {
 		_ = mergeSalesOrderData(schema, orderID, map[string]interface{}{"channel_change_pending": "refunded in Shopify, but the return could not be raised: " + err.Error()})
 		return "to the Channel changes queue", nil

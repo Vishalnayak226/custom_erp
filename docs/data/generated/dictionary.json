@@ -26060,6 +26060,24 @@
           "total": true
         },
         {
+          "key": "item_discount",
+          "label": "Item Discount",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "offer_discount",
+          "label": "Offer Discount",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "bill_discount",
+          "label": "Bill Discount",
+          "sensitive": false,
+          "total": true
+        },
+        {
           "key": "taxable_amount",
           "label": "Taxable Amount",
           "sensitive": false,
@@ -26237,6 +26255,12 @@
         {
           "key": "item_discount",
           "label": "Item Discount",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "offer_discount",
+          "label": "Offer Discount",
           "sensitive": false,
           "total": true
         },
@@ -27115,6 +27139,12 @@
         {
           "key": "item_discount",
           "label": "Item Discount",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "offer_discount",
+          "label": "Offer Discount",
           "sensitive": false,
           "total": true
         },

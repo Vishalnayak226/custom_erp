@@ -50,15 +50,23 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSVContext(r.Context(), tenantID, doctype, engines.NamedUpload(file, header.Filename), userID, role, false)
+	// 215.10: ?dry_run=1 checks the file and writes nothing - the import
+	// dialog's Preview, for every record type (the PIM preview route is
+	// behind the PIM module, which an offers-only tenant may not have).
+	dryRun := r.URL.Query().Get("dry_run") == "1"
+	res, err := engines.BulkImportCSVContext(r.Context(), tenantID, doctype, engines.NamedUpload(file, header.Filename), userID, role, dryRun)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
 
-	jobID, errJob := engines.RecordImportJob(tenantID, doctype, res, userID)
-	if errJob != nil {
-		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "IMPORT_JOB_RECORD_FAILED", r.URL.Path, errJob.Error(), "")
+	jobID := ""
+	if !dryRun {
+		var errJob error
+		jobID, errJob = engines.RecordImportJob(tenantID, doctype, res, userID)
+		if errJob != nil {
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "IMPORT_JOB_RECORD_FAILED", r.URL.Path, errJob.Error(), "")
+		}
 	}
 
 	// Round-trips res through JSON (struct -> map) purely to splice in
@@ -412,13 +420,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// not send one - but a client that sends a stable key gets the real
 		// one: a retry cannot double-post even if it invents a new cart
 		// number, which is precisely what public/app.js used to do.
-		IdempotencyKey string  `json:"idempotency_key"`
-		Location       string  `json:"location"`
-		StockFrom      string  `json:"stock_from"` // Stage 106.5: stored on the cart
-		PaymentMode    string  `json:"payment_mode"`
-		CustomerID     string  `json:"customer_id"`
-		Interstate     bool    `json:"interstate"`
-		DiscountPct    float64 `json:"discount_pct"`
+		IdempotencyKey string `json:"idempotency_key"`
+		Location       string `json:"location"`
+		StockFrom      string `json:"stock_from"` // Stage 106.5: stored on the cart
+		PaymentMode    string `json:"payment_mode"`
+		CustomerID     string `json:"customer_id"`
+		Interstate     bool   `json:"interstate"`
+		// B2B (ask 215.2/215.3): the buyer block of a B2B bill, checked by
+		// engines.PreparePOSB2B below and stored on the cart as "b2b".
+		B2B         *engines.POSB2BBuyer `json:"b2b,omitempty"`
+		DiscountPct float64              `json:"discount_pct"`
 		// ManualDiscountPct / ManualDiscountAmount / DiscountReason (Stage
 		// 85.E7): the cashier's bill discount, APPLIED by the quote (as a % or
 		// an amount), and why when it is over the reason limit. DiscountPct
@@ -656,6 +667,19 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// GST enforcement itself is unchanged and still happens before any side
 	// effect: ComputeGSTForLines inside the quote rejects a line whose Item is
 	// missing hsn_code/gst_rate exactly as it did when called from here.
+	// Ask 215.3: a B2B bill's buyer block is checked before any side effect;
+	// it decides the place of supply and so CGST+SGST or IGST.
+	if req.B2B != nil && strings.TrimSpace(req.B2B.GSTIN) == "" {
+		req.B2B = nil
+	}
+	if req.B2B != nil {
+		interstate, err := engines.PreparePOSB2B(tenantID, req.Location, req.B2B)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		req.Interstate = interstate
+	}
 	quoteLines := make([]engines.QuoteLineRequest, len(req.Items))
 	for i, item := range req.Items {
 		quoteLines[i] = engines.QuoteLineRequest{Sku: item.Sku, Qty: item.Qty, FallbackUnitPrice: item.SalePrice, MRP: item.MRP, Barcode: item.Barcode, SerialNos: item.SerialNos, BatchNo: item.BatchNo}
@@ -665,6 +689,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		Location:     req.Location,
 		CustomerID:   req.CustomerID,
 		Interstate:   req.Interstate,
+		B2B:          req.B2B,
 		CouponCodes:  req.CouponCodes,
 		Lines:        quoteLines,
 		RedeemPoints: req.RedeemPoints,
@@ -910,7 +935,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		if strings.EqualFold(req.PaymentMode, "Cash") || req.PaymentMode == "" {
 			cash += quote.AmountDue - giftPaid - exchangeUse - fixed
 		}
-		if err := engines.CheckHighValueSale(tenantID, req.CustomerID, quote.Total, cash, req.Form97); err != nil {
+		if err := engines.CheckHighValue(tenantID, engines.HighValueSale{CustomerID: req.CustomerID, Total: quote.Total, Cash: cash,
+			Form97: req.Form97, B2B: req.B2B, CartNumber: req.CartNumber}); err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
@@ -958,6 +984,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	measuredDiscountPct := req.DiscountPct
 	if quote.ManualDiscountPct > measuredDiscountPct {
 		measuredDiscountPct = quote.ManualDiscountPct
+	}
+	// Ask 215.5: the line cuts and the bill discount together, so splitting
+	// one discount across the two never slips under a slab.
+	if total := engines.ManualDiscountTotalPct(quote); total > measuredDiscountPct {
+		measuredDiscountPct = total
 	}
 	gateDiscountPct := measuredDiscountPct
 	var requiredRole string
@@ -1047,6 +1078,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		storedPayload["gift_card_tenders"] = giftTenders
 	}
 	storedPayload["gst_breakdown"] = gstBreakdown
+	if req.B2B != nil && req.B2B.PlaceOfSupply != "" {
+		// Ask 215.3: GSTR-1 files an IGST bill under this state.
+		storedPayload["place_of_supply"] = req.B2B.PlaceOfSupply
+	}
 	storedPayload["pos_session"] = sessionID
 	// Stage 53.12: who rang it up, stored for the same reason gst_breakdown and
 	// applied_offers are - so the receipt can be rebuilt from the cart alone.
@@ -1064,6 +1099,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// reason: they are what the approval decision was actually made on.
 	storedPayload["applied_offers"] = quote.AppliedOffers
 	storedPayload["offer_discount"] = quote.OfferDiscount
+	// 215.5: the three discounts apart. Always written, so a report can tell a
+	// bill with no bill discount from one saved before the split.
+	storedPayload["item_discount"] = quote.ItemDiscount
+	storedPayload["bill_discount"] = quote.BillDiscount
 	storedPayload["quote_version"] = quote.Version
 	storedPayload["quote_id"] = quote.QuoteID
 	storedPayload["reference_subtotal"] = quote.ReferenceSubtotal

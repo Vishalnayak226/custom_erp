@@ -197,6 +197,9 @@ func POSCartItemsFromQuote(quote *QuoteResult) []map[string]interface{} {
 		if l.NoPoints {
 			item["no_points"] = true
 		}
+		if l.BillShare != 0 { // 215.5: the bill discount's part of offer_share
+			item["bill_share"] = l.BillShare
+		}
 		if l.OverrideID != "" {
 			item["override_id"] = l.OverrideID
 		}

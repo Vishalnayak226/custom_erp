@@ -6,6 +6,7 @@ summary: Receive stock against a PO, put it away, pick and pack it back out, cou
 audience: warehouse operator, warehouse manager, admin
 last_verified: 2026-11-15
 screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, inventory, stock-locations, stock-moves, module:inventory, reports]
+screen_sections: [grn=grn-workbench-desktop-full-detail,putaway=manual-putaway,cycle-count=cycle-counts,transfers=transfers-stock-movement]
 doc_id: DOC-79A300F5E0
 type: procedure
 status: draft
@@ -58,9 +59,24 @@ that it's there and links out.
 
 ### GRN Workbench (desktop, full detail)
 
+> [!WHAT]
+> The GRN Workbench is the desktop screen where every goods receipt is
+> created. A GRN is tied to a Purchase Order.
+
+> [!WHY]
+> You load the PO's ordered lines instead of retyping them. **Receiving
+> Location** defaults from the PO's target warehouse if you leave it blank.
+
+> [!USECASE]
+> A supplier delivers against a PO to the Nagpur warehouse. You enter the **PO
+> Reference**, click **Load Items from PO**, and check the lines before you
+> save.
+
 **Setup → Procurement → GRN**, or the **GRN** sidebar item, opens the GRN
 Workbench (`renderGRNWorkbenchView`) — every goods receipt in the system is
 created here, and there is no separate "capture" step before it.
+
+> [!HOW]
 
 1. The **GRN Number** fills in automatically on save. Enter the **PO
    Reference** (required — a GRN is a Transaction doctype tied to a
@@ -168,6 +184,27 @@ against stock already `available` at a location but not yet assigned to a
 bin.
 
 ### Manual putaway
+
+> [!WHAT]
+> Manual putaway places stock that is already available at a location into a
+> bin: you enter **Bin Code**, **SKU** and **Qty** and click **Put Away**.
+
+> [!WHY]
+> It refuses more than the location's unassigned on-hand quantity, a blocked,
+> full or counting bin, and anything over the bin's capacity. A bin can never
+> claim stock the location does not have.
+
+> [!USECASE]
+> 20 cartons wait unassigned at the Pune store. You enter the bin, SKU and
+> quantity, or click **Suggest Bin** to fill the **Bin Code**, then **Put
+> Away**.
+
+> [!HOW]
+
+1. Fill **SKU**, **Qty** and **Location** and click **Suggest Bin**, or type
+   the **Bin Code** yourself.
+2. Check that the bin is Active, not Blocked, Full or Counting, and has room.
+3. Click **Put Away**.
 
 Enter **Bin Code**, **SKU**, **Qty**, and click **Put Away**
 (`PutawayToBin`). It refuses more than the location's *unassigned*
@@ -293,6 +330,31 @@ the picking/packing basics this handbook focuses on.
 
 ## Cycle Counts
 
+> [!WHAT]
+> **WMS → Cycle Count** is the five-panel screen for counting stock and
+> reconciling it with the system. It is the only mechanism for adjusting stock
+> quantities.
+
+> [!WHY]
+> Zero variance posts at once, and any non-zero variance goes to the maker-
+> checker approval engine. A variance line needs a **Reason Code** before it
+> can post.
+
+> [!USECASE]
+> A bin count of 48 against 50 on hand gives a variance. You **Reconcile
+> Session**, it goes for approval, you set the **Reason Code** and **Retry
+> Post** if needed, or use **Recount** for a blind second count.
+
+> [!HOW]
+
+1. On **WMS → Cycle Count**, click **Manage Count Lines** and enter, or **Bulk
+   Import**, the counted quantities for one Count Session.
+2. Enter the **Count Session** and click **Reconcile Session**. Lines with no
+   difference post; any other difference goes for approval.
+3. For a line with a difference, enter its **Line ID** and a **Reason Code**,
+   click **Set Variance Reason**, then **Retry Post**.
+4. If a count looks wrong, click **Recount** for a blind second count.
+
 **WMS → Cycle Count** is a five-panel screen, and each panel is a distinct
 step of the same workflow — this is also the *only* mechanism in the app
 for adjusting stock quantities (see Stock Adjustments below).
@@ -380,6 +442,28 @@ second counting system.
 
 ## Stock Adjustments
 
+> [!WHAT]
+> A stock adjustment corrects a quantity when no other document explains the
+> difference, such as damaged or expired goods, shrinkage or stock found.
+
+> [!WHY]
+> An approval rule for *InventoryAdjustment* holds it as **Pending Approval**,
+> so the loss is reviewed before stock changes. Without a rule it posts at
+> once.
+
+> [!USECASE]
+> Six damaged units are found in a store. You click **+ New Stock
+> Adjustment**, choose the **Store** and **Loss class**, enter **-6** with a
+> **Reason**, and **Save adjustment**.
+
+> [!HOW]
+
+1. On **Inventory → Stock Adjustment**, click **+ New Stock Adjustment**.
+2. Choose the **Store** and **Loss class**, then add each item with its
+   **Change** (**-3** takes three off) and a **Reason**.
+3. Click **Save adjustment**. It posts at once, or waits as **Pending
+   Approval** if an approval rule exists.
+
 There are two ways to correct a quantity:
 
 - **Count it** — enter the real quantity as a `CycleCountLine` against the
@@ -445,12 +529,29 @@ units into that location.
 
 ## Transfers (Stock Movement)
 
+> [!WHAT]
+> **Inventory → Stock Movement** moves stock between warehouses through the
+> states Draft, Approved, Packed (optional), Dispatched and Received.
+
+> [!WHY]
+> Dispatch refuses a quantity above what is available, and receipt adds only
+> what arrived to the destination. Damaged units are kept out of sellable
+> stock.
+
+> [!USECASE]
+> You move 100 units from Mumbai to Pune. At receipt 95 arrive Good and 5 are
+> Damaged, so you enter that with a reason and click **Record Receipt**.
+
 The basic transfer workflow is Draft →
 Approved → Dispatch → Receive click-through. This section goes deeper into
 what actually happens at each step and where it can go wrong.
 
 **Inventory → Stock Movement** (`renderTransfersView`) drives a `TransferOrder`
 through five possible states:
+
+![A new transfer: from and to locations and the items to move](../img/transfer-new.webp)
+
+> [!HOW]
 
 1. **Draft** — add **From Warehouse**, **To Warehouse**, and one or more
    **SKU + Qty** lines, then **Create Transfer**.

@@ -174,6 +174,57 @@ attached, and every checklist item it names must exist in the tracker or its arc
 register, not two: new work names the row it closes. Search output is compact JSON;
 publication enforces its 250 KiB budget and the combined embedded KB 2 MiB budget.
 
+## Knowledge Center lessons (210.3-210.5)
+
+A Module Handbook teaches each transaction it covers with up to four lesson
+blocks, written as quotes under that transaction's heading:
+
+```markdown
+> [!WHAT]
+> One or two lines: what the transaction is.
+
+> [!WHY]
+> What it protects or saves the user from.
+
+> [!USECASE]
+> A worked example from a store, with real-looking numbers.
+
+> [!HOW]
+
+1. The numbered steps. An empty [!HOW] takes the list directly under it.
+```
+
+The help dialog shows only **What** and **How**; the full Knowledge Center shows
+all four. Write lessons only from what the build does: a use case is an
+illustration, never a claim about a feature that does not exist.
+
+`screen_sections: [screen=anchor, ...]` in the front matter sends a screen's
+help to a section. The screen must be in the article's `screens:` and the anchor
+must be one of its `##`/`###` heading slugs; the build fails otherwise. Help
+picks one article for the screen, first match wins:
+
+1. a handbook filed under the main-menu module the screen sits in, with a section for the screen;
+2. the article ranked first for the screen (a handbook before a journey, then
+   the one listing the screen earliest in its `screens:`), if it has a section for it;
+3. a handbook filed under the screen's menu module;
+4. the article ranked first.
+
+That article's first entry for the screen is where **Open the full Knowledge
+Center** lands; the others are listed under "Also for this screen".
+
+Each handbook's `module:` files it under a main-menu module in the sidebar
+(`menuModules` in `internal/kb/build.go`). Where one handbook of a shared module
+sits elsewhere in the menu (Fixed Assets and Expenses are `finance` but in HRM),
+list the handbook's slug instead; a slug is matched first. A handbook matching
+neither shows under **Other** and the build warns.
+
+Screen pictures go in `docs/kb/img/` as lower-case kebab-case `.webp` files of
+at most 40 KB each, and are shown with `![caption](../img/name.webp)`. The build
+fails on a non-WebP file, an oversized one, a picture no article shows and a
+picture an article shows that is missing. The browser loads each one through
+the signed-in help API only when it scrolls into view. Regenerate with
+`pwsh docs/kb/update-kb.ps1`.
+
 ## Curated manuals and screenshots
 
 The [manual portal](../user/manuals.md) links reading/print editions generated

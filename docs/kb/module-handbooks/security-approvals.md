@@ -6,6 +6,7 @@ summary: How roles gate what a user can see and do, how the maker-checker approv
 audience: admin, auditor
 last_verified: 2026-11-15
 screens: [users, roles, approvals, approval-rules, profile, audit-logs]
+screen_sections: [approvals=the-lifecycle-submit-decide,users=managing-users]
 doc_id: DOC-34820397E4
 type: procedure
 status: draft
@@ -220,6 +221,29 @@ engine checks `total_amount` first, then falls back through `amount`,
 
 ### The lifecycle: Submit → Decide
 
+> [!WHAT]
+> A document in an approval-gated record type is submitted from Draft to
+> **Pending Approval**, then approved or rejected by a checker.
+
+> [!WHY]
+> Whether the submitter may decide their own document is a per-client setting,
+> and a new client starts at *Nobody*. The decide step locks the document so
+> two checkers cannot both decide it.
+
+> [!USECASE]
+> A Purchase Order of ₹1,01,500 is submitted. The checker with the role the
+> rule names approves it in **Approvals**. If no rule covers the amount, the
+> submit fails.
+
+> [!HOW]
+
+1. Save the document as **Draft**, then click **Submit for Approval**.
+2. The approver opens **Approvals** and approves or rejects it.
+3. If the submit says no workflow covers it, an admin adds an approval rule
+   for that document type and amount.
+
+The two steps in detail:
+
 1. **Submit** (`SubmitForApproval`, `POST /api/v1/approval/submit`) moves a
    `Draft` document to `Pending Approval`. Fails with `ADMINC-0032`
    ("Approval workflow missing... nothing to route this to") if the doctype
@@ -366,6 +390,28 @@ single admin account with both the phone and the recovery codes lost has no
 self-service or in-app recovery path at all.
 
 ## Managing users
+
+> [!WHAT]
+> **Settings → Users** covers the user lifecycle: create, list, deactivate or
+> reactivate, change location, reset MFA and link a Supplier login to its
+> Vendor.
+
+> [!WHY]
+> A status, role or location change takes effect on the user's live session,
+> not at the next login. You cannot deactivate the account you are signed in
+> as.
+
+> [!USECASE]
+> A Store Manager moves to a Kolkata store. A Super Admin changes the user's
+> location on **Settings → Users**, and it applies to their open session.
+
+> [!HOW]
+
+1. Open **Settings → Users** (Super Admin).
+2. Create the user: username, role and a password of 8 or more characters. The
+   location starts as `HO`.
+3. Deactivate a user, change their location or reset their MFA on the same
+   screen. The change reaches their live session.
 
 **Settings → Users** (screen id `users`, Super Admin only) covers the full
 lifecycle, all through `internal/server/handlers_admin_identity.go`:

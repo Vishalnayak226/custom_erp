@@ -6,6 +6,7 @@ summary: Items, categories and attributes with locale/channel-aware values, a 0-
 audience: category manager, admin
 last_verified: 2026-09-03
 screens: [pim, doctype:item, doctype:itemname, module:pim, reports, configuration, dataquality]
+screen_sections: [dataquality=data-quality-queue]
 doc_id: DOC-12FFD46675
 type: procedure
 status: draft
@@ -162,9 +163,24 @@ requires a primary image and doesn't have one gets its own dedicated code,
 
 ## Data quality queue
 
+> [!WHAT]
+> **Settings → Data quality** lists master-data problems across items,
+> customers and vendors, such as duplicates, items without an HSN and an
+> invalid GSTIN or PAN.
+
+> [!WHY]
+> A scan never adds the same problem twice and closes a problem you have
+> fixed. An ignored problem needs a reason.
+
+> [!USECASE]
+> A scan finds 3 items with no HSN. You fix each record and click **Fixed**,
+> or click **Ignore** with a reason.
+
 **Settings → Data quality** lists master-data problems across items,
 customers and vendors: duplicates (customer phone or email, vendor GSTIN or
 name, item name), items without an HSN, and an invalid GSTIN or PAN.
+
+> [!HOW]
 
 1. Click **Scan** to refresh the list. A scan never adds the same problem
    twice, and closes a problem you have fixed.
@@ -188,8 +204,23 @@ against whatever was really in force on its date.
 
 ### Make a price list version
 
+> [!WHAT]
+> A Price List Version is a dated set of SKU prices for a price list, made
+> under **Setup → Sales → Price List Version**.
+
+> [!WHY]
+> Editing an approved version sends it back to **Pending Approval** and it
+> prices nothing until approved again. Approving it supersedes the older open-
+> ended version of the same list.
+
+> [!USECASE]
+> For the `RETAIL` list you add a version with an **Effective From** date and
+> a price per SKU, save it as **Draft**, and click **Submit for Approval**.
+
 Price List Version is a **Setup → Sales** list (the generic list and form;
 there is no tab for it on the PIM screen).
+
+> [!HOW]
 
 1. Open **Setup → Sales → Price List Version** and click **New Price List
    Version**.

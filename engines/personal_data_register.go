@@ -505,6 +505,8 @@ var personalDataJSONOnly = map[string]map[string]PersonalDataField{
 		"customer_email": pdField("contact", "Order updates and the e-receipt for a web-shop order (Shopify sync)", BasisVoluntary,
 			"until the order is Delivered or Closed; the hourly sweep then removes it (the Customer record keeps the address)", readersOps),
 		"billing_address": pdField("address", "Billing address of a web-shop order when it differs from the shipping address; GST place of supply", BasisStatutory, retainShipment, readersOps),
+		// 215.15: what the channel sent; customer_phone holds the cleaned copy.
+		"customer_phone_as_received": pdField("contact", "The phone exactly as the channel sent it, beside the cleaned one the bill uses", BasisVoluntary, retainShipment, readersOps),
 	},
 }
 

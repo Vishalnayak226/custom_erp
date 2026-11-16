@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **983** codes. Each row says what the user is shown, what to do about
+There are **994** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -67,7 +67,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Item Master](#item-master) - 4 codes
 - [Manufacturing](#manufacturing) - 7 codes
 - [Manufacturing / Production](#manufacturing--production) - 16 codes
-- [Master Data](#master-data) - 46 codes
+- [Master Data](#master-data) - 52 codes
 - [Mobile App / Device](#mobile-app--device) - 7 codes
 - [Notifications](#notifications) - 6 codes
 - [Observability / Incident](#observability--incident) - 3 codes
@@ -75,7 +75,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Order Management](#order-management) - 12 codes
 - [PIM](#pim) - 57 codes
 - [PIM / Product Publishing](#pim--product-publishing) - 8 codes
-- [POS / Billing](#pos--billing) - 44 codes
+- [POS / Billing](#pos--billing) - 49 codes
 - [POS / Offline & Cash Drawer](#pos--offline--cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch--bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
@@ -881,6 +881,12 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `MASTER-1700` | Data-quality problem ignored without a reason | Say why this is ignored. | Add a short reason. | Medium | 422 |
 | `MASTER-1701` | Data-quality status not Open, Fixed or Ignored | Status must be Open, Fixed or Ignored. | Pick one of the three. | Medium | 422 |
 | `MASTER-1702` | Data-quality problem not found | That problem was not found. | Refresh the list. | Medium | 404 |
+| `MASTER-1703` | Data heal not found | That heal was not found. | Refresh Settings › Data Healer. | Medium | 404 |
+| `MASTER-1704` | Data heal record created or changed by hand | Heals are recorded by Run heal only. | Use Settings › Data Healer. | Medium | 422 |
+| `MASTER-1705` | Past-document name change: names missing, the same or too long | Type the old name and a different new one. | Type both names; 200 characters at most. | Medium | 422 |
+| `MASTER-1706` | Past-document name change: dates not valid | The dates are not valid. | Pick a From date on or before the To date. | Medium | 422 |
+| `MASTER-1707` | Past-document name change applied without YES | Type YES to change past documents. | Type YES in the box, then Apply. | Medium | 422 |
+| `MASTER-1708` | Past-document name change over 20,000 documents | Too many documents at once. | Narrow the dates and apply in parts. | Medium | 422 |
 
 ## Mobile App / Device
 
@@ -1054,6 +1060,11 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `POSOFF-0876` | Bill without the salesman the store asks for, or with someone not its salesman | The bill needs one of the store's salesmen. | Pick the salesman on the till. Add or reactivate them in Setup -> Masters -> Salesman. | Medium | 422 |
 | `POSOFF-0877` | Bill discount above the reason limit without a reason | This discount needs a reason. | Say why the discount is given; above an approval slab a manager approves it too. | Medium | 422 |
 | `POSOFF-0878` | Saving a store or tender with a UPI ID that is not name@provider, or a UPI ID on a non-UPI tender | This UPI ID can't be used. | Type the UPI ID as name@provider (for example store@ybl), or leave it blank. Only a UPI tender takes one. | Medium | 422 |
+| `POSOFF-0879` | B2B bill without the buyer's legal name, address, city or a 6-digit PIN | This B2B bill needs the buyer's name and address. | Fill the buyer's legal name, address, city and PIN in the B2B panel, or clear the GSTIN for a B2C bill. | Medium | 422 |
+| `POSOFF-0880` | B2B bill without the buyer's PO number or date, or a PO date after today | This B2B bill needs the buyer's PO number and date. | Type the buyer's PO number and date (not after today). An admin can make the PO optional in Settings -> Point of Sale. | Medium | 422 |
+| `POSOFF-0881` | B2B bill marked Shipped without a full ship-to address | Shipped goods need the ship-to address. | Fill the ship-to address, city, PIN and state, or choose Collected if the buyer takes the goods at the counter. | Medium | 422 |
+| `POSOFF-0882` | Offer saved without what its type needs, or with days, times, slabs or limits that do not read | This offer is not complete. | Fill the field the message names. Slabs read 2000=200; 5000=10%, days Mon-Fri or Weekend, times 18:30. | Medium | 422 |
+| `POSOFF-0883` | Sales History or the till's bill search given a date, kind or source that does not read | This search could not be read. | Pick the dates from the calendar and search again. | Low | 422 |
 | `POSOFF-1301` | Bill cannot be cancelled (not found, not today's, partly returned, nothing left, or no reason) | This bill can't be cancelled. | Only today's bill, with nothing returned yet, can be cancelled - give the reason. For an older bill, or one already partly returned, take a return instead. | Medium | 422 |
 | `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
 | `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |

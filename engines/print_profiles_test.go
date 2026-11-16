@@ -53,3 +53,41 @@ func TestStage127_4PrintProfiles(t *testing.T) {
 		t.Errorf("the print carries its profile: %+v %v", d.Fields["print_profile"], d.Fields["profile_footer"])
 	}
 }
+
+// 213.2: a profile may name B2B / B2C and one user. Each is a filter (a
+// profile for B2B never applies to a B2C bill, one for another user never
+// applies to this one) and a rank: document, then B2B / B2C, then user,
+// then store - so the most specific one wins.
+func TestProfileScorePartyAndUser(t *testing.T) {
+	p := func(kv ...string) map[string]interface{} {
+		m := map[string]interface{}{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
+	score := func(data map[string]interface{}, party, user string) int {
+		return profileScore(data, "POSTaxInvoice", "POSCart", "ST-1", "", "POS", party, user)
+	}
+	if s := score(p("transaction", "POSTaxInvoice", "party_type", "B2B"), "B2C", "ravi"); s != -1 {
+		t.Errorf("a B2B profile applied to a B2C bill: %d", s)
+	}
+	if s := score(p("transaction", "POSTaxInvoice", "user", "asha"), "B2B", "ravi"); s != -1 {
+		t.Errorf("another user's profile applied: %d", s)
+	}
+	if s := score(p("transaction", "POSTaxInvoice", "user", "asha"), "B2B", ""); s != -1 {
+		t.Errorf("a user's profile applied when no one is printing: %d", s)
+	}
+	all := score(p("transaction", "POSTaxInvoice", "party_type", "All"), "B2B", "ravi")
+	b2b := score(p("transaction", "POSTaxInvoice", "party_type", "b2b"), "B2B", "ravi")
+	mine := score(p("transaction", "POSTaxInvoice", "user", "Ravi"), "B2B", "ravi")
+	store := score(p("transaction", "POSTaxInvoice", "store", "ST-1"), "B2B", "ravi")
+	both := score(p("transaction", "POSTaxInvoice", "party_type", "B2B", "user", "ravi"), "B2B", "ravi")
+	anyDoc := score(p("party_type", "B2B", "user", "ravi", "store", "ST-1", "channel", "POS"), "B2B", "ravi")
+	if !(both > b2b && b2b > mine && mine > store && store > all && all >= 0) {
+		t.Errorf("rank: both %d > B2B %d > user %d > store %d > all %d", both, b2b, mine, store, all)
+	}
+	if anyDoc >= all {
+		t.Errorf("a profile for this document beats one for every document however specific: %d vs %d", anyDoc, all)
+	}
+}

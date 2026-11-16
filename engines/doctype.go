@@ -483,6 +483,11 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 	if err := validateWholesaleDocument(tenantID, doctype, docData); err != nil { // 148.31/32
 		return err
 	}
+	if doctype == "Offer" { // 215.7/215.8: the form and a CSV import both stop here
+		if err := validateOffer(docData); err != nil {
+			return err
+		}
+	}
 	// Stage 60.3: blank / legacy "Stock" item types become "Product" before
 	// the Link to ItemType is checked (engines/item_types.go).
 	if doctype == "Item" {

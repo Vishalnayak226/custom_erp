@@ -6,6 +6,7 @@ summary: Build a multi-level BOM, run a production order through routing/QC/comp
 audience: production planner, plant manager, admin
 last_verified: 2026-11-15
 screens: [manufacturing]
+screen_sections: [manufacturing=running-a-production-order]
 doc_id: DOC-701A5D19A5
 type: procedure
 status: draft
@@ -71,6 +72,25 @@ everything below is edited on the BOM record itself under **Setup**.
   the BOM that gate/inform later steps — see Quality and Costing below.
 
 ## Running a production order
+
+> [!WHAT]
+> A production order makes a finished good from a BOM: you create it, issue
+> the raw material, complete it and, if configured, pass routing and the QC
+> gate.
+
+> [!WHY]
+> **Issue Material** checks every raw material is on hand before posting and
+> snapshots the exact requirement. Completion catches a BOM that changed after
+> issue, and refuses to complete more than the order quantity.
+
+> [!USECASE]
+> A production order for 500 units of a finished good is issued at a Surat
+> location. You complete 200 with **Partial Completion**, and the order stays
+> **In Process** until the last unit.
+
+![A new production order: the BOM, the quantity and where it is made](../img/production-order-new.webp)
+
+> [!HOW]
 
 1. **Create the order** (Orders tab) against a BOM, with an order quantity
    and a location.
@@ -191,6 +211,28 @@ Schedule** report. This is a suggestion, the same as MRP above — nothing is
 auto-scheduled or auto-created from it.
 
 ## Subcontracting (outside processing)
+
+> [!WHAT]
+> A SubcontractOrder models a step an outside party does for you: **Send**
+> moves the raw item out of stock and **Receive** brings the processed item
+> back.
+
+> [!WHY]
+> Both post through the same inventory-ledger path as every other movement, so
+> they appear in the Stock Ledger report. Send works only from Draft and
+> Receive only from Sent.
+
+> [!USECASE]
+> You send 300 metres of fabric to an outside stitcher. When it returns you
+> **Receive** the finished pieces, and the quantity actually received is
+> recorded separately from what was sent.
+
+> [!HOW]
+
+1. Create a **SubcontractOrder** for the item and the location it leaves from.
+2. **Send** the Draft order when the goods go out: they leave stock.
+3. **Receive** the Sent order when they come back, with the quantity actually
+   received.
 
 A **SubcontractOrder** models a step someone outside the business does for
 you: **Send** (`POST /api/v1/manufacturing/subcontract-order/send`) moves

@@ -6,6 +6,7 @@ summary: Build your own charts and number tiles from the ERP's data - sales, sto
 audience: owner, store manager, admin
 last_verified: 2026-10-22
 screens: [reports, home]
+screen_sections: [reports=building-one]
 doc_id: DOC-337C0297D3
 type: procedure
 status: draft
@@ -45,6 +46,22 @@ tables and pivots - drawn from the ERP's own records. Open them under
 - The page **refreshes itself** every few minutes while it is open.
 
 ## Building one
+
+> [!WHAT]
+> A custom dashboard is a page of widgets (numbers, bars, lines, donuts,
+> tables and pivots) drawn from the ERP's own records.
+
+> [!WHY]
+> Every figure is limited to the stores you may see, and money only if your
+> role may see it. Several people can open the same dashboard and each sees
+> their own figures.
+
+> [!USECASE]
+> A store manager in Jaipur wants a daily view of sales. They choose **+ New
+> dashboard**, add a widget on sales lines, share it with their store and set
+> it as their role's **Home** screen.
+
+> [!HOW]
 
 1. **+ New dashboard** (or **Copy** an existing one).
 2. **+ Add widget**: a title, a dataset (sales lines, POS bills, stock on

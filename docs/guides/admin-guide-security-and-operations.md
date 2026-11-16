@@ -206,6 +206,32 @@ Once the new build passes its health check, `remote_deploy.sh` runs `erp-server 
 - **A user reporting a bug should be asked for this line first.** It is the cheapest way to find out whether they are on the build you think they are.
 - Roughly 47 documents under `docs/` carry `applies_to: source release 0.1.0` in their frontmatter. That records the release they were last checked against, not the current one, so they are not changed at each release; `cmd/doclint` only checks that the key is present.
 
+#### C.2.2 Data Healer: catching old records up after a release (ask 207)
+
+A release never changes a client's data. When existing records must catch up to a change (207.4: items and item names saved before 0.25.0 have no stored Item Alias), the release ships a **heal**, and each client runs it once from **Settings → Data Healer** (shortcut `DH`). How users see it is in the user guide, §8i.
+
+- **Who.** Read on *DataHeal* sees a heal's records; update runs it. Shipped: Super Admin and HR/Admin run, Store Manager reads. Everyone signed in sees the strip.
+- **Waiting and Done.** A heal waits while records need it. A client with nothing to fix has it recorded Done by *system* the first time anyone looks, so clients set up after the release never see it. Done is final and records who ran it, when, how many records were fixed and how many values were typed; a record made blank later does not bring the heal back.
+- **Pushing it.** While one waits, a strip that cannot be closed sits above every screen, the covered lists show **Run heal**, and the covered forms will not save until it runs. That hold is on the screen only: the server still accepts saves, so imports and integrations keep working. An item imported with a blank alias prints the alias made from its name and stores it on its next save.
+- **Runs once.** Run heal takes a lock per client and heal, checks Done again, writes only records still blank, and stores the Done record and an Activity Log row (`DATA_HEAL_RUN`) together. If two admins click at once, one runs and the other sees *already healed*. A typed value over the field's limit refuses the whole run (`PIM-9363`) with nothing written.
+- **API.** `GET /api/v1/heals`, `GET /api/v1/heals/{id}/records` (the first 500) and `POST /api/v1/heals/{id}/run` with `{"typed": {"Item/<id>": "Short name"}}`. Errors: `MASTER-1703` (no such heal), `MASTER-1704` (a Data Heal record created or changed by hand). Extension tokens are refused.
+- **Adding a heal (developers).** Add one `healDef` to `dataHeals()` in `engines/data_healer.go`, with its count, records, check and apply functions in its own `engines/data_healer_<what>.go` and a test. Its `Doctypes` are the record types whose lists show the panel and whose forms wait.
+
+#### C.2.3 Past names: changing an item's name on documents already made (item 201.4)
+
+Renaming an item in the Item master changes every screen and every new print, because most lines keep only the SKU and read today's name. Two places keep the old name: lines that copy it (Delivery Challan, Material Issue and Return, stock adjustment: *item name*; RFQ and Vendor Quote: *description*; Consumption: *name*) and the frozen first print of each document (item 130.16). **Settings → Data Healer → Past names** changes both, for a Super Admin, without SQL.
+
+1. Rename the item in the Item master first.
+2. Open **Past names**. Type the **Old name** and the **New name**. **From** and **To** are optional and match the day each document was made.
+3. **Preview** lists each record type with its documents, lines and prints, then the first 200 documents. Untick a type to leave it out.
+4. **Apply**, type **YES**. The toast says how many documents changed. The preview runs again and should show *Nothing to change*.
+
+- **What matches.** The whole name, ignoring case and spaces at the ends, on a line that has an item (a SKU or item code). A print description *Old name · Variant* keeps its variant. A note or remark that mentions the name is left alone, and so are masters.
+- **What is never changed.** A document filed with GST (an IRN or an e-way bill number) is listed as *filed, not changed*. Deleted documents are skipped.
+- **Record.** Each changed document gets a new version with the edit reason *Name changed on past documents: old -> new* and an Activity Log row `PAST_NAME_CHANGE` listing every path it changed (for example `items[0].item_name`, `po#1:lines[0].item_name`). One `PAST_NAME_CHANGE_RUN` row sums the run. A frozen print's checksum is made again over what it now says. To undo, run it again with the names swapped.
+- **Limits.** One run changes at most 20,000 documents (`MASTER-1708`: narrow the dates). Two runs at once wait for each other, so each document changes once.
+- **API.** `POST /api/v1/heals/past-names/preview` and `POST /api/v1/heals/past-names/apply` with `{"old", "new", "from", "to", "doctypes": [...], "confirm": "YES"}`. Errors: `MASTER-1705` (names missing, the same or too long), `MASTER-1706` (dates), `MASTER-1707` (no YES), `MASTER-1708`. Super Admin only; extension tokens are refused.
+
 ### C.3 Backup and Restore
 
 Full procedure and the latest verified restore-drill record: **[`../operations/backup-restore.md`](../operations/backup-restore.md)**. Summary:

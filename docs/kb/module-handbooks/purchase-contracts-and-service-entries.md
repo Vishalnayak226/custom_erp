@@ -6,6 +6,7 @@ summary: Buy against a vendor contract's rates and cap, and pay for services onl
 audience: procurement officer, store manager
 last_verified: 2026-11-14
 screens: [purchase-contracts, service-entry]
+screen_sections: [purchase-contracts=a-contract-with-a-vendor, purchase-contracts=buying-under-it, service-entry=paying-for-a-service]
 doc_id: DOC-AA067F25BD
 type: procedure
 status: draft
@@ -28,8 +29,23 @@ prerequisites: Signed-in account with procurement access; an approver for Activa
 
 ## A contract with a vendor
 
-A contract fixes a vendor's rates for a period, with an optional cap on what you
-may buy under it.
+> [!WHAT]
+> A purchase contract fixes one vendor's rates for a period, with an optional
+> cap on what you may buy under it.
+
+> [!WHY]
+> Every PO released under it is held to the deal: no rate above the
+> contract's, no item off it, no date outside it and no release past the cap.
+> The negotiated terms are enforced on each order instead of remembered.
+
+> [!USECASE]
+> You agree a year's rate for packing tape with one supplier: ₹38 a roll, up
+> to ₹5,00,000. Each month's order is released from the contract, the rate
+> fills itself in, and the contract shows how much of the cap is used.
+
+![A new contract: vendor, kind, validity and cap, then each item's rate](../img/contract-new.webp)
+
+> [!HOW]
 
 1. Open **Procurement » Contracts** and click **New contract**.
 2. Pick the **Vendor** and the **Kind**, set **Valid from** and **Valid to**, and
@@ -55,6 +71,24 @@ release PO. A release counts once it is submitted; a cancelled one gives its
 value back. **Close** ends a contract early.
 
 ## Paying for a service
+
+> [!WHAT]
+> A service entry records work a vendor has done against a service PO: a
+> repair, a maintenance visit, a consultant's days.
+
+> [!WHY]
+> A service has no goods to receive, so the service entry stands in for the
+> goods receipt. The cost is accrued once, when an approver accepts the work,
+> and the vendor's bill is matched against accepted work, not against the PO.
+
+> [!USECASE]
+> You order 12 monthly AC services. After the March visit the store enters 1
+> service done and the manager accepts it. The vendor's March bill matches the
+> one accepted visit; a bill for two would be held.
+
+![A new service entry: pick the service PO, then key what was done this time](../img/service-entry-new.webp)
+
+> [!HOW]
 
 1. On **New purchase order**, set **Type** to **Service**. A service PO is never
    received on a goods receipt, and no stock moves.

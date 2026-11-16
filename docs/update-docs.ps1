@@ -36,8 +36,12 @@ function Resolve-Output([string]$Root, [string]$Relative) {
 }
 function Content-Hash([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return 'missing' }
-    # All pipeline outputs are UTF-8 text. Normalize checkout line endings only.
-    $bytes = $utf8.GetBytes([IO.File]::ReadAllText($Path).Replace("`r`n", "`n"))
+    # The file's own bytes with checkout line endings normalized: the same sum
+    # cmd/doclint takes. Outputs include pictures (KB img/*.webp, 210.5) that a
+    # UTF-8 decode would mangle; Latin-1 maps every byte to one character and
+    # back unchanged, so UTF-8 text without a BOM hashes exactly as before.
+    $latin1 = [Text.Encoding]::Latin1
+    $bytes = $latin1.GetBytes($latin1.GetString([IO.File]::ReadAllBytes($Path)).Replace("`r`n", "`n"))
     return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
 }
 function Run-Go([string[]]$Arguments) {

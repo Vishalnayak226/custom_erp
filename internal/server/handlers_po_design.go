@@ -120,7 +120,7 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	q := r.URL.Query()
 	format := q.Get("format")
-	doc, err := engines.BuildPrintDocument(tenantID, txn, r.PathValue("id"), q.Get("store"), q.Get("images") == "1" && format == "")
+	doc, err := engines.BuildPrintDocumentAs(tenantID, firstNonBlank(r.Header.Get("Resolved-Username"), r.Header.Get("Resolved-User-ID")), txn, r.PathValue("id"), q.Get("store"), q.Get("images") == "1" && format == "")
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusNotFound)
 		return

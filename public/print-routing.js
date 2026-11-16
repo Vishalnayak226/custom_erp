@@ -74,6 +74,15 @@ export async function chosenPrinter(kind, location) {
   return (await res.json()).printer || null;
 }
 
+// computerPrinters (213.1) is every printer this computer has chosen for any
+// kind, once each - the print dialog's list for one print.
+export async function computerPrinters() {
+  const res = await window.apiFetch(`/api/v1/print/qz/assignments?${new URLSearchParams({ computer: await printComputer() })}`);
+  if (!res || !res.ok) return [];
+  const seen = new Set();
+  return ((await res.json()).choices || []).map(c => c.printer).filter(p => p && p.code && !seen.has(p.code) && seen.add(p.code));
+}
+
 function autoPick(kind, printers, def) {
   const plain = (n) => !RECEIPT_RE.test(n) && !LABEL_RE.test(n) && !VIRTUAL_RE.test(n) && !THERMAL_RE.test(n);
   const only = (list) => (list.length === 1 ? list[0] : '');
@@ -236,11 +245,18 @@ const OFFERED_KEY = 'erp_printbridge_offered';
 const SETUP_URL = '/downloads/printbridge-setup.exe';
 let offeredNow = false;
 
+// neverReached: this browser has never had PrintBridge answer (qz-print.js
+// sets erp_printbridge_seen on every connect) and it does not answer now.
+function neverReached() {
+  if (!window.QZPrint || window.QZPrint.isConnected?.()) return false;
+  try { return !localStorage.getItem('erp_printbridge_seen'); } catch (_) { return false; }
+}
+
 function shouldOffer() {
-  if (offeredNow || !window.QZPrint || window.QZPrint.isConnected?.()) return false;
+  if (offeredNow) return false;
   const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '';
   if (!/\bwin/i.test(platform)) return false;
-  try { return !localStorage.getItem(OFFERED_KEY) && !localStorage.getItem('erp_printbridge_seen'); } catch (_) { return false; }
+  try { return !localStorage.getItem(OFFERED_KEY); } catch (_) { return false; }
 }
 
 // offerInstall resolves true once PrintBridge answers, false when the user
@@ -279,10 +295,17 @@ function offerInstall() {
       resolve(value);
     };
     const started = Date.now();
+    let rounds = 0;
     const poll = async () => {
       if (finished) return;
       let up = false;
-      try { up = await window.QZPrint.connect(); } catch (_) { /* not yet */ }
+      // One socket a round (QZPrint.listening) - every fifth the secure one,
+      // for a browser that refuses the plain one - and a full connect only
+      // once it answers.
+      const QZ = window.QZPrint;
+      try {
+        if (!QZ.listening || await QZ.listening(++rounds % 5 === 0)) up = await QZ.connect();
+      } catch (_) { /* not yet */ }
       if (up) { done(true); return; }
       if (Date.now() - started > 10 * 60 * 1000) { done(false); return; }
       polling = setTimeout(poll, 2000);
@@ -315,8 +338,15 @@ export async function printNoDialog(kind, location, trySilent, browserPrint) {
     let printed = false;
     try { printed = await trySilent(why); } catch (e) { why.reason = why.reason || (e && e.message) || String(e); }
     if (printed) { lastPrint.channel = 'qz'; return true; }
+    // 203.1: a computer that never reached PrintBridge is offered it once and
+    // otherwise prints through the browser. A store default printer
+    // (resolveQZPrinter falls back to one) does not mean this computer can
+    // print to it; "did not print" is for a computer that has had PrintBridge.
+    if (neverReached()) {
+      if (shouldOffer() && await offerInstall()) continue; // installed - print silently now
+      lastPrint.channel = 'browser'; await browserPrint(); return true;
+    }
     if (!await silentSetUp(kind, location)) {
-      if (shouldOffer() && await offerInstall()) continue; // 203.1: installed - print silently now
       lastPrint.channel = 'browser'; await browserPrint(); return true;
     }
     const choice = await explainFailure(printKindFor(kind), why.reason || '', why.setup);

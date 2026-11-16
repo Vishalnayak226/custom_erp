@@ -116,7 +116,11 @@ Sidebar: **Settings** → **Database Schema Design** (internally still called "D
 Sidebar: **Settings** → **Activity Log** (internally still called "Log Hub"). Three tabs.
 
 1. **Audit Logs** (default tab): every logged user action — who, what action, details, and timestamp. Read-only, no filters beyond what's on screen.
-2. **System Errors**: every recovered panic/error the server has caught, with severity, module, and message. Click any row to see its full **stack trace** in a dialog — use this when investigating a "Something Went Wrong" screen a user reported, especially if they gave you a correlation ID.
+2. **System Errors**: the open faults the server has caught, one row per fault. Each row shows its severity, module, message, **Count** (how many times it happened) and **Last seen**. Click a row to see the full **stack trace**. Use this when a user reports a "Something Went Wrong" screen, especially if they gave you a correlation ID.
+   - **Copy for fix** puts a ready-made fix request on the clipboard: module, severity, message, how often it happened, a reference and the trace. Paste it to whoever fixes the code.
+   - **Resolve** (Super Admin only) closes the fault once its fix has shipped. It disappears from the list and comes back by itself if it happens again.
+   - Refusals a user can correct are not faults and are not listed. Examples are an expired session, a wrong password and a missing permission. Look for those under **Security Events** or in the audit trail.
+   - Each night the server also files every fault from the last day into the patch proposal queue, so a fault reaches the fix queue even if nobody copies it.
 3. **Integration Payloads**: every outbound webhook/integration event, its status (Dispatched/Success/Failed/etc.), attempt count, and payload preview. A **Failed** row shows a **Retry** button — click it, confirm, and the event is re-queued for delivery.
 4. There is no button to test panic recovery on this screen. On a development or test server a developer calls `/api/v1/debug/panic` directly; production does not have that route.
 

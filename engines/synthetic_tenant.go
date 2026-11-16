@@ -657,6 +657,7 @@ func (g *synthGen) ringUp(cart, store, mode, customer string, lines []QuoteLineR
 		"cart_number": cart, "location": store, "payment_mode": mode, "customer_id": customer, "amount_paid": quote.AmountDue,
 		"items": POSCartItemsFromQuote(quote), "gst_breakdown": quote.GSTBreakdown, "applied_offers": quote.AppliedOffers,
 		"offer_discount": quote.OfferDiscount, "quote_version": quote.Version, "quote_id": quote.QuoteID,
+		"item_discount": quote.ItemDiscount, "bill_discount": quote.BillDiscount, // 215.5
 		"reference_subtotal": quote.ReferenceSubtotal, "cashier": synthCashier, "offline_synced": false,
 	})
 	if err != nil {

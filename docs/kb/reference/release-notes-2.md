@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-08-16 to 2026-10-18, continued from the release notes.
+summary: Earlier releases, 2026-08-19 to 2026-10-18, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,11 +19,43 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **94** earlier entries, 2026-08-16 to 2026-10-18.
+This page continues the [release notes](release-notes.md) with **98** earlier entries, 2026-08-19 to 2026-10-18.
 
 Older still: [part 3](release-notes-3.md).
 
 ## 2026-10-18
+
+**Module 2 (Numbering / Masters), first part — 76.7, 76.8, 76.9** *(code + docs, committed with §241, not pushed; 76.7's country cap waits on Stage 86's commit)*
+
+Full detail in `micro_checklist.md` 76.7-76.9.
+
+**Module-wise build order, module 1: Procurement / GRN / Print — 84.2, 84.3, 84.4, 73.C.7** *(code + docs, committed, not pushed)*
+
+The user set a module-wise build order on 2026-10-18 (`micro_checklist.md`, top: "4,8,1,2,3,5,9,7,6", this run stops after Backups & Platform). This is the first module. Full detail under 84.2-84.5 and 73.C.7.
+
+**Stage 87 — Attributes asked in the PO's add row; a column per attribute on PO lines and the PO print** *(code + docs, NOT COMMITTED)*
+
+From the user's *"It should ask attribute in PO itself. Where is it."* on the New purchase order screen. Full detail in `micro_checklist.md` Stage 87.
+
+**Stage 86 — Refresh keeps your place; number series store code, year formats, GST length and characters, live preview; the ERP's own item attributes** *(code + docs, NOT COMMITTED)*
+
+From the user's Number Series - ASN screenshots, their attribute question, and a refresh that landed on Help. Full detail in `micro_checklist.md` Stage 86.
+
+**Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8** *(one commit, pushed + deployed)*
+
+At the user's *"if all task done, push all and deploy all to minn and app"*. This supersedes the "NOT COMMITTED" tags on §229-237. Full detail in `micro_checklist.md` 73.R and 84.7-84.9.
+
+**Stage 82 — The industry is chosen in Configuration, by the org's admin only** *(code + docs, NOT COMMITTED)*
+
+From the user's screenshot of the top bar's industry dropdown and its typed-code Override prompt. Full detail in `micro_checklist.md` Stage 82.
+
+**Stage 81 — Product attributes per client from the industry attribute library** *(code + docs, NOT COMMITTED)*
+
+From the user's message and draft workbook `ERP_Industry_Product_Attribute_Master.xlsx`. Full detail in `micro_checklist.md` Stage 81.
+
+**Stage 80 — New Item form in sections with a variant-option picker; Help opens the right article on every list; one place for print templates; WMS start-here guide** *(code + docs, NOT COMMITTED)*
+
+Four screenshots from the user on the deployed build. Full detail in `micro_checklist.md` Stage 80.
 
 **Stage 79 — Number boxes take only numbers; PO record form pickers and status; Roles screen rebuilt** *(code + docs, NOT COMMITTED)*
 
@@ -462,24 +494,4 @@ Asked to finish the rest of Phase 42.2 (the warehouse task spine — 4/10 done, 
 **Stage 45 round 1 — UI/UX design-bar sweep: the render race, the clipped tab bars, and a mid-session misdiagnosis corrected** *(frontend only)*
 
 User reported 8 issues live against `:8080` deployment screenshots (duplicate panels across three Financial Accounting screens, F&A frozen header, help icon styling, a Wholeops rebrand ask, Setup submenu visuals, PIM tab bar clipping at 90% zoom, a setup banner that shouldn't be dismissible), then asked for a broader "no one has ever seen it, brainless-intuitive" design-bar sweep and to fix everything found. Full item-by-item detail in `micro_checklist.md` Stage 45.
-
-**Stage 42.1 CLOSED — outbound lottable validation, UOM conversion, real Code 128, and two bugs live verification caught** *(code + schema + docs)*
-
-Asked to build through the whole open backlog. Picked up Phase 42.1 where the prior session left it (42.1.1-42.1.9 already closed) and finished the remaining three items — 42.1.7, 42.1.10, 42.1.11 — closing the phase at 11/11. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-17
-
-**Stage 39.11/39.12/39.16/39.17 — the Knowledge Center gets its content, 6 articles → 23** *(content + code)*
-
-Asked to start writing Stage 39's content, which was 11 open items described as "mostly content authoring". Four of them are now closed. Full item-by-item detail in `micro_checklist.md` Stage 39.
-
-## 2026-08-16
-
-**Stage 37.1.3-37.1.5 — multi-currency finished, and the 98.8% receivable understatement it uncovered** *(code + schema + docs)*
-
-Asked to start building from the open parity backlog, whose first row is **Stage 37 — ERP core depth**, annotated "incl. finishing multi-currency (37.1.3-37.1.5)". That was the right place to start for a reason beyond ordering: 37.1 was the only half-built item in the list, and half-built multi-currency is not a missing feature, it is a live correctness liability. Full item-by-item detail in `micro_checklist.md` Stage 37.1. A concurrent session's Stage 42.1 work was uncommitted in this tree throughout — see the note at the end.
-
-**Stage 42.1 — the traceability foundation: batch, FEFO and recall** *(code + schema + docs)*
-
-Asked to start building Stage 42 (WMS parity), which had been planning-only since 2026-08-11. The plan is unusually emphatic about where to begin — Phase 42.1, "start here, nothing else first" — because grep-verified there was **no lot/batch concept anywhere in the tree**: no `batch_no`, no `expiry`, no shelf life in `engines/` or `db/`. That absence is what made FEFO, expiry blocking and recall unbuildable, and it is why this WMS could not be sold into food, pharma, cosmetics or electronics. Six of the phase's eleven items are now closed (42.1.1–42.1.6) plus the recall traceability the plan asked for as proof the model is right. Full item-by-item detail in `micro_checklist.md` Stage 42.
 

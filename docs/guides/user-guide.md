@@ -129,6 +129,7 @@ Jump straight to the thing you're trying to do.
 | Move or dispose of a fixed asset | [§6.7](user-guide-purchase-orders.md#67-buying-equipment-for-the-business-fixed-assets) step 5 |
 | Change my own password or auto-logout | [§11](user-guide-store-app-and-help.md#11-your-profile-password-and-session) |
 | Find out which version I am on, to report a problem | [§11.1](user-guide-store-app-and-help.md#111-which-version-you-are-on) |
+| Learn what a screen is for, why it matters and how to use it | [§11.2](user-guide-store-app-and-help.md#112-help-on-any-screen) |
 | **Understand an error message or code** | [§12](user-guide-store-app-and-help.md#12-if-you-get-logged-out-or-see-an-error) and **[error-codes.md](error-codes.md)** |
 | **Set the whole thing up from scratch and make my first sale** | [§13](user-guide-store-app-and-help.md#13-open-a-shop-and-make-your-first-sale--the-full-worked-example) — the full worked example |
 | Know what my role is allowed to do | **[PERMISSION_MATRIX.md](../archive/legacy/permission-matrix.md)** |
@@ -164,8 +165,10 @@ Jump straight to the thing you're trying to do.
       - [4.8 A customer's points — the Loyalty screen (store managers)](user-guide-selling-and-stock.md#48-a-customers-points--the-loyalty-screen-store-managers)
       - [4.9 Customer advances — the Advance tab](user-guide-selling-and-stock.md#49-customer-advances--the-advance-tab)
       - [4.10 Large bills — address, PAN and the cash limit](user-guide-selling-and-stock.md#410-large-bills--address-pan-and-the-cash-limit)
+      - [4.10a B2B bill — the buyer's GSTIN, PO and ship-to](user-guide-selling-and-stock.md#410a-b2b-bill--the-buyers-gstin-po-and-ship-to)
       - [4.11 Many lines at once — Upload lines](user-guide-selling-and-stock.md#411-many-lines-at-once--upload-lines)
       - [4.12 Offline Sales — validating sales rung up offline (store managers)](user-guide-selling-and-stock.md#412-offline-sales--validating-sales-rung-up-offline-store-managers)
+      - [4.13 Sales History — every sale and return](user-guide-selling-and-stock.md#413-sales-history--every-sale-and-return)
    - [5. Checking Stock](user-guide-selling-and-stock.md#5-checking-stock)
       - [5.1 Choosing a wave on Mobile Picking](user-guide-selling-and-stock.md#51-choosing-a-wave-on-mobile-picking)
       - [5.2 How a pick list holds stock in the bins](user-guide-selling-and-stock.md#52-how-a-pick-list-holds-stock-in-the-bins)
@@ -235,6 +238,8 @@ Jump straight to the thing you're trying to do.
       - [8e. Fields that check what you typed (GSTIN, email, phone, PAN, IFSC, PIN code)](user-guide-master-data.md#8e-fields-that-check-what-you-typed-gstin-email-phone-pan-ifsc-pin-code)
       - [8f. States, addresses and record codes](user-guide-master-data.md#8f-states-addresses-and-record-codes)
       - [8g. Creating an item: what kind it is, its item name, and the rest is filled in](user-guide-master-data.md#8g-creating-an-item-what-kind-it-is-its-item-name-and-the-rest-is-filled-in)
+      - [8h. Data quality queue and import order (Stage 170.41, 170.42)](user-guide-master-data.md#8h-data-quality-queue-and-import-order-stage-17041-17042)
+      - [8i. Data Healer: one-time fixes after an update (ask 207)](user-guide-master-data.md#8i-data-healer-one-time-fixes-after-an-update-ask-207)
 7. **[Reports and customer orders](user-guide-reports-and-orders.md)**
    - [9. Running a Report](user-guide-reports-and-orders.md#9-running-a-report)
       - [9.1 Your report catalog](user-guide-reports-and-orders.md#91-your-report-catalog)
@@ -313,6 +318,7 @@ Jump straight to the thing you're trying to do.
       - [10A.17 Inspect](user-guide-store-app-and-help.md#10a17-inspect)
    - [11. Your Profile, Password, and Session](user-guide-store-app-and-help.md#11-your-profile-password-and-session)
       - [11.1 Which version you are on](user-guide-store-app-and-help.md#111-which-version-you-are-on)
+      - [11.2 Help on any screen](user-guide-store-app-and-help.md#112-help-on-any-screen)
    - [12. If You Get Logged Out or See an Error](user-guide-store-app-and-help.md#12-if-you-get-logged-out-or-see-an-error)
       - [12.1 How to read an error message](user-guide-store-app-and-help.md#121-how-to-read-an-error-message)
       - [12.2 The errors people hit most](user-guide-store-app-and-help.md#122-the-errors-people-hit-most)

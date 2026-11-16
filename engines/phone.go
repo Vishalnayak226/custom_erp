@@ -425,6 +425,24 @@ func NormalizePhone(raw, defaultISO2 string) PhoneNumber {
 	return out
 }
 
+// BillPhone (215.15) is the clean number an online order passes on to its
+// bill: the national digits for a home-country number, the international form
+// ("+447700900123") for one from abroad, so a ten-digit foreign number is never
+// read as a local mobile. The order itself stores the national digits and
+// customer_country (the Stage 41 rule above), and the number exactly as the
+// channel sent it in customer_phone_as_received.
+func BillPhone(tenantID, national, country string) string {
+	national = strings.TrimSpace(national)
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if national == "" || country == "" || country == TenantPhoneCountry(tenantID) {
+		return national
+	}
+	if r, ok := phoneRulesByISO2[country]; ok && r.DialCode != "" && !strings.HasPrefix(national, "+") {
+		return "+" + r.DialCode + national
+	}
+	return national
+}
+
 // TenantPhoneCountry returns the country code a tenant is configured for.
 // Every phone-touching path reads it through here, so changing the setting
 // changes behaviour everywhere at once with no restart.

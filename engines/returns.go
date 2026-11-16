@@ -216,6 +216,56 @@ func salesInvoiceForOrder(tenantID, id string) string {
 	return id
 }
 
+// salesInvoiceForOrderItems (215.17) is salesInvoiceForOrder for a return of
+// these items. An order shipped in several parcels has a bill per parcel, so
+// the return goes against the first bill that still has every item left to
+// return; with one bill, or none that fits, it is salesInvoiceForOrder's.
+func salesInvoiceForOrderItems(tenantID, id string, items []ReturnItemInput) string {
+	first := salesInvoiceForOrder(tenantID, id)
+	schema, err := db.GetTenantSchema(tenantID)
+	if first == id || len(items) == 0 || err != nil {
+		return first
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL
+		AND status <> 'Cancelled' AND data->>'sales_order_id' = $1 ORDER BY created_at`, schema), id)
+	if err != nil {
+		return first
+	}
+	var bills []string
+	for rows.Next() {
+		var b string
+		if rows.Scan(&b) == nil {
+			bills = append(bills, b)
+		}
+	}
+	rows.Close()
+	if len(bills) < 2 {
+		return first
+	}
+	for _, bill := range bills {
+		elig, err := ResolveReturnEligibility(tenantID, bill)
+		if err != nil || !elig.Found {
+			continue
+		}
+		left := map[string]int{}
+		for _, l := range elig.Lines {
+			left[l.SKU] += l.RemainingQty
+		}
+		fits := true
+		for _, it := range items {
+			if left[it.SKU] < it.Qty {
+				fits = false
+				break
+			}
+			left[it.SKU] -= it.Qty
+		}
+		if fits {
+			return bill
+		}
+	}
+	return first
+}
+
 func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]originalLinePrice, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -386,7 +436,7 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 		if originalOrderID == "" {
 			return nil, errors.New("original_order_id is required for a Customer Return")
 		}
-		originalOrderID = salesInvoiceForOrder(tenantID, originalOrderID) // an online order -> its invoice
+		originalOrderID = salesInvoiceForOrderItems(tenantID, originalOrderID, items) // an online order -> the invoice holding these items (215.17)
 		out.originalOrderID = originalOrderID
 		soldLines, saleDate, found, errResolve := resolveOriginalSale(tenantID, originalOrderID)
 		if errResolve != nil {

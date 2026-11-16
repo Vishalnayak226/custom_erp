@@ -405,6 +405,10 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	if in.CustomerPhone != "" {
 		p := NormalizeTenantPhone(tenantID, in.CustomerPhone)
 		orderDoc["customer_phone"] = p.National
+		// 215.15: and the number exactly as the channel sent it ("+91 98765
+		// 43210", "0044 7700 900123"), so what the customer typed is never lost.
+		// The bill takes BillPhone of the cleaned one.
+		orderDoc["customer_phone_as_received"] = strings.TrimSpace(in.CustomerPhone)
 		if p.CountryISO2 != "" {
 			// customer_country is the targeting signal: an order placed from
 			// outside the home market is identifiable here without re-parsing

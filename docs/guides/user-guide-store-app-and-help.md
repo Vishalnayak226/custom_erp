@@ -166,6 +166,21 @@ The date is day/month/year — so `4/10/26` is 4 October 2026.
 
 If the popup says **`dev build`** instead of a date, you are on a test or development copy rather than a released one. On your company's live system it will always show a date.
 
+### 11.2 Help on any screen
+
+Click **Help for this screen** in the header. A short dialog shows that screen's part of its handbook: **What it is** and **How to do it**. Press **Esc** to close it.
+
+For the full lesson, click **Open the full Knowledge Center** in the dialog. It opens the same handbook at your screen's section, outlined, not the Knowledge Center's home page. The sidebar files every handbook under the app's main modules (Procurement, Inventory, ...). Your module is expanded and the handbook lists its sections; click one to jump to it.
+
+| Part | Tells you |
+|---|---|
+| **What it is** | The transaction in one or two lines |
+| **Why it matters** | What it protects or saves you from |
+| **Use case** | A worked example from a store |
+| **How to do it** | The steps, in order |
+
+Pictures of the screen load only as you scroll to them, so the page stays quick on a slow connection. Every transaction screen has its own lesson; the Settings screens have theirs in the *Settings and configuration* handbook. Help itself, the plain record lists and the Doctype Builder open their guide at the top.
+
 ## 12. If You Get Logged Out or See an Error
 
 - If you haven't used the system in a while, you may be logged out automatically for security (either the account-wide session limit, or your own shorter auto-logout timer from §11) — just log back in.
@@ -287,7 +302,7 @@ Back as the first user: **Procurement → Goods Receipt**. Click **+ New Goods R
 
 Scan the item, or type part of its **name** and press Enter and pick it from the list. Choose a payment mode — for **Cash**, type what the customer handed you into **Cash tendered** and read off the **Change due**. Click **Complete Sale**.
 
-The till now **freezes on the finished bill** (§4.1a): the bill number, the lines, the total collected and the change. Click **Print Receipt** to see it on screen; **Print** there sends it straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog. Click **New Sale (Reset)** when you are ready for the next customer.
+The till now **freezes on the finished bill** (§4.1a): the bill number, the lines, the total collected and the change. Click **Print Receipt** to see it on screen, where you can switch the paper, template or printer for this bill; **Print** there sends it straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog. Click **New Sale (Reset)** when you are ready for the next customer.
 
 ### Step 9 — Check that everything moved on its own
 

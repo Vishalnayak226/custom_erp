@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 61
 summary: Dock appointments with saved-state checks and exception recovery.
 screens: [appointment-calendar]
+screen_sections: [appointment-calendar=schedule-an-appointment]
 topic_type: how-to
 module: warehouse
 task: Dock appointments
@@ -29,6 +30,22 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 Use **Appointment Calendar** to schedule inbound or outbound work at a dock door.
 
 ## Schedule an appointment
+
+> [!WHAT]
+> Appointment Calendar is where you book inbound or outbound work at a dock
+> door for a date and time window.
+
+> [!WHY]
+> The plan shows which door is used when. A refused capacity or service-window
+> check stops two jobs being booked into the same slot.
+
+> [!USECASE]
+> A carrier is due at Bhiwandi on Friday morning. You open **New
+> Appointment**, pick the door, set **Type**, **Carrier**, **Trailer No** and
+> the start and end time, then save. The booking shows against that door and
+> date.
+
+> [!HOW]
 
 1. Select the date. Use the arrow buttons to move by a day, or **Switch to Week** to review the week by door.
 2. Choose **New Appointment**. Enter **Dock Door**, **Type**, **Carrier**, **Trailer No**, **Date**, **Start (HH:MM)** and **End (HH:MM)**.

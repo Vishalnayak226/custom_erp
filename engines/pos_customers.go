@@ -10,8 +10,6 @@ import (
 	"sync"
 
 	"custom_erp/db"
-
-	"github.com/lib/pq"
 )
 
 // Stage 85.C (user, 2026-10-18): "Customer phone number is not asked in bill
@@ -235,12 +233,47 @@ func HighValuePolicyFor(tenantID string) HighValuePolicy {
 	return p
 }
 
+// HighValueSale is one bill as the high-value rules see it.
+type HighValueSale struct {
+	CustomerID string
+	Total      float64
+	Cash       float64 // this bill's cash
+	Form97     bool
+	// B2B (ask 215.4) is a B2B bill's buyer block, already checked by
+	// PreparePOSB2B: its GSTIN carries the buyer's PAN and the block the
+	// address, so only the cash limit is left to check.
+	B2B *POSB2BBuyer
+	// CartNumber is this bill, left out of the customer's earlier cash today.
+	CartNumber string
+}
+
 // CheckHighValueSale is checked at checkout, before any side effect, and by
 // the till before Complete Sale so the cashier asks first.
 func CheckHighValueSale(tenantID, customerID string, total, cash float64, form97 bool) error {
+	return CheckHighValue(tenantID, HighValueSale{CustomerID: customerID, Total: total, Cash: cash, Form97: form97})
+}
+
+// CheckHighValue is CheckHighValueSale with the B2B block and the day's cash.
+// s.269ST refuses cash of 2,00,000 or more "in respect of transactions
+// relating to one event or occasion", so a named customer's cash bills at the
+// tenant's stores on one day are counted together (ask 215.4).
+func CheckHighValue(tenantID string, s HighValueSale) error {
 	p := HighValuePolicyFor(tenantID)
+	total, cash, customerID, form97 := s.Total, s.Cash, s.CustomerID, s.Form97
 	if p.CashLimit > 0 && cash >= p.CashLimit {
 		return &ValidationError{Code: "POSOFF-0868", Message: fmt.Sprintf("Cash of %.2f on one bill; the limit is below %.2f. Take the rest by card or UPI.", cash, p.CashLimit)}
+	}
+	if p.CashLimit > 0 && cash > 0 {
+		earlier, err := CustomerCashToday(tenantID, customerID, s.CartNumber)
+		if err != nil {
+			return err
+		}
+		if earlier > 0 && cash+earlier >= p.CashLimit {
+			return &ValidationError{Code: "POSOFF-0868", Message: fmt.Sprintf("Cash of %.2f today with this bill (%.2f on earlier bills); the limit is below %.2f. Take the rest by card or UPI.", cash+earlier, earlier, p.CashLimit)}
+		}
+	}
+	if s.B2B != nil {
+		return nil
 	}
 	needAddress := p.AddressFrom > 0 && total >= p.AddressFrom
 	needPAN := p.PANAbove > 0 && total > p.PANAbove
@@ -261,6 +294,62 @@ func CheckHighValueSale(tenantID, customerID string, total, cash float64, form97
 		return &ValidationError{Code: "POSOFF-0867", Message: fmt.Sprintf("A bill above %.2f needs %s's PAN, or a signed Form 97 if they have none.", p.PANAbove, c.Name)}
 	}
 	return nil
+}
+
+// CustomerCashToday is the cash a named customer paid on the tenant's paid
+// till bills today, other than the bill exclude. A store's walk-in customer
+// stands for many people, so theirs is 0.
+func CustomerCashToday(tenantID, customerID, exclude string) (float64, error) {
+	customerID = strings.TrimSpace(customerID)
+	if customerID == "" {
+		return 0, nil
+	}
+	c, found, err := LoadCustomerRef(tenantID, customerID)
+	if err != nil || !found || c.WalkIn {
+		return 0, err
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT data->'allocation' FROM %s.documents
+		WHERE doctype = 'POSCart' AND status = 'Paid' AND deleted_at IS NULL
+		  AND data->>'customer_id' = $1 AND id <> $2
+		  AND created_at >= public.erp_day_start($3::date)`, schema), customerID, strings.TrimSpace(exclude), BusinessToday())
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var paise int64
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return 0, err
+		}
+		paise += allocationCashPaise(raw)
+	}
+	return PaiseToRupees(paise), rows.Err()
+}
+
+// allocationCashPaise is the cash tender in a stored allocation, which is a
+// JSON array or (older carts) a JSON string holding one.
+func allocationCashPaise(raw []byte) int64 {
+	var lines []SaleLineAllocation
+	if json.Unmarshal(raw, &lines) != nil {
+		var s string
+		if json.Unmarshal(raw, &s) != nil || json.Unmarshal([]byte(s), &lines) != nil {
+			return 0
+		}
+	}
+	var paise int64
+	for _, l := range lines {
+		for k, v := range l.Tenders {
+			if strings.EqualFold(k, "Cash") {
+				paise += v
+			}
+		}
+	}
+	return paise
 }
 
 // --- 85.C1/85.C2: PAN and GSTIN on the customer master -------------------------
@@ -309,61 +398,37 @@ func ReceiptCustomerLine(tenantID, customerID string) string {
 
 // --- Stage 85.E4 (77.8): find a store's bill to return -------------------------
 
-// StoreBill is one paid bill, as the return search lists it.
+// StoreBill is one paid bill, as the return search lists it. Ask 215
+// (215.13): an online order's bill is one too - its SalesInvoice id is the
+// cart number the return quotes.
 type StoreBill struct {
-	CartNumber string  `json:"cart_number"`
-	BillNumber string  `json:"bill_number"`
-	Store      string  `json:"store"`
-	Date       string  `json:"date"`
-	Customer   string  `json:"customer"`
-	Phone      string  `json:"phone"`
-	Total      float64 `json:"total"`
+	CartNumber     string  `json:"cart_number"`
+	BillNumber     string  `json:"bill_number"`
+	Store          string  `json:"store"`
+	Date           string  `json:"date"`
+	Customer       string  `json:"customer"`
+	Phone          string  `json:"phone"`
+	Total          float64 `json:"total"`
+	Kind           string  `json:"kind"` // Store | Online
+	GSTIN          string  `json:"gstin,omitempty"`
+	OrderNo        string  `json:"order_no,omitempty"`
+	ChannelOrderID string  `json:"channel_order_id,omitempty"`
+	AWB            string  `json:"awb,omitempty"`
 }
 
-// SearchStoreBills finds paid bills by bill / cart number, the customer's
-// mobile or name, and/or a date - at the given stores (all when nil).
+// SearchStoreBills finds paid bills by anything on them (SearchSalesHistory's
+// match: bill, cart, order, channel order, AWB, name, mobile, GSTIN) and/or a
+// date - store bills at the given stores (all when nil), online bills at any
+// store once something is typed.
 func SearchStoreBills(tenantID string, stores []string, q, date string) ([]StoreBill, error) {
-	schema, err := db.GetTenantSchema(tenantID)
+	h, err := SearchSalesHistory(tenantID, SalesHistoryFilter{Stores: stores, From: strings.TrimSpace(date), To: strings.TrimSpace(date), Q: q, Kind: "Sale"})
 	if err != nil {
 		return nil, err
 	}
-	sqlq := fmt.Sprintf(`SELECT c.id, COALESCE(c.data->>'bill_number', ''), COALESCE(c.data->>'location', ''), to_char(c.created_at, 'YYYY-MM-DD HH24:MI'),
-		COALESCE(cu.data->>'name', ''), CASE WHEN COALESCE(cu.data->>'walk_in', '') = 'Yes' THEN '' ELSE COALESCE(cu.data->>'phone', '') END,
-		COALESCE((c.data->>'amount_paid')::numeric, 0)
-		FROM %[1]s.documents c LEFT JOIN %[1]s.documents cu ON cu.doctype = 'Customer' AND cu.id = c.data->>'customer_id'
-		WHERE c.doctype = 'POSCart' AND c.status = 'Paid' AND c.deleted_at IS NULL`, schema)
-	args := []interface{}{}
-	if stores != nil {
-		args = append(args, pq.Array(stores))
-		sqlq += fmt.Sprintf(" AND c.data->>'location' = ANY($%d)", len(args))
+	out := make([]StoreBill, 0, len(h.Rows))
+	for _, x := range h.Rows {
+		out = append(out, StoreBill{CartNumber: x.ID, BillNumber: x.Number, Store: x.Store, Date: x.Date, Customer: x.Customer, Phone: x.Phone,
+			Total: x.Total, Kind: x.Source, GSTIN: x.GSTIN, OrderNo: x.OrderNo, ChannelOrderID: x.ChannelOrderID, AWB: x.AWB})
 	}
-	if q = strings.TrimSpace(q); q != "" {
-		like := "%" + strings.ToLower(q) + "%"
-		phone := ""
-		if p := NormalizePhone(q, TenantPhoneCountry(tenantID)); p.Valid {
-			phone = p.National
-		}
-		args = append(args, like, phone)
-		sqlq += fmt.Sprintf(` AND (lower(c.id) LIKE $%[1]d OR lower(COALESCE(c.data->>'bill_number', '')) LIKE $%[1]d
-			OR lower(COALESCE(cu.data->>'name', '')) LIKE $%[1]d OR ($%[2]d <> '' AND cu.data->>'phone' = $%[2]d))`, len(args)-1, len(args))
-	}
-	if date = strings.TrimSpace(date); date != "" {
-		args = append(args, date)
-		sqlq += fmt.Sprintf(" AND public.erp_local_date(c.created_at) = $%d::date", len(args))
-	}
-	sqlq += " ORDER BY c.created_at DESC LIMIT 50"
-	rows, err := db.DB.Query(sqlq, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []StoreBill{}
-	for rows.Next() {
-		var b StoreBill
-		if err := rows.Scan(&b.CartNumber, &b.BillNumber, &b.Store, &b.Date, &b.Customer, &b.Phone, &b.Total); err != nil {
-			return nil, err
-		}
-		out = append(out, b)
-	}
-	return out, rows.Err()
+	return out, nil
 }

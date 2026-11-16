@@ -26,6 +26,7 @@ function markMaturity(el, level, hide) {
 export function applyShellNav(nav, menuMap, wantLanding) {
   watchEmptyStates();
   watchBigTables();
+  window.markMenuCodes?.(); // 208.1: codes beside the menu entries, once nav says whether they are on
   const hide = !!nav.hide;
   const byMenu = nav.menus || {};
   for (const [id, level] of Object.entries(byMenu)) markMaturity(document.getElementById(id), level, hide);

@@ -13,7 +13,10 @@
 //     answer when the customer will not give one (the store's default
 //     customer, whose placeholder number is never printed);
 //   * a bill over the country's limits asks for the address / PAN first, the
-//     same rules the server enforces at checkout (POSOFF-0866/0867/0868).
+//     same rules the server enforces at checkout (POSOFF-0866/0867/0868);
+//   * ask 215: Mobile and Name are separate boxes; a GSTIN in the GSTIN box
+//     makes a B2B bill with the buyer's panel (POSOFF-0879/0880/0881); the
+//     cash limit counts the same customer's cash earlier today.
 // Lazy-loaded by view-pos.js, so none of this is in the till's first load.
 
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
@@ -21,19 +24,39 @@ const pickers = () => loadViewModule('/view-pickers.js?v=1');
 
 let attached = null; // the CustomerRef on this bill, or null
 let policy = null;
+let b2b = null; // ask 215.2: the bill's B2B buyer block, or null for a B2C bill
 
 const hiddenEl = () => document.getElementById('pos-customer');
 const displayEl = () => document.getElementById('pos-customer-display');
+const phoneEl = () => document.getElementById('pos-customer-phone'); // 215.1
+const gstinEl = () => document.getElementById('pos-gstin'); // 215.2
 const digits = (s) => String(s || '').replace(/[^\d+]/g, '');
 
 // posAttachCustomer puts a customer on the bill the way a pick does: the
-// code in the hidden box, the name shown, then the change event the till
-// listens for (quote, offers, loyalty).
+// code in the hidden box, the name and mobile shown, then the change event
+// the till listens for (quote, offers, loyalty).
 export function posAttachCustomer(c) {
   attached = c && c.id ? c : null;
-  const hidden = hiddenEl(), display = displayEl();
+  const hidden = hiddenEl(), display = displayEl(), phone = phoneEl();
   if (display) { display.value = attached ? (attached.walk_in ? 'Walk-in' : attached.name) : ''; display.dataset.resolved = attached ? '1' : ''; }
+  if (phone && attached) { phone.value = attached.walk_in ? '' : (attached.phone || phone.value); phone.dataset.resolved = '1'; }
+  syncB2BWithCustomer(); // before the change event, so the quote it starts carries the block
   if (hidden) { hidden.value = attached ? attached.id : ''; hidden.dispatchEvent(new Event('change', { bubbles: true })); }
+}
+
+// posSyncCustomer runs on every change of the bill's customer, including a
+// pick from the Name box's search list, which sets only the hidden code: it
+// loads that customer, shows their mobile and fills the GSTIN box (215.1/215.2).
+export async function posSyncCustomer() {
+  const code = (hiddenEl() || {}).value || '';
+  if (!code) { attached = null; syncB2BWithCustomer(); return; }
+  if (attached && attached.id === code) { syncB2BWithCustomer(); return; }
+  const c = await refreshAttached();
+  if (!c || c.id !== code) return;
+  const phone = phoneEl();
+  if (phone) { phone.value = c.walk_in ? '' : (c.phone || ''); phone.dataset.resolved = '1'; }
+  syncB2BWithCustomer();
+  if (typeof renderPOSCustomerNote === 'function') renderPOSCustomerNote();
 }
 
 // posCustomerSummary is the one line under the box (85.C5): who, their
@@ -44,7 +67,7 @@ export function posCustomerSummary(code, shown) {
   if (c && c.walk_in) return 'Walk-in - no number taken. No points, not on the bill.';
   const parts = [c ? c.name : (shown || code)];
   if (c && c.phone) parts.push(c.phone);
-  if (c && c.gstin) parts.push(`GST bill (${c.gstin})`);
+  if (c && c.gstin && !b2b) parts.push(`GST bill (${c.gstin})`);
   return parts.join(' · ');
 }
 
@@ -65,7 +88,7 @@ async function refreshAttached() {
   if (!res || !res.ok) return attached;
   const d = await res.json();
   attached = {
-    id: code, name: d.name || code, phone: d.walk_in === 'Yes' ? '' : (d.phone || ''), gstin: d.gstin || '', pan: d.pan || '',
+    id: code, name: d.name || code, phone: d.walk_in === 'Yes' ? '' : (d.phone || ''), email: d.email || '', gstin: d.gstin || '', pan: d.pan || '',
     address: d.address || '', address_line2: d.address_line2 || '', city: d.city || '', state: d.state || '', pincode: d.pincode || '',
     walk_in: d.walk_in === 'Yes', fresh: true,
   };
@@ -73,13 +96,16 @@ async function refreshAttached() {
   return attached;
 }
 
-// posCustomerFind runs on Enter in the customer box: a number is looked up.
-export async function posCustomerFind() {
-  const display = displayEl();
-  const raw = display ? display.value.trim() : '';
-  if (!raw || display.dataset.resolved === '1') return;
+// posCustomerFind runs on Enter in the Mobile box (215.1), or a number typed
+// in the Name box: the number is looked up.
+export async function posCustomerFind(box = phoneEl() || displayEl()) {
+  const raw = box ? box.value.trim() : '';
+  if (!raw || box.dataset.resolved === '1') return;
   const num = digits(raw);
-  if (num.replace('+', '').length < 8) return; // a name: the search list handles it
+  if (num.replace('+', '').length < 8) {
+    if (box === phoneEl()) showToast('Enter the full mobile number.', { variant: 'warning' });
+    return; // in the Name box, a name: the search list handles it
+  }
   const res = await apiFetch(`/api/v1/pos/customer-lookup?phone=${encodeURIComponent(num)}`);
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'That number could not be looked up.'); return; }
@@ -89,7 +115,10 @@ export async function posCustomerFind() {
     showToast(`${data.customer.name} is on this bill.`, { variant: 'success' });
     return;
   }
-  await openPOSCustomerForm({ phone: data.phone || num, title: 'New customer' });
+  // 215.1: a name already typed in the Name box goes into the new customer.
+  const nameBox = displayEl();
+  const typedName = nameBox && box !== nameBox && nameBox.dataset.resolved !== '1' ? nameBox.value.trim() : '';
+  await openPOSCustomerForm({ phone: data.phone || num, title: 'New customer', name: typedName });
 }
 
 export async function posAttachWalkIn() {
@@ -113,7 +142,9 @@ let lastSaved = null; // the customer the form saved last ({id, name, phone})
 export async function openPOSCustomerForm({ id = '', phone = '', name = '', title = '', need = '', attach = true } = {}) {
   const p = await pickers();
   const fresh = !id || !!(attached && attached.id === id && attached.walk_in); // the walk-in becomes a new customer
-  const r = await p.openCustomerForm({ id, phone, name, title, need, till: true, saveLabel: fresh && attach ? 'Add to bill' : '' });
+  // 215.2: the B2B buyer's GSTIN and address fill what the record leaves blank.
+  const seed = attach && b2b ? { gstin: b2b.gstin, address: b2b.address, city: b2b.city, pincode: b2b.pincode, state: b2b.state, email: b2b.email } : {};
+  const r = await p.openCustomerForm({ id, phone, name: name || (fresh && b2b ? b2b.legal_name : ''), title, need, seed, till: true, saveLabel: fresh && attach ? 'Add to bill' : '' });
   if (!r) return false;
   const code = r.doc.id || r.doc.code || '';
   lastSaved = { id: code, name: r.doc.name, phone: r.doc.phone };
@@ -122,6 +153,7 @@ export async function openPOSCustomerForm({ id = '', phone = '', name = '', titl
     attached = null;
     posAttachCustomer({ id: code, name: r.doc.name });
     await refreshAttached();
+    syncB2BWithCustomer(); // a GSTIN just saved on the record makes the bill B2B
     if (typeof renderPOSCustomerNote === 'function') renderPOSCustomerNote();
   }
   showToast(`${r.doc.name} ${r.editing ? 'saved' : attach ? 'added to this bill' : 'added'}.`, { variant: 'success' });
@@ -159,15 +191,28 @@ async function posAskMobile() {
   if (!picked) return false;
   if (picked.walkIn) return posAttachWalkIn();
   if (!picked.phone) return posAskMobile();
-  const display = displayEl();
-  if (display) { display.value = picked.phone; display.dataset.resolved = ''; }
-  await posCustomerFind();
+  const phone = phoneEl() || displayEl();
+  if (phone) { phone.value = picked.phone; phone.dataset.resolved = ''; }
+  await posCustomerFind(phone);
   return !!((hiddenEl() || {}).value);
 }
 
 // posEnsureCustomer runs first in Complete Sale. Resolves { form97 } to go
 // on, or null to stop (the cashier cancelled, or details are still missing).
-export async function posEnsureCustomer({ total = 0, cash = 0 } = {}) {
+export async function posEnsureCustomer({ total = 0, cash = 0, cart = '' } = {}) {
+  // 215.2: a GSTIN typed without Enter is taken in now; a B2B bill goes on
+  // only with the buyer's details complete.
+  const gBox = gstinEl();
+  if (gBox && gBox.value.trim() && !(b2b && b2b.gstin === gBox.value.replace(/\s+/g, '').toUpperCase())) {
+    await posGSTINEntered();
+    if (!b2b) return null;
+  }
+  if (b2b) {
+    await loadPolicy();
+    if (b2bMissing(b2b).length) await openPOSB2BPanel();
+    if (!b2b) return posEnsureCustomer({ total, cash, cart }); // Not B2B was chosen
+    if (b2bMissing(b2b).length) return null;
+  }
   if (!((hiddenEl() || {}).value)) {
     if (!(await posAskMobile())) return null;
     // The customer changes the quote (their price list, offers, points): the
@@ -176,10 +221,22 @@ export async function posEnsureCustomer({ total = 0, cash = 0 } = {}) {
   }
   const p = await loadPolicy();
   const c = await refreshAttached();
-  if (p.cash_limit > 0 && cash >= p.cash_limit) {
-    await showCustomAlert(`Cash of ${cash.toFixed(2)} on one bill is over the limit (${p.cash_limit.toFixed(2)}). Take part of it by card or UPI (More... -> Split payment).`, 'Cash Limit');
+  // 215.4 (Income Tax Act s.269ST): the limit is per person per day, so the
+  // cash this customer paid on earlier bills today counts with this one.
+  let cashToday = 0;
+  if (p.cash_limit > 0 && cash > 0 && c && !c.walk_in && navigator.onLine) {
+    const res = await apiFetch(`/api/v1/pos/high-value-policy?customer_id=${encodeURIComponent(c.id)}&cart_number=${encodeURIComponent(cart)}`).catch(() => null);
+    if (res && res.ok) cashToday = Number((await res.json()).cash_today || 0);
+  }
+  if (p.cash_limit > 0 && cash > 0 && cash + cashToday >= p.cash_limit) {
+    await showCustomAlert(cashToday > 0
+      ? `${c.name} paid ${cashToday.toFixed(2)} in cash today. With ${cash.toFixed(2)} more that is over the limit (${p.cash_limit.toFixed(2)}). Take the rest by card or UPI (More... -> Split payment).`
+      : `Cash of ${cash.toFixed(2)} on one bill is over the limit (${p.cash_limit.toFixed(2)}). Take part of it by card or UPI (More... -> Split payment).`, 'Cash Limit');
     return null;
   }
+  // 215.3: a B2B bill names the buyer by GSTIN, legal name and address (CGST
+  // Rule 46), and the GSTIN carries the PAN - no Form 97, no extra address.
+  if (b2b) return { form97: false };
   const needAddress = p.address_from > 0 && total >= p.address_from && (p.address_all || !(c && c.gstin));
   const needPAN = p.pan_above > 0 && total > p.pan_above && !(c && c.pan);
   if (!needAddress && !needPAN) return { form97: false };
@@ -190,7 +247,7 @@ export async function posEnsureCustomer({ total = 0, cash = 0 } = {}) {
   }
   if (needAddress && !c.address_complete) {
     if (!(await openPOSCustomerForm({ id: c.id, need: `A bill of ${total.toFixed(2)} needs ${c.name}'s address (line 1, state and city or PIN).` }))) return null;
-    return posEnsureCustomer({ total, cash });
+    return posEnsureCustomer({ total, cash, cart });
   }
   if (needPAN) {
     const choice = await new Promise(resolve => {
@@ -198,7 +255,7 @@ export async function posEnsureCustomer({ total = 0, cash = 0 } = {}) {
     });
     if (choice) {
       if (!(await openPOSCustomerForm({ id: c.id, need: `Add ${c.name}'s PAN for this bill.` }))) return null;
-      return posEnsureCustomer({ total, cash });
+      return posEnsureCustomer({ total, cash, cart });
     }
     return { form97: true };
   }
@@ -216,11 +273,305 @@ export async function posFixCustomerForBill(data) {
   }
 }
 
-export function posClearCustomer() { attached = null; openAdvances = []; useAdvance = false; const b = document.getElementById('pos-advance-use-btn'); if (b) b.classList.add('hidden'); }
+export function posClearCustomer() {
+  attached = null; openAdvances = []; useAdvance = false; b2b = null;
+  const b = document.getElementById('pos-advance-use-btn'); if (b) b.classList.add('hidden');
+  const g = gstinEl(); if (g) g.value = '';
+  renderB2BNote();
+}
 
-// posCustomerIsB2B: the bill's customer has a GSTIN, so the sale gets a GST
-// tax invoice (Stage 85.D2) beside the receipt.
-export function posCustomerIsB2B() { return !!(attached && attached.gstin && !attached.walk_in); }
+// posCustomerIsB2B: the bill has a buyer GSTIN (the B2B block, or the
+// customer's own), so the sale gets a GST tax invoice (Stage 85.D2) beside
+// the receipt.
+export function posCustomerIsB2B() { return !!(b2b && b2b.gstin) || !!(attached && attached.gstin && !attached.walk_in); }
+
+// --- Ask 215.2/215.3: the B2B bill -------------------------------------------
+//
+// A GSTIN in the till's GSTIN box makes the bill a B2B tax invoice. The
+// buyer's panel asks what CGST Rule 46 and a buyer's accounts team need: the
+// legal name, address, city and PIN (the state comes from the GSTIN), the
+// buyer's PO number and date (optional with the setting pos.b2b.po_optional),
+// and how the goods leave - collected here, or shipped, which moves the place
+// of supply to the buyer's state (IGST Act s.10(1)(b)). A GSTIN on file fills
+// the panel and attaches that customer. The block goes with the quote and the
+// sale; the server checks it again (engines/pos_b2b.go).
+
+const PIN = /^[1-9][0-9]{5}$/;
+const regions = () => (window.FIELD_META && window.FIELD_META.regions) || [];
+const stateOfGSTIN = (g) => (regions().find(r => r.tax_code === String(g).slice(0, 2)) || {}).name || '';
+
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function seedFromCustomer(c) {
+  return {
+    gstin: String(c.gstin || '').toUpperCase(), legal_name: c.name || '',
+    address: [c.address, c.address_line2].filter(Boolean).join(', '), city: c.city || '', pincode: c.pincode || '',
+    email: c.email || '', contact: c.phone || '', delivery: 'collect', fromCustomer: c.id,
+  };
+}
+
+// b2bMissing lists what the server would refuse (POSOFF-0879/0880/0881);
+// MISS_FIELD is the panel field each one points at.
+const MISS_FIELD = {
+  'legal name': 'legal_name', address: 'address', city: 'city', '6-digit PIN': 'pincode', 'PO number': 'po_number', 'PO date': 'po_date',
+  'ship-to address': 'ship_address', 'ship-to city': 'ship_city', 'ship-to PIN': 'ship_pincode', 'ship-to state': 'ship_state',
+};
+function b2bMissing(b) {
+  const miss = [];
+  if (!b.legal_name) miss.push('legal name');
+  if (!b.address) miss.push('address');
+  if (!b.city) miss.push('city');
+  if (!PIN.test(b.pincode || '')) miss.push('6-digit PIN');
+  if (!(policy && policy.b2b_po_optional)) {
+    if (!b.po_number) miss.push('PO number');
+    if (!b.po_date) miss.push('PO date');
+  }
+  if (b.delivery === 'ship') {
+    if (!b.ship_address) miss.push('ship-to address');
+    if (!b.ship_city) miss.push('ship-to city');
+    if (!PIN.test(b.ship_pincode || '')) miss.push('ship-to PIN');
+    if (!b.ship_state) miss.push('ship-to state');
+  }
+  return miss;
+}
+
+// posB2BBlock is what the quote and the sale send, or null for B2C.
+export function posB2BBlock() {
+  if (!b2b || !b2b.gstin) return null;
+  const { fromCustomer, ...out } = b2b; // eslint-disable-line no-unused-vars
+  return out;
+}
+
+function renderB2BNote() {
+  const note = document.getElementById('pos-gstin-note');
+  if (!note) return;
+  note.classList.toggle('hidden', !b2b);
+  if (!b2b) { note.textContent = ''; return; }
+  note.textContent = b2bMissing(b2b).length ? 'B2B · details needed'
+    : ['B2B', b2b.po_number, b2b.delivery === 'ship' ? 'shipped' : ''].filter(Boolean).join(' · ');
+}
+
+function afterB2BChange() {
+  renderB2BNote();
+  if (typeof renderPOSCustomerNote === 'function') renderPOSCustomerNote();
+  if (navigator.onLine && typeof window.refreshPOSQuote === 'function') window.refreshPOSQuote();
+}
+
+// syncB2BWithCustomer keeps the GSTIN box with the bill's customer: a
+// customer with a GSTIN on file fills it (their bill is B2B, as the tax
+// invoice and GSTR-1 treat it); moving off the customer a block came from
+// clears it.
+function syncB2BWithCustomer() {
+  const box = gstinEl();
+  const c = attached && !attached.walk_in ? attached : null;
+  if (b2b && b2b.fromCustomer && (!c || c.id !== b2b.fromCustomer)) {
+    b2b = null;
+    if (box) box.value = '';
+  }
+  const g = c && c.gstin ? String(c.gstin).toUpperCase() : '';
+  if (!b2b && g && box && (!box.value.trim() || box.value.trim().toUpperCase() === g)) {
+    box.value = g;
+    b2b = seedFromCustomer(c);
+  }
+  renderB2BNote();
+  if (b2b && !policy) loadPolicy().then(renderB2BNote).catch(() => {}); // whether the PO is asked
+}
+
+// posGSTINEntered runs on Enter or change in the GSTIN box. Enter and the
+// change that follows it share one run.
+let entering = null;
+export function posGSTINEntered() {
+  if (!entering) entering = gstinEntered().finally(() => { entering = null; });
+  return entering;
+}
+
+async function gstinEntered() {
+  const box = gstinEl();
+  if (!box) return;
+  const v = box.value.replace(/\s+/g, '').toUpperCase();
+  box.value = v;
+  const c = attached && !attached.walk_in ? attached : null;
+  if (!v) {
+    if (c && c.gstin) { // the record's GSTIN decides: its bill stays B2B
+      box.value = String(c.gstin).toUpperCase();
+      syncB2BWithCustomer();
+      showToast('GSTIN on file · B2B bill', { variant: 'warning' });
+      return;
+    }
+    if (b2b) { b2b = null; afterB2BChange(); }
+    return;
+  }
+  if (b2b && b2b.gstin === v) {
+    if (b2bMissing(b2b).length) await openPOSB2BPanel();
+    return;
+  }
+  const p = await pickers();
+  if (v.length !== 15 || !p.fieldChecksumOK('gstin', v) || (regions().length && !stateOfGSTIN(v))) {
+    if (b2b) { b2b = null; afterB2BChange(); }
+    showToast('Not a valid GSTIN.', { variant: 'warning' });
+    box.focus();
+    return;
+  }
+  await loadPolicy();
+  let block = null;
+  if (c && c.gstin && String(c.gstin).toUpperCase() === v) block = seedFromCustomer(c);
+  else if (navigator.onLine) {
+    const res = await apiFetch(`/api/v1/pos/customer-lookup?gstin=${encodeURIComponent(v)}`).catch(() => null);
+    const data = res && res.ok ? await res.json() : null;
+    if (data && data.found && data.customer && data.customer.id) {
+      block = seedFromCustomer(data.customer);
+      if (c) block.fromCustomer = ''; // a mobile already taken stays on the bill
+      else {
+        b2b = block;
+        posAttachCustomer(data.customer);
+        showToast(`${data.customer.name} is on this bill.`, { variant: 'success' });
+      }
+    }
+  }
+  // A new GSTIN: the customer on the bill (no GSTIN yet) fills what it can.
+  b2b = block || (c ? { ...seedFromCustomer(c), gstin: v, fromCustomer: '' } : { gstin: v, delivery: 'collect' });
+  afterB2BChange();
+  await openPOSB2BPanel();
+}
+
+// openPOSB2BPanel: the buyer's details. need is the server's refusal, shown on
+// top. Resolves true when saved.
+let panelOpen = null;
+export function openPOSB2BPanel(need = '') {
+  if (!panelOpen) panelOpen = b2bPanel(need).finally(() => { panelOpen = null; });
+  return panelOpen;
+}
+
+async function b2bPanel(need) {
+  if (!b2b) {
+    showToast("Enter the buyer's GSTIN.", { variant: 'warning' });
+    gstinEl()?.focus();
+    return false;
+  }
+  const p = await pickers();
+  const pol = await loadPolicy();
+  const b = b2b;
+  const poReq = !pol.b2b_po_optional;
+  const ship = b.delivery === 'ship';
+  const c = attached && !attached.walk_in ? attached : null;
+  const onFile = !!(c && c.gstin && String(c.gstin).toUpperCase() === b.gstin); // Not B2B cannot apply
+  const offerSave = !c || !c.gstin;
+  const star = '<span class="required">*</span>';
+  const field = (name, label, value, { req = false, type = 'text', extra = '' } = {}) =>
+    `<div class="form-group"><label class="form-label" for="b2b-${name}">${label}${req ? star : ''}</label>
+      <input type="${type}" id="b2b-${name}" name="${name}" class="form-input" value="${esc(value)}" autocomplete="off" ${extra}></div>`;
+  return new Promise(resolve => {
+    const returnFocus = document.activeElement;
+    document.getElementById('pos-b2b-dialog')?.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open quick-create-overlay';
+    overlay.id = 'pos-b2b-dialog';
+    overlay.innerHTML = `
+      <div class="modal-container customer-form" role="dialog" aria-modal="true" aria-labelledby="b2b-title">
+        <div class="modal-header"><h3 class="modal-title" id="b2b-title">B2B bill · ${esc(b.gstin)}</h3>
+          <button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+        <form novalidate>
+          <div class="modal-body">
+            ${need ? `<div class="login-error">${esc(need)}</div>` : ''}
+            <div class="login-error hidden" role="alert" data-b2b-error></div>
+            <details class="form-section" open><summary>Buyer${stateOfGSTIN(b.gstin) ? ` · ${esc(stateOfGSTIN(b.gstin))}` : ''}</summary><div class="form-section-grid">
+              ${field('legal_name', 'Legal name', b.legal_name, { req: true, extra: 'maxlength="100"' })}
+              ${field('trade_name', 'Trade name', b.trade_name, { extra: 'maxlength="100"' })}
+              ${field('address', 'Address', b.address, { req: true, extra: 'maxlength="200"' })}
+              ${field('city', 'City', b.city, { req: true })}
+              ${field('pincode', 'PIN', b.pincode, { req: true, extra: 'inputmode="numeric" maxlength="6"' })}
+              ${field('email', 'Email', b.email, { type: 'email' })}
+              ${field('contact', 'Contact', b.contact, { type: 'tel', extra: 'inputmode="tel"' })}
+            </div></details>
+            <details class="form-section" open><summary>Order</summary><div class="form-section-grid">
+              ${field('po_number', 'PO number', b.po_number, { req: poReq, extra: 'maxlength="40"' })}
+              ${field('po_date', 'PO date', b.po_date, { req: poReq, type: 'date', extra: `max="${localToday()}"` })}
+              <div class="form-group"><label class="form-label" for="b2b-delivery">Delivery</label>
+                <select id="b2b-delivery" name="delivery" class="form-select">
+                  <option value="collect">Collected here</option><option value="ship" ${ship ? 'selected' : ''}>Shipped</option></select></div>
+            </div></details>
+            <details class="form-section pos-b2b-ship ${ship ? '' : 'hidden'}" open><summary>Ship to</summary><div class="form-section-grid">
+              ${field('ship_name', 'Name', b.ship_name, { extra: 'maxlength="100"' })}
+              ${field('ship_address', 'Address', b.ship_address, { req: true, extra: 'maxlength="200"' })}
+              ${field('ship_city', 'City', b.ship_city, { req: true })}
+              ${field('ship_pincode', 'PIN', b.ship_pincode, { req: true, extra: 'inputmode="numeric" maxlength="6"' })}
+              <div class="form-group"><label class="form-label" for="b2b-ship_state">State${star}</label><span data-b2b-ship-state></span></div>
+            </div></details>
+            ${offerSave ? '<div class="cf-consent"><label><input type="checkbox" name="save_customer" checked> Save to customer</label></div>' : ''}
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-b2b-cancel>Cancel</button>
+            ${onFile ? '' : '<button type="button" class="btn btn-outline" data-b2b-remove>Not B2B</button>'}
+            <button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+      </div>`;
+    const form = overlay.querySelector('form');
+    const f = form.elements;
+    const errorEl = overlay.querySelector('[data-b2b-error]');
+    const slot = overlay.querySelector('[data-b2b-ship-state]');
+    slot.replaceWith(regions().length
+      ? p.buildStateSelect({ id: 'b2b-ship_state', name: 'ship_state', value: b.ship_state || '', required: true })
+      : Object.assign(document.createElement('input'), { id: 'b2b-ship_state', name: 'ship_state', className: 'form-input', value: b.ship_state || '' }));
+    const shipBox = overlay.querySelector('.pos-b2b-ship');
+    f.delivery.addEventListener('change', () => shipBox.classList.toggle('hidden', f.delivery.value !== 'ship'));
+    const done = (v) => {
+      overlay.remove();
+      if (returnFocus && typeof returnFocus.focus === 'function' && document.contains(returnFocus)) returnFocus.focus();
+      resolve(v);
+    };
+    overlay.querySelector('.modal-close').addEventListener('click', () => done(false));
+    overlay.querySelector('[data-b2b-cancel]').addEventListener('click', () => done(false));
+    overlay.addEventListener('keydown', e => { if (e.key === 'Escape') done(false); });
+    overlay.querySelector('[data-b2b-remove]')?.addEventListener('click', () => {
+      b2b = null;
+      const g = gstinEl(); if (g) g.value = '';
+      afterB2BChange();
+      done(false);
+    });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const next = { ...b, delivery: f.delivery.value === 'ship' ? 'ship' : 'collect' };
+      ['legal_name', 'trade_name', 'address', 'city', 'pincode', 'email', 'contact', 'po_number', 'po_date',
+        'ship_name', 'ship_address', 'ship_city', 'ship_pincode', 'ship_state'].forEach(k => { next[k] = String(f[k] ? f[k].value : '').trim(); });
+      const miss = b2bMissing(next);
+      if (miss.length || (next.po_date && next.po_date > localToday())) {
+        errorEl.textContent = miss.length ? `Add the ${miss.join(', ')}.` : 'The PO date is after today.';
+        errorEl.classList.remove('hidden');
+        const first = f[MISS_FIELD[miss[0]]] || f.po_date;
+        if (first) first.focus();
+        return;
+      }
+      b2b = next;
+      const save = !!(f.save_customer && f.save_customer.checked);
+      overlay.remove();
+      afterB2BChange();
+      // Saved on the customer, the GSTIN fills this panel next time. The
+      // panel resolves after, so Complete Sale does not open over the form.
+      if (save) await openPOSCustomerForm({ id: c ? c.id : '', phone: c ? '' : next.contact, title: c ? '' : 'New customer' });
+      done(true);
+    });
+    document.body.appendChild(overlay);
+    (b.legal_name ? (poReq && !b.po_number ? f.po_number : f.legal_name) : f.legal_name).focus();
+  });
+}
+
+// posRuleHint is the short warning in the total bar (215.4): what Complete
+// Sale will ask for, before the cashier gets there.
+export function posRuleHint(total = 0, cash = 0) {
+  if (!policy) { loadPolicy().catch(() => {}); return ''; }
+  const p = policy, c = attached && !attached.walk_in ? attached : null;
+  const out = [];
+  if (p.cash_limit > 0 && cash >= p.cash_limit) out.push('Cash over limit');
+  if (b2b) {
+    if (b2bMissing(b2b).length) out.push('B2B details needed');
+  } else {
+    if (p.address_from > 0 && total >= p.address_from && (p.address_all || !(c && c.gstin)) && !(c && c.address_complete)) out.push('Address needed');
+    if (p.pan_above > 0 && total > p.pan_above && !(c && c.pan)) out.push('PAN or Form 97');
+  }
+  return out.join(' · ');
+}
 
 // --- Stage 85.D3: customer advances ------------------------------------------
 //

@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **686**; keyed: **38**; findings (money / stock without a key): **147**.
+Routes audited: **688**; keyed: **38**; findings (money / stock without a key): **147**.
 
 ## Findings
 
@@ -463,6 +463,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/gstr2b/import` | `handleGSTR2BImport` | no | - | document |
 | `POST /api/v1/gstr2b/lines/{id}/decision` | `handleGSTR2BDecision` | no | - | document |
 | `POST /api/v1/gstr2b/reconcile` | `handleGSTR2BReconcile` | no | - | document |
+| `POST /api/v1/heals/{id}/run` | `handleRunHeal` | no | - | document |
 | `POST /api/v1/hr/appraisals/{id}/calibrate` | `handleCalibrateAppraisal` | no | - | document |
 | `POST /api/v1/hr/disburse-loan` | `handleDisburseEmployeeLoan` | yes (command key `hr.loan.disburse`) | 7 days (command claim) | money |
 | `POST /api/v1/hr/job-offers/{id}/accept` | `handleAcceptJobOffer` | no | - | document |
@@ -521,6 +522,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/lines/resolve` | `handleResolveLineCodes` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/login` | `handleLogin` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/logs/browser-error` | `handleBrowserError` | no | - | document |
+| `POST /api/v1/logs/system/resolve` | `handleResolveSystemFault` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/loyalty/redeem` | `handleRedeemLoyaltyPoints` | yes (command key `loyalty.points.redeem`) | 7 days (command claim) | money |
 | `POST /api/v1/loyalty/transfers/{id}/confirm` | `handleLoyaltyTransferConfirm` | no | - | stock |
 | `POST /api/v1/manufacturing/acknowledge-bom-variance` | `handleAcknowledgeBOMVariance` | no | - | document |

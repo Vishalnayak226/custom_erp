@@ -175,11 +175,15 @@ type errorSignature struct {
 }
 
 func intakeSchemaErrors(schema, tenantID string, since time.Time, rules []patchPolicyRule) error {
+	// 206.4: every fault, by the filter System Errors and the Control Panel
+	// use - not by severity name. Catalog faults are "Critical"/"High"
+	// (a 500 is GLOBAL-0302, Critical), so the old ERROR/PANIC filter saw
+	// only background jobs and panics; refusals stay out either way.
 	query := fmt.Sprintf(`
 		SELECT module_source, error_message
 		FROM %s.system_error_logs
-		WHERE created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone')) AND severity IN ('ERROR', 'PANIC')`, schema)
-	rows, err := db.DB.Query(query, since)
+		WHERE created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone')) AND %s`, schema, systemFaultSQL("$2"))
+	rows, err := db.DB.Query(query, since, clientErrorCodesArg())
 	if err != nil {
 		return err
 	}

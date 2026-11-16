@@ -164,6 +164,16 @@ func IssuedPrint(tenantID string, fresh PrintDocument, userName string) (PrintDo
 				l["image"] = img
 			}
 		}
+		// 213.4: the content stays frozen, but the paper, template and copy
+		// defaults follow this print's profile (this user, today's setup).
+		if frozen.Fields == nil {
+			frozen.Fields = map[string]interface{}{}
+		}
+		if p, ok := fresh.Fields["print_profile"]; ok {
+			frozen.Fields["print_profile"] = p
+		} else {
+			delete(frozen.Fields, "print_profile")
+		}
 		out = frozen
 		issue.Reprint, issue.Revision, issue.Checksum = true, snap.Revision, snap.Checksum
 		issue.FirstPrintedAt, issue.FirstPrintedBy = printStamp(schema, snap.FrozenAt), snap.FrozenBy
@@ -226,7 +236,7 @@ func RequestReprint(tenantID, txn, docID, reason, userName, userID, role string)
 	if reason == "" {
 		return "", &ValidationError{Code: "GLOBAL-1315", SubFor: "reason", Message: "say why this is being printed again"}
 	}
-	fresh, err := BuildPrintDocument(tenantID, txn, docID, "", false)
+	fresh, err := BuildPrintDocumentAs(tenantID, userName, txn, docID, "", false)
 	if err != nil {
 		return "", err
 	}
@@ -277,7 +287,7 @@ func recordIssuedPrint(tenantID, printedBy string, p *DocumentPrint) error {
 	p.TemplateID = templateVersionLabel(tenantID, p.TemplateID) // Stage 130.16 (74.3.4): which version printed
 	// A document that cannot be built now is logged as it was printed -
 	// nothing to freeze or compare it with; a log never fails a print.
-	fresh, err := BuildPrintDocument(tenantID, p.Txn, p.DocID, p.Store, false)
+	fresh, err := BuildPrintDocumentAs(tenantID, printedBy, p.Txn, p.DocID, p.Store, false)
 	if err != nil {
 		return nil
 	}

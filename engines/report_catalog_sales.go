@@ -43,7 +43,54 @@ func posAllocation(r *catRow) map[string]interface{} {
 // bill is split back to taxable value at the item's rate, as the GST invoice
 // prints it.
 type posLineMoney struct {
-	qty, mrp, gross, itemDisc, billDisc, points, taxable, gst, net, rate float64
+	qty, mrp, gross, itemDisc, offerDisc, billDisc, points, taxable, gst, net, rate float64
+}
+
+// posPromoOffers are the bill's applied offers without the cashier's own bill
+// discount, which the quote records as an offer of type Manual (215.5).
+func posPromoOffers(h map[string]interface{}) []map[string]interface{} {
+	var out []map[string]interface{}
+	for _, o := range catLineList(h["applied_offers"]) {
+		if catStr(o["offer_type"]) != OfferTypeManual {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// posLineNet is a line's value after every discount, GST included.
+func posLineNet(l map[string]interface{}) float64 {
+	if v := catNum(l["net_total"]); v != 0 {
+		return v
+	}
+	return catNum(l["sale_price"])*catNum(l["qty"]) - catNum(l["offer_share"])
+}
+
+// posLineBillShare is the part of a line's offer_share that is the cashier's
+// bill discount. Bills from 215.5 on store it per line (and bill_discount on
+// the bill). Older bills only hold the Manual offer's total D; the quote spread
+// it by each line's value after offers, which comes to D x net / sum of net.
+func posLineBillShare(r *catRow) float64 {
+	if _, ok := r.H["bill_discount"]; ok {
+		return r.ln("bill_share")
+	}
+	d := 0.0
+	for _, o := range catLineList(r.H["applied_offers"]) {
+		if catStr(o["offer_type"]) == OfferTypeManual {
+			d += catNum(o["discount"])
+		}
+	}
+	if d == 0 {
+		return 0
+	}
+	total := 0.0
+	for _, l := range catLineList(r.H["items"]) {
+		total += posLineNet(l)
+	}
+	if total <= 0 {
+		return 0
+	}
+	return round2(d * posLineNet(r.L) / total)
 }
 
 func posLine(r *catRow) posLineMoney {
@@ -54,16 +101,15 @@ func posLine(r *catRow) posLineMoney {
 		m.rate = v
 	}
 	m.mrp = firstPositive(r.ln("reference_price"), catNum(r.item()["mrp"]), unit)
-	m.net = r.ln("net_total")
-	if m.net == 0 {
-		m.net = unit*m.qty - r.ln("offer_share")
-	}
+	m.net = posLineNet(r.L)
 	div := 1 + m.rate/100
 	m.gross = m.mrp * m.qty / div
 	if m.mrp > unit {
 		m.itemDisc = (m.mrp - unit) * m.qty / div
 	}
-	m.billDisc = r.ln("offer_share") / div
+	bill := posLineBillShare(r)
+	m.offerDisc = (r.ln("offer_share") - bill) / div
+	m.billDisc = bill / div
 	if a := posAllocation(r); a != nil {
 		if t, ok := a["tenders"].(map[string]interface{}); ok {
 			m.points = PaiseToRupees(int64(catNum(t["Loyalty Points"])))
@@ -135,8 +181,32 @@ var posSaleCols = map[string]catFn{
 	"IGST Amount":     func(r *catRow) interface{} { return posBillGST(r, "igst") },
 	"Gross Amount":    func(r *catRow) interface{} { return firstPositive(posBillGross(r), r.hn("amount_paid")) },
 	"Discount Amount": func(r *catRow) interface{} { return posBillDiscount(r) },
-	"Bill Count":      catConst(1.0),
-	"Sold Qty":        catSumLines("items", "qty"),
+	// The three discounts apart (215.5), GST included as the customer saw them:
+	// Item + Offer + Bill = Discount Amount.
+	"Item Discount":  func(r *catRow) interface{} { return posBillDiscountParts(r)[0] },
+	"Offer Discount": func(r *catRow) interface{} { return posBillDiscountParts(r)[1] },
+	"Bill Discount":  func(r *catRow) interface{} { return posBillDiscountParts(r)[2] },
+	"Bill Count":     catConst(1.0),
+	"Sold Qty":       catSumLines("items", "qty"),
+}
+
+// posBillDiscountParts is the bill's item, offer and bill discount, GST
+// included. Item is master price less charged price; offer is the offers' and
+// vouchers' share of the lines; bill is the cashier's bill discount. They can
+// differ from Discount Amount only by the bill's round-off.
+func posBillDiscountParts(r *catRow) [3]float64 {
+	var item, offer, bill float64
+	for i, l := range catLineList(r.H["items"]) {
+		lr := &catRow{H: r.H, L: l, N: i + 1, src: posLineShape, lk: r.lk}
+		m := posLine(lr)
+		if unit := lr.ln("sale_price"); m.mrp > unit {
+			item += (m.mrp - unit) * m.qty
+		}
+		b := posLineBillShare(lr)
+		bill += b
+		offer += lr.ln("offer_share") - b
+	}
+	return [3]float64{round2(item), round2(offer), round2(bill)}
 }
 
 // Line columns (on the item lines of the same bills).
@@ -146,8 +216,9 @@ var posLineCols = map[string]catFn{
 	"Gross Value":            func(r *catRow) interface{} { return posLine(r).gross },
 	"Customer Redeem Points": func(r *catRow) interface{} { return posLine(r).points },
 	"Item Discount":          func(r *catRow) interface{} { return posLine(r).itemDisc },
+	"Offer Discount":         func(r *catRow) interface{} { return posLine(r).offerDisc },
 	"Bill Discount":          func(r *catRow) interface{} { return posLine(r).billDisc },
-	"Discount Amount":        func(r *catRow) interface{} { m := posLine(r); return m.itemDisc + m.billDisc },
+	"Discount Amount":        func(r *catRow) interface{} { m := posLine(r); return m.itemDisc + m.offerDisc + m.billDisc },
 	"Item Taxable Amount":    func(r *catRow) interface{} { return posLine(r).taxable },
 	"GST %":                  func(r *catRow) interface{} { return posLine(r).rate },
 	"GST Amount":             func(r *catRow) interface{} { return posLine(r).gst },
@@ -223,6 +294,9 @@ var catSalesInvoices = &catSource{
 		"IGST Amount":     catHN("igst"),
 		"Gross Amount":    catHN("total_amount"),
 		"Discount Amount": catConst(0.0),
+		"Item Discount":   catConst(0.0),
+		"Offer Discount":  catConst(0.0),
+		"Bill Discount":   catConst(0.0),
 		"Bill Count":      catConst(1.0),
 		"Place of Supply": func(r *catRow) interface{} {
 			if o := r.master("SalesOrder", r.hs("sales_order_id")); o != nil {
@@ -731,7 +805,7 @@ var _ = catWire("cat-sales-counter-summary", &catReport{Union: []*catSource{catP
 	},
 })
 var _ = catWire("cat-sales-discount-analysis", &catReport{Src: catPOSLines,
-	Keep: func(r *catRow) bool { m := posLine(r); return m.itemDisc+m.billDisc+m.points > 0.004 }})
+	Keep: func(r *catRow) bool { m := posLine(r); return m.itemDisc+m.offerDisc+m.billDisc+m.points > 0.004 }})
 var _ = catWire("cat-sales-margin-analysis", &catReport{Src: catPOSLines})
 var _ = catWire("cat-sales-bill-edit-audit-report", &catReport{Src: catBillEdits})
 var _ = catWire("cat-cancelled-void-bill-register", &catReport{Src: catVoidBills})

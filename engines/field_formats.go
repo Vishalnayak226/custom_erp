@@ -181,7 +181,11 @@ var fieldFormats = []FieldFormat{
 //
 // "_prefix" (Stage 132.13 u): a prefix of a formatted value is not the value - Courier
 // Service Area's "Pincode Prefix (blank = all)" refused "411" as "not a valid PIN code".
-var fieldFormatExcludedSuffixes = []string{"_country", "_verified", "_verified_at", "_status", "_type", "_code_type", "_prefix"}
+//
+// "_as_received" (215.15): a value kept exactly as an outside system sent it - an
+// online order's customer_phone_as_received - is never cleaned; the cleaned copy
+// sits in the field without the suffix.
+var fieldFormatExcludedSuffixes = []string{"_country", "_verified", "_verified_at", "_status", "_type", "_code_type", "_prefix", "_as_received"}
 
 // IsDerivedCompanionField reports whether a fieldname is a companion of a
 // formatted field rather than one itself. Shared by DetectFieldFormat and

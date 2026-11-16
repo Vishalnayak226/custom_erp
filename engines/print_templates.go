@@ -198,7 +198,7 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 	case PrintTxnPOSTaxInvoice:
 		for _, f := range [][2]string{{"buyer_gstin", "Buyer GSTIN"}, {"place_of_supply", "Place of supply"}, {"supply_type", "Supply type (B2B / B2C)"},
 			{"reverse_charge", "Reverse charge"}, {"payment_mode", "Payment mode"}, {"cart_number", "Till cart number"},
-			{"bill_datetime", "Bill date and time"}, {"cashier", "Cashier"}} {
+			{"bill_datetime", "Bill date and time"}, {"cashier", "Cashier"}, {"po_number", "Buyer's PO number"}, {"po_date", "Buyer's PO date"}} {
 			add(&out.Header, "Document", "fields."+f[0], f[1])
 		}
 	case PrintTxnSalesReturn:

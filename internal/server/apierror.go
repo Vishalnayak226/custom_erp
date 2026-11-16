@@ -196,7 +196,10 @@ func logForEntry(r *http.Request, entry CatalogEntry, message string) {
 	}
 	tenantID, userID, correlationID := resolvedContext(r)
 	tagged := "[" + entry.Code + "] " + message
-	if entry.LogRequired {
+	// 206.1: a 401 is the sign-in module's answer, not a fault - an expired
+	// session wrote ~8 "Session expired" rows (one per call the page made).
+	// Sign-ins are counted, locked and audited there (LOGIN, LOGIN_ABUSE).
+	if entry.LogRequired && entry.HTTPStatus != http.StatusUnauthorized {
 		// Stage 104.3: name the request, so a bare "record not found" can be
 		// traced to the screen that asked. Path only - never the query string.
 		logged := tagged

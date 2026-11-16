@@ -26,6 +26,7 @@ func handlePOSOffersPreview(w http.ResponseWriter, r *http.Request) {
 		CustomerID  string                  `json:"customer_id"`
 		CouponCodes []string                `json:"coupon_codes"`
 		Items       []engines.OfferCartLine `json:"items"`
+		Location    string                  `json:"location"` // 215.8: an offer's stores
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid offer preview payload")
@@ -46,6 +47,7 @@ func handlePOSOffersPreview(w http.ResponseWriter, r *http.Request) {
 		Lines:       req.Items,
 		CustomerID:  req.CustomerID,
 		CouponCodes: req.CouponCodes,
+		Location:    req.Location,
 	})
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate offers")
@@ -54,4 +56,41 @@ func handlePOSOffersPreview(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(eval)
+}
+
+// handleOfferItemListImport (215.10): an offer's item lists from a CSV of
+// offer, list, code rows. ?dry_run=1 previews; nothing is written. Each list
+// the file names replaces that list; the offers are saved through the CSV
+// import, so the Offer rights and checks are the ones every save meets.
+func handleOfferItemListImport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
+	allowed, err := checkPermission(tenantID, role, "Offer", "update")
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !allowed {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		writeAPIError(w, r, "GLOBAL-0007", "")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "CSV file is mandatory under multipart FormFile 'file'")
+		return
+	}
+	defer file.Close()
+	dryRun := r.URL.Query().Get("dry_run") == "1"
+	res, err := engines.ImportOfferItemLists(r.Context(), tenantID, userID, role, engines.NamedUpload(file, header.Filename), dryRun)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(res)
 }

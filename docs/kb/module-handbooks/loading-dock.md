@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 65
 summary: Load cartons and record departure with saved-state checks and exception recovery.
 screens: [loading-dock]
+screen_sections: [loading-dock=open-and-load]
 topic_type: how-to
 module: warehouse
 task: Load cartons and record departure
@@ -29,6 +30,22 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 Use **Loading** after packing and staging are complete.
 
 ## Open and load
+
+> [!WHAT]
+> Loading is the screen where you scan cartons onto a trailer, complete the
+> load and record its departure.
+
+> [!WHY]
+> The server runs completion checks before the load becomes Loaded, so a
+> trailer cannot leave with unreconciled cartons. The pallet exchange is
+> recorded at departure.
+
+> [!USECASE]
+> Dock door 3 at Nagpur is loading a trailer with 40 cartons. You open a new
+> load with **Expected Cartons** 40, scan each carton, choose **Complete
+> Load**, enter **Pallets Out** and **Pallets In**, and record departure.
+
+> [!HOW]
 
 1. To resume, enter **Existing Loading Task ID** and choose **Open**. Otherwise enter **Dock Door**, **Trailer**, optional **Manifest ID** and **Expected Cartons**, then choose **Open New Load**.
 2. Retain the load ID. Confirm the displayed door, trailer and status against the physical trailer before scanning.

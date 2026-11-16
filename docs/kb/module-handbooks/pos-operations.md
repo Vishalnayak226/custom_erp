@@ -4,8 +4,9 @@ section: Module Handbooks
 order: 10
 summary: Open a till, ring up a sale with automatic offers and tax, take a return, print silently, and reconcile the drawer at close — all backed by the same server-side checks whether the till is online or not.
 audience: cashier, store manager, admin
-last_verified: 2026-11-15
-screens: [pos, offline-sales, module:pos, module:sales, doctype:offer, reports, approvals, configuration]
+last_verified: 2026-11-16
+screens: [pos, offline-sales, module:pos, module:sales, doctype:offer, reports, approvals, configuration, sales-history]
+screen_sections: [pos=till-lifecycle-opening-and-closing-a-session,pos=ringing-up-a-sale,reports=day-close-reconciliation]
 doc_id: DOC-446204194D
 type: procedure
 status: draft
@@ -46,6 +47,28 @@ only makes sense once you know the list:
 3. **An open cashier session at that location** — see below.
 
 ## Till lifecycle: opening and closing a session
+
+> [!WHAT]
+> A POSSession is the cashier's shift. Nothing rings up without one open.
+
+> [!WHY]
+> Billing is refused with **"Cash opening is required before billing"** if no
+> session is open. One till has one active operator, and the server computes
+> expected cash against counted cash and shows the variance.
+
+> [!USECASE]
+> A cashier starts the day at a Pune store. They type the location, click
+> **Open Session** and enter the cash in the till. At close they enter the
+> cash counted and read the variance.
+
+> [!HOW]
+
+1. On **POS → POS / Billing**, type the location, click **Open Session** and
+   enter the cash in the till.
+2. Bill through the shift.
+3. At the end, close the session and enter the cash counted, and the card and
+   UPI totals when asked.
+4. If the difference is over the tolerance (₹50 by default), write the reason.
 
 A **POSSession** is the cashier's shift. Nothing rings up without one open,
 and the check is real: `handleCheckout` looks up an Open POSSession keyed to
@@ -95,6 +118,23 @@ the browser, computes what was **expected** and shows it against what was
 
 ## Ringing up a sale
 
+> [!WHAT]
+> Ringing up a sale means scanning items into the cart and completing the sale
+> at the till.
+
+> [!WHY]
+> Checkout runs on the server. It rejects non-positive quantities, works GST
+> out of the tax-inclusive price and burns loyalty points only when the sale
+> completes.
+
+> [!USECASE]
+> A customer buys 2 shirts at ₹1,299 each. You scan each SKU, look up the
+> **Customer Code**, set the **Payment Mode** and click **Complete Sale**.
+
+![The till: open a session, then add the customer, the payment and the items](../img/pos-sale.webp)
+
+> [!HOW]
+
 1. Scan or type the SKU (code, barcode, or internal id all resolve the same
    item) and press Enter. Edit **Qty**, **Sale Price**, **Cost Price**
    per line directly in the cart table.
@@ -135,21 +175,55 @@ unusable remainder returned to the customer's balance), the offers applied,
 and `amount_due` — what to actually collect after loyalty and offers are
 both taken off.
 
+### Large bills and B2B bills
+
+The till asks for what Indian GST law needs on a large bill, and the server
+refuses a bill that still lacks it:
+
+- **₹50,000 or more to a buyer with no GSTIN:** the buyer's address.
+- **Above ₹2,00,000:** the buyer's PAN, or Form 97 when they have none.
+- **₹2,00,000 or more in cash from one customer in a day:** refused. Their
+  earlier cash bills that day, at any store, count too.
+
+A **B2B bill** is any bill with a buyer **GSTIN**. Type it beside Mobile and
+Name. The **B2B bill** panel then asks for the legal name, address, PO number
+and date, and where the goods go. Shipped to another state, the bill is
+taxed as IGST. Then **Print GST Invoice**. User Guide §4.10 and §4.10a have
+the steps.
+
 ## Discounts and offers
 
-Two separate discount mechanisms exist on the same sale, and they behave
-differently on purpose.
+A bill keeps **three discounts** apart, applied in this order, and every
+sales report shows each in its own column:
+
+1. **Item discount:** a line sold below its list price through its
+   **Override**.
+2. **Offer discount:** head-office offers and vouchers. The cashier does not
+   apply these; they appear as the cart qualifies.
+3. **Bill discount:** the cashier's % or ₹ off the whole bill.
+
+GST is worked on what is left after all three.
 
 **Offers** (`Offer` documents, evaluated by `EvaluatePOSOffers` in
-`engines/pos_offers.go`) are head-office rules the cashier does not apply by
-hand — they just appear as the cart qualifies:
+`engines/pos_offers.go`) come in these types. The admin picks one per offer:
 
 | Offer type | What it does |
 |---|---|
-| Percentage Off | A percentage off the bill, an item, or a category |
+| Percentage Off | A percentage off the bill, an item, a category or a list |
 | Flat Off | A flat rupee amount off, capped at the value of what it applies to |
-| Buy X Get Y | The cheapest qualifying units in each complete buy+get group are free |
-| Bundle Price | Every complete group of N units is priced as a bundle; the most expensive units are bundled first |
+| Buy X Get Y | Buy 2 get 1 free, or the 3rd at 50% off. The cheapest qualifying units are the ones got |
+| Buy A Get B | Buy from list A, get from list B (a shirt and a free tie) |
+| Bundle Price | Any N units for a set price. The most expensive units are bundled first |
+| Spend Slabs | Spend ₹2,000 get ₹200 off, ₹5,000 get 10% off |
+| Quantity Slabs | The same, counted in units |
+| Fixed Price | Every unit it covers sells at one price |
+| Combo | One unit from each list together at one price |
+| Gift With Purchase | A gift item added free |
+| Bonus Points | Extra loyalty points, not a discount |
+
+An offer can cover a list of items or designs, and both offers and their lists
+are bulk uploaded. Admin Guide B.3.0.1 has the boxes each type uses and the
+upload files.
 
 Offers are sorted by **priority** (lower first, then name for a
 deterministic tie-break). A non-stackable offer that applies **ends
@@ -222,6 +296,20 @@ For a customer swapping items at the counter:
 An exchange needs a connection (it cannot be queued offline), and its credit
 is used on one bill only. User Guide §4.7 has the full steps, including how
 points are handled.
+
+## Sales History
+
+**POS → Sales History** (short code `SLH`) lists every bill and return,
+newest first. That covers the store's own bills, online orders' bills and the
+returns against either. Search by bill number, online order number, AWB,
+mobile (in any form), name or GSTIN. Click a row to see its lines and how
+much is left to return. **Return** opens the till's Return tab with that bill
+found, and **Reprint** prints it again.
+
+An online order's bill is returned here like a store bill. This is how a
+marketplace return is taken, since marketplaces do not send their returns. A
+Shopify refund raises its return by itself, against the bill that holds the
+refunded items. User Guide §4.13 has the steps.
 
 ## Offline mode
 
@@ -308,6 +396,26 @@ using silent printing. This section covers the receipt itself.
   an operator and a time.
 
 ## Day-close reconciliation
+
+> [!WHAT]
+> Closing the cashier session is the day-close step. **Sales Register** and
+> **Cash Book** in **Reports** round it out.
+
+> [!WHY]
+> The Sales Register is the flat list a manager reconciles the till against. A
+> corrupt cart is listed with `data_issue` filled in rather than dropped from
+> the count.
+
+> [!USECASE]
+> At closing time a manager in Pune compares the expected and counted cash
+> variance, then checks the **Sales Register** for the day.
+
+> [!HOW]
+
+1. Close the cashier session and enter the cash counted.
+2. In **Reports**, open the **Sales Register** and check the paid bills
+   against the till.
+3. Open the **Cash Book** to see every cash posting with its running balance.
 
 Closing the cashier session (above) *is* the day-close reconciliation step
 — the expected-vs-counted cash variance it computes is the whole point.
@@ -400,6 +508,9 @@ exchange-for-SKU, separate refund approval) runs on **OMS → Returns**.
 
 **Batch/serial capture does not happen at POS return.** `ProcessReturnAnywhere`
 restocks by SKU and quantity only — see the warning above.
+
+**A B2B till bill gets no IRN yet.** A business that must e-invoice raises
+its B2B sales as a **Sales Invoice**, which does get one.
 
 **There is no dedicated "Z-report" or end-of-day summary document.** Day
 close is the session-close variance plus the Sales Register report, not a

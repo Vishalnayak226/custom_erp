@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 67
 summary: Submit and settle an expense claim with saved-state checks and exception recovery.
 screens: [expenses]
+screen_sections: [expenses=submit-a-claim]
 topic_type: how-to
 module: finance
 task: Submit and settle an expense claim
@@ -30,11 +31,53 @@ Use **Expenses** to move a claim from Draft through approval, verification and p
 
 ## Submit a claim
 
+> [!WHAT]
+> An expense claim records money an employee spent, with its category, amount,
+> GST amount, advance adjusted and purpose.
+
+> [!WHY]
+> A claim moves from Draft through approval, verification and payment, so no
+> one is paid on a claim that nobody approved. Pending Approval is not the
+> same as reimbursed.
+
+> [!USECASE]
+> An employee travels to Jaipur and pays ₹2,400 for a taxi. You create a Draft
+> with the amount and a specific purpose, then choose **Submit for Approval**
+> so the manager can decide.
+
+![A new expense claim: the spend, its category and the receipt](../img/expense-claim-new.webp)
+
+> [!HOW]
+
 1. Select the **Employee** and **Location**. Enter **Expense Date**, **Category**, **Amount**, **GST Amount**, **Advance Adjusted** and a specific **Purpose** using the supporting receipts and approved policy.
 2. Choose **Create Draft**. The system supplies the claim number; retain it and check the saved amounts before submission.
 3. Choose **Submit for Approval** on the Draft row. Follow the approval queue for the manager's decision. Do not treat Pending Approval as reimbursed.
 
 ## Verify and settle
+
+> [!WHAT]
+> Finance Verify and Mark Paid are the two finance steps after the manager
+> approves a claim.
+
+> [!WHY]
+> Finance checks the receipt, policy, tax treatment and advance before a claim
+> is marked paid. The button records a workflow outcome. It does not prove
+> bank settlement.
+
+> [!USECASE]
+> The manager approves the ₹2,400 taxi claim. A finance operator chooses
+> **Finance Verify**, checks the receipt, and then **Mark Paid** once payment
+> has gone out through the approved process.
+
+> [!HOW]
+
+1. Open the manager-approved claim, check the receipts, policy, tax and
+   advance, then choose **Finance Verify**.
+2. On the Verified claim, choose **Mark Paid** only after the approved payment
+   is made.
+3. Check **Paid** against the settlement record and keep the claim and payment
+   references.
+
 
 After manager approval, an authorized finance operator chooses **Finance Verify** and checks the receipt evidence, policy, tax treatment and advance reconciliation. A Verified claim offers **Mark Paid**. Record payment only after following the approved payment process, then verify **Paid** against the settlement record.
 

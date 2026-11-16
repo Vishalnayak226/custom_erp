@@ -476,6 +476,7 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/pos/tenders", apiMiddleware(handlePOSTenders))
 	http.HandleFunc("GET /api/v1/pos/salesmen", apiMiddleware(handlePOSSalesmen))
 	http.HandleFunc("GET /api/v1/pos/bills", apiMiddleware(handlePOSBills))
+	http.HandleFunc("GET /api/v1/pos/sales-history", apiMiddleware(handlePOSSalesHistory)) // ask 215 (215.12)
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
 	http.HandleFunc("GET /api/v1/admin/roles/landing", apiMiddleware(handleRoleLanding))
 	http.HandleFunc("POST /api/v1/admin/roles/landing", apiMiddleware(handleRoleLanding))
@@ -827,6 +828,8 @@ func registerRoutes() {
 	// Stage 30.7: read-only offer preview for the POS cart. Checkout
 	// re-evaluates server-side regardless, so this never sets the price.
 	http.HandleFunc("POST /api/v1/pos/offers/preview", apiMiddleware(handlePOSOffersPreview))
+	// 215.10: an offer's item lists from a CSV of offer, list, code rows (?dry_run=1 previews).
+	http.HandleFunc("POST /api/v1/pos/offers/item-lists", apiMiddleware(handleOfferItemListImport))
 	// Stage 47.2: the server-authoritative quote the till renders, and the
 	// capability-gated price-override command that is the only way to deviate
 	// from it. Checkout re-resolves the quote regardless of what either
@@ -1782,6 +1785,7 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/help/index", apiMiddleware(handleHelpIndex))
 	http.HandleFunc("GET /api/v1/help/search-index", apiMiddleware(handleHelpSearchIndex))
 	http.HandleFunc("GET /api/v1/help/article/{slug}", apiMiddleware(handleHelpArticle))
+	http.HandleFunc("GET /api/v1/help/img/{name}", apiMiddleware(handleHelpSnapshot))
 	// The unauthenticated subset: only articles marked `public: true`.
 	http.HandleFunc("GET /api/v1/help/public/index", apiMiddleware(handleHelpPublicIndex))
 	http.HandleFunc("GET /api/v1/help/public/search-index", apiMiddleware(handleHelpPublicSearchIndex))
@@ -1882,6 +1886,11 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/data-quality", apiMiddleware(handleListDataQuality))
 	http.HandleFunc("POST /api/v1/data-quality/scan", apiMiddleware(handleScanDataQuality))
 	http.HandleFunc("POST /api/v1/data-quality/{id}/status", apiMiddleware(handleSetDataQualityStatus))
+	http.HandleFunc("GET /api/v1/heals", apiMiddleware(handleListHeals))
+	http.HandleFunc("GET /api/v1/heals/{id}/records", apiMiddleware(handleHealRecords))
+	http.HandleFunc("POST /api/v1/heals/{id}/run", apiMiddleware(handleRunHeal))
+	http.HandleFunc("POST /api/v1/heals/past-names/preview", apiMiddleware(handlePastRenamePreview))
+	http.HandleFunc("POST /api/v1/heals/past-names/apply", apiMiddleware(handlePastRenameApply))
 
 	// Industry Configuration & Preset Profiler
 	http.HandleFunc("GET /api/v1/admin/industries", apiMiddleware(handleGetIndustries))
@@ -1910,6 +1919,8 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/import-batches/{id}/reconcile", apiMiddleware(handleImportBatchReconcile))
 	http.HandleFunc("POST /api/v1/import-batches/{id}/discard", apiMiddleware(handleImportBatchDiscard))
 	http.HandleFunc("/api/v1/logs/system", apiMiddleware(handleSystemLogs))
+	// 206.3: Resolve on the System Errors fix list (Super Admin).
+	http.HandleFunc("POST /api/v1/logs/system/resolve", apiMiddleware(handleResolveSystemFault))
 	// 158.3: the app's uncaught browser errors, written to the System Log.
 	http.HandleFunc("POST /api/v1/logs/browser-error", apiMiddleware(handleBrowserError))
 	// 24.16: the deliberate-panic test endpoint is dev/test tooling only -

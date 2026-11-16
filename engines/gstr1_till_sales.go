@@ -113,6 +113,11 @@ func gstr1TillParty(c *gstr1Ctx, d *gstr1Doc, cart posCart, data map[string]inte
 		}
 		buyerState = irpPartyFrom(b).Stcd
 	}
+	// Ask 215.3: a B2B bill names its buyer in its own block, which wins.
+	if b2b := POSB2BFromData(data); b2b != nil && gstinRe.MatchString(b2b.GSTIN) {
+		d.ctin = b2b.GSTIN
+		buyerState = b2b.GSTIN[:2]
+	}
 	d.interstate = interstate
 	d.pos = sellerState
 	if interstate {
@@ -191,7 +196,7 @@ func gstr1TillReturn(c *gstr1Ctx, id string, data map[string]interface{}, day ti
 	for _, l := range cart.Items {
 		billVal += RupeesToPaise(l.SalePrice*float64(l.Qty) - l.OfferShare)
 	}
-	d.origB2CL = d.ctin == "" && d.interstate && PaiseToRupees(billVal) > gstr1B2CLLimit
+	d.origB2CL = d.ctin == "" && d.interstate && PaiseToRupees(billVal) > gstr1B2CLLimit(d.date)
 	return d, true, nil
 }
 

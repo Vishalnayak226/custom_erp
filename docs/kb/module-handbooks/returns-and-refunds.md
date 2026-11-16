@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 15
 summary: Look up a bill, raise a return, inspect the goods, and progress an approved refund without entering a sale price.
 screens: [returns]
+screen_sections: [returns=raise-the-return-at-the-till,returns=progress-the-request-in-returns]
 topic_type: how-to
 module: returns
 task: Return sold goods and reconcile the refund
@@ -42,6 +43,22 @@ location scope. Use your own account. A missing action is a reason to ask the
 administrator to check access; it is not a reason to borrow another login.
 
 ## Raise the return at the till
+
+> [!WHAT]
+> **Process a Return** raises a return request against an original bill. A
+> request alone does not mean stock is received or money is paid.
+
+> [!WHY]
+> The price comes from the original bill and you cannot type a different
+> refund amount. The server checks the remaining quantity and eligibility, so
+> goods cannot be returned twice.
+
+> [!USECASE]
+> A customer brings back 2 of 3 shirts bought on one bill. You enter the
+> **Original Bill / Cart Number**, read **Still Returnable**, enter **Return
+> Qty** 2 for the **Return Location** and choose **Raise Return**.
+
+> [!HOW]
 
 1. In **Process a Return**, enter **Original Bill / Cart Number** and choose
    **Find Bill**.
@@ -79,6 +96,28 @@ eligibility are checked by the server; the dialog is not proof that an exchange
 has been fulfilled.
 
 ## Approve and process the refund
+
+> [!WHAT]
+> The refund step looks up the pending refund for a return, confirms the
+> amount if approval is needed and records the payment method.
+
+> [!WHY]
+> Permission and workflow checks apply to each step. The application recording
+> a method does not prove that a card or UPI provider settled the payment, so
+> you match it to the cash or provider evidence.
+
+> [!USECASE]
+> A return is QC Complete. You open its refund, confirm the amount, record the
+> payment method when prompted, then keep both the return and refund
+> references.
+
+> [!HOW]
+
+1. Open the return's pending refund. If it needs approval, confirm the amount
+   first.
+2. Record the payment method when asked.
+3. Refresh, keep the return and refund references, and match them to the cash
+   or provider record.
 
 The refund flow looks up the request's pending refund. If it needs approval,
 confirm the amount first. Then record the payment method when prompted.

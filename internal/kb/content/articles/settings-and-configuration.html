@@ -1,0 +1,83 @@
+<h1 id="settings-and-configuration">Settings and configuration <a class="kb-anchor" href="#settings-and-configuration" aria-label="Copy link to this section">#</a></h1>
+<p>These are the screens under <strong>Settings</strong> that change how the whole business works. Most need an Admin; Extension Hooks needs a Super Admin. Users, roles and approval rules have their own handbook: <a href="/help/security-approvals">Security and approvals</a>.</p>
+<h2 id="configuration">Configuration <a class="kb-anchor" href="#configuration" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>One screen for every operational setting, one module at a time: return windows, match tolerances, cycle-count intervals, session length and more.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>A change takes effect at once, everywhere, with no restart and no code change. Numbers outside their allowed range are refused, so a typing slip cannot stop the system.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>The owner allows returns for 45 days instead of 30. The admin opens <strong>Sales &amp; Returns</strong>, sets the sales return window to 45 and saves. The next return at any store uses 45 days.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Configuration</strong>.</li><li>Pick the module on the left.</li><li>Change the values you need.</li><li>Click <strong>Save Changes</strong>.</li></ol></aside>
+<p>A setting you never changed shows its default. <strong>Credentials</strong> and <strong>Data governance</strong> in the same menu open their own parts of this screen.</p>
+<h2 id="data-quality">Data quality <a class="kb-anchor" href="#data-quality" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>A queue of master-data problems: customers sharing a phone or email, vendors sharing a GSTIN or a name, items with the same name, and records with missing or wrong tax details.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Duplicates split a customer&#39;s history and loyalty, and wrong tax details end up on invoices and GST returns. The queue finds them before they cost money.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>Two cashiers created the same customer with the phone 98200 12345. The scan lists both records. The admin merges them in CRM; the next scan marks the problem Fixed.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Data quality</strong>.</li><li>Click <strong>Scan now</strong>.</li><li>Open each record and correct it.</li><li>Click <strong>Scan now</strong> again: corrected problems become <strong>Fixed</strong>.</li><li>To accept a problem as it is, click <strong>Ignore</strong> and give a reason.</li></ol></aside>
+<p>A scan never adds a problem twice. A Fixed problem that comes back is opened again; an Ignored one stays ignored until you click <strong>Reopen</strong>.</p>
+<h2 id="data-healer">Data Healer <a class="kb-anchor" href="#data-healer" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>A heal is a one-time fix that brings records made before a release up to what the new release expects. <strong>Data Healer</strong> lists every heal and whether it is waiting or done.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>A release never changes your data by itself. A heal shows you every change before it runs, and it runs only once.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>After a release, items need a short alias for labels. A strip above every screen says a heal is waiting. The admin opens it, types over two of the suggested aliases, and clicks <strong>Run heal</strong>. The strip goes away.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Click <strong>Fix now</strong> on the strip, or open <strong>Settings → Data Healer</strong>.</li><li>Open the waiting heal.</li><li>Check the value each record will get; type over any you want different.</li><li>Click <strong>Run heal</strong>.</li></ol></aside>
+<p>While a heal waits, the records it covers cannot be saved from their screen. Users who cannot run it see <strong>Ask your admin</strong>. Done is final. Full detail: <a href="/help/data-healer">Data Healer</a>.</p>
+<h2 id="prefix-configs-document-numbers">Prefix Configs: document numbers <a class="kb-anchor" href="#prefix-configs-document-numbers" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>The number series behind every document: purchase orders, bills, transfers, items and the rest.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Each store and each financial year gets the numbers your accounts and auditors expect, without anyone typing them.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>The Pune store (Short Code PUN) wants its own run of bill numbers. The admin edits the sales bill series, sets <strong>Store in the number</strong> to Yes and <strong>Restart numbering</strong> to every financial year, checks the preview and saves. Pune&#39;s next bill carries PUN and starts again at 1 each April.</p>
+</aside>
+<p><span class="kb-snap"><img data-kb-img="prefix-config-new.webp" alt="A new number series: prefix, length, when it restarts, and how the next number looks"><span class="kb-snap-caption">A new number series: prefix, length, when it restarts, and how the next number looks</span></span></p>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → Prefix Configs</strong>.</li><li>Pick a group beside <strong>New Series</strong> to narrow the list.</li><li>Click <strong>Edit</strong> on the series.</li><li>Set the prefix, separator, number length, suffix, <strong>Restart numbering</strong>, the year and <strong>Store in the number</strong>; the preview shows the next number.</li><li>Click <strong>Save</strong>.</li></ol></aside>
+<p>Full detail: Admin Guide §B.3.2.</p>
+<h2 id="dynamic-labels">Dynamic Labels <a class="kb-anchor" href="#dynamic-labels" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>Your own words for the system&#39;s labels, for example &#34;Design Number&#34; where the app says &#34;SKU&#34;.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Staff see the words of their own trade, so screens need less training.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>A jewellery business calls a brand a &#34;Collection&#34;. The admin adds a rule from <code>Brand</code> to <code>Collection</code>; every screen shows Collection from then on.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → Dynamic Labels</strong>.</li><li>Click <strong>Add Translation Rule</strong>.</li><li>Enter the label exactly as it shows now, then your word.</li><li>To undo, click <strong>Remove</strong> on the rule.</li></ol></aside>
+<p>The change shows the next time a screen opens.</p>
+<h2 id="extension-hooks">Extension Hooks <a class="kb-anchor" href="#extension-hooks" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>Lets a developer you hire be told when something happens in the ERP, such as a document being saved, without access to the database.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Your own systems stay in step with the ERP while it stays closed to them. The call log shows every call, so a missing update is easy to trace.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>A developer&#39;s app needs every new vendor. The Super Admin registers a hook on Vendor with the developer&#39;s <code>https://</code> address. Next day the developer says one vendor never arrived; <strong>View Log</strong> shows that call and the error their server sent back.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → Extension Hooks</strong>.</li><li>Choose the hook point and record type, enter the <code>https://</code> address and a timeout, and click <strong>Register Hook</strong>.</li><li>Click <strong>View Log</strong> to see a hook&#39;s last 100 calls.</li><li>To give a developer a short-lived token, click <strong>Issue Token</strong>, pick the record type and minutes (at most 1440), and copy it: it is shown once.</li><li>To stop a hook, click <strong>Delete</strong>.</li></ol></aside>
+<h2 id="api-access">API access <a class="kb-anchor" href="#api-access" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>The keys an outside system uses to call the ERP&#39;s API: an API key or an OAuth client, each limited to the scopes it needs.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Each system gets its own key with only the access it needs. You can see its calls, change its secret, or cut it off without affecting anyone else.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>A courier partner needs to read orders. The admin issues a key with only the order scope and sends the secret once. Months later the partner changes staff, and the admin clicks <strong>Rotate</strong> to issue a new secret.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → API access</strong>.</li><li>Click <strong>+ New API access</strong>, name it and tick only the scopes it needs.</li><li>Click <strong>Issue</strong> and copy the secret: it is shown once.</li><li>Use <strong>Rotate</strong> for a new secret, <strong>Revoke</strong> to stop it, and <strong>Recent calls</strong> to see its traffic.</li></ol></aside>
+<p>Full detail: <a href="/help/public-api-authentication">API authentication</a>.</p>
+<h2 id="subscription">Subscription <a class="kb-anchor" href="#subscription" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>Your plan, when the paid period ends, this month&#39;s use against what the plan includes, and the GST invoice for each payment.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>You can see whether the account is paid up and how much of the plan you use before anything stops working.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>The accountant needs last month&#39;s invoice for input tax. The admin opens <strong>Subscription</strong> and reads the GST invoice for that payment under <strong>Invoices</strong>: taxable amount, CGST and SGST or IGST, and the total.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → Subscription</strong>.</li><li>Read the status, plan and period end at the top.</li><li>Check this month&#39;s use against the plan.</li><li>Find each payment&#39;s GST invoice under <strong>Invoices</strong>.</li></ol></aside>
+<p>Only an Admin sees this screen, and nothing on it changes the plan; plans are chosen and paid with the platform owner. Full detail: <a href="/help/subscription">Your Subscription</a>.</p>
+<h2 id="system-status">System Status <a class="kb-anchor" href="#system-status" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>What is running where: the latest deployment in each environment, the deployment history, and the backup and restore-drill history.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>Answers &#34;what version is live?&#34; without logging in to the server, and shows when nobody has tested a restore for too long.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>Before a store opening the admin checks that the last restore drill is recent. It shows a warning badge, so they ask the operator to run one before the weekend.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Monitoring → System Status</strong>.</li><li>Read <strong>Latest Deployment by Environment</strong>.</li><li>Check <strong>Backup &amp; Restore Drill History</strong> for a warning badge.</li></ol></aside>
+<p>The screen is read-only. Rows appear only when the deploy and backup scripts record them, so an empty table means the scripts have not run against this database.</p>

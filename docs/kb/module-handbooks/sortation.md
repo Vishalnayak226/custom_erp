@@ -17,6 +17,7 @@ section: Module Handbooks
 order: 64
 summary: Sort orders into put-wall slots with saved-state checks and exception recovery.
 screens: [sortation]
+screen_sections: [sortation=assign-and-fill-a-slot]
 topic_type: how-to
 module: warehouse
 task: Sort orders into put-wall slots
@@ -29,6 +30,21 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 Use **Sortation / Put-Wall** to assign an order to a slot and record the quantity placed there.
 
 ## Assign and fill a slot
+
+> [!WHAT]
+> Sortation / Put-Wall assigns an order to a slot at a sort station and
+> records the quantity placed in it.
+
+> [!WHY]
+> Each slot holds one order, so goods for different orders do not get mixed.
+> The **Confirmed / Expected** count shows when a slot is full.
+
+> [!USECASE]
+> At the Hyderabad put-wall a task expects 12 units of one SKU. You assign it
+> to a slot, place 12 units, enter 12 and choose **Confirm**, then **Clear**
+> the slot after handover to packing.
+
+> [!HOW]
 
 1. Enter **Sort Station** and choose **Load Slots**. Verify the physical station and the displayed slot numbers.
 2. Enter **Fulfillment Task / Order**. Supply **SKU** and **Qty Expected** where the operation uses them, then choose **Assign to Slot**.

@@ -5185,7 +5185,7 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 - **Store** (`location`) - text, optional
 
-**Columns:** Legal Entity · Store Code · Store Name · Sales Invoice Date · Sales Invoice No · Customer ID · Customer Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · MRP · Gross Value · Customer Redeem Points · Item Discount · Bill Discount · Discount Amount · Item Taxable Amount · GST Amount · Item Net Amount
+**Columns:** Legal Entity · Store Code · Store Name · Sales Invoice Date · Sales Invoice No · Customer ID · Customer Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · MRP · Gross Value · Customer Redeem Points · Item Discount · Offer Discount · Bill Discount · Discount Amount · Item Taxable Amount · GST Amount · Item Net Amount
 
 **Drill-down:** no.
 
@@ -5199,7 +5199,7 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 - **Store** (`location`) - text, optional
 
-**Columns:** Legal Entity · Store Code · Store Name · Sales Invoice Date · Sales Invoice No · GST Bill No · Customer ID · Customer Name · Sales Channel · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Sold Qty · MRP · Gross Value · Customer Redeem Points · Item Discount · Bill Discount · Packing Charges · Item Taxable Amount · GST % · GST Amount · Item Net Amount · Salesperson Name
+**Columns:** Legal Entity · Store Code · Store Name · Sales Invoice Date · Sales Invoice No · GST Bill No · Customer ID · Customer Name · Sales Channel · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Sold Qty · MRP · Gross Value · Customer Redeem Points · Item Discount · Offer Discount · Bill Discount · Packing Charges · Item Taxable Amount · GST % · GST Amount · Item Net Amount · Salesperson Name
 
 **Drill-down:** no.
 
@@ -5228,7 +5228,7 @@ table has the same shape whoever runs it.
 - **Store** (`location`) - text, optional
 - **Status (optional)** (`status`) - select, optional, one of: ,Approved,Posted,Paid,Overdue
 
-**Columns:** Legal Entity · Store Code · Store Name · Sales Invoice Date · Sales Invoice No · GST Bill No · Customer ID · Customer Name · Customer Mobile · Sales Channel · Customer GSTIN · PO Number · Bill Count · Gross Amount · Discount Amount · Taxable Amount · GST Amount · Bill Net Amount · Tender Type · Salesperson Name · Status
+**Columns:** Legal Entity · Store Code · Store Name · Sales Invoice Date · Sales Invoice No · GST Bill No · Customer ID · Customer Name · Customer Mobile · Sales Channel · Customer GSTIN · PO Number · Bill Count · Gross Amount · Discount Amount · Item Discount · Offer Discount · Bill Discount · Taxable Amount · GST Amount · Bill Net Amount · Tender Type · Salesperson Name · Status
 
 **Drill-down:** no.
 

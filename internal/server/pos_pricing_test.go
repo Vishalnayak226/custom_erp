@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"custom_erp/db"
@@ -464,6 +465,44 @@ func TestStage472OverrideBeyondThresholdRoutesToApproval(t *testing.T) {
 	}
 	if quote.Lines[0].UnitPrice != 1000 {
 		t.Errorf("a Pending Approval override already priced the line at %.2f; only an Approved one may price anything", quote.Lines[0].UnitPrice)
+	}
+}
+
+// Ask 215.5: the discount-approval gate adds the line cut and the bill
+// discount. A 6% override plus a 6% bill discount is 11.64% off list - over
+// the shipped 10% POSCart slab - though neither part is over it alone.
+func TestPOSApprovalGateAddsLineAndBillDiscounts(t *testing.T) {
+	f := newPOSPricingFixture(t, 1000)
+	res, err := db.DB.Exec(fmt.Sprintf(
+		`INSERT INTO %s.approval_rules (doctype, min_amount, max_amount, required_role) VALUES ('POSCart', 10, NULL, 'Store Manager') ON CONFLICT (doctype, min_amount) DO NOTHING`, f.schema))
+	if err != nil {
+		t.Fatalf("failed to seed the POSCart slab: %v", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		t.Cleanup(func() {
+			db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.approval_rules WHERE doctype = 'POSCart' AND min_amount = 10`, f.schema))
+		})
+	}
+	cart := "T2155GATE-" + f.suffix
+	t.Cleanup(func() {
+		db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE doctype = 'POSPriceOverride' AND data->>'cart_number' = $1`, f.schema), cart)
+	})
+	if status, resp := f.post(handlePOSPriceOverride, "/api/v1/pos/price-override", f.superviserTok, map[string]interface{}{
+		"cart_number": cart, "sku": f.sku, "qty": 1, "location": f.location,
+		"override_price": 940, "reason": "line cut",
+	}); status != http.StatusOK || resp["status"] != "Approved" {
+		t.Fatalf("a 6%% override should be granted outright; got HTTP %d %v", status, resp)
+	}
+	status, resp := f.checkout(f.cashierToken, map[string]interface{}{
+		"cart_number": cart, "location": f.location, "payment_mode": "Cash",
+		"manual_discount_pct": 6, "discount_reason": "bill cut",
+		"items": []map[string]interface{}{{"sku": f.sku, "qty": 1}},
+	})
+	if status != http.StatusOK || resp["status"] != "pending_approval" {
+		t.Fatalf("6%% off the line plus 6%% off the bill should wait on the 10%% slab; got HTTP %d %v", status, resp)
+	}
+	if msg, _ := resp["message"].(string); !strings.Contains(msg, "11.6%") {
+		t.Errorf("the message should name the combined discount (11.6%%): %q", msg)
 	}
 }
 

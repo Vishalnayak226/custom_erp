@@ -319,7 +319,10 @@ async function openReturnQCDialog(row) {
 // process - rather than collapsing them, because they are deliberately two
 // decisions: whether the money is owed, and paying it.
 async function runReturnRefundFlow(row) {
-  const res = await apiFetch(`/api/v1/doc/RefundRequest?limit=200`);
+  // 215.14: this return's refunds only. The first 200 of all refunds (the
+  // list is ordered by id) left a newer refund out once a business had more,
+  // and Refund said "No refund is pending".
+  const res = await apiFetch(`/api/v1/doc/RefundRequest?return_request_id=${encodeURIComponent(row.id)}&limit=50`);
   if (!res || !res.ok) {
     await showCustomAlert('The refund for this return could not be looked up.', 'Refund');
     return;
