@@ -44,6 +44,13 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 403. "Take necessary action. and build all approved all. release" - 0.27.0 released and deployed (2026-11-17, release fixes + tracker, ask 232; 584eebd live on app + minn)
+
+- Taken as: release every session's finished work as 0.27.0, deploy it, then close each open item the release, the deploy or GitHub can verify. Owner-only items stay open. The owner approved push and deploy ("release, push and deploy 0.27.0") and pausing the other sessions; erp-67's SOP-video work was held out through `release/hold.txt`.
+- Four GitHub runs. The first three failed on gaps the local gates missed, each fixed in code: three public token routes missing from the reviewed unauthenticated list (the owner wrote the reasons into `release/security-ack.txt`); the print rasteriser's SVG `<style>` tripping the CSSOM test; a profile test still expecting 401 after 206.7 made it 403; a hand-built Content-Disposition in the API docs handler; `CURRENT_DATE` in the API-key engine (now `erp_day_start(erp_today())`); a stale idempotency audit. Run 44017355873 passed and promoted main to 584eebd.
+- Deploy: backup first, 3 metadata-only migrations (213.5 extra-print fields), no client data changed. Prod warns that `OPS_ALERT_WEBHOOK_URL` is unset. A read-only Guide peek on app passed for the PIM workbench, API access and bulk upload.
+- Closed: 149.2, 129.5, 99.9.1, 49.17.1, 177.1, 177.2, 177.7, 109.12, 158.2. Still open: 177.3, 177.5, 205.24 (write walk needs the owner's OK), 47.9.4, 47.17.2, 177.4 and 50.11 (wait on CI on main); 162.5 went to erp-e1. Detail: checklist ask 232.
+
 ## 402. "Build all the pending above approved recommeded" - Share module API stays Admin only (2026-11-17, test + KB, ask 228; not committed)
 
 - Taken as approving the recommended answer to 227.3, the one open decision next to ask 226's work. 50.12 and 51.1a have no recommended answer and touch production; 49.14.5, 49.14.6, 49.17.1 and 177.7 were approved earlier and wait on the owner or a release.

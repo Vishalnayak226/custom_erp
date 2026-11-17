@@ -89,6 +89,9 @@ for checking the current source and worktree.
   the previous long-form handoff; follow the live sources above where it is stale.
 
 ## 6. Version Control
+- **2026-11-17 Release 0.27.0 (ask 232, ledger §403). Latest commit on main: 584eebd, live on app + minn.** Asks 224-228 and the other sessions' finished work shipped in it; their "NOT COMMITTED" notes below are now committed. Four GitHub runs; fixes in `internal/securityscan/surface_test.go` (three public token routes reviewed by the owner), `internal/server/inline_style_ratchet_test.go`, `admin_password_reset_test.go` (403), `handlers_api_access_docs.go` (`attachmentDisposition`), `engines/api_access_keys.go` (`erp_day_start(erp_today())`), `docs/security/idempotency-audit.md` (regenerated).
+  - **Held out:** `release/hold.txt` lists erp-67's five `docs/sop-video/` files (mid-work); erp-67 removes those lines when ready.
+  - **Open after the release:** 177.4 and 50.11 wait on ci.yml on main; 205.24's write walk needs the owner's OK on app; 177.3, 177.5, 47.9.4, 47.17.2; prod `OPS_ALERT_WEBHOOK_URL` unset (owner URL). 162.5 is erp-e1's.
 - **2026-11-17 "Build all the pending above approved recommeded" (ask 228, ledger §402). NOT COMMITTED.** 227.3 decided (Admin only) and Done: `TestShareModuleAPIStaysAdminOnly` added to `engines/api_access_e2e_test.go`; `docs/kb/reference/public-api-authentication.md` wording. Commit with ask 226's files.
 - **2026-11-17 "Build next 40 open items" (ask 226, ledger §401). NOT COMMITTED.** 205.10-205.16 and 205.18-205.22 verified, ticked Done and archived; 205.24 waits for its live walk after the release.
   - **New files (mine):** `internal/server/api_access_e2e_test.go`, `engines/api_access_e2e_test.go`.
