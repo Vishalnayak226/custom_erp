@@ -1212,8 +1212,8 @@
     {
       "id": "release-0.27.0",
       "label": "release 0.27.0",
-      "recorded_at": "2026-11-17T03:58:04Z",
-      "commit": "e102880a34e396cbd5e51efdb0189284bf02a842",
+      "recorded_at": "2026-11-17T04:08:07Z",
+      "commit": "0d05b516f33ea3913b87b9d79bf4f965e1ce5f6e",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {
@@ -1258,13 +1258,13 @@
           "status": "measured"
         },
         "budget.cold_core_gzip_bytes": {
-          "value": 183653,
+          "value": 183652,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
         },
         "budget.embedded_kb_raw_bytes": {
-          "value": 1922370,
+          "value": 1922565,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
@@ -1294,7 +1294,7 @@
           "status": "measured"
         },
         "budget.kb_search_index_raw_bytes": {
-          "value": 254029,
+          "value": 254061,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"

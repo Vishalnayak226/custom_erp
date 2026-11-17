@@ -251,7 +251,8 @@ func TestUpdateProfileRequiresReauthToChangeEmail(t *testing.T) {
 	// Changing the email with no/wrong current_password must be refused.
 	wrongPwRec := doRequest(t, updateProfile, http.MethodPut, "/api/v1/me", token,
 		map[string]interface{}{"email": "attacker-controlled@evil.invalid", "current_password": "not-the-password"})
-	if wrongPwRec.Code != http.StatusUnauthorized {
+	// 206.7: refused with 403 (GLOBAL-0312), not 401, so the browser keeps the user signed in.
+	if wrongPwRec.Code != http.StatusForbidden {
 		t.Fatalf("an email change with the wrong current_password must be refused, status=%d body=%s", wrongPwRec.Code, wrongPwRec.Body.String())
 	}
 	var stillOldEmail string

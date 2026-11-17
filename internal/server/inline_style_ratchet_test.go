@@ -87,7 +87,9 @@ func TestPublicStylesGoThroughTheCSSOM(t *testing.T) {
 			if strings.HasPrefix(code, "//") || strings.HasPrefix(code, "*") || strings.HasPrefix(code, "/*") {
 				continue // a comment that names the element
 			}
-			if styleElement.MatchString(line) && !strings.Contains(line, `css.replace(/<\/style/gi`) {
+			// print-pdf.js svgStyle (221.1) escapes every "<" in the CSS for the SVG image string.
+			inSVG := strings.Contains(line, `css.replace(/<\/style/gi`) || strings.Contains(line, `.replace(/</g, '&lt;')`)
+			if styleElement.MatchString(line) && !inSVG {
 				t.Errorf("%s:%d makes a <style> element; use adoptCss(id, css) - a strict style-src refuses it", p, i+1)
 			}
 		}
