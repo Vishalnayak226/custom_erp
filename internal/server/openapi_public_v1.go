@@ -31,6 +31,7 @@ const openAPIVersion = "3.0.3"
 
 type openAPIGenerator struct {
 	components map[string]interface{}
+	v31        bool // OpenAPI 3.1: a nullable type is a type list, not nullable: true
 }
 
 // schemaFor produces a JSON Schema for one Go type. v may be an invalid
@@ -44,6 +45,13 @@ func (g *openAPIGenerator) schemaFor(t reflect.Type, v reflect.Value) map[string
 	switch t.Kind() {
 	case reflect.Ptr:
 		schema := g.schemaFor(t.Elem(), reflect.Value{})
+		if g.v31 {
+			if typ, ok := schema["type"].(string); ok {
+				schema["type"] = []interface{}{typ, "null"}
+				return schema
+			}
+			return map[string]interface{}{"anyOf": []interface{}{schema, map[string]interface{}{"type": "null"}}}
+		}
 		schema["nullable"] = true
 		return schema
 	case reflect.Interface:
@@ -166,7 +174,14 @@ func typeHasDynamicField(t reflect.Type, seen map[reflect.Type]bool) bool {
 // Exported so cmd/gendocs can write it to disk alongside the other generated
 // references, and so the admin endpoint can serve the same bytes.
 func PublicAPIOpenAPISpec() ([]byte, error) {
-	g := &openAPIGenerator{components: map[string]interface{}{}}
+	return json.MarshalIndent(publicAPIBaseDoc(false), "", "  ")
+}
+
+// publicAPIBaseDoc is the generated document as a map. The 3.1 builder
+// (openapi_public_v31.go) starts from it, so the two never describe different
+// routes.
+func publicAPIBaseDoc(v31 bool) map[string]interface{} {
+	g := &openAPIGenerator{components: map[string]interface{}{}, v31: v31}
 
 	// The error envelope every failure shares, described once.
 	g.components["Error"] = map[string]interface{}{
@@ -232,7 +247,7 @@ func PublicAPIOpenAPISpec() ([]byte, error) {
 	}
 
 	spec := map[string]interface{}{
-		"openapi": openAPIVersion,
+		"openapi": map[bool]string{true: "3.1.0", false: openAPIVersion}[v31],
 		"info": map[string]interface{}{
 			"title":   "ERP Public API",
 			"version": "1.0.0",
@@ -286,7 +301,7 @@ func PublicAPIOpenAPISpec() ([]byte, error) {
 			},
 		},
 	}
-	return json.MarshalIndent(spec, "", "  ")
+	return spec
 }
 
 func openAPITagFor(path string) string {

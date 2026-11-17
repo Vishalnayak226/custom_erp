@@ -272,6 +272,34 @@ API access › New API access
   - [public-api-v1.md](../api/public-api-v1.md), the error codes and UAT 10B are updated.
   - A live walk on app after the release.
 
+## Interfaces (build contract, ask 224)
+
+D1-D14 were approved as recommended on 2026-11-16 (ask 224). The screen and the server are built against these routes. All screen routes run through `apiMiddleware`; all key routes run through `publicAPIMiddleware`. The old `/api/v1/admin/api-credentials` routes and the five v1 endpoints stay as they are (D7).
+
+**Screen routes** (capability `api.share`; Admin and Super Admin always pass; a holder acts on their own keys only):
+
+| Route | Does |
+|---|---|
+| `GET /api/v1/api-access/modules` | Modules for the asker: `key, name, summary, in_plan, can_view, can_change, reason` (*Not in plan* / *Not in your access*), `doctypes[] {doctype, label, class: rw\|ro}` |
+| `GET /api/v1/api-access/keys?scope=mine\|all&status=` | Rows: `id, name, key_prefix, auth_mode, modules {key: read\|write}, doctypes {module: [doctype]}, can_approve, owner_id, owner_name, owner_active, status (active\|expiring\|owner_inactive\|rotating\|revoked\|expired\|pending_claim), expires_at, old_key_ends_at, last_used_at, calls_today, errors_today, stores[], ip_allow[], legacy_scopes[]` |
+| `POST /api/v1/api-access/keys` | Body: `name, quick_start, modules, doctypes, can_approve, auth_mode (api_key\|oauth_client), expires (30d\|90d\|1y\|never\|YYYY-MM-DD), stores[] (empty = all), ip_allow[], deliver (show\|developer_link)`. Answer: `credential, api_key` (shown once), `base_url, tenant_code`; with `developer_link`: `developer_link {url, expires_at}` and no key |
+| `GET /api/v1/api-access/keys/{id}` | One row plus `limits` |
+| `PUT /api/v1/api-access/keys/{id}/modules` | `modules, doctypes, can_approve`; widening is held to the owner's rights and audited |
+| `POST /api/v1/api-access/keys/{id}/rotate` | `overlap: now\|1h\|24h\|7d` (default 24h). Answer as create |
+| `DELETE /api/v1/api-access/keys/{id}` | Revoke |
+| `POST /api/v1/api-access/keys/{id}/take-over` | Admin only; the asker becomes the owner |
+| `GET /api/v1/api-access/keys/{id}/activity?errors_only=1&limit=` | Calls: `at, method, path, status, outcome, code, fix` |
+| `GET\|POST /api/v1/api-access/keys/{id}/share-docs`, `DELETE .../share-docs` | Docs link `{url, expires_at}` (`days` <= 90); withdraw |
+| `GET /api/v1/api-access/keys/{id}/openapi.json`, `.../postman.json` | The key's spec and Postman collection |
+| `GET /api/v1/api-access/openapi.json` | The company's spec, filtered to the asker's modules (the Docs viewer) |
+| `GET\|POST /api/v1/api-access/keys/{id}/webhooks`, `DELETE .../webhooks/{sub}`, `GET .../webhooks/deliveries`, `POST .../webhooks/deliveries/{d}/resend` | Document-event subscriptions for the key |
+| `GET /api/v1/api-access/attention` | Keys needing attention (expiring, rotating, failing with the missing module) for the Home tile |
+| `POST /api/v1/api-access/keys/{id}/fix` | `{module, level}`: the one-click fix from a failure alert |
+
+**Key routes** (`/api/public/v1`): `GET /me`; `GET|POST /records/{doctype}`; `GET|PUT /records/{doctype}/{id}`; `POST /records/{doctype}/{id}/submit`, `.../cancel`; `GET /records/{doctype}/schema`; `GET /records/{doctype}?changed_since=&cursor=&limit=&q=&<field>=`; `POST /actions/{module}/{action}`; `GET /reports`, `GET /reports/{id}?format=json|csv&page=`. Unauthenticated: `GET /api/public/v1/docs/{token}` (shared spec, no secret), `POST /api/public/v1/developer-links/{token}/claim` (creates and shows the key once). Pages: `public/api-docs.html` (shared docs) and `public/api-claim.html` (developer link).
+
+**Refusal codes** (error catalogue, each with a cause and a fix, response carries `fix` and `docs_url`): owner inactive, module not in plan, module not on key, owner lost the module, document type not exposed, document type not on key, approval not allowed for keys, IP not allowed, key expired, old secret ended.
+
 ## Not adopted
 
 | Idea | Why not |

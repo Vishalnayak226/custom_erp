@@ -134,6 +134,8 @@ The receipt is the sale's **tax invoice on 3-inch (80 mm) roll paper** (or the 5
 
 If your till has a receipt printer set up for silent printing it goes straight there with no dialog (see below); otherwise your browser's normal print dialog opens. Nothing extra is needed to print — the button always works.
 
+**Extra copy on a second printer** (Stage 213.5): if your print profile has *Extra prints*, one **Print** sends the main bill and each extra to its own printer (for example A4 to the office printer, a roll copy to the receipt printer). If one fails, a message names it and the others still print. Setting it up: Admin Guide, Print profiles.
+
 To get the one-click version, your administrator installs **QZ Tray** on the till PC ([qz-printing-setup.md](qz-printing-setup.md)). The first bill printed there goes to the till's receipt printer — chosen by itself when the PC has one, or asked once — and every bill after that prints there without asking (§7B.3). If QZ Tray isn't installed, the browser print dialog appears as before; nothing breaks and nothing is lost.
 
 A few things worth knowing:
@@ -290,6 +292,7 @@ A business buyer needs a tax invoice with their GSTIN on it, so they can claim t
 3. Click **Save**. Beside the box the till shows *B2B · <PO number>* (with *· shipped* when shipped); click it to change the details. **Not B2B** in the panel clears the GSTIN and makes it an ordinary bill.
 4. **The tax.** Collected at the counter, the bill is taxed in your store's state (CGST + SGST). Shipped to a buyer in another state, it is IGST, and the tax line reads *IGST … · to <state>*.
 5. Ring up and **Complete Sale** as usual, then **Print GST Invoice** (§4.1a).
+6. **E-invoice.** When your company e-invoices (§9B.5), the bill is sent to the IRP within a minute. The first print says **IRN PENDING**; once the IRN is back, **Reprint** it from **POS → Sales History** (§4.13) to give the buyer the copy with the IRN and QR.
 
 If something required is still missing, **Complete Sale** opens the panel with what is missing, and the server refuses the bill (`POSOFF-0879`, `POSOFF-0880`, `POSOFF-0881`).
 

@@ -325,7 +325,7 @@ export function defaultLayout(txn, doc) {
       // Stage 75.2.8a: an e-invoiced credit note's IRN, Ack and signed QR
       // (all blank, so nothing prints, for a note that is not e-invoiced);
       // "IRN PENDING" in the same place while it is on its way.
-      ...(txn === 'CreditNote' || txn === 'SalesInvoice' || txn === 'OMSBill' ? [
+      ...(txn === 'CreditNote' || txn === 'SalesInvoice' || txn === 'OMSBill' || txn === 'POSTaxInvoice' ? [ // 215.19: a B2B till bill too
         E({ type: 'qr', key: 'fields.irn_signed_qr', x: 10, y: 222, w: 30, h: 30, pages: 'last' }),
         E({ type: 'text', text: '{fields.irn_status}', x: 42, y: 222, w: 80, h: 6, fontSize: 10, bold: true, pages: 'last' }),
         E({ type: 'text', text: 'IRN: {fields.irn}', x: 42, y: 222, w: 80, h: 12, fontSize: 7.5, pages: 'last' }),
@@ -861,6 +861,49 @@ function choiceLayout(data, txn, templateId, paper) {
   return parseLayout(t ? t.layout : '', txn, data?.document);
 }
 
+// extraPrints (213.5) is the extra prints a print profile asks for beyond the
+// main one: its "Extra prints" line, entries "<template or Roll 80 / Roll 58 /
+// Standard> x<copies>", each as {name, templateId, paper, copies}. An entry
+// that names nothing this print has is skipped. Each prints on the printer
+// set up for its paper (213.1): a roll to Receipt, a page to the kind's.
+function extraPrints(data, txn) {
+  const raw = String(data?.document?.fields?.print_profile?.extra_prints || '');
+  const choices = printChoices(data, txn);
+  const out = [];
+  raw.split(/[,;\n]/).forEach(part => {
+    const m = /^\s*(.*?)\s*(?:[x×]\s*(\d+))?\s*$/i.exec(part);
+    const key = (m && m[1] || '').trim().toLowerCase();
+    if (!key) return;
+    const copies = Math.min(9, Math.max(1, parseInt(m[2] || '1', 10)));
+    let c = null;
+    if (/^roll\s*-?\s*80/.test(key)) c = choices.find(x => x.id === ROLL_TEMPLATE_ID && x.paper === ROLL_PAPERS[0]);
+    else if (/^roll\s*-?\s*58/.test(key)) c = choices.find(x => x.id === ROLL_TEMPLATE_ID && x.paper === ROLL_PAPERS[1]);
+    else if (key === 'standard') c = choices.find(x => x.id === '');
+    else c = choices.find(x => x.id && x.id !== ROLL_TEMPLATE_ID && (x.id.toLowerCase() === key || String(x.name).toLowerCase() === key));
+    if (c) out.push({ name: c.id === ROLL_TEMPLATE_ID ? `Roll bill (${c.paper})` : c.name, templateId: c.id, paper: c.paper, copies });
+  });
+  return out;
+}
+
+// printExtras (213.5) prints each extra print of the profile once the main
+// one went out. One that fails is named and the others still print; the
+// main print is never repeated.
+async function printExtras(data, txn) {
+  const failed = [];
+  for (const x of extraPrints(data, txn)) {
+    for (let i = 0; i < x.copies; i++) {
+      try {
+        if (!await printLayout(txn, choiceLayout(data, txn, x.templateId, x.paper), data.document)) { failed.push(x.name); break; }
+      } catch (err) {
+        console.error('[print] extra print failed', x.name, err);
+        failed.push(x.name);
+        break;
+      }
+    }
+  }
+  if (failed.length) await window.showCustomAlert?.(`The main print went out. These extra prints did not: ${failed.join(', ')}. Reprint them from Reprint.`, 'Print');
+}
+
 // addChangeText (Stage 130.16, 74.3.4) puts the change handed back on a till
 // bill - the till's own arithmetic.
 function addChangeText(doc, cashTendered) {
@@ -1046,7 +1089,9 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     // instead of opening the browser's print dialog.
     if (await printLayout(S.txn, currentLayout(), S.data.document, { printer: S.printer })) {
       await logPrint(S.txn, id, S.data.document, reason ? 'Reprint' : 'Print', reason, { templateId: S.templateId });
+      const extras = S.data;
       close();
+      await printExtras(extras, S.txn);
     }
   }));
   // Stage 98.4: with PrintBridge running, where this print goes on this
@@ -1291,6 +1336,7 @@ export async function printPOSBill(cartNumber, cashTendered = 0) {
   addChangeText(data.document, cashTendered);
   if (await printLayout('POSTaxInvoice', layout, data.document)) {
     logPrint('POSTaxInvoice', cartNumber, data.document, reason ? 'Reprint' : 'Print', reason, { templateId: pick.templateId }); // Stage 127.6
+    await printExtras(data, 'POSTaxInvoice'); // 213.5
   }
   return true;
 }

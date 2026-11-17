@@ -347,7 +347,16 @@ func StartEInvoiceWorker(ctx context.Context, interval time.Duration) {
 
 // irpPostedStatuses are the statuses at which each document has posted
 // (posted_amounts.go's rules - one definition of "posted").
-var irpPostedStatuses = map[string][]string{"SalesInvoice": {"Approved", "Paid"}, "CreditNote": {"Posted"}}
+var irpPostedStatuses = map[string][]string{"SalesInvoice": {"Approved", "Paid"}, "CreditNote": {"Posted"}, "POSCart": {"Paid"}}
+
+// irpDiscoverOnly narrows discovery for a document type most of whose
+// documents are never sent: a till bill is registered only when it names a
+// buyer GSTIN (its B2B block, or a customer with a GSTIN - the GSTR-1's rule,
+// gstr1TillParty), so a B2C sale leaves no row behind (215.19). %[1]s is the
+// schema.
+var irpDiscoverOnly = map[string]string{"POSCart": `(COALESCE(d.data->'b2b'->>'gstin', '') <> ''
+		OR EXISTS (SELECT 1 FROM %[1]s.documents c WHERE c.doctype = 'Customer' AND c.id = d.data->>'customer_id'
+		           AND c.deleted_at IS NULL AND COALESCE(c.data->>'gstin', '') <> ''))`}
 
 // discoverEInvoiceDocuments registers every posted invoice and credit note
 // since the earliest enabled GSTIN's start that has no record yet - whatever
@@ -358,11 +367,16 @@ func discoverEInvoiceDocuments(tenantID, schema string) {
 		return
 	}
 	for doctype, statuses := range irpPostedStatuses {
+		only := "TRUE"
+		if f, ok := irpDiscoverOnly[doctype]; ok {
+			only = fmt.Sprintf(f, schema)
+		}
 		rows, err := db.DB.Query(fmt.Sprintf(`
 			SELECT d.id FROM %s.documents d
 			WHERE d.doctype = $1 AND d.deleted_at IS NULL AND d.status = ANY($2) AND d.created_at >= $3::timestamp - INTERVAL '1 day'
 			  AND NOT EXISTS (SELECT 1 FROM %s.irp_documents x WHERE x.environment = $4 AND x.source_doctype = $1 AND x.source_id = d.id)
-			ORDER BY d.created_at LIMIT 100`, schema, schema), doctype, pqStringArray(statuses), from.Time, IRPEnvironment())
+			  AND %s
+			ORDER BY d.created_at LIMIT 100`, schema, schema, only), doctype, pqStringArray(statuses), from.Time, IRPEnvironment())
 		if err != nil {
 			irpLog(schema, "e-invoice discovery: "+err.Error())
 			continue

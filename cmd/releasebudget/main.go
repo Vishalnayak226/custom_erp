@@ -154,11 +154,21 @@ func measure(root, binary, databaseURL, backupDir, logsDir string) (Report, erro
 		Note:   "observation; shell plus the first authorized lazy screen (view-pos.js). NFR-COST-001 sets no budget for this combined set; the 120 KiB gate applies to initial_js_gzip_bytes",
 	}
 
-	kbBytes, err := directoryBytes(filepath.Join(root, "internal", "kb", "content"), nil)
+	// Pictures have their own cap and do not count against the 2 MiB text
+	// budget (217.1, ask 222): Help never downloads them, only the full
+	// Knowledge Center does, lazily.
+	kbContent := filepath.Join(root, "internal", "kb", "content")
+	kbImg := filepath.Join(kbContent, "img") + string(filepath.Separator)
+	kbBytes, err := directoryBytes(kbContent, func(path string) bool { return !strings.HasPrefix(path, kbImg) })
 	if err != nil {
 		return report, err
 	}
-	setLimit(&report, "embedded_kb_raw_bytes", kbBytes, 2*MiB, "NFR-DOC-001; raw bytes embedded in the server")
+	setLimit(&report, "embedded_kb_raw_bytes", kbBytes, 2*MiB, "NFR-DOC-001; raw text bytes embedded in the server, pictures excluded")
+	kbImgBytes, err := directoryBytes(filepath.Join(kbContent, "img"), nil)
+	if err != nil {
+		return report, err
+	}
+	setLimit(&report, "kb_images_raw_bytes", kbImgBytes, 512*KiB, "NFR-DOC-001; Knowledge Center pictures, loaded only in the full Knowledge Center")
 	searchInfo, err := os.Stat(filepath.Join(root, "internal", "kb", "content", "search.json"))
 	if err != nil {
 		return report, fmt.Errorf("KB search index: %w", err)

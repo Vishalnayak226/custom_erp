@@ -1628,7 +1628,25 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			w = rec
 		}
 
+		// 227.1: a module's own route that moves a document's status (cancel,
+		// submit, approve) sends the same webhook event the document route does.
+		// The document route publishes its own (handlers_doc_events.go).
+		if r.Method == http.MethodPost && tenantID != "" && r.PathValue("doctype") == "" {
+			if id := r.PathValue("id"); id != "" && engines.DocumentEventsWanted(tenantID) {
+				if doctype, prior := engines.DocumentByID(tenantID, id); doctype != "" {
+					defer publishStatusMove(tenantID, doctype, id, prior)
+				}
+			}
+		}
+
 		next.ServeHTTP(w, r)
+	}
+}
+
+// publishStatusMove sends a document's event when a route moved its status.
+func publishStatusMove(tenantID, doctype, id, prior string) {
+	if after := engines.DocumentStatusOf(tenantID, doctype, id); after != "" && after != prior {
+		engines.PublishDocumentEvent(tenantID, doctype, id, engines.EventForStatusChange(true, prior, after), after)
 	}
 }
 

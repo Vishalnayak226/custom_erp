@@ -165,6 +165,14 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 	add := func(list *[]PrintField, group, key, label string) {
 		*list = append(*list, PrintField{Key: key, Label: label, Group: group})
 	}
+	// Stage 75.2.8a: the e-invoice details (blank until the IRP acknowledges);
+	// a credit note's and (215.19) a B2B till bill's.
+	addIRN := func() {
+		for _, f := range [][2]string{{"irn", "IRN"}, {"irn_ack_no", "IRN Ack No"}, {"irn_ack_date", "IRN Ack date"},
+			{"irn_status", "IRN status (IRN PENDING)"}, {"irn_signed_qr", "IRN signed QR (for a QR code)"}} {
+			add(&out.Header, "E-invoice", "fields."+f[0], f[1])
+		}
+	}
 	add(&out.Header, "Document", "title", "Document title")
 	add(&out.Header, "Document", "number", "Document number")
 	add(&out.Header, "Document", "date", "Date")
@@ -201,6 +209,7 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 			{"bill_datetime", "Bill date and time"}, {"cashier", "Cashier"}, {"po_number", "Buyer's PO number"}, {"po_date", "Buyer's PO date"}} {
 			add(&out.Header, "Document", "fields."+f[0], f[1])
 		}
+		addIRN()
 	case PrintTxnSalesReturn:
 		for _, f := range [][2]string{{"original_order", "Original bill / order"}, {"original_invoice_date", "Original bill date"},
 			{"return_type", "Return type"}, {"refund_method", "Refund method"}, {"refund_no", "Refund number"}, {"refund_status", "Refund status"}} {
@@ -213,11 +222,7 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		add(&out.Header, "Document", "fields.original_invoice_date", "Original invoice date")
 		add(&out.Header, "Document", "fields.document_direction", "Document direction")
 		if txn == PrintTxnCreditNote {
-			// Stage 75.2.8a: the e-invoice details (blank until the IRP acknowledges).
-			for _, f := range [][2]string{{"irn", "IRN"}, {"irn_ack_no", "IRN Ack No"}, {"irn_ack_date", "IRN Ack date"},
-				{"irn_status", "IRN status (IRN PENDING)"}, {"irn_signed_qr", "IRN signed QR (for a QR code)"}} {
-				add(&out.Header, "E-invoice", "fields."+f[0], f[1])
-			}
+			addIRN()
 		}
 	case PrintTxnPurchaseReturn:
 		add(&out.Header, "Document", "fields.vendor_invoice_no", "Vendor invoice number")

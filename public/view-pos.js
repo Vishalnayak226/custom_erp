@@ -38,6 +38,8 @@ let posSearchResults = [];
 let posSearchActiveIndex = -1;
 let posSearchTerm = '';      // the text the shown list was found for (Stage 108.2)
 let posSearchTimer = null;   // the pause-in-typing suggestion lookup
+let posSearchGen = 0;        // 214.5: bumped by every clear, so a late suggestion is dropped
+let posScanInFlight = '';    // 214.5: the text one Enter is adding; a repeat Enter waits for it
 
 function renderPOSView(container) {
   // Stage 85.A5: the store is the session's working store. A cart built at
@@ -265,6 +267,10 @@ function renderPOSView(container) {
   document.getElementById('pos-payment-mode').addEventListener('change', renderPOSTender);
   document.getElementById('pos-cash-tendered').addEventListener('input', renderPOSTender);
 
+  // 214.2: a till left on a finished bill used to come back frozen with no New
+  // Sale button (the panel is new DOM, the frozen flag was not). That bill is
+  // saved and in Reprint, so coming back is the next customer: a fresh sale.
+  if (posCompletedSale) startNewPOSSale();
   renderPOSCustomerNote();
   renderPOSCartTable();
   // Stage 85.A5: drawn before the top bar knew the working store - draw again
@@ -466,15 +472,20 @@ function onPOSScanInput(e) {
   const term = e.target.value.trim();
   if (term.length < 2 || posCompletedSale || !posLocation) { clearPOSProductSearch(); return; }
   posSearchTimer = setTimeout(async () => {
+    const gen = posSearchGen;
     const found = await fetchPOSProductMatches(term);
     const input = document.getElementById('pos-sku-input');
     if (!found || found.error || !input || input.value.trim() !== term) return; // typed on since
+    // 214.5: Enter (or a pick) since this lookup started already handled the
+    // text; a list drawn now would offer the same item again after it was added.
+    if (gen !== posSearchGen) return;
     if (found.rows.length) renderPOSSearchResults(found.rows, term);
     else clearPOSProductSearch();
   }, 350);
 }
 
 function clearPOSProductSearch() {
+  posSearchGen++;
   posSearchResults = [];
   posSearchActiveIndex = -1;
   posSearchTerm = '';
@@ -574,7 +585,14 @@ async function addSKUToPOSCart() {
     return;
   }
   if (!term) return;
+  // 214.5: one Enter, one add. A scanner that sends Enter twice, or a second
+  // press before the first add has cleared the box, reads the same text again.
+  if (posScanInFlight === term) return;
+  posScanInFlight = term;
+  try { await addPOSScanTerm(term, errorEl); } finally { posScanInFlight = ''; }
+}
 
+async function addPOSScanTerm(term, errorEl) {
   clearTimeout(posSearchTimer);
   const found = await fetchPOSProductMatches(term);
   if (!found) return;

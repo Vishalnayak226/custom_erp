@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get your API key</title>
+<!-- 205.19: a developer link (?t=<token>). The key is made when the button is
+     pressed, shown once, and never stored.
+     POST /api/public/v1/developer-links/{token}/claim. -->
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/api-access.css">
+</head>
+<body class="apipage-body">
+<div class="apipage-wrap">
+  <h1>Get your API key</h1>
+  <div id="claim-intro" class="table-panel api-pad">
+    <button type="button" class="btn btn-primary" id="claim-go">Show my key</button>
+  </div>
+  <div id="claim-host" class="table-panel api-pad" hidden></div>
+</div>
+<script type="module" src="/api-claim.js"></script>
+</body>
+</html>

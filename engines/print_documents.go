@@ -784,6 +784,9 @@ func BuildPrintDocumentAs(tenantID, user, txn, id, store string, withImages bool
 					State: b2b.ShipState, StateCode: StateCodeFromName(b2b.ShipState)}
 			}
 		}
+		if d.Party.GSTIN != "" {
+			d.addIRNFields(tenantID, "POSCart", id) // 215.19: the B2B bill's IRN and QR once the IRP acknowledges it
+		}
 		d.Fields["supply_type"] = map[bool]string{true: "B2B", false: "B2C"}[d.Party.GSTIN != ""]
 		d.Fields["buyer_gstin"] = d.Party.GSTIN
 		// Place of supply is set below, from the store: goods handed over at

@@ -83,7 +83,7 @@ func scopeValueExpr(fields []string) string {
 // picker offers New for them (132.10 h).
 var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim", "CustomOrderQuote", "CarrierClaim"}
 
-func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
+func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	userID := r.Header.Get("Resolved-User-ID")
@@ -452,7 +452,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			var hiddenFilterFields map[string]bool
 			for key, vals := range r.URL.Query() {
-				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || key == "q_fields" || len(vals) == 0 {
+				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || key == "q_fields" || key == "changed_since" || key == "cursor" || len(vals) == 0 {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
@@ -598,6 +598,34 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+			// 205.8: changed_since=<RFC3339> lists what changed at or after that
+			// time, oldest change first, so an integration can pick up where it
+			// stopped; cursor=<token from X-Next-Cursor> continues the page.
+			changedSince := strings.TrimSpace(r.URL.Query().Get("changed_since"))
+			changeCursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
+			syncOrder := changedSince != "" || changeCursor != ""
+			if changedSince != "" {
+				since, sinceErr := time.Parse(time.RFC3339, changedSince)
+				if sinceErr != nil {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "changed_since must be a time like 2026-11-16T09:30:00Z")
+					return
+				}
+				whereClause += fmt.Sprintf(" AND updated_at >= $%d", argIndex)
+				args = append(args, since)
+				argIndex++
+			}
+			if changeCursor != "" {
+				cut := strings.LastIndex(changeCursor, "|")
+				cursorAt, cursorErr := time.Parse(time.RFC3339Nano, changeCursor[:max(cut, 0)])
+				if cut < 0 || cursorErr != nil {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "cursor is not one this list gave; start again without it")
+					return
+				}
+				whereClause += fmt.Sprintf(" AND (updated_at, id) > ($%d, $%d)", argIndex, argIndex+1)
+				args = append(args, cursorAt, changeCursor[cut+1:])
+				argIndex += 2
+			}
+
 			// BLD-034: an exact total (over every filter above, before
 			// LIMIT/OFFSET) is what lets the frontend show "X-Y of Z" and
 			// disable "Next" correctly instead of guessing from the size of
@@ -660,7 +688,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 				orderLead = fmt.Sprintf("(id IN (%s)) DESC, ", strings.Join(placeholders, ","))
 			}
-			if sortRecent {
+			if syncOrder {
+				query += fmt.Sprintf(" ORDER BY updated_at, id LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+			} else if sortRecent {
 				query += fmt.Sprintf(" ORDER BY %supdated_at DESC LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
 			} else {
 				query += fmt.Sprintf(" ORDER BY %sid LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
@@ -675,6 +705,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			defer rows.Close()
 
 			docs := []map[string]interface{}{}
+			var lastSyncAt time.Time
+			var lastSyncID string
 			own := engines.OwnRecordScope(tenantID, doctype, engines.SessionScope{Role: role, UserID: userID, LocationCode: location})
 			for rows.Next() {
 				var docID string
@@ -696,9 +728,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 				dataMap["id"] = docID
 				dataMap["status"] = status
-				if sortRecent {
+				if sortRecent || syncOrder {
 					dataMap["updated_at"] = updatedAt.Format(time.RFC3339)
 				}
+				lastSyncAt, lastSyncID = updatedAt, docID
 				if dataMap, err = engines.FilterFieldsForSession(tenantID, role, doctype, dataMap, own); err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
@@ -712,6 +745,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				engines.LogSensitiveBulkRead(r.Context(), tenantID, userID, role, doctype, len(docs), r.URL.RawQuery)
 			}
 			engines.MarkUnknownRoles(tenantID, doctype, docs) // Stage 148.47
+			if syncOrder && len(docs) > 0 && len(docs) >= limit {
+				w.Header().Set("X-Next-Cursor", lastSyncAt.UTC().Format(time.RFC3339Nano)+"|"+lastSyncID)
+			}
 			_ = json.NewEncoder(w).Encode(docs)
 		}
 

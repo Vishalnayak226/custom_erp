@@ -44,6 +44,79 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 402. "Build all the pending above approved recommeded" - Share module API stays Admin only (2026-11-17, test + KB, ask 228; not committed)
+
+- Taken as approving the recommended answer to 227.3, the one open decision next to ask 226's work. 50.12 and 51.1a have no recommended answer and touch production; 49.14.5, 49.14.6, 49.17.1 and 177.7 were approved earlier and wait on the owner or a release.
+- Built: the code already kept *Share module API* to Admin and Super Admin (capabilities come only from role templates, none lists `api.share`). `TestShareModuleAPIStaysAdminOnly` now fails if a template gains it; the KB authentication article says only an Admin holds it today.
+- Verified: the test passes, `go vet ./engines/` clean, update-docs run. 227.3 Done and archived. Detail: checklist ask 228.
+
+## 401. "Build next 40 open items" - API access verified end to end, nine bugs fixed (2026-11-17, public API handlers + key engine + screens + tests, ask 226; not committed)
+
+- Owner's words: "Build next 40 open items". Only 12 open items need no owner, device, credentials or decision: verifying ask 224's API access build (205.10-205.16, 205.18-205.22). 205.24 keeps its live walk for after the release.
+- Tests added: `TestAPIAccessE2E` (internal/server: records, actions, reports as JSON and CSV, **Fix**, refusal codes); `TestAPIAccessE2EKeyWebhookDelivery`, `TestAPIAccessE2EFaultAlertOncePerTenWithoutFlood`, `TestAPIKeyExpiryDateEndsThatLocalDay` and `TestAPIKeyAttentionListsAnEndingKey` (engines).
+- Browser walk on a scratch server (headless Edge): list and filters, New page, the created page, all six detail tabs, webhooks, docs viewer, sharing, rotate, the Home tile and revoke all pass.
+- Fixed: the actions route sent no events and the piece-hold body was wrong; three key-owner patterns (approval submit/decide, report run) lacked the method; *Until <date>* ended at 05:29 the next day; the rotate row showed before **Rotate**; each Webhooks tab visit doubled Remove/Resend; the attention list compared with "Active" so the banner and Home tile never showed; the old-secret time printed in UTC. `DataHeal` (0.26.0) got its API class (never), as the every-doctype guard asked.
+- Verified: the API access tests in `engines` and `internal/server` pass; `go vet` clean for both. All 12 items ticked and archived. Detail: checklist ask 226.
+
+## 400. "Fix that as well" - module-route webhook events, APIKEY-0512, extra prints checked (2026-11-17, middleware + engines + tests + Guide + guides, ask 227; not committed)
+
+- Owner's words: "Yes. Fix that as well. Above all open item", meaning every gap ask 224 left open. Split by message with the other session: it took the end-to-end tests and the browser walk (ask 226); this session took the rest.
+- Built (227.1): a POST to a module's own route with a document `{id}` (cancel, submit, approve) now sends the same webhook event as the document route. `apiMiddleware` reads the status before the call and `publishStatusMove` publishes after it, only when the company has a key webhook. Never-shared document types send nothing.
+- Built (227.2): rotating a key whose developer has not opened the link yet is refused with APIKEY-0512 (409), so the code can be reached now; the catalogue text says what to do.
+- Checked (227.4): the Guide `tillprint` suite takes an *Extra prints* line, adds a Print Profile, sells, prints and counts the jobs. Main + 2 extras = 3 jobs to the stub printer. The real two-printer run stays the owner's (213.5).
+- Found (227.5): the failing Data Healer test was the scratch DB missing migration `207_1`, not the code. Applied it there.
+- Verified: `TestModuleRouteEventsAndPendingRotate` and the Data Healer test pass; `go build` and `go vet` clean for `engines` and `internal/server`. Admin guide D.6 and the KB webhooks article updated.
+- Left: who holds *Share module API* (227.3, owner; recommended Admin only). The other session's e2e test found 4 bugs in the public action, records and report handlers and is fixing them (ask 226). Detail: checklist ask 227.
+
+## 399. "Build open next 40 items" - API access for every module, extra prints on a second printer (2026-11-16/17, public API + screens + migrations + tests + guides + KB, ask 224; not committed)
+
+- Owner's words: "Still 230 open items are there. Build open next 40 items. Use multiple agents. Approved". Only 25 items qualified: 168 wait on the owner, a device or credentials, and other sessions held 14. "Approved" approved the recommended answers: 205.2 (D1-D14), 213.5 (the second half is wanted) and 215.16 (keep the Sales Invoice, no POS-bill replacement).
+- Built (205.3-205.24): module keys that act as their owner, with the owner's rights as the ceiling and re-checked on every call; the *Share module API* right (`api.share`); every document type classed; the records API with `changed_since`, `/schema` and `/me`; the API access list, New page, once-only Created page and key page (limits, rotation with overlap, revoke, take over); 6 actions; reports as paged JSON or CSV; document webhooks per key, signed and retried, with a delivery log and **Resend**; OpenAPI 3.1 per company and per key plus Postman; the Docs viewer and share links; expiry reminders, the failure alert with **Fix**, and the ops alert. Migrations `205_4` and `205_15`.
+- Built (213.5): a Print Profile's *Extra prints* line sends more prints after the main one, each to the printer for its paper (migration `213_5`).
+- A fix found in review: company-wide webhook subscriptions would have started receiving every document event after the release. Document events now go only to key subscriptions, with a test.
+- Verified: targeted `engines` and `internal/server` tests on the scratch DB; build and vet clean; route capabilities (14) and `attack_surface.json` regenerated; the brain map at 100% coverage; update-docs passed.
+- Left: browser walks of the screens; a two-printer run for 213.5; end-to-end tests of delivery on submit, the action happy paths, CSV reports and **Fix**; a cancel through a dedicated route publishes no event; APIKEY-0512 is effectively unreachable. After the release the owner names which roles get `api.share` (only Admin until then). Detail: checklist ask 224.
+
+## 398. "build 7" - a live print bug found and fixed, the till's print dialog and Guide's key verified (2026-11-16, print rasteriser + release gate + Guide suites, ask 225; not committed)
+
+- Owner's words: "build 7", meaning finish what ask 220 left open. First recorded as ask 221, a number the "fix bugs" ask (§396) had already used; renumbered 225.
+- Found and fixed: 225.1. Since 0.25.0 every silent PrintBridge print of a till bill or trade document failed with "The source image cannot be decoded". A comment in `trade-docs.css` holds the text "<style>", and the print rasteriser put the CSS raw into an SVG image. `svgStyle()` in `public/print-pdf.js` now escapes it, and the dashboard PDF export, which had the same raw copy, uses it too.
+- Release lesson: no gate pressed Print. G8 now stops on CSS put raw into an SVG image, and the Guide `smoke` suite (G10a) runs the new `tillprint` suite: a till sale, Print Receipt to the stub printer, and Reprint. Both were added to `release/README.md`.
+- Verified: 213.3 and 213.4 (the till's Print Receipt and Reprint open the print dialog on the roll and switch to A4 and back) with Guide `tillprint` on the working tree; 195.2 with two read-only Guide walks on app (key taken, no pacing, no 429) and Edge's own command line (no `--no-sandbox`). 55.14 closed: its four parts were Done.
+- Guide (outside the repo) gained `-ReuseBuild`. With `-WorkingTree` it keeps the last good server build, so a front-end check can run while another session's half-written Go file breaks the build.
+- Left: 213.1 (one real paper print), 203.1 and 212.1 (the owner's computer). 225.1 reaches app and minn only with the next release and deploy. Detail: checklist ask 225.
+
+## 397. "start building next 20 open items" - merged masters move inside line lists, the sticker manual checked against the app (2026-11-16, master merge + guides, ask 223; not committed)
+
+- Only four of the open items needed no owner, device or decision and were not held by another session, so 20 could not be built.
+- Built: 47.13.5's last part. Merging a duplicate master now also repoints ids inside JSON line lists (PO items, bill lines, BOM components, price list items, RFQ lines and invited vendors). The whole old list is recorded, so undo restores it, and undo skips a list edited after the merge. Stock stays refused in this merge; the message points to PIM's **Merge into...**, which moves stock and cost. 47.13 is Done.
+- Checked: 194.3. The sticker manual (user guide §7A) was followed against the code. One step was wrong (saving a letter pick closes Printer preset) and was fixed. Done.
+- Checked: 55.11. Every open part is built and its tests re-ran green; it now waits only on the owner's Stage 55 acceptance (55.22).
+- Not taken: 162.5 / 50.14. The cold-core files hold other sessions' uncommitted edits, and the re-baseline needs a quiet machine.
+- Verified: new tests `TestMasterMergeMovesLineLists` and `TestRepointLinesKeepsShapeAndOtherColumns`, the 47.13.5 merge tests, the 55.11 tests and `go vet ./engines/`. Detail: checklist ask 223.
+
+## 396. "fix bugs" - the till and scan fixes verified by the Guide journey (2026-11-16, verification + Guide suite, ask 221; not committed)
+
+- Owner's words: "fix bugs", meaning the four app bugs the Guide `journey` rehearsals found (ask 214). Ask 220 (§394) had already built all four in the working tree; 214.3 and 214.4 were Done.
+- The Guide `journey` suite (outside the repo) now leaves bill 1 without New Sale, so bill 2 checks 214.2. Rehearsal on the working tree (Guide report 20261116-230618-journey): POS opened on a fresh sale after a finished bill (214.2), and two scans of one barcode sold exactly 2 units (214.5). The whole journey ran with no finding above info. 214.2 and 214.5 Done.
+- Left: not released; app still runs 0.26.0 without these fixes. The live journey on app waits for the owner's yes.
+
+## 395. Knowledge Center pictures get their own budget (2026-11-16, docs generator + release budget + doclint + standard, ask 222; not committed)
+
+- The owner answered 217.1: pictures are left out of the 2 MiB Knowledge Center budget, and nothing is made heavier. `img/` now has its own 512 KiB cap; the 2 MiB text and 250 KiB search budgets are unchanged.
+- Changed together so no check disagrees: `docs/update-docs.ps1` (publish), `cmd/releasebudget` (new `kb_images_raw_bytes` metric, canonical in its test), `cmd/doclint` (new `kb-image-budget` finding), the documentation standard and NFR-DOC-001.
+- Verified: releasebudget and doclint tests pass; `update-docs.ps1` publishes; text is 1,899,824 of 2 MiB and pictures 184,528 of 512 KiB. The search index is still 250,797 of 250 KiB, so a large new lesson may still need trimming there. Details: 217.1 (archived).
+
+## 394. "Start next all open next 20 items" - till fixes, B2B till bill IRN, report business day, wrong password keeps you signed in (2026-11-16, POS + e-invoice + reports + sign-in, ask 220; not committed)
+
+- Built: 214.5, where one scan makes one add (a scan in flight blocks a repeat, and stale search results are dropped), and 214.2, where POS opened on a completed sale starts a new one. Both wait on a live till run.
+- Built: 214.4, catalog reports file JSON event stamps under the business day.
+- Built: 206.7, where a wrong current password answers 403 `GLOBAL-0312` and no longer signs the user out.
+- Built: 215.19, B2B till bills (`POSCart` naming a buyer GSTIN) go through the e-invoice engine as INV. The buyer and place of supply come from the bill's B2B block, and the IRN and QR print on the till tax invoice. B2C is never sent.
+- Closed: 214.3 (fixed under 215.14), and 206.1-206.4, 211.2, 212.3 and 209.1, which were shipped or proven live in 0.26.0.
+- Verified: new tests `TestTillB2BBillGetsAnIRN`, `TestCatDayIsTheBusinessDay` and `TestWrongCurrentPasswordKeepsTheUserSignedIn`, plus the e-invoice, POS print, report catalog and server tests.
+- Left: the live checks for 213.1/213.3/213.4, 195.2, 203.1 and 212.1, and 55.14. The local DB's piled-up test audit rows trip the 20,000-row cap of `cat-transaction-cancellation-audit`; the release runs on a fresh DB. Detail: checklist ask 220.
+
 ## 393. "Push all and deploy" - release 0.26.0, deployed to app and minn (2026-11-16, release + deploy + cold-core and test fixes, ask 219)
 
 - Shipped: 0.26.0 as 5e9fe09 (the uncommitted work of asks 200, 206, 207, 210, 211, 212, 213, 215, 216, 217 and 218) and d11c8f2 (three test fixes). Deployed d11c8f2 to app.wholeops.in and minn.wholeops.in: 4 additive migrations, all metadata, backup and rollback copy first; both hosts answer 200 with 0.26.0.

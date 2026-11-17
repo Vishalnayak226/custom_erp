@@ -110,7 +110,8 @@ var canonicalBudgets = map[string]struct {
 }{
 	"cold_core_gzip_bytes":       {180 * KiB, "NFR-COST-001 cold core <=180 KiB compressed"},
 	"initial_js_gzip_bytes":      {120 * KiB, "NFR-COST-001 initial core JS <=120 KiB gzip"},
-	"embedded_kb_raw_bytes":      {2 * MiB, "NFR-DOC-001 KB <=2 MiB"},
+	"embedded_kb_raw_bytes":      {2 * MiB, "NFR-DOC-001 KB text <=2 MiB"},
+	"kb_images_raw_bytes":        {512 * KiB, "NFR-DOC-001 KB pictures <=512 KiB"},
 	"kb_search_index_raw_bytes":  {250 * KiB, "NFR-DOC-001 search <=250 KiB"},
 	"kb_largest_topic_raw_bytes": {120 * KiB, "NFR-DOC-001 ordinary topic <=120 KiB"},
 }

@@ -1069,7 +1069,7 @@
       "id": "extensions",
       "lobe": "peripheral",
       "name": "Extension Platform",
-      "role": "Scoped external identities: read-only extension tokens plus durable digest-only public API credentials, the patch/bug intake worker (which never mutates tenant state by construction), and the standalone third-party SDK contract.",
+      "role": "Scoped external identities: read-only extension tokens plus durable digest-only public API credentials; module keys that act as their owner across records, actions, reports, per-key webhooks and a per-key OpenAPI 3.1 spec (ask 224, 205.x), with their screen, docs and developer-link pages; the patch/bug intake worker (which never mutates tenant state by construction), and the standalone third-party SDK contract.",
       "match": [
         "engines/api_credential_policy.go",
         "engines/extensions.go",
@@ -1086,7 +1086,17 @@
         "internal/server/handlers_public_api_v1.go",
         "internal/server/middleware_public_api.go",
         "internal/server/openapi_public_v1.go",
-        "internal/server/routes_public_api_v1.go"
+        "internal/server/routes_public_api_v1.go",
+        "engines/api_access_*.go",
+        "internal/server/handlers_api_access*.go",
+        "internal/server/handlers_public_actions.go",
+        "internal/server/handlers_public_records.go",
+        "internal/server/handlers_public_reports.go",
+        "internal/server/handlers_doc_events.go",
+        "internal/server/openapi_public_v31.go",
+        "public/api-*.js",
+        "public/api-*.html",
+        "public/api-access.css"
       ]
     },
     {

@@ -5,6 +5,7 @@ import (
 	"custom_erp/db"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Stage 75.3.5-75.3.7: every wired catalog report runs on a real tenant -
@@ -94,5 +95,34 @@ func TestCatalogWiringIsCatalog(t *testing.T) {
 		if !ids[id] || !strings.HasPrefix(id, "cat-") {
 			t.Errorf("%s is wired but is not a catalog report", id)
 		}
+	}
+}
+
+// TestCatDayIsTheBusinessDay covers 214.4: a stamp is dated on the business's
+// calendar, not sliced from its UTC text, while a plain date stays as it is.
+func TestCatDayIsTheBusinessDay(t *testing.T) {
+	if BusinessLocation().String() != "Asia/Kolkata" && BusinessLocation().String() != "IST" {
+		t.Skip("written for the default India zone")
+	}
+	for in, want := range map[string]string{
+		"2026-11-15T20:00:00Z":      "2026-11-16", // 01:30 IST on the 16th
+		"2026-11-15T20:00:00.123Z":  "2026-11-16",
+		"2026-11-15 20:00:00+00":    "2026-11-16",
+		"2026-11-16T01:00:00+05:30": "2026-11-16",
+		"2026-11-15T17:00:00Z":      "2026-11-15", // 22:30 IST
+		"2026-11-16":                "2026-11-16",
+		"2026-11-16T00:00:00":       "2026-11-16", // no zone: already local
+		"":                          "",
+	} {
+		if got := catDay(in); got != want {
+			t.Errorf("catDay(%q) = %q, want %q", in, got, want)
+		}
+	}
+	utc := time.Date(2026, 11, 15, 19, 0, 0, 0, time.UTC)
+	if got := catDay(utc); got != "2026-11-16" {
+		t.Errorf("catDay(time 19:00 UTC) = %q, want 2026-11-16", got)
+	}
+	if got := catStamp(utc); got != "2026-11-16 00:30" {
+		t.Errorf("catStamp(19:00 UTC) = %q, want 2026-11-16 00:30", got)
 	}
 }

@@ -100,8 +100,13 @@ try {
         }
         $kbOut = Join-Path $stage 'internal/kb/content'
         Run-Go @('run', './cmd/genkb', '-source', $kbSource, '-out', $kbOut)
-        $kbBytes = (Get-ChildItem -LiteralPath $kbOut -Recurse -File | Measure-Object -Property Length -Sum).Sum
-        if ($kbBytes -gt 2MB) { throw 'Embedded Knowledge Center exceeds the 2 MiB budget.' }
+        # Pictures (img/) have their own 512 KiB cap and do not count against the 2 MiB text budget (217.1, ask 222).
+        $kbImg = Join-Path $kbOut 'img'
+        $kbFiles = @(Get-ChildItem -LiteralPath $kbOut -Recurse -File)
+        $kbImgBytes = [int64]($kbFiles | Where-Object { $_.FullName.StartsWith($kbImg + [IO.Path]::DirectorySeparatorChar) } | Measure-Object -Property Length -Sum).Sum
+        $kbBytes = [int64]($kbFiles | Measure-Object -Property Length -Sum).Sum - $kbImgBytes
+        if ($kbBytes -gt 2MB) { throw 'Embedded Knowledge Center text exceeds the 2 MiB budget.' }
+        if ($kbImgBytes -gt 512KB) { throw 'Knowledge Center pictures exceed the 512 KiB budget.' }
         if ((Get-Item -LiteralPath (Join-Path $kbOut 'search.json')).Length -gt 250KB) { throw 'Knowledge Center search index exceeds the 250 KiB budget.' }
         $sets['kb'] = @(Get-ChildItem -LiteralPath $kbOut -Recurse -File | ForEach-Object {
             [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/')

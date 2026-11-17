@@ -518,6 +518,10 @@ func TestModuleManifestPublicCredentialRoutes(t *testing.T) {
 	})
 	params := regexp.MustCompile(`\{[^}]+\}`)
 	for i, route := range publicAPIV1Routes() {
+		// 205.7: the records routes gate on the key's own modules and the plan, per document type (tested in api_access_test.go).
+		if route.Scope == publicAPIDynamicScope || route.Scope == publicAPIKeySelfScope {
+			continue
+		}
 		path := params.ReplaceAllString(route.Path, "__module_probe__")
 		for _, enabled := range []bool{false, true} {
 			if _, err := db.DB.Exec(`UPDATE tenant_default.module_entitlements SET enabled=$1 WHERE module_key=$2`, enabled, route.ModuleKey); err != nil {

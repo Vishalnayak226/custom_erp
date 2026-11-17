@@ -151,7 +151,7 @@ async function renderDetail(container, id) {
     `<button class="btn btn-outline" data-einv-back>Back to list</button> ${btn('validate', 'Validate')} ${btn('submit', r.state === 'READY' ? 'Submit' : 'Retry', 'btn-primary')} ${btn('check', 'Check status', 'btn-primary')} ${btn('cancel', 'Cancel IRN')} ${btn('manual', 'Enter portal IRN')}`,
     `<div class="oms-detail-summary s-13fcfa">
        ${fact('State', einvoiceStateBadge(r.state))}
-       ${fact('Document', esc(`${r.source_doctype} · ${r.doc_date}`))}
+       ${fact('Document', esc(`${({ POSCart: 'Till bill', SalesInvoice: 'Sales invoice', CreditNote: 'Credit note' })[r.source_doctype] || r.source_doctype} · ${r.doc_date}`))}
        ${fact('Seller GSTIN', esc(r.gstin))}
        ${fact('Why', esc(r.reason))}
        ${fact('Rules', r.rule_version ? 'v' + r.rule_version : '')}

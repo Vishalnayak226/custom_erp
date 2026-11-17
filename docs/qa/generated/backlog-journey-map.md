@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 194 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 150 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -18,7 +18,7 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 | JRN-05 WMS | REF-WAREHOUSE-IN | Warehouse owner; Stage 36/47.6 | 0 | 0 | 0 |
 | JRN-06 warehouse billing/3PL | REF-WAREHOUSE-IN | Warehouse/finance; 47.5; mixed owner excluded | 0 | 0 | 0 |
 | JRN-07 source-to-pay | REF-WAREHOUSE-IN | Buyer/AP; Stage 37/procurement | 2 | 0 | 2 |
-| JRN-08 PIM/catalog/DAM | REF-RETAIL-IN | Product data steward; 26.4/47.13 | 1 | 0 | 0 |
+| JRN-08 PIM/catalog/DAM | REF-RETAIL-IN | Product data steward; 26.4/47.13 | 0 | 0 | 0 |
 | JRN-09 record-to-report | REF-RETAIL-IN, REF-WAREHOUSE-IN | Qualified accountant; 26.6/Stage 37 | 0 | 0 | 0 |
 | JRN-10 FX/intercompany/consolidation | deferred - outside both | Finance policy owner; Stage 37; depth decision DEC-01 | 0 | 0 | 0 |
 | JRN-11 revenue schedules | deferred - outside both | Accountant; existing contract engine; separate from SaaS billing | 0 | 0 | 0 |
@@ -34,11 +34,11 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 | JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 8 | 1 | 0 |
 | JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 38 | 3 | 34 |
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 6 | 0 | 6 |
-| Cross-journey acceptance and audits | - | - | 39 | 2 | 27 |
+| Cross-journey acceptance and audits | - | - | 38 | 2 | 28 |
 | Engineering housekeeping | - | - | 3 | 0 | 3 |
-| Unmapped - place these stages | - | - | 73 | 8 | 17 |
+| Unmapped - place these stages | - | - | 31 | 5 | 16 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 149 (1), Stage 154 (2), Stage 158 (1), Stage 162 (3), Stage 171 (1), Stage 176 (1), Stage 177 (6), Stage 184 (1), Stage 185 (1), Stage 194 (2), Stage 195 (1), Stage 203 (2), Stage 205 (22), Stage 206 (5), Stage 209 (1), Stage 211 (1), Stage 212 (2), Stage 213 (4), Stage 214 (5), Stage 215 (2), Stage 217 (1), Stage 219 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 149 (1), Stage 154 (2), Stage 158 (1), Stage 162 (3), Stage 176 (1), Stage 177 (6), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 205 (1), Stage 212 (1), Stage 213 (2), Stage 214 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -73,10 +73,6 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 
 - **129.5** Docs, tests, live check *(blocked)*
 - **98.5.2** Walk-through *(blocked)*
-
-## JRN-08 PIM/catalog/DAM
-
-- **47.13** Master-data migration, stewardship and legal product attributes
 
 ## JRN-12 India tax
 
@@ -151,7 +147,7 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 
 ## Cross-journey acceptance and audits
 
-- **55.11** PIM/catalog
+- **55.11** PIM/catalog *(blocked)*
 - **73.B.11** Physical RF acceptance *(blocked)*
 - **55.9** OMS/marketplace/delivery *(blocked)*
 - **55.10** Finance/close *(blocked)*
@@ -162,7 +158,6 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 - **74.4.4** Status models kept apart from the document's own status *(blocked)*
 - **74.4.5** Locks and corrections *(blocked)*
 - **74.4.7** GST Compliance workbench and reconciliation *(blocked)*
-- **55.14** HR/payroll
 - **73.4.5** Manufacturing / quality: *(blocked)*
 - **55.18** Service/projects *(blocked)*
 - **55.19** Stickers/printing
@@ -202,62 +197,24 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 - **146.5.12** Typed product relationships *(blocked)*
 - **149.2** PIM ▸ Workbench does not load
 - **146.3.9** Weighing scale at pack *(blocked)*
-- **215.16** Online order billed in POS, automatically *(decision)*
-- **214.2** A till left on a completed sale takes no scans when opened again
-- **214.5** Scanning the same barcode a second time adds 2 units
-- **214.3** Returns › Refund says "No refund is pending" once there are over 200 refunds
-- **215.19** A B2B till bill gets an IRN
 - **176.7** Finite capacity scheduling *(blocked)*
-- **214.4** Catalog reports file JSON event stamps under their UTC date
 - **143.6** Barcode print sorted: select the GRN and print *(blocked)*
 - **154.2** Fix: roll held straight, then Printer preset on Jewellery *(blocked)*
 - **154.5** Printer preset: Turn (°) - straighten a print that comes out tilted on the tag *(blocked)*
 - **184.1** A new sticker printer works without knowing its language *(blocked)*
 - **194.1** Line up a sticker printer in 3 taps, by the user alone
-- **194.3** A sticker printer manual the user can follow alone
 - **203.1** Print asks once to install PrintBridge
 - **203.6** Code-signing certificate, so Windows does not warn at the first download
-- **209.1** "PrintBridge is already running" never pops up by itself
 - **212.1** "Did not print" in seconds when PrintBridge is down
-- **212.3** PrintBridge security review, and fixes
 - **213.1** Change the print for this one document before it prints
-- **213.3** Choose at save as well as at print
-- **213.4** Reprint can switch too
 - **213.5** One switch maps the rest *(decision)*
 - **146.5.1** Shopify gets the approved PIM content *(blocked)*
 - **146.4.1** A real Unicommerce integration *(blocked)*
 - **146.5.2** Marketplace templates from their own file, per category, with validation *(blocked)*
 - **185.3** Razorpay payment links *(blocked)*
-- **205.2** Decisions for API access (D1-D14 in the plan) *(decision)*
-- **205.3** Module scopes
-- **205.4** Key owner and ceiling
-- **205.6** Document-type exposure list
-- **205.7** Records API
-- **205.8** `changed_since` on the shared document list
-- **205.9** `/records/{doctype}/schema` and `/me`
-- **205.10** API access list
-- **205.11** New API access page
-- **205.12** Created page (shown once)
-- **205.13** Key detail page
-- **205.14** Actions API
-- **205.15** Reports API
-- **205.16** Webhooks for every module
-- **205.17** OpenAPI 3.1 per company and per key
-- **205.18** Docs viewer
-- **205.19** Sharing
-- **205.20** Rotation overlap and expiry reminders
-- **205.21** Failure alert with one-click fix
-- **205.22** Clear errors
-- **205.23** Tests
 - **205.24** Guides and live check
-- **211.2** Ask-207 loose ends: docs check clean, route security list refreshed now
 - **162.17** MFA tiers: when to require? *(decision)*
-- **206.7** A wrong current password signs the user out
 - **162.16** Cross-origin write check: when to enforce? *(decision)*
-- **206.1** Sign-in and session refusals stay out of System Errors
-- **206.2** System Errors lists real faults, grouped
-- **206.3** Resolve and Copy for fix
-- **206.4** Real faults reach the fix queue
 - **162.5** Meet the browser and server budgets
 - **177.1** The full test suite runs on GitHub's machines *(blocked)*
 - **177.2** The Release click stops running the tests on the laptop *(blocked)*
@@ -265,10 +222,6 @@ BLD-002: the 194 open checklist items reconciled into the business journeys they
 - **177.4** ci.yml has been red on every push *(blocked)*
 - **177.5** The click's own gates must take about a minute *(blocked)*
 - **177.7** Guard tests first
-- **219.1** Push and deploy everything in the tree
 - **158.2** Is `OPS_ALERT_WEBHOOK_URL` set on production? *(decision)*
-- **171.4** Scratch databases of finished sessions *(blocked)*
 - **214.1** Guide `journey`: the whole store journey, watched and recorded at human speed
 - **143.3** The same file on minn *(decision)*
-- **195.2** Guide: no "--no-sandbox" banner; key kept masked
-- **217.1** Knowledge Center size budget is nearly full *(decision)*

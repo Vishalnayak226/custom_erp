@@ -1866,6 +1866,7 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
+	engines.PublishDocumentEvent(tenantID, req.Doctype, req.DocumentID, "submitted", "Pending Approval") // 205.16
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "submitted"})
 }
 
@@ -1945,6 +1946,9 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Decision == "Approved" {
+		engines.PublishDocumentEvent(tenantID, req.Doctype, req.DocumentID, "approved", "Approved") // 205.16
+	}
 	resp := map[string]interface{}{"status": "decided", "decision": req.Decision}
 	// BLD-035: req.Decision ("Approved"/"Rejected") is the maker-checker
 	// outcome, not necessarily the document's real resulting business status -

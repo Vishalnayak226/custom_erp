@@ -97,6 +97,8 @@ func Run() {
 	// engines.LogSystemError). No-ops until OPS_ALERT_WEBHOOK_URL is set -
 	// see engines/alerting.go.
 	engines.StartAlertMonitor(workerCtx, 1*time.Minute, 5*time.Minute, 20)
+	// 205.20 / 205.21: API key expiry reminders (30, 7, 1 days) and the failure alert, every 15 minutes.
+	engines.StartAPIKeyWatchWorker(workerCtx, 15*time.Minute)
 	// BLD-052: alert when durable async work is building up beyond the
 	// tenant's configured depth/age thresholds; delivery follows the same
 	// webhook gate and bounded redaction rules.
@@ -1774,6 +1776,30 @@ func registerRoutes() {
 	http.HandleFunc("PUT /api/v1/admin/api-credentials/{id}/limits", apiMiddleware(handleSetAPICredentialLimits))
 	http.HandleFunc("GET /api/v1/admin/api-credentials/{id}/traffic", apiMiddleware(handleListAPICredentialTraffic))
 	http.HandleFunc("GET /api/v1/admin/api-traffic", apiMiddleware(handleListAPICredentialTraffic))
+	// 205.3-205.5: API access screen (capability api.share).
+	http.HandleFunc("GET /api/v1/api-access/modules", apiMiddleware(handleAPIAccessModules))
+	http.HandleFunc("GET /api/v1/api-access/keys", apiMiddleware(handleAPIAccessListKeys))
+	http.HandleFunc("POST /api/v1/api-access/keys", apiMiddleware(handleAPIAccessCreateKey))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}", apiMiddleware(handleAPIAccessGetKey))
+	http.HandleFunc("PUT /api/v1/api-access/keys/{id}/limits", apiMiddleware(handleAPIAccessSetLimits))
+	http.HandleFunc("PUT /api/v1/api-access/keys/{id}/modules", apiMiddleware(handleAPIAccessUpdateModules))
+	http.HandleFunc("POST /api/v1/api-access/keys/{id}/rotate", apiMiddleware(handleAPIAccessRotateKey))
+	http.HandleFunc("DELETE /api/v1/api-access/keys/{id}", apiMiddleware(handleAPIAccessRevokeKey))
+	http.HandleFunc("POST /api/v1/api-access/keys/{id}/take-over", apiMiddleware(handleAPIAccessTakeOver))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}/activity", apiMiddleware(handleAPIAccessActivity))
+	http.HandleFunc("GET /api/v1/api-access/openapi.json", apiMiddleware(handleAPIAccessOpenAPI))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}/openapi.json", apiMiddleware(handleAPIAccessKeyOpenAPI))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}/postman.json", apiMiddleware(handleAPIAccessKeyPostman))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}/share-docs", apiMiddleware(handleAPIAccessShareDocsGet))
+	http.HandleFunc("POST /api/v1/api-access/keys/{id}/share-docs", apiMiddleware(handleAPIAccessShareDocsCreate))
+	http.HandleFunc("DELETE /api/v1/api-access/keys/{id}/share-docs", apiMiddleware(handleAPIAccessShareDocsWithdraw))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}/webhooks", apiMiddleware(handleAPIAccessWebhooksList))
+	http.HandleFunc("POST /api/v1/api-access/keys/{id}/webhooks", apiMiddleware(handleAPIAccessWebhooksCreate))
+	http.HandleFunc("DELETE /api/v1/api-access/keys/{id}/webhooks/{sub}", apiMiddleware(handleAPIAccessWebhooksDelete))
+	http.HandleFunc("GET /api/v1/api-access/keys/{id}/webhooks/deliveries", apiMiddleware(handleAPIAccessWebhookDeliveries))
+	http.HandleFunc("POST /api/v1/api-access/keys/{id}/webhooks/deliveries/{d}/resend", apiMiddleware(handleAPIAccessWebhookResend))
+	http.HandleFunc("GET /api/v1/api-access/attention", apiMiddleware(handleAPIAccessAttention))
+	http.HandleFunc("POST /api/v1/api-access/keys/{id}/fix", apiMiddleware(handleAPIAccessFix))
 	// Stage 38.8: the OpenAPI document, generated from the public route table
 	// on every request so it can never be stale.
 	http.HandleFunc("GET /api/v1/admin/public-api/openapi.json", apiMiddleware(handlePublicAPIOpenAPISpec))

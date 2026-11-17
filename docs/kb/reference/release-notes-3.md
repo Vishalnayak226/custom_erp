@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-08-19, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-20, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,23 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **42** earlier entries, 2026-07-27 to 2026-08-19.
+This page continues the [release notes](release-notes.md) with **45** earlier entries, 2026-07-27 to 2026-08-20.
+
+## 2026-08-20
+
+**Stage 42.3 CLOSED — Inbound depth: dock scheduling, yard, hold/release, configurable receipt rules, catch weight, planned cross-dock, hazmat compliance, and RF receiving** *(code + schema + frontend)*
+
+Closed all 10 items of Phase 42.3 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
 
 ## 2026-08-19
+
+**Stage 42.2 CLOSED — Zone/PutawayStrategy/AllocationStrategy masters, directed putaway, exception follow-on, the warehouse cockpit, and a real bug found in Stage 45's own render mechanism** *(code + schema + frontend)*
+
+Asked to finish the rest of Phase 42.2 (the warehouse task spine — 4/10 done, 42.2.1-42.2.4 already closed by the prior session). Closed the remaining six items, 42.2.5-42.2.10. Full item-by-item detail in `micro_checklist.md` Stage 42.
+
+**Stage 45 round 1 — UI/UX design-bar sweep: the render race, the clipped tab bars, and a mid-session misdiagnosis corrected** *(frontend only)*
+
+User reported 8 issues live against `:8080` deployment screenshots (duplicate panels across three Financial Accounting screens, F&A frozen header, help icon styling, a Wholeops rebrand ask, Setup submenu visuals, PIM tab bar clipping at 90% zoom, a setup banner that shouldn't be dismissible), then asked for a broader "no one has ever seen it, brainless-intuitive" design-bar sweep and to fix everything found. Full item-by-item detail in `micro_checklist.md` Stage 45.
 
 **Stage 42.1 CLOSED — outbound lottable validation, UOM conversion, real Code 128, and two bugs live verification caught** *(code + schema + docs)*
 

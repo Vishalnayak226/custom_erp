@@ -96,6 +96,161 @@ func publicAPIV1Routes() []publicAPIRoute {
 			Response: PublicNotificationDeliveryStatusResponse{},
 			Handler:  handlePublicNotificationDeliveryStatus,
 		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/records/{doctype}", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "List records",
+			Description: "Records of one document type the key may read. changed_since and cursor page through changes.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type, such as PurchaseOrder."},
+				{Name: "changed_since", In: "query", Type: "string", Description: "RFC3339 time; lists records changed at or after it, oldest change first."},
+				{Name: "cursor", In: "query", Type: "string", Description: "The X-Next-Cursor of the previous page."},
+				{Name: "limit", In: "query", Type: "integer", Description: "Page size."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecords,
+		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/records/{doctype}", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Create a record",
+			Description: "Creates a record as the key owner. Idempotency-Key is required.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecords,
+		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/records/{doctype}/schema", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Describe a document type",
+			Description: "Fields the key owner may see, with type, required and read-only.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecordSchema,
+		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/records/{doctype}/{id}", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Get a record",
+			Description: "One record, as the key owner sees it.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecords,
+		},
+		{
+			Method: http.MethodPut, Path: "/api/public/v1/records/{doctype}/{id}", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Change a record",
+			Description: "Changes a record the owner may change. Idempotency-Key is required.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecords,
+		},
+		{
+			Method: http.MethodDelete, Path: "/api/public/v1/records/{doctype}/{id}", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Delete a draft",
+			Description: "Deletes a draft only; cancel anything else.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecords,
+		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/records/{doctype}/{id}/submit", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Submit a record for approval",
+			Description: "Submit a record for approval. Idempotency-Key is required.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecordAction("submit"),
+		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/records/{doctype}/{id}/cancel", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Cancel a record",
+			Description: "Cancel a record. Idempotency-Key is required.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecordAction("cancel"),
+		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/records/{doctype}/{id}/approve", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Approve a record (keys with can_approve only)",
+			Description: "Approve a record (keys with can_approve only). Idempotency-Key is required.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecordAction("approve"),
+		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/records/{doctype}/{id}/reject", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Reject a record (keys with can_approve only)",
+			Description: "Reject a record (keys with can_approve only). Idempotency-Key is required.",
+			Params: []publicAPIParam{
+				{Name: "doctype", In: "path", Required: true, Type: "string", Description: "The document type."},
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The record id."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicRecordAction("reject"),
+		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/actions", Scope: publicAPIKeySelfScope, ModuleKey: "core",
+			Summary:     "List actions",
+			Description: "The actions this key can run, each with its module, level and body.",
+			Response:    map[string]interface{}{},
+			Handler:     handlePublicActions,
+		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/actions/{module}/{action}", Scope: publicAPIDynamicScope, ModuleKey: "core",
+			Summary:     "Run an action",
+			Description: "Runs one listed action as the key owner. Idempotency-Key is required. The body is the action's own fields.",
+			Params: []publicAPIParam{
+				{Name: "module", In: "path", Required: true, Type: "string", Description: "The module, such as oms."},
+				{Name: "action", In: "path", Required: true, Type: "string", Description: "The action, such as order-hold."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicAction,
+		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/reports", Scope: publicAPIKeySelfScope, ModuleKey: "reports",
+			Summary:     "List reports",
+			Description: "The reports this key can run, with columns and filters.",
+			Response:    map[string]interface{}{},
+			Handler:     handlePublicReports,
+		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/reports/{id}", Scope: publicAPIDynamicScope, ModuleKey: "reports",
+			Summary:     "Run a report",
+			Description: "One report as json or csv, a page at a time. Any other query parameter is the report's own filter.",
+			Params: []publicAPIParam{
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The report id."},
+				{Name: "format", In: "query", Type: "string", Description: "json (default) or csv."},
+				{Name: "page", In: "query", Type: "integer", Description: "Page number from 1."},
+				{Name: "page_size", In: "query", Type: "integer", Description: "Rows per page, up to 1000. Defaults to 200."},
+			},
+			Response: map[string]interface{}{},
+			Handler:  handlePublicReportRun,
+		},
+		{
+			Method: http.MethodGet, Path: "/api/public/v1/me", Scope: publicAPIKeySelfScope, ModuleKey: "core",
+			Summary:     "This key",
+			Description: "What this key is: owner, modules, limits left.",
+			Response: map[string]interface{}{},
+			Handler:  handlePublicMe,
+		},
 	}
 }
 
@@ -115,6 +270,11 @@ func registerPublicAPIV1Routes() {
 	// it; oauth_token_test.go reaches it through that constant, so the two
 	// cannot drift apart unnoticed.
 	http.HandleFunc("POST /api/public/v1/oauth/token", handleOAuthToken)
+	// 205.4: a developer link opens once; the link is the proof, so no key yet.
+	http.HandleFunc("POST /api/public/v1/claim/{token}", handlePublicClaim)
+	// The screens post here with the token from the link (tenant is inside it).
+	http.HandleFunc("POST /api/public/v1/developer-links/{token}/claim", handlePublicClaim)
+	http.HandleFunc("GET /api/public/v1/docs/{token}", handlePublicShareDocs)
 	// Anything else under the public prefix answers a JSON 404 rather than
 	// falling through to the static file server, which would hand an API client
 	// an HTML page. Go 1.22's mux prefers the more specific patterns above, so

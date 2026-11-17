@@ -713,7 +713,7 @@ Click your name/avatar at the bottom of the sidebar to open the account popover.
 
 1. **My Profile**: shows your Username, Role, Status, linked Employee (if any), and whether MFA is enabled — all read-only. Below that:
    - **Contact & Session**: edit your **Email** and your personal **Auto Logout (inactivity)** timer (Never / 15 min / 30 min / 1 hour / 2 hours / 12 hours — 12 hours unless you change it), click **Save Changes**.
-   - **Change Password**: enter your Current Password, a New Password (12+ characters by default, and not one of the most common/breached passwords, your username, or a simple repeated/sequential pattern), confirm it, click **Update Password**. This signs your other active sessions out immediately — only this one keeps working.
+   - **Change Password**: enter your Current Password, a New Password (12+ characters by default, and not one of the most common/breached passwords, your username, or a simple repeated/sequential pattern), confirm it, click **Update Password**. This signs your other active sessions out immediately — only this one keeps working. A wrong Current Password says *Your current password is not right.* and you stay signed in; forgot it? Sign out and use **Forgot password**.
 2. **Sign Out**: click it, confirm in the dialog. You'll see a brief "Signing you out..." transition before landing back on the login screen.
 
 ---

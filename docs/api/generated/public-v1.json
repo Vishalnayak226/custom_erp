@@ -254,6 +254,184 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/public/v1/actions": {
+      "get": {
+        "description": "The actions this key can run, each with its module, level and body.\n\nRequired scope: `any valid key`.",
+        "operationId": "getActions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "List actions",
+        "tags": [
+          "Actions"
+        ]
+      }
+    },
+    "/api/public/v1/actions/{module}/{action}": {
+      "post": {
+        "description": "Runs one listed action as the key owner. Idempotency-Key is required. The body is the action's own fields.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "postActionsModuleAction",
+        "parameters": [
+          {
+            "description": "The module, such as oms.",
+            "in": "path",
+            "name": "module",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The action, such as order-hold.",
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Run an action",
+        "tags": [
+          "Actions"
+        ]
+      }
+    },
     "/api/public/v1/inventory": {
       "get": {
         "description": "Available-to-sell quantity per location, computed with the same formula the order path enforces. A sku is required; there is no whole-catalog stock export on this surface.\n\nRequired scope: `inventory:read`.",
@@ -566,6 +744,86 @@
         ]
       }
     },
+    "/api/public/v1/me": {
+      "get": {
+        "description": "What this key is: owner, modules, limits left.\n\nRequired scope: `any valid key`.",
+        "operationId": "getMe",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "This key",
+        "tags": [
+          "Me"
+        ]
+      }
+    },
     "/api/public/v1/notifications/{id}/delivery-status": {
       "post": {
         "description": "The provider's delivery receipt. {id} is the delivery_id the notification webhook carried (also sent as the X-Notification-Delivery header). Body: {\"status\": \"delivered\" | \"failed\", \"provider_ref\": \"...\", \"detail\": \"...\"}. Delivered is final; repeating the same status is a no-op.\n\nRequired scope: `notifications:write`.",
@@ -735,6 +993,1176 @@
         "summary": "Track an order",
         "tags": [
           "Orders"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}": {
+      "get": {
+        "description": "Records of one document type the key may read. changed_since and cursor page through changes.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "getRecordsDoctype",
+        "parameters": [
+          {
+            "description": "The document type, such as PurchaseOrder.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339 time; lists records changed at or after it, oldest change first.",
+            "in": "query",
+            "name": "changed_since",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The X-Next-Cursor of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "List records",
+        "tags": [
+          "Records"
+        ]
+      },
+      "post": {
+        "description": "Creates a record as the key owner. Idempotency-Key is required.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "postRecordsDoctype",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Create a record",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}/schema": {
+      "get": {
+        "description": "Fields the key owner may see, with type, required and read-only.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "getRecordsDoctypeSchema",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Describe a document type",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}/{id}": {
+      "delete": {
+        "description": "Deletes a draft only; cancel anything else.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "deleteRecordsDoctypeId",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Delete a draft",
+        "tags": [
+          "Records"
+        ]
+      },
+      "get": {
+        "description": "One record, as the key owner sees it.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "getRecordsDoctypeId",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Get a record",
+        "tags": [
+          "Records"
+        ]
+      },
+      "put": {
+        "description": "Changes a record the owner may change. Idempotency-Key is required.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "putRecordsDoctypeId",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Change a record",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}/{id}/approve": {
+      "post": {
+        "description": "Approve a record (keys with can_approve only). Idempotency-Key is required.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "postRecordsDoctypeIdApprove",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Approve a record (keys with can_approve only)",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}/{id}/cancel": {
+      "post": {
+        "description": "Cancel a record. Idempotency-Key is required.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "postRecordsDoctypeIdCancel",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Cancel a record",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}/{id}/reject": {
+      "post": {
+        "description": "Reject a record (keys with can_approve only). Idempotency-Key is required.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "postRecordsDoctypeIdReject",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Reject a record (keys with can_approve only)",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/records/{doctype}/{id}/submit": {
+      "post": {
+        "description": "Submit a record for approval. Idempotency-Key is required.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "postRecordsDoctypeIdSubmit",
+        "parameters": [
+          {
+            "description": "The document type.",
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The record id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Submit a record for approval",
+        "tags": [
+          "Records"
+        ]
+      }
+    },
+    "/api/public/v1/reports": {
+      "get": {
+        "description": "The reports this key can run, with columns and filters.\n\nRequired scope: `any valid key`.",
+        "operationId": "getReports",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "List reports",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/public/v1/reports/{id}": {
+      "get": {
+        "description": "One report as json or csv, a page at a time. Any other query parameter is the report's own filter.\n\nRequired scope: `\u003cmodule\u003e:read or \u003cmodule\u003e:write`.",
+        "operationId": "getReportsId",
+        "parameters": [
+          {
+            "description": "The report id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "json (default) or csv.",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number from 1.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Rows per page, up to 1000. Defaults to 200.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "description": "Endpoint-specific payload."
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Run a report",
+        "tags": [
+          "Reports"
         ]
       }
     }

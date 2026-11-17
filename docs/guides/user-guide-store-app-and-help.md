@@ -365,3 +365,24 @@ Use a staged import when a file is big or risky and you want to see what it will
 7. Press **Reconcile**. It compares the file, the rows committed and the records now in the system, and says Balanced or lists the difference.
 
 If you change the import rules after checking, the batch says so: press **Check** again. **Discard** drops a batch that has not been committed. The raw rows of a finished batch are removed after the file-retention period set by your administrator; the batch record and its counts stay.
+
+## 16. Share your module's API
+
+Another system (an online store, an accounting tool, a warehouse device) can read and change your records through the API. You give it a **key**. A key does only what you can do yourself, and only in the modules you tick. You need the *Share module API* right; Admins always have it.
+
+1. Open **Settings → API access** and press **New API access**.
+2. Type a **Name** (for example *Shopify sync*). If one of the **Start from** choices fits, pick it: it ticks the usual modules for you.
+3. In the grid, set each module the system needs to **View** (read only) or **Change** (create and edit). Leave the rest **Off**. You can give only modules you use yourself. **Fine-tune** narrows a module to some document types; leave **Can approve** off unless the system must approve documents.
+4. Pick when it **Expires**. You can also limit it to some **Stores**, and to fixed **IPs**.
+5. Press **Create**. The key is shown **once**. Copy it, or press **Test connection**, then tick **I've saved the key** and press **Done**.
+   - If a developer will set the system up, tick **Send to developer instead** before **Create**. You get a one-use link valid for 48 hours; send it to them, and they see the key when they open it.
+6. To give the developer the docs, open the key, go to **Share**, and make a docs link. It holds no secret. **Withdraw** ends it.
+
+Later, open the key from the list:
+
+- **Modules** changes what it can reach.
+- **Activity** shows its recent calls and errors.
+- **Rotate** makes a new key. The old one keeps working for the time you pick, so nothing breaks while the system switches over.
+- **Revoke** ends it at once.
+
+If a key starts failing, you get an email, and the key shows on the API access list and on Home with the reason, for example *needs View on Inventory*. **Fix** gives it that access, if you hold it yourself. Before a key expires, you get an email 30, 7 and 1 day ahead. If you leave the company, your keys stop until an Admin takes them over.

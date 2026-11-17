@@ -27,7 +27,7 @@ tenants, concurrency, hardware, network and release. Owners approve exceptions w
 | NFR-PERF-001 | Interactive server p95 ≤150 ms, p99 ≤500 ms at approved representative load | Engineering; workload and distribution |
 | NFR-UX-001 | Reference p75 LCP ≤1.5 s, INP ≤200 ms; cached view p95 ≤250 ms | UX/QA; device/browser measurement |
 | NFR-COST-001 | Stripped binary ≤40 MiB (raised from 25 MiB on 2026-11-14, item 177.4); idle small-tenant RSS ≤80 MiB; cold core ≤180 KiB compressed; initial core JS ≤120 KiB gzip | Engineering; reproducible artifact/runtime measurements |
-| NFR-DOC-001 | KB ≤2 MiB; search ≤250 KiB; ordinary topic ≤120 KiB; zero check-time writes | Documentation; generation safety/size report |
+| NFR-DOC-001 | KB text ≤2 MiB; KB pictures ≤512 KiB; search ≤250 KiB; ordinary topic ≤120 KiB; zero check-time writes | Documentation; generation safety/size report |
 | NFR-ACC-001 | Reference tasks/devices meet the selected accessibility acceptance standard with keyboard, screen reader, reflow, contrast and interruption evidence | Accessibility/QA; token tests alone cannot establish conformance |
 | NFR-OPS-001 | Restore meets business-approved RTO/RPO for each deployment class | Operations; values pending before Production; isolated DR drill |
 | NFR-DATA-001 | Lists/exports/jobs are bounded; growth, retention, legal hold and recovery have accountable owners | Data/privacy/operations; representative volume and lifecycle tests |

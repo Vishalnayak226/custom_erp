@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"custom_erp/db"
@@ -133,5 +134,31 @@ func TestChangePasswordRejectsWeakPasswordWithoutMutatingAnything(t *testing.T) 
 	probe := apiMiddleware(handleGetDocTypes)
 	if rec := doRequest(t, probe, http.MethodGet, "/api/v1/meta/doctypes", token, nil); rec.Code != http.StatusOK {
 		t.Errorf("the existing session must still work after a rejected change attempt, status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestWrongCurrentPasswordKeepsTheUserSignedIn covers 206.7: a wrong current
+// password on Change Password answered 401, and the browser treats every 401
+// as an ended session, so the user was signed out instead of told. It is now
+// 403 GLOBAL-0312, and the same token still works afterwards.
+func TestWrongCurrentPasswordKeepsTheUserSignedIn(t *testing.T) {
+	db.InitDB(testConnStr())
+	userID, _, cleanup := seedSessionRevocationTestUser(t)
+	defer cleanup()
+	engines.ResetLiveUserStateCache()
+
+	probe := apiMiddleware(handleGetDocTypes)
+	changePW := apiMiddleware(handleChangePassword)
+	token := engines.SignToken(userID, userID, "Cashier", "default", "HO", 1)
+
+	rec := doRequest(t, changePW, http.MethodPost, "/api/v1/me/change-password", token, map[string]string{
+		"current_password": "not-the-password-" + randomTestPassword(),
+		"new_password":     randomTestPassword(),
+	})
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "GLOBAL-0312") {
+		t.Fatalf("wrong current password: want 403 GLOBAL-0312, got %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := doRequest(t, probe, http.MethodGet, "/api/v1/meta/doctypes", token, nil); rec.Code != http.StatusOK {
+		t.Fatalf("the token must still work after a wrong current password, status=%d", rec.Code)
 	}
 }

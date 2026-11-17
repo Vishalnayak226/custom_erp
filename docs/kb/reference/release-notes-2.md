@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-08-19 to 2026-10-18, continued from the release notes.
+summary: Earlier releases, 2026-08-21 to 2026-10-18, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,11 +19,27 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **98** earlier entries, 2026-08-19 to 2026-10-18.
+This page continues the [release notes](release-notes.md) with **99** earlier entries, 2026-08-21 to 2026-10-18.
 
 Older still: [part 3](release-notes-3.md).
 
 ## 2026-10-18
+
+**Module-wise build, modules 3-5: Finance & Tax, Security & Access, Backups & Platform** *(code + docs, NOT COMMITTED)*
+
+The run the user set ("4,8,1,2,3 ... stop after 3") ends here. Full detail in `micro_checklist.md` 73.D.6-73.D.20, 75.1.4-75.1.8; the clean-slate request is recorded as Stage 91 (parked).
+
+**CI blockers 84.7-84.10 and Stage 90 — version numbers follow each release** *(code + docs, NOT DEPLOYED)*
+
+From the user's "do what needs to be done to fix" (the 840909b release's open items) and their Control Panel screenshot showing `0.1.0` and an empty Releases table. Full detail in `micro_checklist.md` 84.7-84.10 and Stage 90.
+
+**Stage 89 — The item master asked once: org defaults, kind of item, item name pick, where each field is asked, attributes per type, the admin's treatment correction** *(code + docs, NOT COMMITTED)*
+
+From the user's Edit Item screenshots and five follow-up messages; decisions D1-D5 asked (`micro_checklist.md` Stage 89). Full detail there.
+
+**Stage 85 — POS billing for a real store: store access, the working store on top, store stock locations, phone-first customers, GST bill, customer advance, and the rest of Stage 77** *(committed locally - not pushed, not deployed)*
+
+Full detail in `micro_checklist.md` Stage 85; plan `docs/product/pos-store-billing-plan-2026-10-18.md`. Opened from the user's POS screenshot: *"I know i asked and it was built"* - it had been asked (Stage 77, 2026-10-17) but only its decisions were recorded.
 
 **Module 2 (Numbering / Masters), first part — 76.7, 76.8, 76.9** *(code + docs, committed with §241, not pushed; 76.7's country cap waits on Stage 86's commit)*
 
@@ -478,20 +494,4 @@ Closed the two items both `docs/archive/audits/durability-audit-2026-07-31.md` a
 **Stage 42.4 CLOSED — Outbound depth: waves, sortation, cartonization v2, packing validation, deconsolidation, loading + Bill of Lading, pre-ship gate, and VAS/kitting off the existing BOM** *(code + schema + frontend)*
 
 Closed all 11 items of Phase 42.4 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-20
-
-**Stage 42.3 CLOSED — Inbound depth: dock scheduling, yard, hold/release, configurable receipt rules, catch weight, planned cross-dock, hazmat compliance, and RF receiving** *(code + schema + frontend)*
-
-Closed all 10 items of Phase 42.3 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-19
-
-**Stage 42.2 CLOSED — Zone/PutawayStrategy/AllocationStrategy masters, directed putaway, exception follow-on, the warehouse cockpit, and a real bug found in Stage 45's own render mechanism** *(code + schema + frontend)*
-
-Asked to finish the rest of Phase 42.2 (the warehouse task spine — 4/10 done, 42.2.1-42.2.4 already closed by the prior session). Closed the remaining six items, 42.2.5-42.2.10. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-**Stage 45 round 1 — UI/UX design-bar sweep: the render race, the clipped tab bars, and a mid-session misdiagnosis corrected** *(frontend only)*
-
-User reported 8 issues live against `:8080` deployment screenshots (duplicate panels across three Financial Accounting screens, F&A frozen header, help icon styling, a Wholeops rebrand ask, Setup submenu visuals, PIM tab bar clipping at 90% zoom, a setup banner that shouldn't be dismissible), then asked for a broader "no one has ever seen it, brainless-intuitive" design-bar sweep and to fix everything found. Full item-by-item detail in `micro_checklist.md` Stage 45.
 

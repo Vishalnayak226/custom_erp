@@ -9,8 +9,8 @@ audience: [maintainers, product-owner]
 applies_to: source documentation; scoped release acceptance required
 authority: proposed-design
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-11-16
+review_by: 2027-02-14
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -18,24 +18,30 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 # Public API v1 Contract
 
-Status: **open, read-only (Stage 38, 2026-08-12).** This document is the compatibility policy
+Status: **open; module keys read and write since ask 224 (2026-11-16).** Originally read-only (Stage 38, 2026-08-12). This document is the compatibility policy
 required by 38.1. The credential lifecycle (38.2), the safety spine (38.3 rate limits and quotas,
 38.5 idempotency, 38.9 traffic log) and the first four read-only endpoints are built; the machine
 contract is generated to [`openapi_public_v1.json`](generated/public-v1.json) by 38.8.
 
-No mutating public endpoint exists yet. That is a sequencing decision, not an omission: the
-idempotency spine every write depends on is already in place under the same middleware, so a write
-endpoint joins the surface by being curated, not by being made safe first.
+Write endpoints arrived with module keys (ask 224), on the idempotency spine that was already in
+place under the same middleware.
 
 ## Boundary
 
 - Public endpoints will live only under `/api/public/v1/`. Existing `/api/v1/` routes remain the
   private application API and are not made public by this work.
 - Every endpoint is curated and registered deliberately. The internal route count is not an API
-  surface and no generic "all doctypes" public endpoint will be offered.
-- An integration authenticates with an opaque `erp_v1_...` API key plus its tenant identifier. It
-  never submits a username/password, borrows a browser JWT, or inherits a human role.
-- A key authorizes only its explicit scopes. There is no wildcard or implicit Super Admin scope.
+  surface. **Changed by ask 224 (owner decisions D1-D14 of
+  [the API access plan](../product/api-access-all-modules-plan-2026-11-15.md), approved 2026-11-16):**
+  a *module key* reaches every document type its modules cover through one records route, each
+  type classed read-write, read-only or never (`engines/api_access_doctypes.go`).
+- An integration authenticates with an opaque API key and never submits a username/password or
+  borrows a browser JWT. A new key (`erp_v2_<company>_...`) carries its company code; an old
+  `erp_v1_...` key sends `X-Tenant-ID`.
+- A module key acts as its **owner**: every call runs with the owner's role, stores and field
+  rules, capped by the modules (View or Change) and document types ticked on the key. An inactive
+  owner stops the key. Old scoped keys authorize only their explicit scopes, as before. There is
+  no wildcard or implicit Super Admin scope.
 
 The first scope catalog is:
 
@@ -109,14 +115,39 @@ returns every stored field, so publishing that shape would turn every future int
 accidental public contract. The item projection carries no cost, margin or supplier data, and the
 inventory projection publishes availability without the held-back buckets behind it.
 
+## Module-key endpoints (ask 224)
+
+All under `/api/public/v1`, all through the same middleware (authenticate, module ceiling, rate
+limit, idempotency, traffic log):
+
+| Method | Endpoint | Needs | Returns |
+|---|---|---|---|
+| `GET` | `/me` | any key | `{name, key_prefix, auth_mode, status, owner{id,name,active}, modules, doctypes, can_approve, stores, expires_at, limits}` |
+| `GET` | `/records/{doctype}` | View | List; filters by field, `q`, `sort`, `limit`, `offset`; `changed_since` (RFC3339) with `cursor` from `X-Next-Cursor` |
+| `GET` | `/records/{doctype}/schema` | View | `{doctype, class, module, fields[{fieldname,label,type,required,options,read_only,max_length}]}` |
+| `GET` | `/records/{doctype}/{id}` | View | One record |
+| `POST`, `PUT`, `DELETE` | `/records/{doctype}[/{id}]` | Change | Create, change or delete a draft, as the owner |
+| `POST` | `/records/{doctype}/{id}/submit`, `/cancel` | Change | Moves the record on |
+| `POST` | `/records/{doctype}/{id}/approve`, `/reject` | Change + *Can approve* | Approval step |
+| `GET` | `/actions`, `POST /actions/{module}/{action}` | per action | Reviewed list of screen actions a key may run |
+| `GET` | `/reports`, `/reports/{id}?format=json\|csv` | View | Reports in the key's modules, through the report catalogue |
+| `GET` | `/docs/{token}` | none (link) | A key's OpenAPI spec for a shared docs link; no secret |
+| `POST` | `/developer-links/{token}/claim` | none (link) | A developer link's key, once; never stored |
+
+The screen side is under `/api/v1/api-access/*` (capability `api.share`; Admin always passes; a
+holder acts on their own keys only): modules, keys (list, create, get, modules, rotate with
+overlap, revoke, take-over, limits), activity, share-docs, `openapi.json`, `postman.json`,
+webhooks with deliveries and resend, attention and fix. Refusals are APIKEY-0501 to APIKEY-0514
+in the error catalogue; each carries `fix` and `docs_url`.
+
 ## Request and response conventions
 
 Every request carries:
 
 | Header | Required | Meaning |
 |---|---|---|
-| `Authorization: Bearer erp_v1_...` or `Bearer erp_at_...` | always | An API key, or an OAuth access token from `/oauth/token` (Stage 38.2d). Never a user session token, and never an OAuth client's secret. |
-| `X-Tenant-ID` | always | The tenant the credential belongs to. |
+| `Authorization: Bearer erp_v2_...`, `erp_v1_...` or `erp_at_...` | always | An API key, or an OAuth access token from `/oauth/token` (Stage 38.2d). Never a user session token, and never an OAuth client's secret. |
+| `X-Tenant-ID` | old keys and OAuth | The tenant the credential belongs to. A new `erp_v2_` key carries it. |
 | `Idempotency-Key` | mutating methods | Makes a retry safe. Required, not optional. |
 
 Every response carries `X-Correlation-ID`, plus the budget headers `X-RateLimit-Limit`,

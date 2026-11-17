@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **994** codes. Each row says what the user is shown, what to do about
+There are **1013** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -20,6 +20,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 
 ## Contents
 
+- [API Access](#api-access) - 18 codes
 - [Admin / Configuration](#admin--configuration) - 21 codes
 - [Approvals / Workflow](#approvals--workflow) - 6 codes
 - [Audit & Compliance](#audit--compliance) - 2 codes
@@ -54,7 +55,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Finance & Accounting](#finance--accounting) - 104 codes
 - [Fixed Assets](#fixed-assets) - 20 codes
 - [GST](#gst) - 9 codes
-- [Global](#global) - 22 codes
+- [Global](#global) - 23 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 22 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
@@ -105,6 +106,29 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [WMS / Logistics](#wms--logistics) - 3 codes
 
 ---
+
+## API Access
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `APIKEY-0501` | Key owner no longer active | The person who owns this API key is no longer active, so the key stopped working. | Ask an administrator to take the key over (API access, Take over) or to make a new key under an active user. | Medium | 403 |
+| `APIKEY-0502` | Module not in the plan | This module is not in your plan, so no API key can reach it. | Ask an administrator to turn the module on, or pick another module. | Medium | 403 |
+| `APIKEY-0503` | Module not on this key | This key was not given that module. | Open API access, edit the key and tick the module (View or Change), then send the call again. | Medium | 403 |
+| `APIKEY-0504` | Key owner lost the module | The key owner no longer has the right to do this in that module. | Ask an administrator to give the owner the right back, or take the key over. | Medium | 403 |
+| `APIKEY-0505` | Document type not available to keys | This document type is not available through the API for this kind of call. | Use another document type. Records the system writes itself can be read but not changed. | Medium | 403 |
+| `APIKEY-0506` | Document type not on this key | This key was not given that document type. | Open API access, edit the key and tick the document type, then send the call again. | Medium | 403 |
+| `APIKEY-0507` | Approval not allowed for keys | This key may not approve or reject. Approvals stay with people. | Approve it on screen, or ask an administrator to allow approvals on this key. | Medium | 403 |
+| `APIKEY-0508` | IP address not allowed | This key is not allowed from this IP address. | Call from an allowed address, or ask the key owner to add this address to the key. | Medium | 403 |
+| `APIKEY-0509` | API key expired | This API key has expired. | Make a new key in API access, or ask the owner to rotate it. | Medium | 401 |
+| `APIKEY-0510` | Old key secret ended | This key was replaced and its old secret has stopped working. | Use the new key you were given when the key was rotated. | Medium | 401 |
+| `APIKEY-0511` | Store not allowed | This key or its owner may not work at that store. | Use a store the key allows, or ask the owner to add the store to the key. | Medium | 403 |
+| `APIKEY-0512` | Developer link not yet opened | This key is waiting for the developer to open the link they were sent. | Wait for the developer to open the link, or revoke this key and make a new one. | Medium | 409 |
+| `APIKEY-0513` | API key action not allowed | You can manage only your own keys, and give only what you hold yourself. | Pick a module you can already use, or ask an administrator. | Medium | 403 |
+| `APIKEY-0514` | API key request not valid | The API key details are not complete. | Check the name, the modules and the expiry, then save again. | Medium | 422 |
+| `APIKEY-0515` | Webhook address not valid | That webhook address cannot be used. | Use a public https address that answers from the internet. | Medium | 422 |
+| `APIKEY-0516` | Action not on the list | That action is not available through the API. | Read GET /api/public/v1/actions for the list of actions this key can run. | Medium | 404 |
+| `APIKEY-0517` | Report not found | That report is not available to this key. | Read GET /api/public/v1/reports for the reports this key can run. | Medium | 404 |
+| `APIKEY-0518` | API server fault | The server could not finish the call. | Try again; if it keeps failing, quote the correlation id to support. | High | 500 |
 
 ## Admin / Configuration
 
@@ -560,6 +584,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `GLOBAL-0309` | Field holds an invisible control or direction character | A field holds an invisible character that cannot be saved. | Retype the field named below, or paste it as plain text. | Low | 422 |
 | `GLOBAL-0310` | Too many report runs still running | Too many reports are still running for this business, so this one did not start. | Try again in a minute. For a large report, use Export - it runs in the background. | Medium | 503 |
 | `GLOBAL-0311` | Identifier mixes look-alike alphabets | A code or identifier mixes letters from different alphabets. | Retype the field named below in one alphabet - a look-alike letter (for example a Cyrillic letter inside a Latin code) was pasted in. | Low | 422 |
+| `GLOBAL-0312` | Current password typed wrong while signed in | Your current password is not right. | Type the password you sign in with. Forgot it? Sign out and use Forgot password. | Low | 403 |
 | `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
 | `GLOBAL-4971` | Same command key still being processed | This is still being processed. | Wait a moment and check whether it went through before trying again - do not enter it again. | Medium | 409 |

@@ -424,7 +424,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '85';
+const VIEW_MODULE_VERSION = '86';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -2323,31 +2323,10 @@ function escapeHTMLText(s) {
 }
 
 // --- 47.8.2: delegated action dispatch ------------------------------------
-//
-// Inline `onclick="doThing('${row.id}')"` attributes are two problems in one
-// string:
-//
-//  1. They require `script-src 'unsafe-inline'` in the CSP, which defeats the
-//     main protection a CSP offers. The policy cannot be enforced while any
-//     of them remain.
-//  2. Every interpolated argument is unescaped JavaScript source inside an
-//     HTML attribute. A record id, SKU or doctype containing a quote does not
-//     merely break the handler - it closes the attribute and the string, and
-//     whatever follows runs as script. That is a live injection sink wherever
-//     the interpolated value came from imported data, a connector payload or
-//     a report row.
-//
-// actionAttrs + this dispatcher close both at once, and close them at the one
-// shared choke point rather than per call site. The function name and its
-// arguments travel as data attributes (escaped, so a hostile value can only
-// ever be *data*), and one delegated listener per event type looks the
-// function up and calls it. No `eval`, no string-to-code path, no per-element
-// listener to leak.
-//
-// Deliberately keeps the "functions live on window" convention the lazy view
-// modules already rely on (loadViewModule publishes each module's exports),
-// so a converted handler reaches exactly the same function the inline
-// attribute reached - no import wiring, no behaviour change.
+// Inline onclick="f('${id}')" needs CSP 'unsafe-inline' and is an injection
+// sink (a quote in an id closes the attribute). actionAttrs + this dispatcher:
+// the name and args travel as escaped data attributes, one delegated listener
+// per event calls window[name] - no eval, same functions the inline reached.
 
 // ACTION_ARG_ELEMENT and friends are the sentinels that replace a handler's
 // old `this`/`this.value`/`this.checked` references. JSON cannot carry a DOM
@@ -2526,30 +2505,11 @@ function makeClickable(el, handler) {
 }
 
 // ---------------------------------------------------------------------------
-// Field formats (Stage 40.2)
-//
-// Every input that holds a GSTIN, an email, a phone number, a PAN, an IFSC
-// code, a PIN code or a URL gets, for free:
-//
-//   - a placeholder showing what a real one looks like ("it should suggest it
-//     should be like this");
-//   - keystroke filtering, so a phone field takes digits, + - ( ) and spaces
-//     but refuses letters outright;
-//   - upper-casing as you type where the format is stored upper-case, so a
-//     GSTIN can never fail purely on case;
-//   - an inline message on blur that states the rule and shows an example.
-//
-// None of it makes a field mandatory. Leave it blank and nothing complains -
-// the checks only fire once there is something to check.
-//
-// The specs come from the server (GET /api/v1/meta/field-formats), which is
-// the same declaration list ValidateDocument enforces against. That is the
-// whole point: a second copy of these regexes in JavaScript would drift, and
-// the form would start promising a format the server does not accept.
-//
-// Applied by delegation on document, plus one sweep per view render, so it
-// covers bespoke screens and modals as well as the generic record form -
-// without a call site per screen.
+// Field formats (Stage 40.2): GSTIN, email, phone, PAN, IFSC, PIN and URL
+// inputs get a placeholder, keystroke filtering, upper-casing and a message on
+// blur; blank is never an error. Specs come from GET /api/v1/meta/field-formats,
+// the list ValidateDocument enforces, so the two cannot drift. Delegated on
+// document plus one sweep per render, so every screen and modal is covered.
 // ---------------------------------------------------------------------------
 
 let FIELD_FORMATS = [];
@@ -4170,7 +4130,8 @@ const MENU_PERMISSION_MAP = {
   'menu-doctype-builder': { devOnly: true },
   'menu-extension-hooks': { devOnly: true },
   // 55.21 (ask 191): API keys, OAuth clients and AI assistants are the client's own (admin.api-credentials).
-  'menu-api-access': { adminOnly: true, capability: 'admin.api-credentials' },
+  // 205.5: a role holding api.share (Share module API) shares only its own modules' API.
+  'menu-api-access': { adminOnly: true, capability: ['api.share', 'admin.api-credentials'] },
   'menu-subscription': { adminOnly: true }, // 50.12: the client's own plan, usage and invoices
   // Ask 191: the Auditor template's whole job is these logs (audit.logs), so its role sees them too; each log
   // then needs its own capability - Admin holds no system.logs (Stage 125), and Security Events is admin-only.
@@ -4677,7 +4638,7 @@ function canDeleteDoctype(doctype) { return canDo('delete', doctype); }
 
 function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
-  if (rule.adminOnly) return state.permissions.isAdmin || (!!rule.capability && state.permissions.capabilities.has(rule.capability));
+  if (rule.adminOnly) return state.permissions.isAdmin || [].concat(rule.capability || []).some(c => state.permissions.capabilities.has(c));
   // 132.18; strict (ask 191): a capability even a client's Admin may lack, such as system.logs.
   if (rule.capability) return (!rule.strict && state.permissions.isAdmin) || state.permissions.capabilities.has(rule.capability);
   if (rule.devOnly) return state.permissions.isSuperAdmin; // 125.6
@@ -6577,6 +6538,13 @@ async function renderHomeView(container) {
       // Best-effort, same as every other dashboard tile - a failed count
       // must never block the rest of Home from rendering.
     }
+  }
+
+  // 205.20: API access that needs attention (expiring, rotating, failing). Only
+  // for who may open API access; the tile appears only when something is open.
+  if (state.permissions.isAdmin || state.permissions.capabilities.has('api.share')) {
+    loadViewModule('/view-api-access.js')
+      .then(m => m.mountApiAccessAttention(statsRow)).catch(() => {});
   }
 
   // Scope-led setup: only the masters behind what THIS session can actually

@@ -17,12 +17,13 @@ import (
 
 // PrintProfile is the profile a print resolved to.
 type PrintProfile struct {
-	Code       string   `json:"code"`
-	Name       string   `json:"name"`
-	CopyLabels []string `json:"copy_labels,omitempty"`
-	Paper      string   `json:"paper,omitempty"`
-	TemplateID string   `json:"template_id,omitempty"`
-	FooterText string   `json:"footer_text,omitempty"`
+	Code        string   `json:"code"`
+	Name        string   `json:"name"`
+	CopyLabels  []string `json:"copy_labels,omitempty"`
+	Paper       string   `json:"paper,omitempty"`
+	TemplateID  string   `json:"template_id,omitempty"`
+	FooterText  string   `json:"footer_text,omitempty"`
+	ExtraPrints string   `json:"extra_prints,omitempty"` // 213.5: "<template> x<copies>, ..."
 }
 
 // ResolvePrintProfile picks the profile for one print. txn is the print
@@ -67,7 +68,7 @@ func ResolvePrintProfileFor(tenantID, txn, doctype, store, party, user string) *
 			bestScore = score
 			best = &PrintProfile{Code: firstNonEmpty(strField(data, "code"), id), Name: strField(data, "name"),
 				CopyLabels: splitCopyLabels(strField(data, "copy_labels")), Paper: strField(data, "paper"),
-				TemplateID: strField(data, "template"), FooterText: strField(data, "footer_text")}
+				TemplateID: strField(data, "template"), FooterText: strField(data, "footer_text"), ExtraPrints: strField(data, "extra_prints")}
 		}
 	}
 	return best

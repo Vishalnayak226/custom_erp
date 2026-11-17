@@ -11,12 +11,12 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 137 |
+| Front-end files with screens or API calls | 138 |
 | Screens in the shell registry | 79 |
-| File-to-route actions | 1268 |
-| Registered `/api` routes | 1098 |
-| Routes no front-end file calls | 212 |
-| Calls matching no route | 2 |
+| File-to-route actions | 1287 |
+| Registered `/api` routes | 1121 |
+| Routes no front-end file calls | 216 |
+| Calls matching no route | 4 |
 
 ## Screens and front-end files
 
@@ -406,7 +406,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-admin.js`
 
-Screens: Prefix Configurations (`#/view/prefix-configs`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Approval Rules (`#/view/approval-rules`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17), Dynamic Labels (`#/view/dynamic-labels`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Extension Hooks (`#/view/extension-hooks`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), API access (`#/view/api-access`; help: Settings and configuration, verified 2026-11-16; Authenticating against the public API, verified 2026-11-14), Extension Hook Log (`#/view/extension-hook-log`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Integration Logs (`#/view/audit-logs`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17), Configuration (`#/view/configuration`; help: Your first sign-in, verified 2026-11-14; CRM & Loyalty, verified 2026-11-15; Finance & Tax, verified 2026-11-15; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-11-16; Procurement, verified 2026-09-03; Settings and configuration, verified 2026-11-16; Country codes and phone number rules, verified 2026-09-10; A day as an administrator, verified 2026-08-17), System Status (`#/view/system-status`; help: Backup & Restore, verified 2026-09-03; Incident Response & Alerting, verified 2026-09-03; Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Tenant Entitlements (`#/view/tenant-entitlements`; help: Control Panel and Data Console (platform operators), verified 2026-10-18; A day as an administrator, verified 2026-08-17), Tenant Usage (`#/view/tenant-usage`; help: Control Panel and Data Console (platform operators), verified 2026-10-18; A day as an administrator, verified 2026-08-17), Data Console (`#/view/platform-console`; help: Control Panel and Data Console (platform operators), verified 2026-10-18).  
+Screens: Prefix Configurations (`#/view/prefix-configs`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Approval Rules (`#/view/approval-rules`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17), Dynamic Labels (`#/view/dynamic-labels`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Extension Hooks (`#/view/extension-hooks`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), API access (`#/view/api-access`; help: Settings and configuration, verified 2026-11-16; Actions, reports and webhooks through the API, verified 2026-11-17; Authenticating against the public API, verified 2026-11-16; Reading and writing records through the API, verified 2026-11-16), Extension Hook Log (`#/view/extension-hook-log`; help: Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Integration Logs (`#/view/audit-logs`; help: Security, Roles & Approvals, verified 2026-11-15; A day as an administrator, verified 2026-08-17), Configuration (`#/view/configuration`; help: Your first sign-in, verified 2026-11-14; CRM & Loyalty, verified 2026-11-15; Finance & Tax, verified 2026-11-15; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-11-16; Procurement, verified 2026-09-03; Settings and configuration, verified 2026-11-16; Country codes and phone number rules, verified 2026-09-10; A day as an administrator, verified 2026-08-17), System Status (`#/view/system-status`; help: Backup & Restore, verified 2026-09-03; Incident Response & Alerting, verified 2026-09-03; Settings and configuration, verified 2026-11-16; A day as an administrator, verified 2026-08-17), Tenant Entitlements (`#/view/tenant-entitlements`; help: Control Panel and Data Console (platform operators), verified 2026-10-18; A day as an administrator, verified 2026-08-17), Tenant Usage (`#/view/tenant-usage`; help: Control Panel and Data Console (platform operators), verified 2026-10-18; A day as an administrator, verified 2026-08-17), Data Console (`#/view/platform-console`; help: Control Panel and Data Console (platform operators), verified 2026-10-18).  
 Owners: M01, M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -493,17 +493,43 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/orders/assistant-drafts` | `handleListAssistantDrafts` | ai_access | signed-in: ai_access.default | every signed-in role |
 | POST | `/api/v1/orders/{id}/submit-assistant-draft` | `handleSubmitAssistantDraft` | ai_access | signed-in: ai_access.default | every signed-in role |
 
+### `public/view-api-access-detail.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/api-access/attention` | `handleAPIAccessAttention` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}/activity` | `handleAPIAccessActivity` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys/{id}/fix` | `handleAPIAccessFix` |  | admin: api.share | Super Admin, Admin |
+| PUT | `/api/v1/api-access/keys/{id}/limits` | `handleAPIAccessSetLimits` |  | admin: api.share | Super Admin, Admin |
+| PUT | `/api/v1/api-access/keys/{id}/modules` | `handleAPIAccessUpdateModules` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}/openapi.json` | `handleAPIAccessKeyOpenAPI` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}/postman.json` | `handleAPIAccessKeyPostman` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys/{id}/rotate` | `handleAPIAccessRotateKey` |  | admin: api.share | Super Admin, Admin |
+| DELETE | `/api/v1/api-access/keys/{id}/share-docs` | `handleAPIAccessShareDocsWithdraw` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}/share-docs` | `handleAPIAccessShareDocsGet` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys/{id}/share-docs` | `handleAPIAccessShareDocsCreate` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys/{id}/take-over` | `handleAPIAccessTakeOver` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys/{id}/webhooks/deliveries/{d}/resend` | `handleAPIAccessWebhookResend` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}/webhooks/deliveries` | `handleAPIAccessWebhookDeliveries` |  | admin: api.share | Super Admin, Admin |
+| DELETE | `/api/v1/api-access/keys/{id}/webhooks/{sub}` | `handleAPIAccessWebhooksDelete` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}/webhooks` | `handleAPIAccessWebhooksList` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys/{id}/webhooks` | `handleAPIAccessWebhooksCreate` |  | admin: api.share | Super Admin, Admin |
+| DELETE | `/api/v1/api-access/keys/{id}` | `handleAPIAccessRevokeKey` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys/{id}` | `handleAPIAccessGetKey` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/keys` | `handleAPIAccessListKeys` |  | admin: api.share | Super Admin, Admin |
+| POST | `/api/v1/api-access/keys` | `handleAPIAccessCreateKey` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/modules` | `handleAPIAccessModules` |  | admin: api.share | Super Admin, Admin |
+| GET | `/api/v1/api-access/openapi.json` | `handleAPIAccessOpenAPI` |  | admin: api.share | Super Admin, Admin |
+
 ### `public/view-api-access.js`
 
 Owners: M28. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
-| POST | `/api/v1/admin/api-credentials/{id}/rotate` | `handleRotateAPICredential` |  | admin: admin.api-credentials | Super Admin, Admin |
-| GET | `/api/v1/admin/api-credentials/{id}/traffic` | `handleListAPICredentialTraffic` |  | admin: admin.api-credentials | Super Admin, Admin |
-| DELETE | `/api/v1/admin/api-credentials/{id}` | `handleRevokeAPICredential` |  | admin: admin.api-credentials | Super Admin, Admin |
-| GET | `/api/v1/admin/api-credentials` | `handleListAPICredentials` |  | admin: admin.api-credentials | Super Admin, Admin |
-| POST | `/api/v1/admin/api-credentials` | `handleIssueAPICredential` |  | admin: admin.api-credentials | Super Admin, Admin |
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 
 ### `public/view-asset-extras.js`
 
@@ -2290,7 +2316,7 @@ Owners: M08–M11. Live inspection: not recorded.
 | GET | `/api/v1/wms/labor/plan` | `handleLaborPlan` | wms | signed-in: wms.default | every signed-in role |
 | GET | `/api/v1/wms/labor/standard-preview` | `handleLaborStandardPreview` | wms | signed-in: wms.default | every signed-in role |
 
-No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `shell-nav.js`, `shell-steady.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
+No screen and no API call: `api-claim.js`, `api-docs-viewer.js`, `api-docs.js`, `api-key-once.js`, `charts.js`, `db.js`, `print-pdf.js`, `shell-nav.js`, `shell-steady.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-api-access-grid.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
 
 ## Screens missing an owner or a help article
 
@@ -2397,7 +2423,11 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | GET | `/api/v1/admin/access-preview` | `handleAccessPreview` |  | admin: admin.access-preview | Super Admin, Admin |
+| POST | `/api/v1/admin/api-credentials` | `handleIssueAPICredential` |  | admin: admin.api-credentials | Super Admin, Admin |
+| GET | `/api/v1/admin/api-credentials` | `handleListAPICredentials` |  | admin: admin.api-credentials | Super Admin, Admin |
 | PUT | `/api/v1/admin/api-credentials/{id}/limits` | `handleSetAPICredentialLimits` |  | admin: admin.api-credentials | Super Admin, Admin |
+| POST | `/api/v1/admin/api-credentials/{id}/rotate` | `handleRotateAPICredential` |  | admin: admin.api-credentials | Super Admin, Admin |
+| GET | `/api/v1/admin/api-credentials/{id}/traffic` | `handleListAPICredentialTraffic` |  | admin: admin.api-credentials | Super Admin, Admin |
 | GET | `/api/v1/admin/api-traffic` | `handleListAPICredentialTraffic` |  | admin: admin.api-traffic | Super Admin, Admin |
 | POST | `/api/v1/admin/audit-logs/archive` | `handleRunAuditArchive` |  | admin: admin.audit-logs | Super Admin, Admin |
 | GET | `/api/v1/admin/audit-logs/archives` | `handleListAuditArchives` |  | admin: admin.audit-logs | Super Admin, Admin |
@@ -2615,5 +2645,7 @@ A path in front-end source that no `/api` registration in routes.go matches: a c
 
 | File | Call |
 |---|---|
+| `api-claim.js` | `/api/public/v1/developer-links/{}/claim` |
+| `api-docs.js` | `/api/public/v1/docs/{}` |
 | `app.js` | `/api/v` |
 | `view-crm.js` | `/api/{}` |

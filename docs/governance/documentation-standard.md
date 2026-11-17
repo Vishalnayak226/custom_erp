@@ -139,7 +139,7 @@ scope, field and workflow controls mean grant rows alone are not effective autho
 
 ## Budgets and migration gates
 
-Ordinary articles: 120 KiB raw; KB search index: 250 KiB; embedded KB: 2 MiB; handover:
+Ordinary articles: 120 KiB raw; KB search index: 250 KiB; embedded KB text: 2 MiB; KB pictures: 512 KiB, outside the text budget; handover:
 150 lines. Report current excesses honestly in warning mode. Generated catalog exceptions
 require an explicit owner decision, never an automatic increase. The full docs tree is
 excluded from production; only intentionally embedded help is shipped.
@@ -172,7 +172,7 @@ reviewers still verify approval authenticity and results. Each capability also c
 test, evidence and the checklist items that own it. A row is Verified only with evidence
 attached, and every checklist item it names must exist in the tracker or its archive. One
 register, not two: new work names the row it closes. Search output is compact JSON;
-publication enforces its 250 KiB budget and the combined embedded KB 2 MiB budget.
+publication enforces its 250 KiB budget, the 2 MiB embedded KB text budget and the 512 KiB picture budget.
 
 ## Knowledge Center lessons (210.3-210.5)
 

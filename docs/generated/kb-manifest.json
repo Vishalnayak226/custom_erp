@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.26.0",
+  "release": "0.27.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -100,7 +100,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "3bfac912177e06c226b20f98330841942364c6a2a70cb444b48b536618bb312e",
+      "sha256": "0678ec6e73f53e434ea15f92f37b9877412a7a4ebbc83f4778e3aaa6428c03af",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -127,7 +127,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "33cbc31b5c9cfb16d830faa3fe39be94e40e921ad804600d3d447548b160993c",
+      "sha256": "7c55c92177283d1f814212fc304b0e27a855779d524fa2f285428acf7b4ff620",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -405,8 +405,17 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/public-api-actions-reports-webhooks.html",
+      "sha256": "34ebc08c4166f7acf11f9f80ded604fc415dc34f9128fcc5e6a0206c1fdd118c",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/public-api-authentication.html",
-      "sha256": "1b172316afa6b4af4c52aa62a3740d857789fff87b2b0223d0a70023481c2e89",
+      "sha256": "b22baaf37b22b5381685cc3d182a08f1a811e0e0980d880c21dae7b1825bbb7f",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -416,6 +425,15 @@
     {
       "path": "internal/kb/content/articles/public-api-idempotency.html",
       "sha256": "271ee9fa74c545afc52d7436b0836e964e132c3d7d164726cfb61827120860fa",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/public-api-records.html",
+      "sha256": "6067b9c8795b3e24b2951e2dcd6156eeb59e5ed1bf46e04dcf87be5879063f5d",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -433,7 +451,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "2d2448b8022c32c0b5cb06e55b587a31c0c6a6cb9f3d17628f4aec440a60ee25",
+      "sha256": "17858ecad9e815c8d289b6d7ca7b08e2de819bd5b4242205559389fc0fb7cae9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -442,7 +460,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-3.html",
-      "sha256": "6e6e5c421bb5fec60f6c43eedf5bd0f95fab269425e155980cb51793fa94a84b",
+      "sha256": "6d846cd933462c463ff0c988c99f75fc94d8e34dc1769335710f4c23458bf40c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -451,7 +469,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "e8262e611065ad32e3d2e286c01e6b1596230b951af83047608dc76ce1f1adcb",
+      "sha256": "11cf6324498321c8ad5f1194c561c44dd5922f70ddcc2014363cdb976931c31a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -802,7 +820,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "6ea4f6b881289aba0470a12341d375cc789eb47e0cf48420ab4d97ae4850c8bf",
+      "sha256": "529ead92625753706f74becec375c6f6eb95986b31f754de07031d137151ed58",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -811,7 +829,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "ceeefa2e1446dee06abb363f050f24ed4d765e5d8bedc8bd135641032c1eff4a",
+      "sha256": "93df51113286dd0373999828c9c321ab62aed0e60fb84c6701d2888335cf9691",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

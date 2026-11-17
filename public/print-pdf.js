@@ -92,6 +92,14 @@ export async function pageToESCPOS(page, widthMM, heightMM, { paperMM = 80, dpi 
   return btoa(bin);
 }
 
+// svgStyle puts stylesheet text into an SVG image as a <style> element. The SVG is XML,
+// so `<` and `&` must be escaped: a "<style>" inside a CSS comment once made every
+// image undecodable and every silent print failed (221.1). Every page drawn through
+// an SVG image takes its CSS through here (release gate G8 checks for raw copies).
+export function svgStyle(css) {
+  return `<style>${String(css).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</style>`;
+}
+
 // pageToCanvas draws a rendered page onto a white canvas at `dpi`.
 async function pageToCanvas(page, widthMM, heightMM, css, dpi) {
   const clone = page.cloneNode(true);
@@ -103,7 +111,7 @@ async function pageToCanvas(page, widthMM, heightMM, css, dpi) {
   const xhtml = new XMLSerializer().serializeToString(clone);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject x="0" y="0" width="${w}" height="${h}">` +
     `<div xmlns="http://www.w3.org/1999/xhtml" style="transform:scale(${scale});transform-origin:0 0;width:${widthMM}mm;height:${heightMM}mm;">` +
-    `<style>${css.replace(/<\/style/gi, '')}</style>${xhtml}</div></foreignObject></svg>`;
+    `${svgStyle(css)}${xhtml}</div></foreignObject></svg>`;
   const img = new Image();
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   await img.decode();

@@ -636,7 +636,7 @@ async function downloadXLSX(w, f) {
 async function exportPDF(cd, f) {
   showToast('Making the PDF…', { variant: 'info' });
   const { renderChart } = await charts();
-  const { canvasesToPDF, downloadBlob } = await import('./print-pdf.js' + VQ);
+  const { canvasesToPDF, downloadBlob, svgStyle } = await import('./print-pdf.js' + VQ);
   const results = await runWidgets(cd, f);
   const W = 1400;
   const box = document.createElement('div');
@@ -664,7 +664,7 @@ async function exportPDF(cd, f) {
     copy.style.left = '0';
     const xhtml = new XMLSerializer().serializeToString(copy);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W * scale}" height="${h * scale}"><foreignObject x="0" y="0" width="${W * scale}" height="${h * scale}">` +
-      `<div xmlns="http://www.w3.org/1999/xhtml" style="transform:scale(${scale});transform-origin:0 0;width:${W}px;"><style>${css.replace(/<\/style/gi, '')}</style>${xhtml}</div></foreignObject></svg>`;
+      `<div xmlns="http://www.w3.org/1999/xhtml" style="transform:scale(${scale});transform-origin:0 0;width:${W}px;">${svgStyle(css)}${xhtml}</div></foreignObject></svg>`;
     const img = new Image();
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     await img.decode();

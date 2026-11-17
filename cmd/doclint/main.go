@@ -455,9 +455,11 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 			}
 		}
 	}
-	kbBytes := 0
+	kbBytes, kbImgBytes := 0, 0
 	for _, d := range reg.Documents {
-		if strings.HasPrefix(d.Path, "internal/kb/content/") {
+		if strings.HasPrefix(d.Path, "internal/kb/content/img/") {
+			kbImgBytes += d.Bytes // pictures have their own cap (217.1, ask 222)
+		} else if strings.HasPrefix(d.Path, "internal/kb/content/") {
 			kbBytes += d.Bytes
 		}
 		if d.Path == "internal/kb/content/search.json" && d.Bytes > 250*1024 {
@@ -465,7 +467,10 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 		}
 	}
 	if kbBytes > 2*1024*1024 {
-		add("internal/kb/content", "kb-budget", "embedded KB exceeds 2 MiB")
+		add("internal/kb/content", "kb-budget", "embedded KB text exceeds 2 MiB")
+	}
+	if kbImgBytes > 512*1024 {
+		add("internal/kb/content/img", "kb-image-budget", "Knowledge Center pictures exceed 512 KiB")
 	}
 	if _, err := os.Stat(filepath.Join(root, "docs/kb")); err == nil {
 		result, err := kb.Build(filepath.Join(root, "docs/kb"))

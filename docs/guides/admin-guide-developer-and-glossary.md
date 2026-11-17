@@ -115,7 +115,7 @@ Two additions worth knowing about (Stage 29.8):
 
 #### D.6.1 Public API credentials (Stage 38 foundation)
 
-These are different from extension tokens and browser sessions. Extension tokens are short-lived and read one doctype; a public API credential is a durable integration identity with explicit scopes, expiry, rotation and immediate revocation. It never carries a human role.
+These are different from extension tokens and browser sessions. Extension tokens are short-lived and read one doctype; a public API credential is a durable integration identity with expiry, rotation and immediate revocation. Since ask 224 (items 205.3-205.22) every key also has an **owner**, the person who made it. A call runs with the owner's own rights, capped by the modules ticked on the key, so a key can never do more than its owner. It stops the moment the owner is made inactive, and starts again when an Admin uses **Take over**. Keys made before this keep their old scopes and keep working.
 
 After `db/migrations/migrations_stage38_2_api_credentials.sql` is applied, a Super Admin can issue/list/rotate/revoke credentials through the private `/api/v1/admin/api-credentials` endpoints documented in `../specs/public_api_v1.md`. A newly issued or rotated key is shown once and the response is marked `Cache-Control: no-store`; copy it directly into the integrator's secret store. The database retains only a one-way digest and an operator-visible prefix, so a lost key cannot be recovered—rotate it.
 
@@ -123,13 +123,71 @@ The curated `/api/public/v1` routes (items, inventory, order status, notificatio
 
 **Command keys on money and stock commands (Stage 49.4.7a).** The private routes that create a new money or stock record each time they run take the checkout's command key: `POST /api/v1/finance/journal-voucher`, `/finance/payment-proposal/{id}/execute`, `/hr/run-payroll`, `/hr/disburse-loan`, `/inventory/adjustments`, `/pos/advances`, `/pos/gift-card/issue`, `/loyalty/redeem` and `/crm/voucher/redeem`. Send an `Idempotency-Key` header (or an `idempotency_key` field in the body; up to 200 characters). A retry with the same key and the same request answers the first result, marked `Idempotent-Replayed: true`, and creates nothing; the same key with a different request is refused **GLOBAL-4972**; a retry while the first is still running gets **GLOBAL-4971** (409, retryable); a refused request frees its key. If the server stopped after the command saved but before it recorded the key, the key keeps answering **GLOBAL-4971** for its 7 days (49.4.7): look for the record first, and only if it is not there, send again with a new key. Keys are per user and kept 7 days. A request with no key runs as before. The screens send one themselves. Delivery challans (create, dispatch, return, cancel), material request / issue / return, subcontract send / receive / charge, e-invoice and e-way bill actions, GRN post-child / post-all / pay, PO send and print reprint requests take the same key. Commands that move an existing record on (post, approve, cancel) are guarded by its status instead - `docs/security/idempotency-audit.md` lists every route and which it is.
 
-**The API access screen (Stage 38.2d / 55.21).** **Settings → API access** (an Admin's own page since ask 191; it used to sit under Extension Hooks, which only a Super Admin opens) has the list of every key and OAuth client with its purpose, type, client ID / key prefix, scopes, status, expiry, last use and **Owner** (the person who issued it). **+ New API access** opens the form:
+**The API access screen (Stage 38.2d / 55.21, rebuilt in ask 224).** **Settings → API access** opens on the list of keys: name, owner, the modules it can reach, status, last use, and today's calls and errors. An Admin picks **Mine** or **All**; anyone else sees only their own keys. Filter by status: *Active*, *Expires soon*, *Owner inactive*, *Rotating*, *Waiting for developer*, *Expired* or *Revoked*. Anything that needs action shows above the list, with a **Fix** button when one click can mend it. The same count shows as a Home tile, *API access needs attention*.
 
-1. **Name** — who or what will use it (e.g. *Shopify stock sync*), and **Purpose** (optional; see *Purpose and rotation* below).
-2. **Sign-in type** — **API key**: the integration sends the key on every call (`Authorization: Bearer erp_v1_…` plus `X-Tenant-ID`). **OAuth client**: for platforms that expect OAuth2 — the integration posts its client ID and client secret (HTTP Basic, or `client_id`/`client_secret` in the body) with `grant_type=client_credentials` and `X-Tenant-ID` to `/api/public/v1/oauth/token`, and gets back a token valid for 15 minutes (`Authorization: Bearer erp_at_…`). An optional `scope` narrows a token to some of the client's scopes. There is no password grant and no refresh token; an OAuth client's secret is refused if sent directly as a bearer. An `X-Tenant-ID` (or `?tenant_id=`) that names no registered client is refused with **SAAS-0188** before sign-in, rather than served as the default client - check the client code.
-3. **Expires on** (optional) and the **Scopes** — tick only what the integration needs; each endpoint names the one scope it requires (`notifications:write` is for a notification provider's delivery receipts).
+**Who can share.** The right is called *Share module API* (`api.share`). Admin and Super Admin always hold it. A holder can give a key only the modules they use themselves: **View** needs read rights on that module and **Change** needs write rights. Today only Admin holds it. Tell your provider which other roles should get it.
 
-**Issue** shows the secret once (and, for an OAuth client, its client ID and the token URL) — copy it into the integrator's secret store now. On the list: **Rotate** issues a new secret and immediately ends the old one *and every token it obtained*; **Revoke** ends the credential and its tokens for good; **Recent calls** lists the latest requests with their status, outcome and correlation ID (never the secret) — the first place to look when an integrator says "it stopped working". Expired token digests are swept with the API logs.
+**New API access** opens its own page:
+
+1. **Name** (for example *Shopify sync*) and **Start from**: *Online store sync*, *Accounting export*, *Reporting (view only)*, *Warehouse device* or *Custom*. A quick start only ticks modules for you, and skips any module you cannot give.
+2. **The module grid.** Set each enabled module to **Off**, **View** or **Change**. **Fine-tune** narrows a module to some of its document types, and has **Can approve**. Without that tick a key creates, changes and submits drafts, but approval steps stay with people. Money and period actions are never open to a key.
+3. **Sign-in**:
+   - **Secret key.** The integration sends `Authorization: Bearer erp_v2_…` on every call. The company code is inside the key, so no `X-Tenant-ID` is needed. Old `erp_v1_` keys still send `X-Tenant-ID`.
+   - **App login (OAuth).** For platforms that expect OAuth2. The integration posts its client ID and client secret to `/api/public/v1/oauth/token` with `grant_type=client_credentials` (HTTP Basic, or `client_id`/`client_secret` in the body, plus `X-Tenant-ID`). It gets back a token valid for 15 minutes (`Authorization: Bearer erp_at_…`). There is no password grant and no refresh token. An OAuth client's secret is refused if sent directly as a bearer. An `X-Tenant-ID` (or `?tenant_id=`) that names no registered client is refused with **SAAS-0188**: check the client code.
+4. **Expires**: 30 days, 90 days, 1 year (the default), a date (the key works to the end of that day), or never.
+5. **Stores**: all stores, or only some. A key can reach only stores its owner can reach.
+6. **IPs**: leave as *Any*, or list the addresses allowed to call.
+7. **Send to developer instead.** Tick it and **Create** makes a one-use link valid for 48 hours instead of showing the key. Send the link to the developer; when they open it, the key is shown to them once and never stored. Until then the key shows *Waiting for developer*.
+
+**Create** shows the key once, with the base address, the company code and a **Test connection** button. Copy it into the integration's secret store, tick **I've saved the key**, then **Done**. A lost key cannot be recovered; rotate it instead.
+
+**A key's page** (click its name in the list) has six tabs:
+
+- **Overview**: owner, sign-in, key prefix, expiry, last use, today's calls and errors, stores and IPs.
+- **Modules**: change the grid and **Save**. It takes effect on the next call.
+- **Activity**: the latest calls with their result, and an errors-only view.
+- **Limits**: calls a minute and calls a day.
+- **Webhooks**: send events for the key's document types to an https address (see *Webhooks* below).
+- **Share**: a read-only docs link for the developer (see *Docs* below).
+
+On the key's page:
+
+- **Rotate** makes a new key. Under **Old key works for**, choose *Now*, 1 hour, 24 hours (the default) or 7 days. Both keys work during that overlap, so the integration can switch without a failed call. The old key and every token it obtained then end. A key whose developer has not opened its link yet cannot be rotated (**APIKEY-0512**): wait for them, or revoke it and make a new one.
+- **Revoke** ends the key, its tokens, its docs link and its webhooks for good.
+- **Take over** (Admin only) makes you the owner of a key whose owner left.
+
+Expired token digests are swept with the API logs.
+
+**Docs.** **Docs** on the list shows the API for the modules you can share. It has a getting-started section, each module's records, actions, reports and events, the fields for each document type (custom fields included), and every error with its cause and fix. **Download OpenAPI** and **Download Postman** on a key's Share tab give the same spec for that key only.
+
+**Share docs** makes a read-only link for up to 90 days. The link holds no secret. It dies when you **Withdraw** it, when it expires, or when the key is revoked.
+
+**Warnings.**
+
+- *Expiry*: 30, 7 and 1 day before a key expires, its owner and the Admins get an email, once for each step. The key also shows under *Expires soon*.
+- *Failing calls*: when one key is refused 20 times or more in 10 minutes, its owner and the Admins get an email naming the cause (at most one an hour), and the key shows above the list and on the Home tile, for example *Shopify sync is failing: needs View on Inventory*. **Fix** widens the key, but only to what you hold yourself, and the change is written to the audit log (`API_KEY_FIXED`).
+- *Server errors*: a server error on the public API raises an operations alert, at most one every 10 minutes per company.
+
+The watch runs every 15 minutes on the server that runs scheduled jobs.
+
+**Actions and reports.**
+
+- A key with the module can run a short, reviewed list of screen actions through `POST /api/public/v1/actions/{module}/{action}`, as its owner. `GET /api/public/v1/actions` lists the ones it can run.
+- Today the list holds:
+  - OMS: `order-hold`, `order-release-hold`, `order-cancel` and `order-release-to-fulfillment`.
+  - Inventory: `piece-hold-place` and `piece-hold-release`.
+- Money, POS, period, finance and manufacturing actions are kept off the list.
+- `GET /api/public/v1/reports` lists the reports in the key's modules that the owner's role may run. `GET /api/public/v1/reports/{id}?format=json` (or `csv`) runs one, 200 rows a page (up to 1000 with `page_size`), with the report's own filters as parameters. Columns the owner may not see are left out.
+
+**Webhooks.**
+
+- On a key's **Webhooks** tab, enter an https address and pick events, or leave events empty for all of them. **Add** shows the signing secret once.
+- Events are named `<module>.<DocType>.<event>`, for example `procurement.PurchaseOrder.submitted`. Each document can raise *created*, *updated*, *submitted*, *cancelled* and *approved*. The event is sent whether the change was made on the document itself or by a module's own action, such as cancelling an order on the OMS screen.
+- A key receives events only for the document types it can read. An event holds the record's id, status and address, never its fields: the receiver reads the record with the key.
+- Company-wide webhook subscriptions (not tied to a key) do not receive these document events; only a key's subscriptions do.
+- Up to 10 subscriptions per key. An address that is not https or points at a private network is refused (**APIKEY-0515**).
+- Each delivery is signed and retried with backoff. **Deliveries** lists each try with its answer, and **Resend** sends one again.
+- Nothing is sent while outside calls are switched off.
 
 **Unused API access expires (Stage 49.2.6).** **Settings → Configuration → Security → Revoke API access unused for** (Off by default; 30, 60, 90, 180 or 365 days) revokes, about once an hour, every key or OAuth client not used for that long — exactly as **Revoke** does, tokens included — with an audit row `API_CREDENTIAL_REVOKED` *… not used for N days (unused API access policy)* under the user *system*. The time counts from the latest of its last use (or its issue, if never used) and when the setting was last changed, so turning it on revokes nothing straight away. A revoked credential cannot be brought back: issue a new one and give it to the integrator.
 

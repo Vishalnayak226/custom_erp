@@ -153,7 +153,7 @@ For an entry no other screen makes — a month-end accrual, a correction, an ope
 
 ### 9B.5 E-invoices (IRN): the workbench
 
-For a business whose GSTIN e-invoices (your admin switches it on — ADMIN_GUIDE B.3.17). Every B2B sales invoice and customer credit note then needs an **IRN** from the government's Invoice Registration Portal (IRP) before it is valid; the ERP gets it for you. Sales to customers without a GSTIN (B2C, the till) are never sent.
+For a business whose GSTIN e-invoices (your admin switches it on — ADMIN_GUIDE B.3.17). Every B2B sales invoice and customer credit note then needs an **IRN** from the government's Invoice Registration Portal (IRP) before it is valid; the ERP gets it for you. Sales to customers without a GSTIN (B2C) are never sent. A **B2B bill from the till** (§4.10a) is sent like a sales invoice.
 
 1. Post the invoice or credit note as usual. Within a minute it appears in **Financial Accounting → E-Invoice (IRN)** under **Needs action** (or goes straight out if your admin set it to send automatically). **Check now** picks up what you just posted at once.
 2. **What to do** says what each one is waiting for. Click **Open**:
@@ -161,7 +161,7 @@ For a business whose GSTIN e-invoices (your admin switches it on — ADMIN_GUIDE
    - **Submit** sends a valid one. Its state becomes **IRN generated**, with the IRN, Ack No, Ack Date and the signed QR.
    - **Rejected** — the IRP refused it; the reason is shown. Fix, **Validate**, **Submit** again.
    - **Unknown** — the IRP did not answer. The ERP checks whether it was registered before sending again; **Check status** asks now. Do not make it on the portal while it is Unknown.
-3. The **Sales Invoice** and **Customer Credit Notes** lists show each document's IRN state next to its status. **Print** on an invoice with an IRN shows the IRN, Ack and the QR; one still on its way prints **IRN PENDING**. A B2C invoice prints as before.
+3. The **Sales Invoice** and **Customer Credit Notes** lists show each document's IRN state next to its status. A B2B till bill is listed here under its bill number; **Reprint** in **POS → Sales History** prints its IRN and QR once it has one. **Print** on an invoice with an IRN shows the IRN, Ack and the QR; one still on its way prints **IRN PENDING**. A B2C invoice prints as before.
 4. **Cancelling an IRN** — only within 24 hours of the Ack, and only the Accountant: open it → **Cancel IRN** → reason code and reason → **Send for approval**. Another Accountant approves it under **Approvals**, then it is cancelled at the IRP. The invoice number can never be used again. After 24 hours, issue a credit note instead (the record shows *Manual review*).
 5. Once it has an IRN, the invoice's customer, store, lines and amounts cannot be edited (the save says why).
 6. **When the IRP is down** — see USER_SOP §11.1 (make it on the portal, then **Enter portal IRN**, verified by a second person).

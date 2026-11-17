@@ -180,7 +180,7 @@ A GSTIN with turnover above ₹5 crore must report every B2B invoice and credit 
 | **Effective from** | Documents dated before it are never sent. |
 | **Supplies to another GSTIN of the same PAN** | Whether those transfers are e-invoiced (ask your CA). |
 | **Document / supply types** | What this GSTIN e-invoices (INV, CRN; B2B, SEZ, exports). |
-| **E-invoicing is on** | Off by default. On: posted invoices and credit notes of this GSTIN are picked up within a minute. |
+| **E-invoicing is on** | Off by default. On: posted invoices and credit notes of this GSTIN are picked up within a minute. So is a till bill that names a buyer GSTIN (a B2B bill, or a customer with a GSTIN on file), as INV under its bill number (215.19); a B2C till bill leaves no row. |
 | **Send automatically** | Off by default: an accountant presses **Submit** on the workbench. On: each valid document is sent as soon as it is picked up. |
 | **Whitelisted server IP** | The production IRP accepts calls only from whitelisted Indian IPs — record here the address you gave the IRP (the droplet's, `curl -4 https://icanhazip.com`). Never rebuild the droplet without changing the IRP's whitelist first. |
 | **Credentials** | Stored encrypted (the connectors' key) and never shown again; leave blank to keep them. The test provider needs none. |

@@ -69,10 +69,28 @@ func normalizePublicAPIScopes(scopes []string) ([]string, error) {
 		allowed[scope] = true
 	}
 	seen := map[string]bool{}
+	var moduleKeys map[string]bool
 	for _, raw := range scopes {
 		scope := strings.ToLower(strings.TrimSpace(raw))
 		if scope == "" {
 			continue
+		}
+		// 205.3: <module>:read and <module>:write, for any module of the catalogue.
+		if !allowed[scope] {
+			if module, level, ok := strings.Cut(scope, ":"); ok && (level == "read" || level == "write") {
+				if moduleKeys == nil {
+					moduleKeys = map[string]bool{}
+					if mods, err := ListModules(); err == nil {
+						for _, m := range mods {
+							moduleKeys[m.ModuleKey] = true
+						}
+					}
+				}
+				if moduleKeys[module] {
+					seen[scope] = true
+					continue
+				}
+			}
 		}
 		if !allowed[scope] {
 			return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "Scopes", Message: fmt.Sprintf("unsupported public API scope %q", raw)}
@@ -124,6 +142,10 @@ func generatePublicAPIKey() (rawKey, keyPrefix, secretHash string, err error) {
 }
 
 func publicAPIKeyPrefix(rawKey string) (string, error) {
+	if strings.HasPrefix(rawKey, apiKeyV2Marker) {
+		_, prefix, err := parseV2PublicAPIKey(rawKey)
+		return prefix, err
+	}
 	if !strings.HasPrefix(rawKey, publicAPIKeyMarker) {
 		return "", ErrInvalidAPICredential
 	}

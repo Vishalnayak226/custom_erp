@@ -85,6 +85,10 @@ type apiErrorBody struct {
 	// Help (Stage 47.14.4) is "<article slug>#<anchor>" of this code in the in-app
 	// help (the error code reference); empty when the article has no entry.
 	Help string `json:"help,omitempty"`
+	// Fix and DocsURL (205.4) ride on the API access refusals (APIKEY-xxxx): the one
+	// thing to do, and where it is written down.
+	Fix     string `json:"fix,omitempty"`
+	DocsURL string `json:"docs_url,omitempty"`
 }
 
 // Stage 47.14.4: an error message answers four things in order - what
@@ -218,6 +222,13 @@ func logForEntry(r *http.Request, entry CatalogEntry, message string) {
 func writeResponse(w http.ResponseWriter, status int, body apiErrorBody) {
 	if body.Help == "" && body.Code != "" {
 		body.Help = errorHelpTarget(body.Code)
+	}
+	if strings.HasPrefix(body.Code, "APIKEY-") {
+		body.Fix = body.UserAction
+		body.DocsURL = "/help/api-access#" + strings.ToLower(body.Code)
+		if body.Help != "" {
+			body.DocsURL = "/help/" + body.Help
+		}
 	}
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)

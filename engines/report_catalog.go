@@ -341,9 +341,15 @@ func (s *catSource) docRows(schema string, p map[string]string, noDates bool) ([
 	if s.Where != "" {
 		where = append(where, "("+s.Where+")")
 	}
-	dateExpr := "to_char(created_at, 'YYYY-MM-DD')"
+	// 214.4: the same business day catDay gives the row - a moment (created_at,
+	// or a stamp with a zone) is dated in the business's zone, not the server's.
+	created := "to_char(created_at AT TIME ZONE public.erp_business_tz(), 'YYYY-MM-DD')"
+	dateExpr := created
 	if s.DateField != "" {
-		dateExpr = fmt.Sprintf("LEFT(COALESCE(NULLIF(data->>'%s', ''), to_char(created_at, 'YYYY-MM-DD')), 10)", catSQLField(s.DateField))
+		v := fmt.Sprintf("NULLIF(data->>'%s', '')", catSQLField(s.DateField))
+		dateExpr = fmt.Sprintf(`CASE WHEN %[1]s ~ '^\d{4}-\d\d-\d\d[T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d(:?\d\d)?)$'
+			THEN to_char((%[1]s)::timestamptz AT TIME ZONE public.erp_business_tz(), 'YYYY-MM-DD')
+			ELSE LEFT(COALESCE(%[1]s, %[2]s), 10) END`, v, created)
 	}
 	if !noDates {
 		if v := strings.TrimSpace(p["from"]); v != "" {

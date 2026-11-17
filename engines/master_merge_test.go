@@ -251,3 +251,107 @@ func TestStage47135MergeGoesThroughApproval(t *testing.T) {
 		t.Errorf("a customer merge request was accepted here")
 	}
 }
+
+// Ask 223 (47.13.5): ids inside line lists move with the merge - a PO's items
+// stored as a JSON string, a BOM's components stored as an array, an RFQ's
+// invited vendors - only in the linked columns, and an undo puts each list
+// back exactly as it was unless it changed again since.
+func TestMasterMergeMovesLineLists(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schema := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schema)
+	if _, err := ProvisionTenantSchema(tenantID, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	var specs int
+	db.DB.QueryRow("SELECT COUNT(*) FROM " + schema + ".doctype_fields WHERE fieldtype = 'JSONTable' AND (doctype_name, fieldname) IN (('PurchaseOrder','items'),('BOM','components'),('RFQ','vendor_invitations'))").Scan(&specs)
+	if specs != 3 {
+		t.Skipf("line-list specs not seeded in this schema (%d of 3)", specs)
+	}
+	insertRaw := func(id, doctype, raw string) {
+		t.Helper()
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3::jsonb, 'Draft', 'system')", id, doctype, raw); err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+	stored := func(id, field string) string {
+		t.Helper()
+		var v string
+		if err := db.DB.QueryRow("SELECT COALESCE((data->$2)::text, '') FROM "+schema+".documents WHERE id = $1", id, field).Scan(&v); err != nil {
+			t.Fatalf("read %s: %v", id, err)
+		}
+		return v
+	}
+	insertRaw("LI-KEEP", "Item", `{"code":"LI-KEEP","name":"Kada"}`)
+	insertRaw("LI-DUP", "Item", `{"code":"LI-DUP","name":"Kada"}`)
+	insertRaw("LV-KEEP", "Vendor", `{"code":"LV-KEEP","name":"Om Gold"}`)
+	insertRaw("LV-DUP", "Vendor", `{"code":"LV-DUP","name":"Om Gold Pvt Ltd"}`)
+	// a description that merely contains the id must not change
+	insertRaw("LPO-1", "PurchaseOrder", `{"items":"[{\"sku\":\"LI-DUP\",\"qty\":2,\"rate\":10.50},{\"sku\":\"OTHER\",\"qty\":1,\"note\":\"was LI-DUP\"},{\"sku\":\"LI-DUP\",\"qty\":1}]"}`)
+	insertRaw("LBOM-1", "BOM", `{"components":[{"sku":"LI-DUP","qty":3},{"sku":"LI-KEEP","qty":1}]}`)
+	insertRaw("LBOM-2", "BOM", `{"components":[{"sku":"OTHER","qty":3}]}`)
+	insertRaw("LRFQ-1", "RFQ", `{"vendor_invitations":"[{\"vendor\":\"LV-DUP\",\"status\":\"Invited\"}]"}`)
+	poBefore, bomBefore, bom2Before := stored("LPO-1", "items"), stored("LBOM-1", "components"), stored("LBOM-2", "components")
+
+	ir, err := MergeMasters(tenantID, "Item", "LI-KEEP", "LI-DUP", "same design", "admin1")
+	if err != nil {
+		t.Fatalf("item merge: %v", err)
+	}
+	if ir.ByType["PurchaseOrder"] != 1 || ir.ByType["BOM"] != 1 {
+		t.Fatalf("item merge moved %v, want one PurchaseOrder and one BOM", ir.ByType)
+	}
+	var po []map[string]interface{}
+	var poText string
+	db.DB.QueryRow("SELECT data->>'items' FROM " + schema + ".documents WHERE id = 'LPO-1'").Scan(&poText)
+	if err := json.Unmarshal([]byte(poText), &po); err != nil {
+		t.Fatalf("PO items no longer a JSON string of lines: %v (%s)", err, stored("LPO-1", "items"))
+	}
+	if po[0]["sku"] != "LI-KEEP" || po[2]["sku"] != "LI-KEEP" || po[1]["sku"] != "OTHER" || po[1]["note"] != "was LI-DUP" {
+		t.Errorf("PO lines after merge = %v", po)
+	}
+	if !strings.Contains(poText, `"rate":10.50`) {
+		t.Errorf("a line's number lost its exact text: %s", poText)
+	}
+	if got := stored("LBOM-1", "components"); !strings.HasPrefix(got, "[") || !strings.Contains(got, `"sku": "LI-KEEP", "qty": 3`) && !strings.Contains(got, `"qty": 3, "sku": "LI-KEEP"`) {
+		t.Errorf("BOM components after merge = %s, want an array naming LI-KEEP", got)
+	}
+	if stored("LBOM-2", "components") != bom2Before {
+		t.Errorf("a BOM without the duplicate changed")
+	}
+	vr, err := MergeMasters(tenantID, "Vendor", "LV-KEEP", "LV-DUP", "", "admin1")
+	if err != nil || vr.ByType["RFQ"] != 1 || !strings.Contains(stored("LRFQ-1", "vendor_invitations"), `LV-KEEP`) {
+		t.Fatalf("vendor merge: %+v err %v rfq %s", vr, err, stored("LRFQ-1", "vendor_invitations"))
+	}
+
+	// the BOM is edited again after the merge: undo leaves it, restores the PO exactly
+	if _, err := db.DB.Exec("UPDATE " + schema + ".documents SET data = jsonb_set(data, '{components}', '[{\"sku\":\"LI-KEEP\",\"qty\":5}]') WHERE id = 'LBOM-1'"); err != nil {
+		t.Fatal(err)
+	}
+	un, err := UnmergeMasters(tenantID, ir.ID, "admin2")
+	if err != nil || un.Moved != 1 || un.Skipped != 1 {
+		t.Fatalf("unmerge: %+v err %v, want 1 restored and 1 skipped", un, err)
+	}
+	if got := stored("LPO-1", "items"); got != poBefore {
+		t.Errorf("PO items after undo = %s, want exactly %s", got, poBefore)
+	}
+	if got := stored("LBOM-1", "components"); got == bomBefore || !strings.Contains(got, `"qty": 5`) {
+		t.Errorf("a list changed since the merge was overwritten: %s", got)
+	}
+}
+
+func TestRepointLinesKeepsShapeAndOtherColumns(t *testing.T) {
+	out, ok := repointLines([]byte(`[{"sku":"A","alt":"A","qty":1.0}]`), []string{"sku"}, "A", "B")
+	if !ok || string(out) != `[{"alt":"A","qty":1.0,"sku":"B"}]` {
+		t.Errorf("array: %s %v", out, ok)
+	}
+	out, ok = repointLines([]byte(`"[{\"sku\":\"A<1>\"}]"`), []string{"sku"}, "A<1>", "B&2")
+	if !ok || string(out) != `"[{\"sku\":\"B&2\"}]"` {
+		t.Errorf("string: %s %v", out, ok)
+	}
+	if _, ok := repointLines([]byte(`"not json"`), []string{"sku"}, "A", "B"); ok {
+		t.Errorf("a value that is not a list changed")
+	}
+	if _, ok := repointLines([]byte(`[{"sku":"AB"}]`), []string{"sku"}, "A", "B"); ok {
+		t.Errorf("a partial match changed")
+	}
+}

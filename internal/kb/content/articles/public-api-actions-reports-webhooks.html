@@ -1,0 +1,32 @@
+<h1 id="actions-reports-and-webhooks-through-the-api">Actions, reports and webhooks through the API <a class="kb-anchor" href="#actions-reports-and-webhooks-through-the-api" aria-label="Copy link to this section">#</a></h1>
+<p>Records cover most work: see <a href="/help/public-api-records">Reading and writing records through the API</a>. This page covers the three other things a module key can do. Each one runs as the key&#39;s owner and only in the key&#39;s modules.</p>
+<h2 id="actions">Actions <a class="kb-anchor" href="#actions" aria-label="Copy link to this section">#</a></h2>
+<p>Some screen buttons are not a plain save, for example putting an order on hold. A short, reviewed list of them is open to keys:</p>
+<pre><code>GET  /api/public/v1/actions
+POST /api/public/v1/actions/{module}/{action}</code></pre>
+<p>The list answers <code>{&#34;data&#34;:[{module, action, level, summary, body, method, path}]}</code> for the actions your key can run; <code>body</code> shows what to send. Today:</p>
+<table><thead><tr><th>Module</th><th>Action</th><th>Does</th></tr></thead><tbody><tr><td><code>oms</code></td><td><code>order-hold</code>, <code>order-release-hold</code></td><td>Put an order on hold, or release it</td></tr><tr><td><code>oms</code></td><td><code>order-cancel</code></td><td>Cancel an order</td></tr><tr><td><code>oms</code></td><td><code>order-release-to-fulfillment</code></td><td>Release an order to the warehouse</td></tr><tr><td><code>inventory</code></td><td><code>piece-hold-place</code>, <code>piece-hold-release</code></td><td>Hold or release a piece of stock</td></tr></tbody></table>
+<p>An action needs an <code>Idempotency-Key</code> header. One that is not on the list answers 404 <strong>APIKEY-0516</strong>; one in a module the key lacks answers 403 <strong>APIKEY-0503</strong>. Money, POS, period, finance and manufacturing actions are not open to keys.</p>
+<h2 id="reports">Reports <a class="kb-anchor" href="#reports" aria-label="Copy link to this section">#</a></h2>
+<pre><code>GET /api/public/v1/reports
+GET /api/public/v1/reports/{id}?format=json&amp;page=1&amp;page_size=200</code></pre>
+<p>The first lists the reports in your key&#39;s modules that its owner may run, with each report&#39;s columns and filters. The second runs one. Pass the report&#39;s own filters as parameters. <code>format=csv</code> gives a CSV file. <code>page_size</code> goes up to 1000. Columns the owner may not see are left out. An unknown report answers 404 <strong>APIKEY-0517</strong>.</p>
+<h2 id="webhooks">Webhooks <a class="kb-anchor" href="#webhooks" aria-label="Copy link to this section">#</a></h2>
+<p>The key&#39;s owner adds a receiver on the key&#39;s <strong>Webhooks</strong> tab under <strong>Settings → API access</strong>: an https address and the events to send (none ticked means all of them). The signing secret is shown once.</p>
+<p>Events are named <code>&lt;module&gt;.&lt;DocType&gt;.&lt;event&gt;</code>, where the event is <code>created</code>, <code>updated</code>, <code>submitted</code>, <code>cancelled</code> or <code>approved</code>, for example <code>procurement.PurchaseOrder.submitted</code>. The event is sent whether the change was made on the document or by a module&#39;s own action, such as an order cancelled on the OMS screen. A key gets events only for document types it can read. Each delivery is a <code>POST</code> with this body:</p>
+<pre><code class="language-json">{
+  &#34;event&#34;: &#34;procurement.PurchaseOrder.submitted&#34;,
+  &#34;payload&#34;: {
+    &#34;event&#34;: &#34;procurement.PurchaseOrder.submitted&#34;,
+    &#34;tenant_code&#34;: &#34;your-company&#34;,
+    &#34;module&#34;: &#34;procurement&#34;,
+    &#34;doctype&#34;: &#34;PurchaseOrder&#34;,
+    &#34;id&#34;: &#34;PUR-ORD-000042&#34;,
+    &#34;status&#34;: &#34;Submitted&#34;,
+    &#34;occurred_at&#34;: &#34;2026-11-17T09:30:00Z&#34;,
+    &#34;record_url&#34;: &#34;/api/public/v1/records/PurchaseOrder/PUR-ORD-000042&#34;
+  }
+}</code></pre>
+<p>The event carries no fields: read the record at <code>record_url</code> with your key.</p>
+<p><strong>Check the signature.</strong> Each delivery has <code>X-Webhook-Timestamp</code> and <code>X-Webhook-Signature-256: t=&lt;timestamp&gt;,v1=&lt;hex&gt;</code>. The <code>v1</code> value is HMAC-SHA256, keyed with your signing secret, of <code>&lt;timestamp&gt;.&lt;raw body&gt;</code>. Refuse a delivery whose signature does not match, or whose timestamp is more than a few minutes old. <code>X-Webhook-Event</code> names the event and <code>X-Webhook-Delivery</code> identifies the delivery, so you can drop a repeat.</p>
+<p>Answer with any 2xx to accept it. Any other answer, a network error or a timeout is retried with backoff. Every try shows under <strong>Deliveries</strong> on the key, where <strong>Resend</strong> sends one again.</p>

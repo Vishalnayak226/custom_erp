@@ -210,10 +210,19 @@ Four tabs across the top: **Current Stock**, **Sales Register**, **Vendor Ledger
 - [ ] **Setup → Service Ticket** shows the **Service desk** above the list: overdue first, contract coverage, a Next step button; Assign → the row moves to Start work; clicking the ticket number shows its status history.
 - [ ] **Setup → Service Contract**: Show a contract → covered or not, visits used, its tickets. **Setup → Project**: Show a project → revenue, expense, net and the documents behind them.
 
-### 10B. Setup path and API access (Stages 55.3, 38.2d)
+### 10B. Setup path and API access (Stages 55.3, 38.2d, ask 224)
 
 - [ ] **Settings → Configuration** starts with **Setup path**: steps in order, each Done/Next/To do/Waiting; adding the missing record and reopening moves the step to Done.
-- [ ] **Settings → Extension Hooks → API access**: + New API access as an OAuth client with one scope → secret shown once; the token URL returns a token for that client; a data call with the token works only within its scope; Recent calls lists both calls; Revoke → the token is refused.
+- [ ] **Settings → API access** (ask 224): **New API access**, Start from *Online store sync* → the grid ticks PIM and Inventory at View and OMS at Change. **Create** → the key is shown once; **Done** stays off until *I've saved the key* is ticked. `GET /api/public/v1/me` with the key names its modules.
+- [ ] With that key: `GET /records/Item` works; `POST /records/PurchaseOrder` is refused, and the refusal's `fix` names Procurement. **Modules**: set Procurement to Change, **Save** → the next call works. An approve call is refused until **Can approve** is ticked.
+- [ ] Sync: `GET /records/Item?changed_since=<an hour ago>&limit=2` → an `X-Next-Cursor` header; send it back as `cursor=` until it stops coming. `changed_since=yesterday` → 422.
+- [ ] **Rotate** with *Old key works for 1 hour* → both keys work; after the overlap only the new one works. **Revoke** → the key is refused at once.
+- [ ] A non-Admin user without *Share module API* has no API access menu. Make the owner of a key inactive → its calls are refused; **Take over** as Admin → they work again.
+- [ ] **Send to developer instead** → the one-use link shows the key once; opening it again says it was used.
+- [ ] **Share → docs link** opens the docs without signing in; **Withdraw** → the link answers not found.
+- [ ] **Webhooks**: add an https receiver for `<module>.PurchaseOrder.submitted`, submit a PO → one signed delivery in **Deliveries**; **Resend** sends it again.
+- [ ] Make about 20 refused calls in 10 minutes → the owner gets an alert naming the cause, and **Fix** on the list widens the key.
+- [ ] An OAuth client (**Sign-in: App login**): the token URL returns a token; a data call with it works within its modules.
 - [ ] **Bulk Import** a CSV where two rows are wrong → the result offers **Fix and resume the 2 failed rows**. Download failed rows (each with its reason), correct them, upload → **Check** reports without saving and only then enables **Resume** → Resume imports just those rows; the job reads "0 still to fix, 2 fixed since". The same job opens from **My work** and from the Import Job list's lookup.
 - [ ] A PIM import schedule with an **Owner** runs as that person (the Import Job shows them); with an inactive owner the run is stopped with a reason, and a failed run appears in the owner's **My work**.
 - [ ] On a New form for a numbered record type (e.g. Grievance), **Numbering for this record type** opens Prefix Configurations on that type's series with its next number shown.

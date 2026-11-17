@@ -2,7 +2,7 @@
 title: Error code reference (part 2)
 section: Troubleshooting
 order: 21
-summary: Error codes for Global / Common to Order Management, continued from the error code reference.
+summary: Error codes for Global to Order Management, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,11 +20,12 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **282** codes, from
-Global / Common to Order Management.
+lists every area and explains how to read a code. It holds **305** codes, from
+Global to Order Management.
 
 ## Contents
 
+- [Global](#global) - 23 codes
 - [Global / Common](#global-common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 22 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
@@ -43,6 +44,34 @@ Global / Common to Order Management.
 - [Observability / Incident](#observability-incident) - 3 codes
 - [Omnichannel / OMS](#omnichannel-oms) - 5 codes
 - [Order Management](#order-management) - 12 codes
+
+## Global
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `GLOBAL-0303` | Request method not allowed | This request method is not supported here. | Use GET to read and POST, PUT or DELETE to change data, as the API documentation shows. | Low | 405 |
+| `GLOBAL-0304` | Request content type or encoding not accepted | The request body is in a format this address does not accept. | Send JSON (Content-Type: application/json), or a file upload as multipart/form-data, without compression. | Low | 415 |
+| `GLOBAL-0305` | Request body too large | The request is too large to accept. | Send less data at once - split a large file or list into smaller parts. | Low | 413 |
+| `GLOBAL-0306` | Request headers too large | The request carries too many or too large headers. | Sign out and back in; if this persists, contact support - a browser extension or proxy may be adding headers. | Low | 431 |
+| `GLOBAL-0307` | Malformed, ambiguous or over-nested JSON request | The request data could not be accepted. | Check the request is one valid JSON value, with no field repeated in the same object. | Low | 400 |
+| `GLOBAL-0308` | Request exceeded its time limit | This took longer than the time a single request is allowed, so it was stopped. | Send less at once - split a large import file into smaller files, or narrow a report's filters and use background export. | Medium | 504 |
+| `GLOBAL-0309` | Field holds an invisible control or direction character | A field holds an invisible character that cannot be saved. | Retype the field named below, or paste it as plain text. | Low | 422 |
+| `GLOBAL-0310` | Too many report runs still running | Too many reports are still running for this business, so this one did not start. | Try again in a minute. For a large report, use Export - it runs in the background. | Medium | 503 |
+| `GLOBAL-0311` | Identifier mixes look-alike alphabets | A code or identifier mixes letters from different alphabets. | Retype the field named below in one alphabet - a look-alike letter (for example a Cyrillic letter inside a Latin code) was pasted in. | Low | 422 |
+| `GLOBAL-0312` | Current password typed wrong while signed in | Your current password is not right. | Type the password you sign in with. Forgot it? Sign out and use Forgot password. | Low | 403 |
+| `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
+| `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
+| `GLOBAL-4971` | Same command key still being processed | This is still being processed. | Wait a moment and check whether it went through before trying again - do not enter it again. | Medium | 409 |
+| `GLOBAL-4972` | Command key reused for a different request | This request key was already used for a different request. | Send a new key for a new request; resend the same request to get the first answer. | Medium | 409 |
+| `GLOBAL-9110` | Go-live scope answers not usable | The scope answers are not usable. | Check the answers marked. | Medium | 422 |
+| `GLOBAL-9111` | Evidence on a go-live check that is unknown or read from live data | This check cannot take evidence. | Fix the data, or waive the check. | Medium | 422 |
+| `GLOBAL-9112` | Go-live evidence with no note or reference | Add a note or a reference. | Say what proves the check. | Medium | 422 |
+| `GLOBAL-9113` | Waiver without a reason or expiry, or on a check that is not open | The waiver needs a reason and a date. | Give a reason and an expiry within a year. | Medium | 422 |
+| `GLOBAL-9114` | Sign-off while a Critical or Blocking check is open | Some checks are still open. | Close them, or waive them with a reason. | Medium | 422 |
+| `GLOBAL-9115` | Sign-off by the person who waived a Critical check | Another person must sign. | Ask someone else to sign off. | Medium | 422 |
+| `GLOBAL-9116` | Scope decision on a record that cannot be set out of scope | That cannot be set out of scope. | Pick an existing entity, location or cost centre, and give a reason. | Medium | 422 |
+| `GLOBAL-9117` | Reconciliation accepted while the books do not tie | The books do not tie yet. | Fix the difference first. | Medium | 422 |
+| `GLOBAL-9118` | Sign-off of a pack already signed (or signed a moment ago by someone else) | Already signed. | Nothing to do; reopen a check if it must be signed again. | Medium | 422 |
 
 ## Global / Common
 

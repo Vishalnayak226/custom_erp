@@ -1,15 +1,17 @@
 <h1 id="authenticating-against-the-public-api">Authenticating against the public API <a class="kb-anchor" href="#authenticating-against-the-public-api" aria-label="Copy link to this section">#</a></h1>
 <p>The public API is a curated, versioned subset of the application under <code>/api/public/v1/</code>. It is separate from the application&#39;s internal API, which is not a supported integration surface and is not covered by any compatibility promise.</p>
 <h2 id="getting-a-key">Getting a key <a class="kb-anchor" href="#getting-a-key" aria-label="Copy link to this section">#</a></h2>
-<p>An Admin issues one under <strong>Settings → API access</strong> (<strong>Issue</strong>). The plaintext key is shown <strong>once</strong>, at creation, and only a one-way digest is stored - if it is lost, rotate the credential rather than trying to recover it.</p>
-<p>A key names its scopes explicitly when it is issued. There is no wildcard scope, and a key never inherits a person&#39;s role.</p>
+<p>Someone with the <em>Share module API</em> right (today only an Admin or Super Admin) makes a key under <strong>Settings → API access → New API access</strong>. They tick the modules the key may reach, each at <strong>View</strong> or <strong>Change</strong>. The key is shown <strong>once</strong>, or sent to you as a one-use link valid for 48 hours. Only a one-way digest is stored. If the key is lost, ask for it to be rotated.</p>
+<p>A key acts as its <strong>owner</strong>, the person who made it. Every call runs with the owner&#39;s own rights, capped by the modules ticked on the key, so a key never does more than its owner can. If the owner is made inactive, the key stops until an Admin takes it over.</p>
+<p><code>GET /api/public/v1/me</code> tells you what your key can do: its modules, document types, whether it can approve, its stores, its expiry and its limits.</p>
+<p>Keys made before module keys existed carry fixed scopes instead, and keep working:</p>
 <table><thead><tr><th>Scope</th><th>Grants</th></tr></thead><tbody><tr><td><code>items:read</code></td><td>Curated product identity</td></tr><tr><td><code>inventory:read</code></td><td>Available-to-sell reads</td></tr><tr><td><code>orders:read</code></td><td>Order status and tracking</td></tr><tr><td><code>orders:write</code></td><td>Order creation and mutation, once such endpoints exist</td></tr><tr><td><code>notifications:write</code></td><td>Report a notification&#39;s delivery status back</td></tr><tr><td><code>pim:read</code></td><td>Product content, groups and readiness, once such endpoints exist</td></tr><tr><td><code>pim:write</code></td><td>Explicit PIM mutations, once such endpoints exist</td></tr><tr><td><code>webhooks:manage</code></td><td>Webhook subscription lifecycle, once it exists</td></tr></tbody></table>
 <h2 id="every-request">Every request <a class="kb-anchor" href="#every-request" aria-label="Copy link to this section">#</a></h2>
-<pre><code>GET /api/public/v1/items?limit=50 HTTP/1.1
-Authorization: Bearer erp_v1_&lt;prefix&gt;_&lt;secret&gt;
-X-Tenant-ID: your-tenant</code></pre>
-<p>An OAuth client gets its bearer token from <code>POST /api/public/v1/oauth/token</code> (form-encoded, <code>grant_type=client_credentials</code>) and sends it the same way.</p>
-<p>Both headers are required. A mutating request also requires <code>Idempotency-Key</code> - see <a href="/help/public-api-idempotency">Retrying safely</a>.</p>
+<pre><code>GET /api/public/v1/me HTTP/1.1
+Authorization: Bearer erp_v2_&lt;company&gt;_&lt;prefix&gt;_&lt;secret&gt;</code></pre>
+<p>A new key (<code>erp_v2_</code>) carries the company code, so no other header is needed. An older key (<code>erp_v1_</code>) also sends <code>X-Tenant-ID: your-company</code>.</p>
+<p>An OAuth client gets its bearer token from <code>POST /api/public/v1/oauth/token</code> (form-encoded, <code>grant_type=client_credentials</code>, plus <code>X-Tenant-ID</code>) and sends it the same way. The token lasts 15 minutes.</p>
+<p>A mutating request also requires <code>Idempotency-Key</code> - see <a href="/help/public-api-idempotency">Retrying safely</a>.</p>
 <h2 id="every-response">Every response <a class="kb-anchor" href="#every-response" aria-label="Copy link to this section">#</a></h2>
 <pre><code>X-Correlation-ID: 3f2a...
 X-RateLimit-Limit: 120
@@ -18,7 +20,7 @@ X-Quota-Limit: 50000
 X-Quota-Remaining: 49873</code></pre>
 <p>These are present on success and on rejection alike, so you can pace your client from the headers rather than discovering your limits by being refused.</p>
 <h2 id="when-you-are-refused">When you are refused <a class="kb-anchor" href="#when-you-are-refused" aria-label="Copy link to this section">#</a></h2>
-<table><thead><tr><th>Status</th><th>Meaning</th><th>What to do</th></tr></thead><tbody><tr><td>401</td><td>Not authenticated</td><td>Check the key and <code>X-Tenant-ID</code>. The message never says which part failed - that is deliberate.</td></tr><tr><td>403</td><td>Authenticated, wrong scope</td><td>The message names the scope you need. Ask for a key that holds it.</td></tr><tr><td>404</td><td>No such resource, or no such endpoint</td><td>Check the path against the endpoint list.</td></tr><tr><td>422</td><td>A parameter was present but invalid</td><td>The message names the parameter.</td></tr><tr><td>429</td><td>Rate limit or daily quota</td><td>Read <code>Retry-After</code>. The message distinguishes the two - a per-minute burst is a short wait, an exhausted daily quota is not.</td></tr></tbody></table>
+<table><thead><tr><th>Status</th><th>Meaning</th><th>What to do</th></tr></thead><tbody><tr><td>401</td><td>Not authenticated, or the key was revoked or has expired</td><td>Check the key (and <code>X-Tenant-ID</code> for an old key). The message never says which part failed - that is deliberate.</td></tr><tr><td>403</td><td>The key may not do this</td><td>The <code>fix</code> field says what to ask for, for example <em>needs View on Inventory</em>. The key&#39;s owner can widen it with <strong>Fix</strong> on the API access screen.</td></tr><tr><td>404</td><td>No such resource, or no such endpoint</td><td>Check the path against the endpoint list.</td></tr><tr><td>422</td><td>A parameter was present but invalid</td><td>The message names the parameter.</td></tr><tr><td>429</td><td>Rate limit or daily quota</td><td>Read <code>Retry-After</code>. The message distinguishes the two - a per-minute burst is a short wait, an exhausted daily quota is not.</td></tr></tbody></table>
 <aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>Do not retry a 429 immediately in a tight loop. <code>Retry-After</code> on a quota rejection can be hours, and hammering it only fills your own traffic log.</p></aside>
 <p>Every error body carries the same envelope:</p>
 <pre><code class="language-json">{
@@ -27,4 +29,5 @@ X-Quota-Remaining: 49873</code></pre>
   &#34;correlation_id&#34;: &#34;415fcc38-0f88-6dbc-2540-bd76ecb26736&#34;,
   &#34;retryable&#34;: false
 }</code></pre>
+<p>A refusal by a module key also carries <code>fix</code> (what to change) and <code>docs_url</code> (where the code is explained).</p>
 <p>Quote the <code>correlation_id</code> in a support request - it identifies the exact call in the server&#39;s own traffic log.</p>

@@ -26,9 +26,16 @@ import (
 //   - Admin only (admin.master-merges), the level of the other master
 //     clean-ups; every merge and unmerge is an audit row.
 //
-// Not moved: table-backed rows that name the master by code outside the
-// record types (stock balances, ledger lines) and JSON line-item columns. An
-// item that still holds stock is refused, so no balance is stranded.
+//   - Line lists move too (ask 223): every JSONTable field whose column spec
+//     links a column to the master (a PO's items, a vendor bill's lines, a
+//     BOM's components, an RFQ's invited vendors). The whole field's old
+//     JSON is recorded, so an undo puts the list back exactly as it was.
+//
+// Not moved: table-backed rows that name the master outside the record types
+// (stock balances, the stock and general ledgers). Those are history and
+// money: stock changes SKU only through a stock movement that values it,
+// which PIM's Merge into... (pim_item_merge.go) does. So an item that still
+// holds stock is refused here, and no balance is stranded.
 
 var mergeableMasters = map[string]string{"Vendor": "supplier", "Item": "item"}
 
@@ -89,6 +96,87 @@ func masterLinkFields(q mergeQuerier, schema, master string) ([]mergeLinkField, 
 	return out, rows.Err()
 }
 
+// mergeLineField is a JSONTable field with the columns that link to the master.
+type mergeLineField struct {
+	doctype, field string
+	keys           []string
+}
+
+// masterLineFields lists every JSONTable field with a column linking to the
+// master doctype. A spec that does not parse is skipped, as the save check
+// skips it.
+func masterLineFields(q mergeQuerier, schema, master string) ([]mergeLineField, error) {
+	rows, err := q.Query(fmt.Sprintf(`SELECT doctype_name, fieldname, COALESCE(options, '') FROM %s.doctype_fields
+		WHERE fieldtype = 'JSONTable' ORDER BY doctype_name, fieldname`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []mergeLineField
+	for rows.Next() {
+		var f mergeLineField
+		var spec string
+		if err := rows.Scan(&f.doctype, &f.field, &spec); err != nil {
+			return nil, err
+		}
+		var cols []jsonTableColumn
+		if json.Unmarshal([]byte(spec), &cols) != nil {
+			continue
+		}
+		for _, c := range cols {
+			if c.Link == master && c.Key != "" {
+				f.keys = append(f.keys, c.Key)
+			}
+		}
+		if len(f.keys) > 0 {
+			out = append(out, f)
+		}
+	}
+	return out, rows.Err()
+}
+
+// repointLines swaps from for to in the linked columns of one stored line
+// list. raw is the field's JSON as stored: an array, or (the usual case) a
+// string holding the array. It returns the new stored JSON and whether any
+// cell changed; a value that is not a list of lines is left alone.
+func repointLines(raw []byte, keys []string, from, to string) ([]byte, bool) {
+	var text string
+	quoted := json.Unmarshal(raw, &text) == nil
+	if !quoted {
+		text = string(raw)
+	}
+	dec := json.NewDecoder(strings.NewReader(text))
+	dec.UseNumber() // numbers keep their exact text
+	var lines []map[string]interface{}
+	if dec.Decode(&lines) != nil {
+		return nil, false
+	}
+	changed := false
+	for _, ln := range lines {
+		for _, k := range keys {
+			if v, ok := ln[k].(string); ok && v == from {
+				ln[k] = to
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return nil, false
+	}
+	enc := func(v interface{}) []byte {
+		var b strings.Builder
+		e := json.NewEncoder(&b)
+		e.SetEscapeHTML(false)
+		_ = e.Encode(v)
+		return []byte(strings.TrimRight(b.String(), "\n"))
+	}
+	out := enc(lines)
+	if quoted {
+		out = enc(string(out))
+	}
+	return out, true
+}
+
 // checkMergePair refuses a pair that must not merge; it returns the
 // duplicate's current status.
 func checkMergePair(q mergeQuerier, schema, master, keepID, mergeID string) (string, error) {
@@ -128,7 +216,7 @@ func checkMergePair(q mergeQuerier, schema, master, keepID, mergeID string) (str
 			return "", err
 		}
 		if stock != 0 {
-			return "", mergeErr("item %s still holds stock - move or adjust it to zero first", mergeID)
+			return "", mergeErr("item %s still holds stock - use Merge into... on its PIM page, which moves the stock, or bring it to zero first", mergeID)
 		}
 	}
 	return status[mergeID], nil
@@ -184,6 +272,20 @@ func MergeMasters(tenantID, master, keepID, mergeID, reason, actor string) (*Mas
 			res.ByType[f.doctype] += n
 		}
 	}
+	lineFields, err := masterLineFields(tx, schema, master)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range lineFields {
+		n, err := repointLineField(tx, schema, f, mergeID, keepID, actor, id)
+		if err != nil {
+			return nil, fmt.Errorf("re-pointing %s.%s lines: %w", f.doctype, f.field, err)
+		}
+		if n > 0 {
+			res.Moved += n
+			res.ByType[f.doctype] += n
+		}
+	}
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Merged', data = data || jsonb_build_object('merged_into', $2::text, 'status', 'Merged'),
 		updated_at = CURRENT_TIMESTAMP, updated_by = $3 WHERE id = $1 AND doctype = $4`, schema), mergeID, keepID, actor, master); err != nil {
 		return nil, err
@@ -197,6 +299,44 @@ func MergeMasters(tenantID, master, keepID, mergeID, reason, actor string) (*Mas
 	detail, _ := json.Marshal(map[string]interface{}{"merge": id, "doctype": master, "kept": keepID, "duplicate": mergeID, "moved": res.Moved, "reason": reason})
 	LogAuditEvent(tenantID, actor, "MASTER_MERGE", "SUCCESS", string(detail))
 	return res, nil
+}
+
+// repointLineField moves one JSONTable field's lines from the duplicate to the
+// record kept, on every document that names it, and records each document's
+// whole old and new field JSON. It returns how many documents changed.
+func repointLineField(tx *sql.Tx, schema string, f mergeLineField, from, to, actor, mergeRecordID string) (int, error) {
+	rows, err := tx.Query(fmt.Sprintf(`SELECT id, (data->$2)::text FROM %s.documents
+		WHERE doctype = $1 AND id <> $3 AND strpos(data->>$2, $3) > 0 FOR UPDATE`, schema), f.doctype, f.field, from)
+	if err != nil {
+		return 0, err
+	}
+	type hit struct{ id, oldJSON, newJSON string }
+	var hits []hit
+	for rows.Next() {
+		var id, raw string
+		if err := rows.Scan(&id, &raw); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		if out, ok := repointLines([]byte(raw), f.keys, from, to); ok {
+			hits = append(hits, hit{id, raw, string(out)})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, h := range hits {
+		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = jsonb_set(data, ARRAY[$2::text], $3::jsonb), updated_at = CURRENT_TIMESTAMP, updated_by = $4
+			WHERE id = $1 AND doctype = $5`, schema), h.id, f.field, h.newJSON, actor, f.doctype); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.master_merge_rows (merge_id, doc_id, doctype, fieldname, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6)`, schema), mergeRecordID, h.id, f.doctype, f.field, h.oldJSON, h.newJSON); err != nil {
+			return 0, err
+		}
+	}
+	return len(hits), nil
 }
 
 // UnmergeMasters puts back what a merge moved: each reference gets the value
@@ -248,9 +388,29 @@ func UnmergeMasters(tenantID, mergeRecordID, actor string) (*MasterMergeResult, 
 		list = append(list, m)
 	}
 	rows.Close()
+	lineFields := map[string]bool{} // doctype.field of every JSONTable: its rows hold whole JSON values
+	lf, err := tx.Query(fmt.Sprintf(`SELECT doctype_name || '.' || fieldname FROM %s.doctype_fields WHERE fieldtype = 'JSONTable'`, schema))
+	if err != nil {
+		return nil, err
+	}
+	for lf.Next() {
+		var k string
+		if err := lf.Scan(&k); err != nil {
+			lf.Close()
+			return nil, err
+		}
+		lineFields[k] = true
+	}
+	lf.Close()
 	for _, m := range list {
-		n, err := execCount(tx, fmt.Sprintf(`UPDATE %s.documents SET data = jsonb_set(data, ARRAY[$2::text], to_jsonb($3::text)), updated_at = CURRENT_TIMESTAMP, updated_by = $6
-			WHERE id = $1 AND data->>$2 = $4 AND doctype = $5`, schema), m.doc, m.field, m.oldVal, m.newValue, m.doctype, actor)
+		restore := `UPDATE %s.documents SET data = jsonb_set(data, ARRAY[$2::text], to_jsonb($3::text)), updated_at = CURRENT_TIMESTAMP, updated_by = $6
+			WHERE id = $1 AND data->>$2 = $4 AND doctype = $5`
+		if lineFields[m.doctype+"."+m.field] {
+			// the whole list goes back, only if nobody changed it since
+			restore = `UPDATE %s.documents SET data = jsonb_set(data, ARRAY[$2::text], $3::jsonb), updated_at = CURRENT_TIMESTAMP, updated_by = $6
+			WHERE id = $1 AND data->$2 = $4::jsonb AND doctype = $5`
+		}
+		n, err := execCount(tx, fmt.Sprintf(restore, schema), m.doc, m.field, m.oldVal, m.newValue, m.doctype, actor)
 		if err != nil {
 			return nil, err
 		}

@@ -269,7 +269,7 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		}
 		if *req.Email != oldEmail {
 			if bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.CurrentPassword)) != nil {
-				writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Current password is required and must be correct to change your recovery email")
+				writeAPIError(w, r, "GLOBAL-0312", "") // 206.7: 403, so the user stays signed in
 				return
 			}
 		}
@@ -340,7 +340,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.CurrentPassword)) != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Current password is incorrect")
+		writeAPIError(w, r, "GLOBAL-0312", "") // 206.7: 403, so the user stays signed in
 		return
 	}
 

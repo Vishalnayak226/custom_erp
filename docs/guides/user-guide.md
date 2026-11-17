@@ -55,6 +55,7 @@ Jump straight to the thing you're trying to do.
 | Change which shop this till sells from | [§4.5](user-guide-selling-and-stock.md#45-reset-terminal--starting-the-till-again) |
 | Understand why my shop isn't in the till's Store list | [§4.0](user-guide-selling-and-stock.md#40-open-the-till-for-the-shift) step 2 |
 | Fix a screen showing old or wrong data (Refresh vs Reset) | [§12.3](user-guide-store-app-and-help.md#123-when-a-screen-shows-something-that-cant-be-right--refresh-vs-reset) |
+| Let another system (online store, accounting tool) use my module's data through the API | [§16](user-guide-store-app-and-help.md#16-share-your-modules-api) |
 | Print barcode stickers for everything on a GRN or a transfer | [§7A.1](user-guide-labels-and-printing.md#7a1-print-the-labels-for-a-grn-or-a-transfer-order) |
 | Make one product category's label look different | [§7A.2](user-guide-labels-and-printing.md#7a2-design-your-labels-templates-and-the-sticker-studio), then [§7A.5](user-guide-labels-and-printing.md#7a5-which-template-each-item-uses-template-rules) |
 | Change the standard label (copy it into my own template) | [§7A.2](user-guide-labels-and-printing.md#7a2-design-your-labels-templates-and-the-sticker-studio) (**Duplicate** on the **Standard label** card) |
@@ -336,3 +337,4 @@ Jump straight to the thing you're trying to do.
       - [Step 10 — Close the till](user-guide-store-app-and-help.md#step-10--close-the-till)
    - [14. Glossary](user-guide-store-app-and-help.md#14-glossary)
    - [15. Run an import through staging](user-guide-store-app-and-help.md#15-run-an-import-through-staging)
+   - [16. Share your module's API](user-guide-store-app-and-help.md#16-share-your-modules-api)

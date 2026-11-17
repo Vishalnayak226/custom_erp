@@ -48,8 +48,9 @@ const (
 // EInvoiceDocTypes maps the ERP's outward tax documents onto the IRP's types.
 // A debit note here is issued to a vendor (purchase side), so nothing in this
 // ERP produces an outward DBN yet; the type is accepted on a profile for when
-// one does.
-var EInvoiceDocTypes = map[string]string{"SalesInvoice": "INV", "CreditNote": "CRN"}
+// one does. A till bill (POSCart, 215.19) is an invoice: it is sent when it
+// names a buyer GSTIN, like any other B2B sale.
+var EInvoiceDocTypes = map[string]string{"SalesInvoice": "INV", "CreditNote": "CRN", "POSCart": "INV"}
 
 // IRPEnvironment is this server's IRP environment: "production" only where
 // IRP_ENVIRONMENT says so; anything else is the sandbox. It is part of every
@@ -501,6 +502,35 @@ type einvoiceLineSource struct {
 	// carries its own GST Rate and is billed under SAC 9968.
 	Charge string
 	Rate   float64
+	// RateSet makes Rate the item line's rate too (a till line, taxed at
+	// the rate checkout resolved, which may be 0).
+	RateSet bool
+}
+
+// posCartEInvoiceLines are a till bill's lines as checkout charged them
+// (pos_checkout.go: the line's price times its quantity, less its share of
+// the offers), each with the GST rate checkout used (215.19).
+func posCartEInvoiceLines(tenantID string, data map[string]interface{}) []einvoiceLineSource {
+	var cart posCart
+	raw, _ := json.Marshal(data)
+	if json.Unmarshal(raw, &cart) != nil {
+		return nil
+	}
+	var out []einvoiceLineSource
+	for _, l := range cart.Items {
+		if l.Qty <= 0 || strings.TrimSpace(l.Sku) == "" {
+			continue
+		}
+		line := einvoiceLineSource{SKU: l.Sku, Qty: float64(l.Qty), Gross: RupeesToPaise(l.SalePrice)*int64(l.Qty) - RupeesToPaise(l.OfferShare)}
+		if tax, err := GetItemTaxInfo(tenantID, l.Sku); err == nil {
+			line.RateSet = true
+			if tax.Taxable() {
+				line.Rate = tax.GSTRate
+			}
+		}
+		out = append(out, line)
+	}
+	return out
 }
 
 // salesInvoiceLines are the lines an invoice billed: its own items when it
@@ -608,7 +638,17 @@ func BuildCanonicalTaxDocument(tenantID, doctype, id string) (*IRPDocument, erro
 	var store, customerRef string
 	var lines []einvoiceLineSource
 	var posted int64
+	var tillB2B *POSB2BBuyer
 	switch doctype {
+	case "POSCart":
+		// 215.19: a B2B till bill. Its lines are the cart's, at the price
+		// charged less each line's share of the offers, taxed at the rate
+		// checkout used; its total is the rounded bill the customer paid.
+		doc.Meta.Number = firstNonEmpty(strField(data, "bill_number"), id)
+		store, customerRef = strField(data, "location"), strField(data, "customer_id")
+		tillB2B = POSB2BFromData(data)
+		lines = posCartEInvoiceLines(tenantID, data)
+		posted = RupeesToPaise(numFromInterface(data["amount_paid"]))
 	case "SalesInvoice":
 		doc.Meta.Number = firstNonEmpty(strField(data, "invoice_number"), id)
 		store, customerRef = strField(data, "location"), strField(data, "customer")
@@ -655,6 +695,15 @@ func BuildCanonicalTaxDocument(tenantID, doctype, id string) (*IRPDocument, erro
 	doc.SellerDtls = irpPartyFrom(seller)
 	doc.BuyerDtls = irpPartyFrom(buyer)
 	doc.BuyerDtls.Pos = doc.BuyerDtls.Stcd // goods delivered to the buyer's registered state
+	if tillB2B != nil && tillB2B.GSTIN != "" {
+		// The buyer as the cashier took them on the day, and the place of
+		// supply checkout decided: the store's state when the goods are
+		// collected at the counter, the buyer's when they are shipped.
+		doc.BuyerDtls = irpPartyFrom(PrintStore{Name: tillB2B.LegalName, LegalName: tillB2B.LegalName, Address: tillB2B.Address,
+			City: tillB2B.City, Pincode: tillB2B.Pincode, State: tillB2B.State, GSTIN: tillB2B.GSTIN})
+		doc.BuyerDtls.Pos = firstNonEmpty(tillB2B.PlaceOfSupply, doc.SellerDtls.Stcd)
+		doc.Meta.BuyerGSTIN = doc.BuyerDtls.Gstin
+	}
 	doc.Meta.Interstate = doc.SellerDtls.Stcd != "" && doc.BuyerDtls.Pos != "" && doc.SellerDtls.Stcd != doc.BuyerDtls.Pos
 
 	cache := map[string]map[string]interface{}{}
@@ -662,6 +711,9 @@ func BuildCanonicalTaxDocument(tenantID, doctype, id string) (*IRPDocument, erro
 	for i, l := range lines {
 		item := printItemFields(tenantID, l.SKU, cache)
 		rate := numFromInterface(item["gst_rate"])
+		if l.RateSet {
+			rate = l.Rate
+		}
 		if l.Charge != "" {
 			item, rate = map[string]interface{}{"name": l.Charge, "hsn_code": "9968"}, l.Rate
 		}

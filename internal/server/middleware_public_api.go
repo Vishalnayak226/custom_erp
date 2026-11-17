@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -139,6 +140,10 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 				logTenant = "default"
 			}
 			engines.RecordPublicAPIRequest(logTenant, entry)
+			// 205.22: a server fault on the public API reaches operations, at most once in ten minutes per company.
+			if entry.StatusCode >= 500 {
+				engines.AlertPublicAPIFault(logTenant, r.URL.Path, entry.StatusCode, correlationID)
+			}
 		}
 
 		// Stage 49.4.4: the same shared request envelope apiMiddleware applies.
@@ -149,6 +154,18 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 		}
 		defer cancelDeadline()
 
+		rawKey := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		// 205.4 (D10): a new key carries its company code, so X-Tenant-ID is
+		// optional for it. When both are sent and differ, the call is refused with
+		// the one generic answer.
+		if keyTenant := engines.PublicAPIKeyTenant(rawKey); keyTenant != "" {
+			if tenantID != "" && tenantID != keyTenant {
+				writeAPIErrorGeneric(rec, r, http.StatusUnauthorized, publicAPIAuthFailureMessage)
+				record("auth_failed")
+				return
+			}
+			tenantID = keyTenant
+		}
 		if tenantID == "" {
 			writeAPIErrorGeneric(rec, r, http.StatusUnauthorized, publicAPIAuthFailureMessage)
 			record("auth_failed")
@@ -156,7 +173,6 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 		}
 		r.Header.Set("Resolved-Tenant-ID", tenantID)
 
-		rawKey := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		// Stage 38.2d: an OAuth access token or an API key, judged by its own
 		// rules but failing with the same single answer.
 		var credential *engines.APICredential
@@ -172,6 +188,14 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 				record("auth_error")
 				return
 			}
+			// 205.4: once the secret itself proves right, say why the key stopped.
+			if !engines.IsOAuthAccessToken(rawKey) {
+				if code := engines.DiagnoseRefusedAPIKey(tenantID, strings.TrimSpace(rawKey)); code != "" {
+					writeAPIErrorDetail(rec, r, code, "", "")
+					record("refused:" + code)
+					return
+				}
+			}
 			writeAPIErrorGeneric(rec, r, http.StatusUnauthorized, publicAPIAuthFailureMessage)
 			record("auth_failed")
 			return
@@ -181,14 +205,51 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 		// The non-secret prefix, so a handler can say which integration acted.
 		r.Header.Set("Resolved-API-Credential", credential.KeyPrefix)
 
-		if !engines.APICredentialHasScope(credential, requiredScope) {
-			// Naming the missing scope is safe and saves an integrator a support
-			// ticket - it reveals nothing beyond what their own key already is.
-			writeAPIErrorGeneric(rec, r, http.StatusForbidden,
-				fmt.Sprintf("This API credential does not hold the %q scope required by this endpoint.", requiredScope))
-			record("scope_denied")
+		// 205.4: the ceiling, applied once for every route. The key's own list
+		// (IP, old secret, claim), the owner still active, the module in the plan
+		// and on the key, the document type shown and on the key, and the owner's
+		// rights today. A records route names its document type in the path.
+		access, accessErr := engines.LoadAPIKeyAccess(tenantID, credential.ID)
+		if accessErr != nil {
+			writeAPIErrorGeneric(rec, r, http.StatusServiceUnavailable, "Unable to verify the API credential - please retry shortly.")
+			record("auth_error")
 			return
 		}
+		doctype := r.PathValue("doctype")
+		refusal, ceilingErr := engines.CheckAPIKeyCall(tenantID, credential, access, doctype, publicAPIActionFor(r), clientIP(r))
+		if ceilingErr == nil && refusal == nil && publicAPIIsDecision(r) && !access.CanApprove {
+			refusal = &engines.APIRefusal{Code: engines.APIKeyNoApproval, Detail: "this key may not approve or reject"}
+		}
+		// 205.14 / 205.15: an action or a report names a module, not a document type.
+		if ceilingErr == nil && refusal == nil {
+			if module, write := publicAPIModuleCall(r); module != "" {
+				refusal, ceilingErr = engines.CheckAPIKeyModule(tenantID, credential, access, module, write)
+			}
+		}
+		if ceilingErr != nil {
+			writeAPIErrorGeneric(rec, r, http.StatusServiceUnavailable, "Unable to verify the API credential - please retry shortly.")
+			record("auth_error")
+			return
+		}
+		if refusal != nil {
+			writeAPIErrorDetail(rec, r, refusal.Code, "", refusal.Detail)
+			record("refused:" + refusal.Code)
+			return
+		}
+		switch requiredScope {
+		case publicAPIDynamicScope, publicAPIKeySelfScope:
+			// the module and level were judged by the ceiling above
+		default:
+			if !engines.APICredentialHasScope(credential, requiredScope) {
+				// Naming the missing scope is safe and saves an integrator a support
+				// ticket - it reveals nothing beyond what their own key already is.
+				writeAPIErrorGeneric(rec, r, http.StatusForbidden,
+					fmt.Sprintf("This API credential does not hold the %q scope required by this endpoint.", requiredScope))
+				record("scope_denied")
+				return
+			}
+		}
+		r = r.WithContext(context.WithValue(r.Context(), publicAPICallKey{}, &publicAPICall{Credential: credential, Access: access}))
 
 		budget, retryAfter, admitErr := engines.AdmitPublicAPIRequest(tenantID, credential.ID)
 		if budget != nil {
@@ -322,4 +383,47 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 		}
 		record("handled")
 	}
+}
+
+// Scope sentinels for the routes whose scope depends on the call (205.7, 205.9).
+// A records route needs <module>:read or <module>:write for the document type in
+// its path; /me needs only a valid key.
+const (
+	publicAPIDynamicScope = "<module>:read or <module>:write"
+	publicAPIKeySelfScope = "any valid key"
+)
+
+type publicAPICallKey struct{}
+
+// publicAPICall is what the middleware proved about the call, for the handler.
+type publicAPICall struct {
+	Credential *engines.APICredential
+	Access     *engines.APIKeyAccess
+}
+
+func publicAPICallFrom(r *http.Request) *publicAPICall {
+	call, _ := r.Context().Value(publicAPICallKey{}).(*publicAPICall)
+	return call
+}
+
+// publicAPIActionFor maps the request to the right the owner must hold.
+func publicAPIActionFor(r *http.Request) string {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		return "read"
+	case http.MethodDelete:
+		return "delete"
+	case http.MethodPut, http.MethodPatch:
+		return "update"
+	case http.MethodPost:
+		if r.PathValue("id") != "" {
+			return "update"
+		}
+		return "create"
+	}
+	return "update"
+}
+
+func publicAPIIsDecision(r *http.Request) bool {
+	return r.Method == http.MethodPost && (strings.HasSuffix(r.URL.Path, "/approve") || strings.HasSuffix(r.URL.Path, "/reject"))
 }

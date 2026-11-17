@@ -125,17 +125,22 @@ func matchEventPattern(pattern, eventName string) bool {
 // traceable to the request that caused the event.
 func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[string]interface{}, correlationID string) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, COALESCE(data->>'url', ''), COALESCE(data->>'secret', ''), COALESCE(data->>'event_pattern', '')
+		SELECT id, COALESCE(data->>'url', ''), COALESCE(data->>'secret', ''), COALESCE(data->>'event_pattern', ''), COALESCE(data->>'api_credential_id', ''), COALESCE(data->'events', '[]'::jsonb)
 		FROM %s.documents WHERE doctype = 'WebhookSubscription' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		log.Printf("[WEBHOOK] failed to list subscriptions for %s: %v", schema, err)
 		return
 	}
-	type sub struct{ id, url, secret, pattern string }
+	type sub struct {
+		id, url, secret, pattern, credID string
+		events                           []string
+	}
 	var subs []sub
 	for rows.Next() {
 		var s sub
-		if err := rows.Scan(&s.id, &s.url, &s.secret, &s.pattern); err == nil {
+		var rawEvents []byte
+		if err := rows.Scan(&s.id, &s.url, &s.secret, &s.pattern, &s.credID, &rawEvents); err == nil {
+			_ = json.Unmarshal(rawEvents, &s.events)
 			subs = append(subs, s)
 		}
 	}
@@ -143,6 +148,14 @@ func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[str
 
 	for _, s := range subs {
 		if !matchEventPattern(s.pattern, eventName) {
+			continue
+		}
+		// 205.16: a key's subscription gets only its key's modules' events,
+		// and document events go to a key's subscription only.
+		if s.credID == "" && isDocumentEvent(payload) {
+			continue
+		}
+		if s.credID != "" && !keySubscriptionMayReceive(schema, s.credID, s.events, eventName) {
 			continue
 		}
 		// 134.2: the job carries the subscription, not its signing secret -

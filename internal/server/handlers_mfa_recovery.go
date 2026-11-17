@@ -38,7 +38,7 @@ func verifyOwnPassword(w http.ResponseWriter, r *http.Request, tenantID, userID,
 		return false
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Password is incorrect")
+		writeAPIError(w, r, "GLOBAL-0312", "") // 206.7: 403, so the user stays signed in
 		return false
 	}
 	return true

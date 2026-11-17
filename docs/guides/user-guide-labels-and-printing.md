@@ -195,8 +195,8 @@ Set it once per printer. Every computer that prints to that printer uses it, and
 4. **Line up** - put the print in the middle of the tags, no measuring:
    1. Click **Line up**, then **Print** in the preview. Five rows of tags come out, lettered **A** to **E**. Each tag has a box just inside its edge. Each row is moved 0.5 mm further right than the one before; **C** is the shift you have now. The rows are drawn on the **Roll loaded**; with **None**, on the template ticked **Default** (or the only label-roll template). The preview names it under each row: check it is your roll before you print.
    2. Keep the Printer preset open. Look at the rows and find the one whose boxes sit evenly inside the tags.
-   3. Tap that letter under **Best row**. Its shift is saved at once, and a message says which.
-   4. If **A** or **E** was still not even, tap it and click **Line up** again: the next strip starts from there.
+   3. Tap that letter under **Best row**. Its shift is saved at once, a message says which, and the Printer preset closes.
+   4. If **A** or **E** was still not even, tap it, open **Printer preset** again and click **Line up**: the next strip starts from there.
 5. **Test alignment** prints one row with a box, a cross through the middle and the shift in use. Use it to check up and down too: if the box sits nearer the top or bottom of the tags, change **Shift down** (mm; a negative number moves up) and test again. The test uses the numbers on screen, saved or not.
 6. **Darkness** (0-15) and **Speed**: leave blank to keep each template's own; set them when every tag is too faint or smudged.
 7. **Save** (Line up has already saved its shift). The preset is kept on the Printer record (**Setup → Printing → Printer** shows the same fields), so it holds for every computer and every template. Only roles that may change printers can save.

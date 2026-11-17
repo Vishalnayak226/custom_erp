@@ -30,27 +30,47 @@ func catStr(v interface{}) string {
 	return strings.TrimSpace(fmt.Sprint(v))
 }
 
-// catDay is a stored date or timestamp as YYYY-MM-DD.
+// catDay is a stored date or timestamp as YYYY-MM-DD, on the business's
+// calendar (214.4): a moment is dated in BusinessLocation, so a receipt at
+// 01:00 IST is today's even though its stored stamp is yesterday in UTC.
+// A plain date, or a stamp with no zone, is already the business's day.
 func catDay(v interface{}) string {
 	switch t := v.(type) {
 	case time.Time:
 		if t.IsZero() {
 			return ""
 		}
-		return t.Format("2006-01-02")
+		return t.In(BusinessLocation()).Format("2006-01-02")
 	}
 	s := catStr(v)
+	if len(s) > 10 && s[4] == '-' {
+		if t, ok := catZonedStamp(s); ok {
+			return t.In(BusinessLocation()).Format("2006-01-02")
+		}
+	}
 	if len(s) >= 10 && s[4] == '-' {
 		return s[:10]
 	}
 	return s
 }
 
+// catZonedStamp reads a JSON event stamp that names its zone ("Z" or an
+// offset), as the engines and the browser write them.
+func catZonedStamp(s string) (time.Time, bool) {
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00", "2006-01-02 15:04:05.999999999Z07:00", "2006-01-02 15:04:05.999999999Z07", "2006-01-02 15:04Z07:00"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+// catStamp is a moment as the business's clock reads it (214.4).
 func catStamp(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("2006-01-02 15:04")
+	return t.In(BusinessLocation()).Format("2006-01-02 15:04")
 }
 
 // --- row accessors ---------------------------------------------------------

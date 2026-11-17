@@ -613,6 +613,17 @@ if (-not $onGitHub) {
 $jsFiles = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.js' } | ForEach-Object Path) + @('public/app.js') | Select-Object -Unique
 foreach ($js in $jsFiles) { Invoke-Native -Exe 'node' -Arguments @('--check', (Join-Path $wt $js)) | Out-Null }
 Note "node --check: $($jsFiles.Count) file(s)"
+# 221.1: a page drawn as an SVG image takes its CSS through svgStyle() in print-pdf.js,
+# which escapes it for XML. 0.25.0 shipped a "<style>" inside a CSS comment, the raw
+# copy made the image undecodable, and every silent bill print failed. The browser
+# smoke run (G10a) is optional, so this check is static and always runs.
+$rawSvgCss = @(Get-ChildItem -LiteralPath (Join-Path $wt 'public') -Filter '*.js' -Recurse -File | Where-Object {
+        $t = Get-Content -LiteralPath $_.FullName -Raw
+        $t -match 'image/svg\+xml' -and $t -match '<style>(\$\{|[''"`]\s*\+)'
+    } | ForEach-Object { $_.FullName.Substring($wt.Length + 1) })
+$rawSvgCss = @($rawSvgCss | Where-Object { $_ -ne 'public\print-pdf.js' -or (Get-Content -LiteralPath (Join-Path $wt $_) -Raw) -notmatch '(?s)export function svgStyle\(css\) \{\s*return `<style>\$\{String\(css\)\.replace\(/&/g, ''&amp;''\)\.replace\(/</g, ''&lt;''\)\}</style>`' })
+if ($rawSvgCss.Count) { Stop-Release "CSS put raw into an SVG image (use svgStyle from print-pdf.js): $($rawSvgCss -join ', ')" }
+Note 'SVG image CSS: escaped through svgStyle'
 foreach ($j in $goJobs) {
     $j.Proc.WaitForExit()
     $out = @(Get-Content -LiteralPath $j.Log -ErrorAction SilentlyContinue) + @(Get-Content -LiteralPath "$($j.Log).err" -ErrorAction SilentlyContinue)
