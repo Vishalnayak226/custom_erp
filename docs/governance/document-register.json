@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_commit": "a859b1d0d40c8273f214c1b8c3a1699f5b6034aa",
+  "source_commit": "43edfcf249f573cc303dee4a0b55aca40ee930ae",
   "captured_on": "2026-11-17",
   "scope": "working tree; provisional owners; not a release approval or pre-migration baseline",
   "documents": [
@@ -2719,10 +2719,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "a859b1d 2026-11-17",
+      "last_commit": "43edfcf 2026-11-17",
       "worktree_status": "modified",
       "bytes": 405622,
-      "sha256": "8ee810690b0c4a42f70f982e60e68307b4171d98ac0f5246ba91452a92bc723a",
+      "sha256": "c7db68bd0d549efc8692a44b2561008935f1e2c6eba5917349ab80e7a5c7453e",
       "inbound_links": [
         "docs/archive/readme.md",
         "docs/brain/README.md",
@@ -2740,10 +2740,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "a859b1d 2026-11-17",
+      "last_commit": "43edfcf 2026-11-17",
       "worktree_status": "modified",
       "bytes": 264493,
-      "sha256": "1cd75b02c4a40a508ee0dd5080209e6fa071e110b8e9333f34a6e09649241d34",
+      "sha256": "740650d4ce5d29d65f25f6a8c79d645d73cf46c4ac93d7ba0d90e93a3a6b941c",
       "inbound_links": [
         "docs/brain/README.md",
         "docs/brain/brain-map.md"
@@ -3097,10 +3097,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "a859b1d 2026-11-17",
+      "last_commit": "43edfcf 2026-11-17",
       "worktree_status": "modified",
       "bytes": 1023,
-      "sha256": "b63cca0c4b7dce3cb79d300ac86679a8c0f97369ba5b638a14b02c0d7a3dc45a",
+      "sha256": "06cb3b69abd73699dc012909af6001f128fc281564ad4bc4c337aad8c771b873",
       "inbound_links": [
         "docs/brain/brain-map.md"
       ]
@@ -11489,10 +11489,10 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "a859b1d 2026-11-17",
+      "last_commit": "43edfcf 2026-11-17",
       "worktree_status": "modified",
       "bytes": 44080,
-      "sha256": "f5ef6b797b9d7c95b8042e02ecafb8b6f977d075867f4019ca42f6730bf7bca9",
+      "sha256": "ead65cb0d621223eb53d9e7f2e10248e6340e567f164ad95b5c93708fdb5f322",
       "inbound_links": [
         "docs/brain/brain-map.md"
       ]
@@ -13589,9 +13589,9 @@
       "superseded_by": "none",
       "last_verified": "2026-10-29",
       "last_commit": "d11c8f2 2026-11-16",
-      "worktree_status": "clean",
-      "bytes": 82290,
-      "sha256": "d8625efe68633429a2a6e7469f4672f13a02357987ba2e1c94dc2a6339c2fbb1",
+      "worktree_status": "modified",
+      "bytes": 83604,
+      "sha256": "cf5c90915ebca0e198bf3f37f5428762976494853f6cecc72741695405333c5f",
       "inbound_links": [
         "docs/brain/brain-map.md",
         "docs/security/README.md"

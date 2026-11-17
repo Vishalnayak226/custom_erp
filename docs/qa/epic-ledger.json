@@ -1212,8 +1212,8 @@
     {
       "id": "release-0.27.0",
       "label": "release 0.27.0",
-      "recorded_at": "2026-11-17T04:16:04Z",
-      "commit": "a859b1d0d40c8273f214c1b8c3a1699f5b6034aa",
+      "recorded_at": "2026-11-17T04:26:00Z",
+      "commit": "43edfcf249f573cc303dee4a0b55aca40ee930ae",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {

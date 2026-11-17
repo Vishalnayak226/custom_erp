@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **691**; keyed: **38**; findings (money / stock without a key): **147**.
+Routes audited: **703**; keyed: **38**; findings (money / stock without a key): **148**.
 
 ## Findings
 
@@ -61,6 +61,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `ANY /api/v1/loyalty/adjustments` | `handleLoyaltyAdjustments` | stock |
 | `ANY /api/v1/loyalty/transfers` | `handleLoyaltyTransfers` | stock |
 | `ANY /api/v1/procurement/vendor-link/public/invoice` | `handleVendorLinkPublicInvoice` | money |
+| `POST /api/v1/api-access/keys/{id}/webhooks/deliveries/{d}/resend` | `handleAPIAccessWebhookResend` | stock |
 | `POST /api/v1/assets/depreciation/run` | `handleRunAssetDepreciation` | money |
 | `POST /api/v1/assets/transfer` | `handleTransferAsset` | stock |
 | `POST /api/v1/crm/loyalty-redemption/initiate` | `handleInitiateSecureLoyaltyRedemption` | money |
@@ -281,6 +282,9 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `DELETE /api/v1/admin/branding/logo` | `handleBrandingLogoAdmin` | no | - | document |
 | `DELETE /api/v1/admin/extension/hooks/{id}` | `handleDeleteExtensionHook` | no | - | document |
 | `DELETE /api/v1/admin/sandbox-tenants/{id}` | `handleDeleteSandboxTenant` | no | - | document |
+| `DELETE /api/v1/api-access/keys/{id}` | `handleAPIAccessRevokeKey` | no | - | document |
+| `DELETE /api/v1/api-access/keys/{id}/share-docs` | `handleAPIAccessShareDocsWithdraw` | no | - | document |
+| `DELETE /api/v1/api-access/keys/{id}/webhooks/{sub}` | `handleAPIAccessWebhooksDelete` | no | - | document |
 | `DELETE /api/v1/attachments/file/{attachmentID}` | `handleRemoveAttachment` | no | - | document |
 | `DELETE /api/v1/dashboards/custom/{id}` | `handleCustomDashboard` | no | - | document |
 | `DELETE /api/v1/dashboards/layouts/{id}` | `handleDeleteDashboardLayout` | no | - | document |
@@ -353,6 +357,13 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/admin/users/status` | `handleSetUserStatus` | no | - | document |
 | `POST /api/v1/admin/users/stores` | `handleUserStores` | no | - | document |
 | `POST /api/v1/admin/users/supplier` | `handleSetUserSupplier` | no | - | document |
+| `POST /api/v1/api-access/keys` | `handleAPIAccessCreateKey` | no | - | document |
+| `POST /api/v1/api-access/keys/{id}/fix` | `handleAPIAccessFix` | no | - | document |
+| `POST /api/v1/api-access/keys/{id}/rotate` | `handleAPIAccessRotateKey` | no | - | document |
+| `POST /api/v1/api-access/keys/{id}/share-docs` | `handleAPIAccessShareDocsCreate` | no | - | document |
+| `POST /api/v1/api-access/keys/{id}/take-over` | `handleAPIAccessTakeOver` | no | - | document |
+| `POST /api/v1/api-access/keys/{id}/webhooks` | `handleAPIAccessWebhooksCreate` | no | - | document |
+| `POST /api/v1/api-access/keys/{id}/webhooks/deliveries/{d}/resend` | `handleAPIAccessWebhookResend` | no | - | stock |
 | `POST /api/v1/approval/bulk-decide` | `handleBulkDecideApproval` | no | - | document |
 | `POST /api/v1/approval/decide` | `handleDecideApproval` | no | - | document |
 | `POST /api/v1/approval/submit` | `handleSubmitApproval` | no | - | document |
@@ -898,6 +909,8 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `PUT /api/v1/admin/api-credentials/{id}/limits` | `handleSetAPICredentialLimits` | no | - | document |
 | `PUT /api/v1/admin/data-governance/retention` | `handleSaveRetentionPolicy` | no | - | document |
 | `PUT /api/v1/admin/settings` | `handleUpdateSettings` | no | - | document |
+| `PUT /api/v1/api-access/keys/{id}/limits` | `handleAPIAccessSetLimits` | no | - | document |
+| `PUT /api/v1/api-access/keys/{id}/modules` | `handleAPIAccessUpdateModules` | no | - | document |
 | `PUT /api/v1/inventory/item-setup/fields` | `handleSaveItemFieldRules` | no | - | document |
 | `PUT /api/v1/me` | `handleUpdateProfile` | no | - | document |
 | `PUT /api/v1/meta/{doctype}/fields/{id}` | `handleUpdateFieldDefinition` | no | - | document |

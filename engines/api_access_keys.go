@@ -1041,7 +1041,7 @@ func ListAPIKeys(tenantID, actorID string, all bool, statusFilter string) ([]API
 	}
 	calls, errs := map[string]int{}, map[string]int{}
 	crow, err := db.DB.Query(fmt.Sprintf(`SELECT credential_id::text, COUNT(*), COUNT(*) FILTER (WHERE status_code >= 400)
-		FROM %s.api_request_log WHERE created_at >= CURRENT_DATE AND credential_id IS NOT NULL GROUP BY credential_id`, schema))
+		FROM %s.api_request_log WHERE created_at >= public.erp_day_start(public.erp_today()) AND credential_id IS NOT NULL GROUP BY credential_id`, schema))
 	if err == nil {
 		for crow.Next() {
 			var id string

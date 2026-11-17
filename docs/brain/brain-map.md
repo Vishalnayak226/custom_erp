@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `0d05b516` |
-| Brain redrawn | source graph 0d05b516 |
+| Graph built from commit | `a859b1d0` |
+| Brain redrawn | source graph a859b1d0 |
 | Regions / lobes | 38 / 8 |
 | Files in the working tree | 3199 (2440 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
 | Symbols in the graph | 28529 |
-| Cross-region relationships | 11727 extracted (97% inferred) + 8 declared by hand |
+| Cross-region relationships | 11728 extracted (97% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -45,7 +45,7 @@ flowchart LR
   n_business -->|4182| n_brainstem
   n_business -->|623| n_autonomic
   n_brainstem -->|566| n_business
-  n_peripheral -->|547| n_brainstem
+  n_peripheral -->|548| n_brainstem
   n_peripheral -->|298| n_business
   n_brainstem -->|210| n_autonomic
   n_business -->|196| n_peripheral
@@ -658,6 +658,7 @@ flowchart LR
   n_crm -.->|11| n_printing
   n_doc_kernel -.->|11| n_pos
   n_expenses -.->|11| n_tenancy
+  n_extensions -.->|11| n_http_edge
   n_finance -.->|11| n_assets
   n_hr -.->|11| n_tax
   n_manufacturing -.->|11| n_tenancy
@@ -674,7 +675,6 @@ flowchart LR
   n_connectors -.->|10| n_security_program
   n_doc_kernel -.->|10| n_approval
   n_expenses -.->|10| n_finance
-  n_extensions -.->|10| n_http_edge
   n_http_edge -.->|10| n_extensions
   n_mixed_handlers -.->|10| n_finance
   n_mixed_handlers -.->|10| n_inventory
@@ -1328,7 +1328,7 @@ The one door in. apiMiddleware does CORS allowlist, route-aware request envelope
 - `Run()` — [internal/server/routes.go](../../internal/server/routes.go#L23) · degree 67
 - `.close()` — [internal/server/middleware_compress.go](../../internal/server/middleware_compress.go#L137) · degree 34
 - `registerRoutes()` — [internal/server/routes.go](../../internal/server/routes.go#L298) · degree 25
-- `attachmentDisposition()` — [internal/server/attachment_disposition.go](../../internal/server/attachment_disposition.go#L10) · degree 22
+- `attachmentDisposition()` — [internal/server/attachment_disposition.go](../../internal/server/attachment_disposition.go#L10) · degree 23
 - `moduleGate()` — [internal/server/middleware.go](../../internal/server/middleware.go#L946) · degree 12
 
 **Wired to**
@@ -1341,7 +1341,7 @@ The one door in. apiMiddleware does CORS allowlist, route-aware request envelope
 - → **Extension Platform** — 10 relationships, 10 inferred
 - → **Persistence & Migrations** — 10 relationships, 10 inferred
 - → **Finance & General Ledger** — 9 relationships, 9 inferred
-- ← **Extension Platform** — 10 relationships, 10 inferred
+- ← **Extension Platform** — 11 relationships, 11 inferred
 - ← **Channel Connectors** — 8 relationships, 8 inferred
 - ← **Product Information (PIM)** — 6 relationships, 6 inferred
 - ← **Tenancy, Packaging & Settings** — 6 relationships, 6 inferred
@@ -3788,7 +3788,7 @@ Scoped external identities: read-only extension tokens plus durable digest-only 
 - → **Tenancy, Packaging & Settings** — 21 relationships, 21 inferred
 - → **Event Outbox & Async Job Runner** — 16 relationships, 16 inferred
 - → **Reporting Engine** — 13 relationships, 10 inferred
-- → **HTTP Edge & Middleware** — 10 relationships, 10 inferred
+- → **HTTP Edge & Middleware** — 11 relationships, 11 inferred
 - ← **CRM & Loyalty** — 13 relationships, 13 inferred
 - ← **SPA Shell** — 13 relationships, all extracted
 - ← **HTTP Edge & Middleware** — 10 relationships, 10 inferred
