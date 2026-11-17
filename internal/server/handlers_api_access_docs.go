@@ -62,7 +62,7 @@ func handleAPIAccessKeyPostman(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Disposition", `attachment; filename="erp-api.postman_collection.json"`)
+	w.Header().Set("Content-Disposition", attachmentDisposition("erp-api.postman_collection.json"))
 	apiSpecWrite(w, apiSpecPostman(BuildAPISpec31(opt), "ERP API: "+row.Name, tenantID, opt.BaseURL))
 }
 
