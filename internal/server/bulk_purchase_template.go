@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"custom_erp/engines"
 )
@@ -330,7 +329,7 @@ func (ls *bpLists) startSheet(k bpTplKind, dateOrder string) engines.XLSXSheet {
 	for i, l := range lines {
 		s.Rows = append(s.Rows, []engines.XLSXCell{swT(strconv.Itoa(i + 1)), swT(l)})
 	}
-	s.Rows = append(s.Rows, nil, []engines.XLSXCell{{}, swHint("Drop-downs list this organisation's records on " + time.Now().Format("2006-01-02") + ".")})
+	s.Rows = append(s.Rows, nil, []engines.XLSXCell{{}, swHint("Drop-downs list this organisation's records on " + engines.BusinessToday() + ".")})
 	return s
 }
 

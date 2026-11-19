@@ -1415,8 +1415,8 @@
     {
       "id": "release-0.28.0",
       "label": "release 0.28.0",
-      "recorded_at": "2026-11-19T05:40:07Z",
-      "commit": "401dbc64ec6791dd73022df618a759edca0b62a7",
+      "recorded_at": "2026-11-19T15:05:06Z",
+      "commit": "57895d54eb140840e96cf23712b77cca981764db",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {
@@ -1461,7 +1461,7 @@
           "status": "measured"
         },
         "budget.cold_core_gzip_bytes": {
-          "value": 183226,
+          "value": 183227,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
@@ -1473,13 +1473,13 @@
           "status": "measured"
         },
         "budget.initial_js_gzip_bytes": {
-          "value": 115000,
+          "value": 115001,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
         },
         "budget.initial_js_plus_first_screen_gzip_bytes": {
-          "value": 143217,
+          "value": 143218,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
@@ -1570,7 +1570,7 @@
           "status": "measured"
         },
         "static.public_gzip_bytes": {
-          "value": 4288337,
+          "value": 4288339,
           "unit": "bytes",
           "source": "each file gzipped on its own, summed (what a browser downloads)",
           "status": "measured"

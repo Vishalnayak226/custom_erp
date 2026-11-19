@@ -20,6 +20,7 @@ engines TestStage134OutboundGuard - an outbound call (a freight or marketplace A
 engines TestStage4962EveryPersonalFieldHasARegisteredPurpose - a personal-data field with no registered purpose
 engines TestStage4962RegisterRowsAreComplete - an incomplete personal-data register row
 engines TestStage4932NoSilentDefaultClient - code that falls back to the default client
+engines TestNoServerClockDays - a calendar day read from the server clock instead of engines.BusinessToday (stopped 0.28.0's first GitHub run in shard 11, ask 240)
 internal/server TestEveryAPIMiddlewareRouteIsClassified - a new route with no capability entry
 internal/server TestNoStaleRouteCapabilityEntries - a capability entry for a route that is gone
 internal/server TestStage4956EveryOverrideIsReviewed - a safe-override not in the reviewed list
