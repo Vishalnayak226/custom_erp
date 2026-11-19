@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-2.md",
-      "sha256": "93a5fb79124da2607c060646f0412f017f67fc29b0dbd89fb77a56623b6eda16",
+      "sha256": "9f3e07351fce3c11c5c4bb656b2d73c6a5e1a4b2d376098c648a9e781d5be776",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-3.md",
-      "sha256": "796f4a9c3f4cbfa287439e40276a838d1bc675e139041d124c6b823279b9af02",
+      "sha256": "cac92083a9a7981bef1d751844ef2bf07deedda0d13b831b32f7ac30402afe79",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -114,7 +114,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "f3d0bc825197b4bcd223f352287f237109d3d88a09b392a7ab0e766df3b7b55a",
+      "sha256": "c4315b498c0d752c96c06364073555c74fc1aafb0160ea771c650a5d8e8af456",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -244,7 +244,7 @@
     },
     {
       "path": "docs/qa/generated/backlog-journey-map.md",
-      "sha256": "2dbbbc35ddba32eaa4a7b8e1b45ca4ff49aedf0b2a5292c8f375fe21d96818e2",
+      "sha256": "06bfbf7cd9597fc205073aea839171cbb8c1ad6a09f6d016c2eecc123443eb8d",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

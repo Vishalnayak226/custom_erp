@@ -44,6 +44,13 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 413. "Once all build done push and deploy" - 0.28.0 released and deployed (2026-11-19, release fixes + guard list + tracker, ask 240; d6c4fa9 live on app + minn)
+
+- Taken as: wait until every live session (asks 230, 238, 239, 241) says it is done, then run the Release click and the Deploy click, as 204.1 and 219.1 did. Every session's finished work since 0.27.0 shipped (asks 230 and 233-241).
+- The Release click stopped twice locally. G0 found files changed in the last 10 minutes (the sessions' last record edits), so it waited. G4c found the cold core over budget (186,517 > 184,320 gzip bytes); ten long comment blocks in `public/app.js` were shortened, with no code change (101,843 gzip bytes).
+- The first GitHub run (44466840058) failed shard 11 on `TestNoServerClockDays`: `internal/server/bulk_purchase_template.go` (ask 237) read the day from `time.Now()`. It now uses `engines.BusinessToday()`. The test joined `release/guard-tests.txt` so the next miss stops in the guards job (README G10 row). Commit d6c4fa9 was run 44550943600, which passed 20/20 jobs, including the new evidence job, and moved main.
+- Deploy: backup first, 0 migrations, no client data changed. app and minn answer 0.28.0 (d6c4fa9). Prod still warns that `OPS_ALERT_WEBHOOK_URL` is unset. Detail: checklist 240.1.
+
 ## 412. "Build next 10 item all appproved recomeded. Dont ask anything just build" - Trusted Types trial behind a flag, browser budgets and journeys made on GitHub for every candidate (2026-11-19, server header + release gate + release.yml, ask 241; not committed)
 
 - Taken as: approve the recommended answer on every open item that waits only on a decision, and build those. Three of the ten qualified: 238.2, 47.9.4 and 47.17.2. Every other open item waits on the owner (devices, printers, credentials, counsel, people, a live run on app or production) or on the next release.

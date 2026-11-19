@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-08-22, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-24, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,19 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **49** earlier entries, 2026-07-27 to 2026-08-22.
+This page continues the [release notes](release-notes.md) with **51** earlier entries, 2026-07-27 to 2026-08-24.
+
+## 2026-08-24
+
+**Stage 42.5.5 — Multi-owner stock segregation, closing Phase 42.5 and Stage 42** *(code + schema)*
+
+Closes the one item §110 left open: 42.D2 ("is 3PL/multi-owner a real target?") was resolved — yes, build it, the same call already made for §112's 42.6.6-42.6.9. Phase 42.5 is now 8/8 and Stage 42 (58 items across 6 phases) is fully closed. Full item detail in `micro_checklist.md` Stage 42.
 
 ## 2026-08-22
+
+**Stage 42.6 — Labour and billing depth** *(code + schema)*
+
+All nine listed Phase 42.6 rows are built (the source heading calls the phase eight items, but the checklist contains 42.6.1 through 42.6.9).
 
 **Stage 35.5 — Courier integration crosses the provider boundary** *(code + schema)*
 

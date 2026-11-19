@@ -19,14 +19,16 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **289** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **290** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-08-22 to 2026-10-18
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-22
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-24
 
 ## 2026-11-19
+
+**"Once all build done push and deploy" - 0.28.0 released and deployed** *(release fixes + guard list + tracker, ask 240; d6c4fa9 live on app + minn)*
 
 **"Build next 10 item all appproved recomeded. Dont ask anything just build" - Trusted Types trial behind a flag, browser budgets and journeys made on GitHub for every candidate** *(server header + release gate + release.yml, ask 241; not committed)*
 
@@ -527,8 +529,4 @@ On Windows, an unset `HOST` now binds `127.0.0.1` (`internal/server/routes.go`),
 **Build run, steps 2 and 6-9: numbering, Inventory / WMS, small fixes, e-invoice, reports** *(code + docs, NOT COMMITTED)*
 
 From the user: *"Build 2 to 9 all"* (the module order recorded at the top of `micro_checklist.md`), then *"All approved which are recommended for me"* - recorded on 94.0, 95.0, 88 D12-D14, 73.0.1 and 74.0.1 (BRD defaults; CA sign-off still owed on the tax ones), 34.5 (not built). Full detail per item in `micro_checklist.md`.
-
-**Stage 95 — Images for each Design and Combination ID after the PO, stored on each client's own drive** *(code + docs, NOT COMMITTED)*
-
-From the user: *"We have to introduce image upload for Design and Varinat/Combination ID. Once PO doen, I will upload image"*, then *"You have suggest where I shoud upload that. Once config need to build to connect for erp and the upload drive. Client to client the url will change."* Suggested in chat and decided (asked): each client's own S3-compatible bucket (one connector for R2, Spaces, S3, B2, Wasabi, MinIO; Google Drive advised against - per-client OAuth, quotas, unstable links), uploads from the PO with the same strip on the Design / Item forms, the client's admin sets the drive. Full detail in `micro_checklist.md` Stage 95.
 

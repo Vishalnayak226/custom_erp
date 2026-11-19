@@ -19,11 +19,15 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **97** earlier entries, 2026-08-22 to 2026-10-18.
+This page continues the [release notes](release-notes.md) with **96** earlier entries, 2026-08-22 to 2026-10-18.
 
 Older still: [part 3](release-notes-3.md).
 
 ## 2026-10-18
+
+**Stage 95 — Images for each Design and Combination ID after the PO, stored on each client's own drive** *(code + docs, NOT COMMITTED)*
+
+From the user: *"We have to introduce image upload for Design and Varinat/Combination ID. Once PO doen, I will upload image"*, then *"You have suggest where I shoud upload that. Once config need to build to connect for erp and the upload drive. Client to client the url will change."* Suggested in chat and decided (asked): each client's own S3-compatible bucket (one connector for R2, Spaces, S3, B2, Wasabi, MinIO; Google Drive advised against - per-client OAuth, quotas, unstable links), uploads from the PO with the same strip on the Design / Item forms, the client's admin sets the drive. Full detail in `micro_checklist.md` Stage 95.
 
 **Stage 93 — A cost center for every location; legal entity and GSTIN required; every person in a department; postings carry store, company and team; old long codes cleaned once** *(code + docs, NOT COMMITTED)*
 
@@ -472,16 +476,4 @@ All four Stage 35.7 items are complete. `ProductBundle` is intentionally not ano
 **Stage 35.6 — channel breadth becomes an operational SDK** *(code + schema + UI)*
 
 All seven Stage 35.6 items are code-complete. The new connector contract declares auth validation, order pull, inventory push, catalogue publish, status push, error mapping and capabilities; the scheduler and UI consume capabilities instead of platform-name conditionals. Amazon and Flipkart implement their public seller contracts, WooCommerce implements REST v3, and Myntra/Meesho/Ajio/Nykaa/Blinkit/Zepto/Swiggy Instamart use a fail-closed negotiated-path adapter because their seller contracts are private. Quick-commerce descriptors bind orders to a store location and forbid split allocation.
-
-## 2026-08-24
-
-**Stage 42.5.5 — Multi-owner stock segregation, closing Phase 42.5 and Stage 42** *(code + schema)*
-
-Closes the one item §110 left open: 42.D2 ("is 3PL/multi-owner a real target?") was resolved — yes, build it, the same call already made for §112's 42.6.6-42.6.9. Phase 42.5 is now 8/8 and Stage 42 (58 items across 6 phases) is fully closed. Full item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-22
-
-**Stage 42.6 — Labour and billing depth** *(code + schema)*
-
-All nine listed Phase 42.6 rows are built (the source heading calls the phase eight items, but the checklist contains 42.6.1 through 42.6.9).
 
