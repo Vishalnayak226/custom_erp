@@ -19,14 +19,30 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **282** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **289** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-08-21 to 2026-10-18
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-20
+- [Part 2](release-notes-2.md) - 2026-08-22 to 2026-10-18
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-22
+
+## 2026-11-19
+
+**"Build next 10 item all appproved recomeded. Dont ask anything just build" - Trusted Types trial behind a flag, browser budgets and journeys made on GitHub for every candidate** *(server header + release gate + release.yml, ask 241; not committed)*
+
+**"fast it fast on processing all approved and all recommnded" - lists draw 20 rows first, a lighter phone boot, a faster first search key, G4 bumps every shell script** *(app shell + 3 screens + release script, ask 238; not committed)*
+
+**"compete buildanble next 10 items" - a deleted GRN stops counting, the GRN MRP click, deleted records leave the reports** *(engines + GRN steps screen + guide, ask 239; not committed)*
 
 ## 2026-11-17
+
+**"Fix 232.1 and approve the 205.24 write walk and Fix all the above issue and Fix the open items" - CI test fixes, the 205.24 walk, a Workbench bug, a faster G4c** *(tests + release scripts + PIM screen, ask 235; not committed)*
+
+**"Fix all the issue" - each extra print checked to its own printer** *(Guide suite only, ask 236; no repo code change)*
+
+**"Once they finish start working." - perf budgets re-baselined, two layout shifts fixed** *(app shell + CSS + ratchet, ask 233; not committed)*
+
+**"Take necessary action. and build all approved all. release" - 0.27.0 released and deployed** *(release fixes + tracker, ask 232; 584eebd live on app + minn)*
 
 **"Build all the pending above approved recommeded" - Share module API stays Admin only** *(test + KB, ask 228; not committed)*
 
@@ -515,12 +531,4 @@ From the user: *"Build 2 to 9 all"* (the module order recorded at the top of `mi
 **Stage 95 — Images for each Design and Combination ID after the PO, stored on each client's own drive** *(code + docs, NOT COMMITTED)*
 
 From the user: *"We have to introduce image upload for Design and Varinat/Combination ID. Once PO doen, I will upload image"*, then *"You have suggest where I shoud upload that. Once config need to build to connect for erp and the upload drive. Client to client the url will change."* Suggested in chat and decided (asked): each client's own S3-compatible bucket (one connector for R2, Spaces, S3, B2, Wasabi, MinIO; Google Drive advised against - per-client OAuth, quotas, unstable links), uploads from the PO with the same strip on the Design / Item forms, the client's admin sets the drive. Full detail in `micro_checklist.md` Stage 95.
-
-**Stage 93 — A cost center for every location; legal entity and GSTIN required; every person in a department; postings carry store, company and team; old long codes cleaned once** *(code + docs, NOT COMMITTED)*
-
-From the user's Cost Center, Department, Legal Entity and Location screenshots: *"Can it create auto cost center once I create a store ... Not this lengthy name"*, then *"It should ask Mandatory field and auto linked ... If I create diff entity ... How to assign a user to dept? ... If HR, IF someone don't take HR than? ... I want to mapped from day one automatically ... Clean them and ask to set them once."* The three masters and Location were explained in chat first, at the user's request. Decisions (asked): every location type; existing locations linked or given one on release; tagging built in the same pass; department on the User with the Employee leading under HR; postings take the raiser's department; GSTIN mandatory, standard format only; old codes cleaned in a guided step. Full detail in `micro_checklist.md` Stage 93.
-
-**Stage 92 — The submitter may approve their own documents; Send to Vendor without a vendor email** *(code + docs, NOT COMMITTED)*
-
-From the user's Approvals screenshot (an admin refused on their own PO, APPROV-0840) and Send to Vendor screenshot: *"As Admin it should allow to approve all"*, *"Client also create PO and approve. Any one approve. Its ok."* Full detail in `micro_checklist.md` Stage 92.
 

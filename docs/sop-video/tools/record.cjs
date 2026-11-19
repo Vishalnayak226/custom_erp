@@ -20,9 +20,22 @@ const stateFile = path.join(fixtureDir, 'run-state.local.json');
 const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { tag: process.env.SOP_RUN_TAG || 'Oct 2026 A' };
 const playwright = require(require.resolve('playwright', { paths: [process.cwd(), process.env.USERPROFILE || process.env.HOME || ''] }));
 
+// Every lesson starts as a fresh sign-in. The server keeps the account's
+// working store, so a till lesson's shop choice would carry into the next
+// lesson and filter its lists: put it back on All stores first. Till lessons
+// choose their shop on screen.
+async function resetWorkingStore(context) {
+  const auth = JSON.parse(fs.readFileSync(authPath, 'utf8'));
+  const token = (auth.origins || []).flatMap(o => o.localStorage || []).find(e => e.name === 'erp_token')?.value;
+  if (!token) return;
+  const res = await context.request.post(new URL('/api/v1/me/working-store', base).href, { headers: { Authorization: `Bearer ${token}` }, data: { store: '*' } });
+  if (!res.ok()) console.warn(`Working store not reset (${res.status()}); lists may follow the last lesson's shop.`);
+}
+
 async function main() {
   const browser = await playwright.chromium.launch({ headless: true });
   const context = await browser.newContext({ storageState: authPath, viewport: { width: 1280, height: 720 }, recordVideo: { dir: outputDir, size: { width: 1280, height: 720 } }, reducedMotion: 'reduce' });
+  await resetWorkingStore(context);
   const page = await context.newPage(); page.setDefaultTimeout(18000);
   const apiErrors = [];
   page.on('response', r => { if (new URL(r.url()).pathname.startsWith('/api/') && r.status() >= 400) apiErrors.push({ path: new URL(r.url()).pathname, status: r.status() }); });

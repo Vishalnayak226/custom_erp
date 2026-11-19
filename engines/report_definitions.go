@@ -286,7 +286,7 @@ func ageingBucketDrillDown(tenantID, doctype, status, amountField, bucketLabel s
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data, COALESCE((data->>$1)::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone'), COALESCE(data->>'due_date', ''),
 		       COALESCE((data->>'outstanding_amount')::numeric, (data->>$1)::numeric, 0)
-		FROM %s.documents WHERE doctype = $2 AND status = $3`, schema), amountField, doctype, status)
+		FROM %s.documents WHERE doctype = $2 AND status = $3 AND deleted_at IS NULL`, schema), amountField, doctype, status)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func getGRNRegisterReport(tenantID string, params map[string]string) ([]map[stri
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data, status, created_at FROM %s.documents WHERE doctype = 'GRN' ORDER BY created_at DESC`, schema))
+		SELECT id, data, status, created_at FROM %s.documents WHERE doctype = 'GRN' AND deleted_at IS NULL ORDER BY created_at DESC`, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +482,7 @@ func getProductionOrderStatusReport(tenantID string, params map[string]string) (
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data, status, created_at FROM %s.documents WHERE doctype = 'ProductionOrder' ORDER BY created_at DESC`, schema))
+		SELECT id, data, status, created_at FROM %s.documents WHERE doctype = 'ProductionOrder' AND deleted_at IS NULL ORDER BY created_at DESC`, schema))
 	if err != nil {
 		return nil, err
 	}

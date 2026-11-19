@@ -9,8 +9,8 @@ audience: [trainers, operators, administrators]
 applies_to: 2026-10-05 local training edition
 authority: proposed-policy
 confidentiality: internal
-last_verified: 2026-10-11
-review_by: 2026-11-05
+last_verified: 2026-11-18
+review_by: 2027-02-16
 supersedes: none
 superseded_by: none
 ---
@@ -20,16 +20,18 @@ superseded_by: none
 Open [the chapter player](index.html) for step navigation, or play a whole
 chapter as one seekable video from `output/` - one file per chapter,
 named by its id (for example `output/online_order.webm`).
-As of 2026-10-11 there are **25 chapters, one per module, all 64 steps recorded**;
+As of 2026-11-17 there are **25 chapters, one per module, all 64 steps re-recorded on the final screens**;
 [coverage.md](coverage.md) lists what each module has and what is not yet filmed. This is still a **draft training edition**: the clips come from a
 disposable training database, there is no voice track, and no business owner has
 signed a chapter off. `output/all-ready.webm` is the
 earlier Purchase Requisition walkthrough, kept as it was.
 
-The recordings themselves (`media/` and `output/`, about 500 MB) are **not in git** -
+The recordings themselves (`media/` and `output/`, about 630 MB) are **not in git** -
 they live on the machine that recorded them and are rebuilt from the tracked
 scripts and tools here. How the finished chapters reach clients is still to be
 decided (checklist 57.12a); once it is, this paragraph will say where they are.
+The 2026-10-11 chapter drafts are kept in `output/previous-2026-10-11/` until the
+owner signs the re-recorded edition off.
 
 ## How the chapters work
 
@@ -65,5 +67,7 @@ commit that file, access tokens or live customer data. Use an isolated disposabl
 database, test personas and clearly labelled fixtures. The recording command is
 `node docs/sop-video/tools/record.cjs <segment-id>`, with `SOP_BASE_URL`,
 `SOP_OUTPUT_DIR` and `SOP_FIXTURE_DIR` set for the local session. Review the raw
-clip and transaction readback before copy-in. Human narration can be added later
+clip and transaction readback before copy-in. The dispatch lesson needs one Active
+`CourierServiceArea` in the training database (any courier name, blank pincode
+prefix), so that Pack books the courier. Human narration can be added later
 per segment; replacing one segment must never require re-recording unrelated steps.

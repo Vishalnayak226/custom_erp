@@ -146,3 +146,62 @@ func TestParseEvidenceFileFillsTheCommitAndKeepsAFailure(t *testing.T) {
 		t.Fatalf("a failed drill after a pass must stay a fail with the first pass kept: %+v", g)
 	}
 }
+
+// TestGitHubKindsAreDeferredAndJudged (47.9.4, 47.17.2): the kinds release.yml's
+// evidence job makes are deferred in the click's record, never read there, and
+// the job's judge applies the click's own rules, policy and exceptions - so it
+// fails only when the gate would block.
+func TestGitHubKindsAreDeferredAndJudged(t *testing.T) {
+	in := baseInput(t)
+	for _, k := range []string{"browser_budget", "journey"} {
+		in.Policy.Evidence[k] = EvidencePolicy{Mode: ModeBlockAfterPass, MaxAgeDays: 14}
+	}
+	missAfterPass := &Evidence{Kind: "browser_budget", Date: "2026-11-05", Commit: sha1, Result: "fail", By: "perf-budget.cjs", FirstPass: "2026-11-01"}
+	in.Evidence["browser_budget"] = missAfterPass
+	if c := find(Evaluate(in), "evidence.browser_budget"); c.Status != Fail {
+		t.Fatalf("read by the click, a miss after a pass must block: %s %q", c.Status, c.Detail)
+	}
+	in.GitHubKinds = map[string]bool{"browser_budget": true, "journey": true}
+	rec := Evaluate(in)
+	for _, k := range []string{"browser_budget", "journey"} {
+		if c := find(rec, "evidence."+k); c.Status != Deferred || !strings.Contains(c.Detail, "release.yml") {
+			t.Errorf("%s made on GitHub must be deferred to that job: %s %q", k, c.Status, c.Detail)
+		}
+	}
+	if rec.Verdict != "pass" {
+		t.Fatalf("deferred kinds must not fail the click: %v", rec.Failures())
+	}
+	if c := find(rec, "evidence.rollback"); c.Status != Warn {
+		t.Fatalf("every other kind is still read from release/evidence: %s", c.Status)
+	}
+
+	cases := []struct {
+		name string
+		ev   *Evidence
+		want Status
+	}{
+		{"no run yet warns", nil, Warn},
+		{"a first run that missed warns", &Evidence{Kind: "browser_budget", Date: "2026-11-05", Commit: sha1, Result: "fail", By: "perf-budget.cjs"}, Warn},
+		{"a pass passes", &Evidence{Kind: "browser_budget", Date: "2026-11-05", Commit: sha1, Result: "pass", By: "perf-budget.cjs", FirstPass: "2026-11-05"}, Pass},
+		{"a miss after a pass blocks", missAfterPass, Fail},
+		{"a pass for another commit blocks once it has passed", &Evidence{Kind: "browser_budget", Date: "2026-11-05", Commit: sha2, Result: "pass", By: "perf-budget.cjs", FirstPass: "2026-11-01"}, Fail},
+	}
+	for _, c := range cases {
+		in.Evidence = map[string]*Evidence{}
+		if c.ev != nil {
+			in.Evidence["browser_budget"] = c.ev
+		}
+		got := JudgeEvidence(in, []string{"browser_budget"})
+		if len(got) != 1 || got[0].ID != "evidence.browser_budget" || got[0].Status != c.want {
+			t.Errorf("%s: %+v", c.name, got)
+		}
+	}
+	// A valid exception covering the kind excepts a known miss in the judge too.
+	p2 := okExc("P2")
+	p2.Covers = []string{"browser_budget"}
+	in.Exceptions = &ExceptionFile{Exceptions: []Exception{p2}}
+	in.Evidence = map[string]*Evidence{"browser_budget": missAfterPass}
+	if got := JudgeEvidence(in, []string{"browser_budget", "journey"}); got[0].Status != Excepted || got[1].Status != Warn {
+		t.Fatalf("covered miss and missing journey: %+v", got)
+	}
+}

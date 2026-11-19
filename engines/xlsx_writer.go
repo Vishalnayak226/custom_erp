@@ -68,6 +68,12 @@ func xmlEscape(s string) string {
 type XLSXListValidation struct {
 	Col, FromRow, ToRow int
 	Options             []string
+	// Ask 237: Range takes the list from cells instead, such as
+	// `'Lists'!$A$2:$A$90`, so it has no length limit. AllowOther lets a value
+	// that is not in the list be kept after a warning (a new vendor or
+	// attribute value); without it the cell refuses it.
+	Range      string
+	AllowOther bool
 }
 
 func xlsxSheetName(name string, i int) string {
@@ -208,13 +214,24 @@ func WriteXLSXBook(sheets []XLSXSheet) ([]byte, error) {
 		var dv strings.Builder
 		count := 0
 		for _, v := range s.Validations {
-			list := strings.Join(v.Options, ",")
-			if len(v.Options) == 0 || len(list) > 255 || strings.ContainsAny(strings.Join(v.Options, ""), `,"`) || v.ToRow < v.FromRow {
+			if v.ToRow < v.FromRow {
 				continue
 			}
+			formula := v.Range
+			if formula == "" {
+				list := strings.Join(v.Options, ",")
+				if len(v.Options) == 0 || len(list) > 255 || strings.ContainsAny(strings.Join(v.Options, ""), `,"`) {
+					continue
+				}
+				formula = `"` + list + `"`
+			}
+			style := ""
+			if v.AllowOther {
+				style = ` errorStyle="warning" errorTitle="New value" error="Not in the list yet. Choose Yes to add it as new."`
+			}
 			col := xlsxColName(v.Col)
-			fmt.Fprintf(&dv, `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="%s%d:%s%d"><formula1>"%s"</formula1></dataValidation>`,
-				col, v.FromRow+1, col, v.ToRow+1, xmlEscape(list))
+			fmt.Fprintf(&dv, `<dataValidation type="list" allowBlank="1" showErrorMessage="1"%s sqref="%s%d:%s%d"><formula1>%s</formula1></dataValidation>`,
+				style, col, v.FromRow+1, col, v.ToRow+1, xmlEscape(formula))
 			count++
 		}
 		if count > 0 {

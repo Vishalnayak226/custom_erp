@@ -70,6 +70,16 @@ $last = if (Test-Path $lastPath) { Get-Content $lastPath -Raw | ConvertFrom-Json
 # commit under them - exactly the commit that passed the gates, and on origin. Any
 # other file after it still stops.
 $recordFiles = @('docs/micro_checklist.md', 'docs/project_ledger.md', 'docs/ai_handover.md') + $BrainRedrawFiles
+# 232.1: the records commit also carries the docs made from the records
+# (Update-RecordsDocs.ps1): every output the Content manifests declare, and the
+# manifests. The release commit ships its own copy of them.
+foreach ($name in 'governance', 'guides', 'kb', 'manuals') {
+    $rel = "docs/generated/$name-manifest.json"
+    $raw = & git -C $repo show "origin/main:$rel" 2>$null
+    if ($LASTEXITCODE -ne 0) { continue }
+    $recordFiles += $rel
+    try { $recordFiles += @((($raw -join "`n") | ConvertFrom-Json).outputs.path) } catch { }
+}
 # D0f (177.3): a release whose tests run on GitHub waits on candidate/<version> until
 # .github/workflows/release.yml passes and fast-forwards main to it. Wait for that run
 # here; -Check only reports it. A failed run stops: main never got that commit.

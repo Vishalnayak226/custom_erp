@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-08-20, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-22, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,27 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **45** earlier entries, 2026-07-27 to 2026-08-20.
+This page continues the [release notes](release-notes.md) with **49** earlier entries, 2026-07-27 to 2026-08-22.
+
+## 2026-08-22
+
+**Stage 35.5 — Courier integration crosses the provider boundary** *(code + schema)*
+
+All six Stage 35.5 items are code-complete using the parity plan's default first providers, Delhivery and Shiprocket; actually calling either account remains credential-gated. Full item detail is in `micro_checklist.md` Stage 35.
+
+**Stage 42.5 — Inventory control depth: physical inventory, CycleClass, replenishment breadth, slotting v2, facility hierarchy/copy/cross-facility inquiry** *(code + schema)*
+
+7 of 8 items (42.5.1-42.5.4, 42.5.6-42.5.8); 42.5.5 (multi-owner stock segregation) excluded, still gated on open decision 42.D2 (is 3PL a real target?). Full item-by-item detail in `micro_checklist.md` Stage 42.
+
+## 2026-08-21
+
+**Stage 46 — Money precision: paise migration** *(code + schema)*
+
+Closed the two items both `docs/archive/audits/durability-audit-2026-07-31.md` and `docs/archive/audits/erp-loopholes-analysis.md`'s 2026-08-20 re-evaluation still carried as genuinely open. Full item-by-item detail in `micro_checklist.md` Stage 46.
+
+**Stage 42.4 CLOSED — Outbound depth: waves, sortation, cartonization v2, packing validation, deconsolidation, loading + Bill of Lading, pre-ship gate, and VAS/kitting off the existing BOM** *(code + schema + frontend)*
+
+Closed all 11 items of Phase 42.4 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
 
 ## 2026-08-20
 

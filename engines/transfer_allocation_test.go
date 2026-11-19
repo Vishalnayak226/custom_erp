@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"bytes"
 	"custom_erp/db"
 	"strings"
 	"testing"
@@ -54,14 +55,88 @@ func TestStage146312StoreAllocationUpload(t *testing.T) {
 		t.Fatalf("shortfalls = %+v; want %s wanted 14, short 4", res.Shortfalls, skuA)
 	}
 
-	// Bad rows: per-row errors with the file's row number; a real run makes nothing.
-	bad := "store,sku,qty\n" + s1 + "," + skuA + ",3\nNOWHERE," + skuA + ",3\n" + s2 + ",NO-SUCH-SKU,3\n" + s2 + "," + skuA + ",0\n" + src + "," + skuA + ",1\n"
+	// Bad rows: per-row errors with the file's row number. Ask 237.7 (D23
+	// changed): a real run makes the good rows' Drafts and hands the bad ones
+	// back, each with its reason, to fix and upload under a new run ID.
+	// With a byte-order mark, as Excel saves a CSV.
+	bad := string(rune(0xFEFF)) + "store,sku,qty\n" + s1 + "," + skuA + ",3\nNOWHERE," + skuA + ",3\n" + s2 + ",NO-SUCH-SKU,3\n" + s2 + "," + skuA + ",0\n" + src + "," + skuA + ",1\n"
 	res, err = RunStoreAllocation(tenantID, AllocationRequest{RunID: "RUN-BAD", FromWarehouse: src}, strings.NewReader(bad), "maker", true)
-	if err != nil || len(res.Errors) != 4 || res.Errors[0].RowNumber != 3 {
+	if err != nil {
+		t.Fatalf("bad rows preview: %v", err)
+	}
+	if len(res.Errors) != 4 || res.Errors[0].RowNumber != 3 {
 		t.Fatalf("bad rows: %v %+v; want 4 row errors starting at row 3", err, res.Errors)
 	}
-	if _, err = RunStoreAllocation(tenantID, AllocationRequest{RunID: "RUN-BAD", FromWarehouse: src}, strings.NewReader(bad), "maker", false); code(err) != "STOCKT-0488" || count("RUN-BAD") != 0 {
-		t.Fatalf("a real run with bad rows must make nothing (STOCKT-0488), got %v / %d", err, count("RUN-BAD"))
+	res, err = RunStoreAllocation(tenantID, AllocationRequest{RunID: "RUN-BAD", FromWarehouse: src}, strings.NewReader(bad), "maker", false)
+	if err != nil || len(res.Created) != 1 || count("RUN-BAD") != 1 {
+		t.Fatalf("a real run with bad rows should make the good row's Draft: %v / %d made", err, count("RUN-BAD"))
+	}
+	if strings.Join(res.FixHeader, ",") != "store,sku,qty,Reason" || len(res.FixRows) != 4 ||
+		res.FixRows[0][0] != "NOWHERE" || !strings.Contains(res.FixRows[0][3], "not a location") || res.FixRows[3][3] != "store is the source" {
+		t.Fatalf("rows to fix = %q / %q", res.FixHeader, res.FixRows)
+	}
+	// Every row bad: nothing is made.
+	allBad := "store,sku,qty\nNOWHERE," + skuA + ",3\n"
+	if _, err = RunStoreAllocation(tenantID, AllocationRequest{RunID: "RUN-ALLBAD", FromWarehouse: src}, strings.NewReader(allBad), "maker", false); code(err) != "STOCKT-0488" || count("RUN-ALLBAD") != 0 {
+		t.Fatalf("a real run with no good row must make nothing (STOCKT-0488), got %v / %d", err, count("RUN-ALLBAD"))
+	}
+
+	// 237.7: the wide sheet, as .xlsx - a SKU column, a column per store, a
+	// "#" hint row. A blank or 0 cell sends nothing; a bad cell is left out
+	// with the rest of its row made, and the rows-to-fix row keeps only it.
+	wideBook, err := WriteXLSXBook([]XLSXSheet{{Name: "Allocation", Rows: [][]XLSXCell{
+		{{Text: "Combination ID*"}, {Text: "Design No"}, {Text: "Received Qty"}, {Text: s1}, {Text: s2}},
+		{{Text: "# From GRN"}, {}, {}, {Text: "Store one"}, {Text: "Store two"}},
+		{{Text: skuA}, {Text: "D1"}, {Num: 10, IsNum: true}, {Num: 4, IsNum: true}, {Text: "two"}},
+		{{Text: skuB}, {Text: "D2"}, {Num: 5, IsNum: true}, {Num: 0, IsNum: true}, {Num: 2, IsNum: true}},
+		{{Text: "NO-SUCH-SKU"}, {}, {}, {Num: 1, IsNum: true}},
+		{{Text: skuA}, {Text: "D1"}, {Num: 10, IsNum: true}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err = RunStoreAllocation(tenantID, AllocationRequest{RunID: "RUN-WIDE", FromWarehouse: src}, bytes.NewReader(wideBook), "maker", false)
+	if err != nil || len(res.Created) != 2 || count("RUN-WIDE") != 2 {
+		t.Fatalf("wide sheet: %v %+v", err, res)
+	}
+	units := map[string]int{}
+	for _, s := range res.Stores {
+		units[s.Store] = s.Units
+	}
+	if units[s1] != 4 || units[s2] != 2 {
+		t.Fatalf("wide sheet units = %v, want %s 4 and %s 2", units, s1, s2)
+	}
+	if len(res.Errors) != 2 || res.Errors[0].RowNumber != 3 || !strings.Contains(res.Errors[0].Message, s2+": qty") || res.Errors[1].RowNumber != 5 {
+		t.Fatalf("wide sheet errors = %+v", res.Errors)
+	}
+	if fr := res.FixRows[0]; fr[0] != skuA || fr[3] != "" || fr[4] != "two" || fr[5] == "" {
+		t.Fatalf("wide rows-to-fix row = %q, want the bad cell only", fr)
+	}
+	if _, err = RunStoreAllocation(tenantID, AllocationRequest{RunID: "RUN-WIDE2", FromWarehouse: src},
+		strings.NewReader("sku,"+s1+",Shelf\n"+skuA+",1,2\n"), "maker", true); code(err) != "STOCKT-0488" || !strings.Contains(err.Error(), "Shelf") {
+		t.Fatalf("a store column that is not a location should be named, got %v", err)
+	}
+
+	// 237.7: the goods receipt sheet - the accepted qty per SKU (received less
+	// rejected, or the accepted qty given), every store but the receipt's own;
+	// a receipt whose stock is not in yet has no sheet.
+	insert("GRN-ALLOC-1", "GRN", "Approved", "system", map[string]interface{}{"code": "GRN-ALLOC-1", "location": src,
+		"received_items": `[{"sku":"` + skuA + `","qty":6,"rejected_qty":1},{"sku":"` + skuB + `","qty":4,"accepted_qty":2},{"sku":"` + skuA + `","qty":3}]`})
+	insert("GRN-ALLOC-2", "GRN", "Draft", "system", map[string]interface{}{"code": "GRN-ALLOC-2", "location": src,
+		"received_items": `[{"sku":"` + skuA + `","qty":1}]`})
+	sheet, err := GetGRNAllocationSheet(tenantID, "GRN-ALLOC-1")
+	if err != nil || sheet.Location != src || len(sheet.Lines) != 2 || sheet.Lines[0].SKU != skuA || sheet.Lines[0].Qty != 8 || sheet.Lines[1].Qty != 2 || sheet.Lines[0].Name != skuA {
+		t.Fatalf("GRN sheet = %+v (%v)", sheet, err)
+	}
+	seen := map[string]bool{}
+	for _, s := range sheet.Stores {
+		seen[s.Code] = true
+	}
+	if !seen[s1] || !seen[s2] || seen[src] {
+		t.Fatalf("GRN sheet stores = %+v, want %s and %s but not the source %s", sheet.Stores, s1, s2, src)
+	}
+	if _, err := GetGRNAllocationSheet(tenantID, "GRN-ALLOC-2"); code(err) != "STOCKT-0488" || !strings.Contains(err.Error(), "not posted") {
+		t.Fatalf("a receipt not posted should have no sheet, got %v", err)
 	}
 	if _, err = RunStoreAllocation(tenantID, AllocationRequest{FromWarehouse: src}, strings.NewReader(good), "maker", true); code(err) != "STOCKT-0488" {
 		t.Fatalf("a missing run ID should be STOCKT-0488, got %v", err)

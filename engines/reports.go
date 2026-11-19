@@ -247,14 +247,14 @@ func vendorLedgerPage(tenantID, vendorFilter string, page ReportPage) ([]map[str
 		       COALESCE(data->>'po_number', '') AS po_number,
 		       COALESCE((data->>'total_amount')::numeric, 0) AS total_amount,
 		       COALESCE(status, '') AS status, created_at
-		FROM %s.documents WHERE doctype = 'PurchaseOrder'`, schema)
+		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND deleted_at IS NULL`, schema)
 	var args []interface{}
 	if vendorFilter != "" {
 		query += " AND data->>'vendor' = $1"
 		args = append(args, vendorFilter)
 	}
 	var total int
-	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'PurchaseOrder'`, schema)
+	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'PurchaseOrder' AND deleted_at IS NULL`, schema)
 	if vendorFilter != "" {
 		countSQL += " AND data->>'vendor' = $1"
 	}
@@ -311,7 +311,7 @@ func GetPOCommitmentsReport(tenantID string) ([]PayablesAgeingBucket, error) {
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone')
-		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND status = 'Approved'`, schema))
+		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND status = 'Approved' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +374,7 @@ func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error)
 	// applied credit notes taken off), so the buckets sum to GL 1300.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT %s, created_at AT TIME ZONE current_setting('TimeZone'), COALESCE(data->>'due_date', '')
-		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved'`, salesInvoiceOutstandingSQL, schema))
+		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND deleted_at IS NULL`, salesInvoiceOutstandingSQL, schema))
 	if err != nil {
 		return nil, err
 	}

@@ -9,10 +9,10 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `a859b1d0` |
-| Brain redrawn | source graph a859b1d0 |
+| Graph built from commit | `43edfcf2` |
+| Brain redrawn | source graph 43edfcf2 |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 3199 (2440 of them parsed into the graph) |
+| Files in the working tree | 3202 (2440 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
 | Symbols in the graph | 28529 |
 | Cross-region relationships | 11728 extracted (97% inferred) + 8 declared by hand |
@@ -36,11 +36,11 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 flowchart LR
   n_cortex["Cortex — Interface<br/><small>177 files · 2787 symbols</small>"]
   n_brainstem["Brainstem — Kernel<br/><small>747 files · 2767 symbols</small>"]
-  n_business["Functional Lobes — Business Operations<br/><small>651 files · 7923 symbols</small>"]
+  n_business["Functional Lobes — Business Operations<br/><small>653 files · 7923 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>96 files · 1586 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>23 files · 280 symbols</small>"]
   n_memory["Hippocampus — Written Memory<br/><small>504 files · 5987 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>72 files · 337 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>73 files · 337 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>929 files · 4640 symbols</small>"]
   n_business -->|4182| n_brainstem
   n_business -->|623| n_autonomic
@@ -100,11 +100,11 @@ flowchart LR
 |---|---|---:|---:|---:|---:|
 | **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 177 | 2787 | 6 |
 | **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 747 | 2767 | 1077 |
-| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 651 | 7923 | 3192 |
+| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 653 | 7923 | 3192 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 96 | 1586 | 8 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 23 | 280 | 32 |
 | **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 504 | 5987 | 131 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 72 | 337 | 0 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 73 | 337 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 929 | 4640 | 0 |
 
 ## 2. Region map
@@ -136,8 +136,8 @@ flowchart LR
     direction TB
     n_finance["Finance & General Ledger<br/><small>79 files · 993 symbols</small>"]
     n_tax["Tax & Statutory<br/><small>23 files · 371 symbols</small>"]
-    n_procurement["Procurement & Vendors<br/><small>57 files · 879 symbols</small>"]
-    n_inventory["Inventory & Planning<br/><small>52 files · 666 symbols</small>"]
+    n_procurement["Procurement & Vendors<br/><small>58 files · 879 symbols</small>"]
+    n_inventory["Inventory & Planning<br/><small>53 files · 666 symbols</small>"]
     n_wms["Warehouse Management (WMS)<br/><small>64 files · 669 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>50 files · 504 symbols</small>"]
     n_pos["Point of Sale<br/><small>44 files · 483 symbols</small>"]
@@ -169,7 +169,7 @@ flowchart LR
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>72 files · 337 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>73 files · 337 symbols</small>"]
   end
   n_procurement -->|254| n_doc_kernel
   n_wms -.->|206| n_persistence
@@ -457,8 +457,8 @@ flowchart LR
     direction TB
     n_finance["Finance & General Ledger<br/><small>79 files · 993 symbols</small>"]
     n_tax["Tax & Statutory<br/><small>23 files · 371 symbols</small>"]
-    n_procurement["Procurement & Vendors<br/><small>57 files · 879 symbols</small>"]
-    n_inventory["Inventory & Planning<br/><small>52 files · 666 symbols</small>"]
+    n_procurement["Procurement & Vendors<br/><small>58 files · 879 symbols</small>"]
+    n_inventory["Inventory & Planning<br/><small>53 files · 666 symbols</small>"]
     n_wms["Warehouse Management (WMS)<br/><small>64 files · 669 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>50 files · 504 symbols</small>"]
     n_pos["Point of Sale<br/><small>44 files · 483 symbols</small>"]
@@ -489,7 +489,7 @@ flowchart LR
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>72 files · 337 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>73 files · 337 symbols</small>"]
   end
   n_procurement -->|254| n_doc_kernel
   n_finance -.->|150| n_doc_kernel
@@ -1010,8 +1010,8 @@ flowchart LR
 | [Cross-module API Handlers](#cross-module-api-handlers) | Brainstem — Kernel | 3 | 83 | → Error & Message Catalog (107) |
 | [Finance & General Ledger](#finance--general-ledger) | Functional Lobes — Business Operations | 79 | 993 | → Persistence & Migrations (174) |
 | [Tax & Statutory](#tax--statutory) | Functional Lobes — Business Operations | 23 | 371 | ← Procurement & Vendors (97) |
-| [Procurement & Vendors](#procurement--vendors) | Functional Lobes — Business Operations | 57 | 879 | → Document Kernel (254) |
-| [Inventory & Planning](#inventory--planning) | Functional Lobes — Business Operations | 52 | 666 | → Persistence & Migrations (124) |
+| [Procurement & Vendors](#procurement--vendors) | Functional Lobes — Business Operations | 58 | 879 | → Document Kernel (254) |
+| [Inventory & Planning](#inventory--planning) | Functional Lobes — Business Operations | 53 | 666 | → Persistence & Migrations (124) |
 | [Warehouse Management (WMS)](#warehouse-management-wms) | Functional Lobes — Business Operations | 64 | 669 | → Persistence & Migrations (206) |
 | [Orders & Fulfillment (OMS)](#orders--fulfillment-oms) | Functional Lobes — Business Operations | 50 | 504 | → Document Kernel (103) |
 | [Point of Sale](#point-of-sale) | Functional Lobes — Business Operations | 44 | 483 | → Finance & General Ledger (132) |
@@ -1031,7 +1031,7 @@ flowchart LR
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 13 | 179 | ← Warehouse Management (WMS) (80) |
 | [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 497 | 5867 | ← The Brain Map (this) (129) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 120 | → Project Documentation (129) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 72 | 337 | → Identity, RBAC & MFA (14) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 73 | 337 | → Identity, RBAC & MFA (14) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 57 | 507 | → Logging, Alerting & Notifications (54) |
 | [Test Suite](#test-suite) | Cerebellum — Verification | 929 | 4640 | — |
 
@@ -2596,7 +2596,7 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 - ← **CRM & Loyalty** — 44 relationships, 44 inferred
 - ← **Tax & Statutory** — 44 relationships, 43 inferred
 
-<details><summary>57 files</summary>
+<details><summary>58 files</summary>
 
 - [engines/backorder_list.go](../../engines/backorder_list.go)
 - [engines/day_limits.go](../../engines/day_limits.go)
@@ -2641,6 +2641,7 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 - [engines/vendor_price_agreement.go](../../engines/vendor_price_agreement.go)
 - [engines/vendor_scorecard.go](../../engines/vendor_scorecard.go)
 - [internal/server/bulk_purchase.go](../../internal/server/bulk_purchase.go)
+- [internal/server/bulk_purchase_template.go](../../internal/server/bulk_purchase_template.go)
 - [internal/server/bulk_purchase_template.xlsx](../../internal/server/bulk_purchase_template.xlsx)
 - [internal/server/handlers_grn_steps.go](../../internal/server/handlers_grn_steps.go)
 - [internal/server/handlers_po_design.go](../../internal/server/handlers_po_design.go)
@@ -2690,7 +2691,7 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 - ← **Document Kernel** — 25 relationships, 23 inferred
 - ← **Product Information (PIM)** — 24 relationships, 24 inferred
 
-<details><summary>52 files</summary>
+<details><summary>53 files</summary>
 
 - [engines/availability_network.go](../../engines/availability_network.go)
 - [engines/backflush_rules.go](../../engines/backflush_rules.go)
@@ -2744,6 +2745,7 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 - [internal/server/handlers_stock_locations.go](../../internal/server/handlers_stock_locations.go)
 - [internal/server/handlers_supply_proposals.go](../../internal/server/handlers_supply_proposals.go)
 - [internal/server/handlers_transfers.go](../../internal/server/handlers_transfers.go)
+- [internal/server/transfer_allocation_sheet.go](../../internal/server/transfer_allocation_sheet.go)
 
 </details>
 
@@ -4543,7 +4545,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - ← **Point of Sale** — 1 relationship, 1 inferred
 - ← **Tenancy, Packaging & Settings** — 1 relationship, 1 inferred
 
-<details><summary>72 files</summary>
+<details><summary>73 files</summary>
 
 - [.dockerignore](../../.dockerignore)
 - [.gitattributes](../../.gitattributes)
@@ -4609,6 +4611,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - [release/scripts/Invoke-Release.ps1](../../release/scripts/Invoke-Release.ps1)
 - [release/scripts/Invoke-TestShard.ps1](../../release/scripts/Invoke-TestShard.ps1)
 - [release/scripts/ReleaseCommon.ps1](../../release/scripts/ReleaseCommon.ps1)
+- [release/scripts/Update-RecordsDocs.ps1](../../release/scripts/Update-RecordsDocs.ps1)
 - [release/scripts/graphify_update.py](../../release/scripts/graphify_update.py)
 - [release/security-floor.txt](../../release/security-floor.txt)
 - [release/signing.pub](../../release/signing.pub)
@@ -5573,10 +5576,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 3199 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 3202 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **2440 of 3199 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **2440 of 3202 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **2222 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

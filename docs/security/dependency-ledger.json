@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "updated": "2026-10-30",
+  "updated": "2026-11-19",
   "entries": [
     {
       "name": "github.com/lib/pq",
@@ -101,6 +101,27 @@
       "purpose": "Go vulnerability-database scanner (49.9.4/49.9.5) - flags known CVEs reachable from the actual call graph, not just present in go.sum.",
       "license": "BSD-3-Clause",
       "provenance": "Official Go team tool (golang.org/x/vuln). Pinned to an exact released version rather than @latest, so the scanning tool itself cannot change under CI without a reviewed diff; its vulnerability database is fetched fresh each run by design, which is what keeps the scan 'current' per 49.9.4 while the tool stays pinned."
+    },
+    {
+      "name": "playwright",
+      "type": "ci_tool",
+      "version": "1.64.1",
+      "checksum": "n/a - installed per run with `npm install --no-save --no-package-lock playwright@1.64.1` outside the repository (npm checks the registry's sha512 integrity); `playwright install chromium` then fetches the browser build that exact version pins from Playwright's download host",
+      "owner": "release (release.yml evidence job, docs/qa/perf-budget.cjs)",
+      "purpose": "Drives headless Chromium for the browser performance budgets in release.yml's evidence job (47.9.4), so every release candidate gets browser_budget evidence on its own commit.",
+      "license": "Apache-2.0",
+      "provenance": "Microsoft's official npm package `playwright`, pinned to an exact version in .github/workflows/release.yml. It never enters go.mod, public/ or the shipped binary; the laptop runs of perf-budget.cjs already used it from the operator's home folder.",
+      "architecture_gate": {
+        "measured_bottleneck": "0.27.0's release record (ask 235, 2026-11-18) showed browser_budget and journey as 'no evidence': both kinds had warned on every release since the gate opened because nothing ran them on the candidate. One laptop perf-gate run took about 25 minutes of the shared 4-core machine and needed every other session to stop.",
+        "failure_mode_benefit": "A browser budget regression (a screen 2x slower, a page over its byte budget) now blocks the move of main once the kind has passed once, instead of shipping with a warning.",
+        "resource_budget": "One GitHub-hosted job per release, about 150 MB download (package plus Chromium) and up to 35 minutes; zero load on the laptop or the production host.",
+        "ops_budget": "Bump the pinned version when perf-budget.cjs needs a newer browser API; nothing to run or patch between releases.",
+        "security_budget": "Runs only in the evidence job against a throwaway server on 127.0.0.1 with a per-run JWT secret and outside side effects off; the job has contents: read and actions: read only, and the package is never shipped or served.",
+        "license_budget": "Apache-2.0, compatible with the project; Chromium's own licences cover the downloaded browser and nothing of it is redistributed.",
+        "migration_rollback": "Delete the Browser budgets step in release.yml and pass nothing in -github-kinds for browser_budget: the click's G10b goes back to reading release/evidence as before 2026-11-19.",
+        "removal_plan": "Remove the Browser budgets step and this entry together; perf-budget.cjs keeps running on the laptop from the operator's own install, and browser_budget falls back to the click's warn-then-block reading of release/evidence.",
+        "date": "2026-11-19"
+      }
     },
     {
       "name": "ubuntu runner image",

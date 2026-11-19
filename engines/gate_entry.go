@@ -35,7 +35,7 @@ func gateEntriesNoGRNReport(tenantID string, params map[string]string) ([]map[st
 		}
 	}
 	return dayLimitRows(tenantID, `SELECT COALESCE(data->>'code', id), COALESCE(data->>'vendor', ''), COALESCE(data->>'po_id', ''), COALESCE(data->>'location_code', ''),
-		COALESCE(NULLIF(data->>'parcels', '')::numeric, 0), to_char(created_at AT TIME ZONE public.erp_business_tz(), 'YYYY-MM-DD HH24:MI'),
+		COALESCE(NULLIF(data->>'parcels', '')::numeric, 0), to_char((created_at AT TIME ZONE current_setting('TimeZone')) AT TIME ZONE public.erp_business_tz(), 'YYYY-MM-DD HH24:MI'),
 		(EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600)::int
 		FROM {s}.documents WHERE doctype = 'GateEntry' AND deleted_at IS NULL AND status = 'Open'
 		  AND COALESCE(data->>'grn_id', '') = '' AND created_at < NOW() - make_interval(hours => $1)

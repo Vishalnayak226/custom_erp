@@ -448,11 +448,35 @@ async function renderPurchaseOrdersView(container) {
     return;
   }
 
-  const res = await apiFetch('/api/v1/doc/PurchaseOrder');
-  if (!res) return;
-  const ordersLoadFailed = !res.ok;
-  const orders = res.ok ? await res.json() : [];
+  // 234.1: a revisit draws the last list at once and refreshes it behind,
+  // redrawing only if it changed. The copy is used only under the same sign-in
+  // and with no write since (apiWriteSeq), so a save never shows an old status.
+  const fetchOrders = async () => {
+    const seq = apiWriteSeq;
+    const tok = localStorage.getItem('erp_token');
+    const res = await apiFetch('/api/v1/doc/PurchaseOrder');
+    if (!res) return null;
+    const got = { ok: res.ok, orders: res.ok ? await res.json() : [] };
+    got.key = JSON.stringify(got.orders);
+    if (got.ok && seq === apiWriteSeq) poListLast = { orders: got.orders, key: got.key, seq, tok };
+    return got;
+  };
+  const last = poListLast && poListLast.seq === apiWriteSeq && poListLast.tok === localStorage.getItem('erp_token') ? poListLast : null;
+  if (last) {
+    drawPOList(screen, last.orders, false);
+    fetchOrders().then(got => {
+      if (got && got.ok && got.key !== last.key && screen.isConnected && poPage === 'history') drawPOList(screen, got.orders, false);
+    }).catch(() => {});
+    return;
+  }
+  const got = await fetchOrders();
+  if (!got) return;
+  drawPOList(screen, got.orders, !got.ok);
+}
 
+let poListLast = null;
+
+function drawPOList(screen, orders, ordersLoadFailed) {
   screen.innerHTML = `<div class="txn-bar">${poPageHead(orders.length)}${txnContext()}
     <div class="txn-actions txn-landing-only">
       ${canCreateDoctype('PurchaseOrder') ? `<button type="button" class="btn btn-outline" ${actionAttrs('txnShowPane', ['po-composer:upload'])}>Upload from Excel</button>` : ''}
@@ -488,7 +512,9 @@ async function renderPurchaseOrdersView(container) {
   if (orders.length === 0) {
     html += `<tr><td colspan="9" class="s-306094">No purchase orders yet.</td></tr>`;
   }
-  orders.forEach(po => {
+  // 234.4: the first LIST_FIRST_ROWS rows draw with the screen, the rest on scroll (app.js drawRestOfRows).
+  const rowHTML = po => {
+    let html = '';
     const statusBadge = po.status === 'Approved' ? 'badge-success'
       : po.status === 'Rejected' ? 'badge-danger'
       : po.status === 'Pending Approval' ? 'badge-warning'
@@ -528,10 +554,13 @@ async function renderPurchaseOrdersView(container) {
         </td>
       </tr>
     `;
-  });
+    return html;
+  };
+  html += orders.slice(0, LIST_FIRST_ROWS).map(rowHTML).join('');
   html += `</tbody></table></div>`;
   panel.innerHTML = html;
   screen.appendChild(panel);
+  drawRestOfRows(panel.querySelector('tbody'), orders.slice(LIST_FIRST_ROWS), rowHTML);
 }
 
 // Stage 95: a PO's Images page - its designs and Combination IDs with their

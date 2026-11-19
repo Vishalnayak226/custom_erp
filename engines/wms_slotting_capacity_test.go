@@ -39,15 +39,20 @@ func TestSlottingReportChecksPickFaceRoom(t *testing.T) {
 	stock("SV2-RES", fast, 50)
 	stock("SV2-PICK-OK", slow, 5)
 	for i := 0; i < 5; i++ {
-		items, _ := json.Marshal([]map[string]interface{}{{"sku": fast, "qty": 10}})
-		data, _ := json.Marshal(map[string]interface{}{"code": "CART-SV2-" + string(rune('a'+i)), "items": string(items), "location": loc})
+		// 232.1: items is an array, as a real till cart stores it. As a string
+		// the sales were never counted, both SKUs tied at velocity 0 and the
+		// tiers fell to row order, which a long-lived database (ci.yml) flips.
+		data, _ := json.Marshal(map[string]interface{}{"code": "CART-SV2-" + string(rune('a'+i)), "items": []map[string]interface{}{{"sku": fast, "qty": 10}}, "location": loc})
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')", "CART-SV2-"+string(rune('a'+i)), data); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for sku, n := range map[string]int{fast: 100, slow: 5} {
-		db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1,$2,$3,$3) ON CONFLICT (sku,location_code) DO UPDATE SET on_hand=$3, available=$3", sku, loc, n)
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1,$2,$3,$3) ON CONFLICT (sku,location_code) DO UPDATE SET on_hand=$3, available=$3", sku, loc, n); err != nil {
+			t.Fatal(err)
+		}
 	}
+	defer db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE location_code = $1", loc)
 
 	_, rows, _, err := RunReport(tenantID, "slotting-suggestions", RoleSuperAdmin, "system", map[string]string{"location_code": loc})
 	if err != nil {

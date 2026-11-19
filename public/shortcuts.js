@@ -264,8 +264,12 @@ const LIMIT = 12;
 // codes, the labels). Rebuilding it on every keystroke walked the whole sidebar and
 // matched every entry's code: ~350 ms a key on a 4x-throttled laptop. Each entry also
 // carries its lower-cased text, so matching a key does no string work per entry.
-let gsIndex = null, gsDirty = true, gsWatch = null;
+// 234.1: the screens and record types (gsBase) are kept apart from the report rows. The
+// report catalog loads on the box's first focus, after the idle build, so only the report
+// rows are swapped in then; a full rebuild on the first key cost ~140 ms at 4x.
+let gsIndex = null, gsBase = null, gsDirty = true, gsWatch = null;
 const gsHiddenRe = /(^|\s)(perm-hidden|module-hidden)(\s|$)/;
+const gsLower = e => { e._l = e.label.toLowerCase(); e._h = `${e._l} ${e.context} ${e.raw || ''} ${String(e.tag || '').toLowerCase()}`.toLowerCase(); return e; };
 function buildGlobalSearchIndex() {
   const menu = document.querySelector('.sidebar-menu');
   if (menu && !gsWatch) {
@@ -278,14 +282,23 @@ function buildGlobalSearchIndex() {
     gsWatch.observe(menu, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
   }
   const on = codesOn();
-  if (gsIndex && !gsDirty && gsWatch && gsIndex.dt === state.activeDoctypes && gsIndex.rep === reports && gsIndex.codes === codes && gsIndex.on === on && gsIndex.labels === state.labels && gsIndex.nLabels === Object.keys(state.labels || {}).length) return gsIndex.entries;
-  const entries = computeGlobalSearchIndex();
-  entries.forEach(e => { e._l = e.label.toLowerCase(); e._h = `${e._l} ${e.context} ${e.raw || ''} ${String(e.tag || '').toLowerCase()}`.toLowerCase(); });
-  if (gsWatch) gsWatch.takeRecords(); // the Setup rows it just filled are not a change
-  gsDirty = false;
-  gsIndex = { entries, dt: state.activeDoctypes, rep: reports, codes, on, labels: state.labels, nLabels: Object.keys(state.labels || {}).length };
-  return entries;
+  const nLabels = Object.keys(state.labels || {}).length;
+  if (!(gsBase && !gsDirty && gsWatch && gsBase.dt === state.activeDoctypes && gsBase.codes === codes && gsBase.on === on && gsBase.labels === state.labels && gsBase.nLabels === nLabels)) {
+    const entries = computeGlobalSearchIndex().map(gsLower);
+    if (gsWatch) gsWatch.takeRecords(); // the Setup rows it just filled are not a change
+    gsDirty = false;
+    gsBase = { entries, dt: state.activeDoctypes, codes, on, labels: state.labels, nLabels };
+    gsIndex = null;
+  }
+  if (!gsIndex || gsIndex.rep !== reports) {
+    // A report's menu entry is listed from the catalog instead, with its number.
+    const routes = new Set((reports || []).map(r => `reports:${r.id}`));
+    const rows = (reports || []).map(r => gsLower({ kind: 'Report', label: r.label, context: r.category || '', tag: r.number || '', dest: { t: 'view', route: `reports:${r.id}` } }));
+    gsIndex = { rep: reports, entries: gsBase.entries.filter(e => !routes.has(e.go)).concat(rows) };
+  }
+  return gsIndex.entries;
 }
+// The sidebar's screens and the record types; buildGlobalSearchIndex adds the reports.
 function computeGlobalSearchIndex() {
   window.fillSetupMenuRows?.(); // 162.5: Setup's module lists are written on first open
   const entries = [];
@@ -308,9 +321,7 @@ function computeGlobalSearchIndex() {
           .filter(Boolean)
       : [li.querySelector(':scope > .menu-item')].filter(Boolean);
     anchors.forEach(a => {
-      // A report's menu entry is listed from the catalog below, with its number.
       const go = a.dataset.go || '';
-      if (go.startsWith('reports:') && (reports || []).some(r => `reports:${r.id}` === go)) return;
       const label = (a.querySelector('span') || a).textContent.trim();
       if (!label) return;
       const key = 'nav:' + (a.id || `${moduleLabel}/${label}`);
@@ -318,7 +329,7 @@ function computeGlobalSearchIndex() {
       seen.add(key);
       seen.add('label:' + label.toLowerCase());
       const code = codeByMenuOnly.get(a.id) || codeByMenu.get(a.id);
-      entries.push({ kind: 'Screen', label, context: moduleLabel, el: a, tag: code && codesOn() ? code.code : '', code });
+      entries.push({ kind: 'Screen', label, context: moduleLabel, el: a, go, tag: code && codesOn() ? code.code : '', code });
     });
   });
   (state.activeDoctypes || []).forEach(d => {
@@ -330,7 +341,6 @@ function computeGlobalSearchIndex() {
     const code = codeBySetup.get(d.name);
     entries.push({ kind: 'Record type', label, context: d.module || '', raw: d.name, dest: { t: 'setup', doctype: d.name }, tag: code && codesOn() ? code.code : '', code });
   });
-  (reports || []).forEach(r => entries.push({ kind: 'Report', label: r.label, context: r.category || '', tag: r.number || '', dest: { t: 'view', route: `reports:${r.id}` } }));
   return entries;
 }
 
@@ -350,8 +360,15 @@ function matchEntries(entries, query) {
     const rank = tag === needle ? -50 : labelIdx === 0 ? 0 : labelIdx > 0 ? 20 : 100;
     scored.push({ entry, score: rank + Math.min(hayIdx, 19) });
   });
-  scored.sort((a, b) => a.score - b.score || a.entry.label.localeCompare(b.entry.label));
-  return scored.slice(0, LIMIT).map(s => s.entry);
+  // 238.1: a one-letter query matches most of the ~1,400 entries; sorting them all by
+  // name (localeCompare per comparison) was most of a phone's first key. Same order as
+  // before: by score, then name - but only the entries that can reach the top LIMIT are
+  // sorted by name, with app.js's labelOrder (no Intl collator to warm on the first key).
+  scored.sort((a, b) => a.score - b.score);
+  const cut = scored.length > LIMIT ? scored[LIMIT - 1].score : Infinity;
+  const top = scored.filter(s => s.score <= cut);
+  top.sort((a, b) => a.score - b.score || labelOrder(a.entry.label, b.entry.label));
+  return top.slice(0, LIMIT).map(s => s.entry);
 }
 
 // The typed forms that are commands rather than names: PO+, PO 42, R1001, a
@@ -839,10 +856,20 @@ function currentTitle(d) {
   return h ? h.textContent.replace(/\s+/g, ' ').trim() : '';
 }
 
+// A screen's own title (h1.page-title), never a heading inside its content.
+// 234.1: no layout read - this runs in the observer before the frame, and
+// shown() made the browser lay out the whole new screen twice (~300 ms at 4x
+// CPU). The one title is taken as it is; several (a list and its New pane)
+// are told apart by style alone.
+function screenTitle() {
+  const hs = document.querySelectorAll('#view-root h1.page-title');
+  if (hs.length < 2) return hs[0] || null;
+  return [...hs].find(h => !h.closest('[hidden], .hidden') && (typeof h.checkVisibility !== 'function' || h.checkVisibility())) || null;
+}
+
 function placeStar() {
   const d = currentDest();
-  // A screen's own title (h1.page-title), never a heading inside its content.
-  const h = d && [...document.querySelectorAll('#view-root h1.page-title')].find(shown);
+  const h = d && screenTitle();
   const on = !!d && !!(favs || []).find(f => destKey(f.dest) === destKey(d));
   // 162.5: a star that is already right (the 300 ms after-render pass runs this a
   // second time) is left alone, so the screen is not "still changing" for another
@@ -924,7 +951,10 @@ const draftFields = host => [...host.querySelectorAll('input, select, textarea')
   fieldKey(f) && !f.closest('table') && !/^(hidden|password|file|button|submit|checkbox|radio)$/.test(f.type || ''));
 let draftTimer = 0;
 document.addEventListener('input', (e) => {
-  const host = e.target && e.target.closest && formHosts().find(h => h.contains(e.target));
+  // 238.1: hosts are the New modal or a screen in #view-root; any other box (global
+  // search) returns before formHosts() measures every screen on each key.
+  if (!e.target?.closest?.('#view-root, #dynamic-modal')) return;
+  const host = formHosts().find(h => h.contains(e.target));
   if (!host || !e.isTrusted || editing(host)) return;
   clearTimeout(draftTimer);
   draftTimer = setTimeout(() => {
@@ -1177,10 +1207,40 @@ setupBar(document.getElementById('global-search'));
 {
   let tries = 0;
   const warm = () => codesReady.then(() => {
-    if (state.activeDoctypes?.length) buildGlobalSearchIndex();
+    if (state.activeDoctypes?.length) { buildGlobalSearchIndex(); idle(warmText); }
     else if (++tries < 5) idle(warm);
   });
   const idle = fn => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 6000 }) : setTimeout(fn, 3000));
+  // 234.1: one result row, laid out unseen and removed at once, so the first key does not
+  // also pay for the list's fonts and first text shaping (~100-170 ms of its ~250 at 4x).
+  const warmText = () => {
+    const e = (gsIndex && gsIndex.entries[0]) || { kind: 'Screen', label: 'Purchase Orders', context: 'Procurement' };
+    const box = document.createElement('div');
+    box.setAttribute('aria-hidden', 'true');
+    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:400px;visibility:hidden;pointer-events:none';
+    const m = document.createElement('div');
+    m.className = 'typeahead-menu global-search-menu';
+    const row = document.createElement('div');
+    row.className = 'typeahead-item global-search-item';
+    const lab = document.createElement('span');
+    lab.className = 'global-search-label';
+    const tg = document.createElement('span');
+    tg.className = 'sc-tag';
+    tg.textContent = 'PO R1001';
+    lab.append(e.label, tg);
+    const meta = document.createElement('span');
+    meta.className = 'global-search-meta';
+    meta.textContent = `${e.kind} · ${e.context || ''}`;
+    const foot = document.createElement('div');
+    foot.className = 'sc-foot';
+    foot.textContent = '↑↓ Enter · ? Keys';
+    row.append(lab, meta);
+    m.append(row, foot);
+    box.append(m);
+    document.body.append(box);
+    box.getBoundingClientRect();
+    box.remove();
+  };
   idle(warm);
 }
 window.addEventListener('keydown', onKey);

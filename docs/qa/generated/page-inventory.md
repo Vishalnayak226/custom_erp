@@ -13,9 +13,9 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 |---|---|
 | Front-end files with screens or API calls | 138 |
 | Screens in the shell registry | 79 |
-| File-to-route actions | 1287 |
-| Registered `/api` routes | 1121 |
-| Routes no front-end file calls | 216 |
+| File-to-route actions | 1288 |
+| Registered `/api` routes | 1123 |
+| Routes no front-end file calls | 217 |
 | Calls matching no route | 4 |
 
 ## Screens and front-end files
@@ -622,6 +622,7 @@ Owners: M03, M04. Live inspection: not recorded.
 |---|---|---|---|---|---|
 | POST | `/api/v1/procurement/bulk-upload/apply` | `handleBulkPurchaseApply` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/bulk-upload/preview` | `handleBulkPurchasePreview` | procurement | signed-in: procurement.default | every signed-in role |
+| GET | `/api/v1/procurement/bulk-upload/runs/{id}/errors` | `handleBulkPurchaseRunErrors` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/procurement/bulk-upload/runs/{id}/file` | `handleBulkPurchaseRunFile` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/procurement/bulk-upload/runs/{id}` | `handleBulkPurchaseRun` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/procurement/bulk-upload/runs` | `handleBulkPurchaseRuns` | procurement | signed-in: procurement.default | every signed-in role |
@@ -2404,7 +2405,7 @@ Settings → Configuration renders the settings registry by module, through the 
 | Platform billing | 1 |
 | Point of Sale | 14 |
 | Printing | 6 |
-| Procurement | 22 |
+| Procurement | 23 |
 | Procurement & GRN | 15 |
 | Quality | 4 |
 | Reports | 1 |
@@ -2598,6 +2599,7 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | GET | `/api/v1/shopify/{channel}/mismatch` | `handleShopifyMismatch` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/shopify/{channel}/settings` | `handleShopifySettings` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/transfer/allocation/decide` | `handleTransferAllocationDecide` | inventory | signed-in: inventory.default | every signed-in role |
+| GET | `/api/v1/transfer/allocation/grn-sheet` | `handleTransferAllocationGRNSheet` | inventory | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/transfer/cancel-lines` | `handleCancelTransferLines` | inventory | signed-in: inventory.default | every signed-in role |
 | GET | `/api/v1/unicommerce/inventory-syncs` | `handleListUnicommerceInventorySyncs` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/unicommerce/order` | `handleUnicommerceOrder` | oms | signed-in: oms.default | every signed-in role |

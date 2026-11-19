@@ -135,3 +135,79 @@ func TestPOPartialReceiptRules(t *testing.T) {
 		t.Fatalf("PO2 fully received = %v (%v)", full, err)
 	}
 }
+
+// TestDeletedDocumentsStopCounting pins 230.1 and 239.1: a GRN or PO in the
+// recycle bin (the generic delete, allowed only before a GRN posts) counts
+// for nothing - not against its PO's open quantity, and not in the GRN
+// Register, the Vendor Ledger or PO Commitments.
+func TestDeletedDocumentsStopCounting(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schema := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schema)
+	if _, err := ProvisionTenantSchema(tenantID, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	insert := func(id, doctype, status string, data map[string]interface{}) {
+		t.Helper()
+		raw, _ := json.Marshal(data)
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, $4, 'system')", id, doctype, raw, status); err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+	softDelete := func(id string) {
+		t.Helper()
+		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1", id); err != nil {
+			t.Fatalf("delete %s: %v", id, err)
+		}
+	}
+	js := func(v interface{}) string { b, _ := json.Marshal(v); return string(b) }
+	const sku, vendor, loc, po, grn = "DD-A", "DD-V", "DD-LOC", "DD-PO-1", "DD-GRN-1"
+	insert(sku, "Item", "Active", map[string]interface{}{"code": sku, "name": "Deleted-receipt shirt", "hsn_code": "6205", "gst_rate": 5.0, "tax_treatment": "Taxable"})
+	insert(vendor, "Vendor", "Active", map[string]interface{}{"code": vendor, "name": "Deleted-receipt Vendor"})
+	insert(po, "PurchaseOrder", "Approved", map[string]interface{}{"code": po, "vendor": vendor, "location": loc, "gst_mode": GSTModeExclusive,
+		"total_amount": 1000.0, "items": js([]map[string]interface{}{{"sku": sku, "qty": 10, "rate": 100.0}})})
+	full := map[string]interface{}{"po_id": po, "vendor": vendor, "location": loc,
+		"received_items": js([]map[string]interface{}{{"sku": sku, "qty": 10, "accepted_qty": 10}})}
+
+	// A Pending GRN for the whole PO closes it to further receipts...
+	insert(grn, "GRN", "Pending", full)
+	var v *ValidationError
+	if err := validateGRNRules(tenantID, "", full); !errors.As(err, &v) || v.Code != "PURCHA-0084" {
+		t.Fatalf("second receipt while the Pending GRN stands: want PURCHA-0084, got %v", err)
+	}
+	if rows, err := getGRNRegisterReport(tenantID, nil); err != nil || len(rows) != 1 {
+		t.Fatalf("GRN Register before the delete: want 1 row, got %d (%v)", len(rows), err)
+	}
+	// ...and once it is deleted the PO is open again (230.1).
+	softDelete(grn)
+	if err := validateGRNRules(tenantID, "", full); err != nil {
+		t.Fatalf("receipt after the Pending GRN was deleted: %v", err)
+	}
+	if rows, err := getGRNRegisterReport(tenantID, nil); err != nil || len(rows) != 0 {
+		t.Fatalf("GRN Register lists a deleted GRN: %d rows (%v)", len(rows), err)
+	}
+
+	// 239.1: a deleted PO leaves the Vendor Ledger and PO Commitments.
+	commitments := func() int {
+		t.Helper()
+		buckets, err := GetPOCommitmentsReport(tenantID)
+		if err != nil {
+			t.Fatalf("PO Commitments: %v", err)
+		}
+		n := 0
+		for _, b := range buckets {
+			n += b.Count
+		}
+		return n
+	}
+	if rows, err := GetVendorLedgerReport(tenantID, ""); err != nil || len(rows) != 1 || commitments() != 1 {
+		t.Fatalf("before the PO is deleted: ledger %d rows (%v), commitments %d", len(rows), err, commitments())
+	}
+	softDelete(po)
+	if rows, err := GetVendorLedgerReport(tenantID, ""); err != nil || len(rows) != 0 {
+		t.Fatalf("Vendor Ledger lists a deleted PO: %d rows (%v)", len(rows), err)
+	}
+	if n := commitments(); n != 0 {
+		t.Fatalf("PO Commitments counts a deleted PO: %d", n)
+	}
+}

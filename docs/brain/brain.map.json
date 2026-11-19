@@ -629,6 +629,7 @@
         "engines/transfer_lifecycle.go",
         "engines/transfer_store_scope.go",
         "internal/server/handlers_transfers.go",
+        "internal/server/transfer_allocation_sheet.go",
         "engines/stock_book_ledger.go",
         "engines/supply_proposals.go",
         "internal/server/handlers_supply_proposals.go",

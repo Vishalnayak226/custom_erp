@@ -64,6 +64,7 @@ Each blueprint has the vendor's modules, screens, fields, flows and rules with t
 | D21 | Re-inspection by stock age: per category or item; does an open inspection stop selling? | Per category with an item override; no hold by default, optional per rule | Decided: as recommended |
 | D22 | Transfer fill policy default | "Ship what is there, close the rest" for replenishment; "Complete" for new-store and launch allocations; per transfer, defaulted from the store | Decided: as recommended |
 | D23 | Does an allocation upload also approve the transfers? | No - it makes Drafts, then one bulk approve, so maker-checker stays | Decided: as recommended |
+| D23a | Is an allocation upload all or nothing? | **Changed by ask 237.7 (the user, 2026-11-18: *"if some issue upload/load the correct download incorrect one in separate file with reason"*):** the good rows make the Drafts, bad rows are left out and download with a reason. Drafts and the bulk approve stay as D23 says | Decided (user) |
 
 ## 2. Order of work
 

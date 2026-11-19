@@ -106,6 +106,16 @@ func (f *fakeS3) keys() []string {
 	return out
 }
 
+// object reads one stored object under the lock. 232.1: the race detector
+// cannot see that curl's reply orders the server's write before the test's
+// read (the order passes through another process), so a bare map read races.
+func (f *fakeS3) object(key string) ([]byte, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	b, ok := f.objects[key]
+	return b, ok
+}
+
 // TestStage95SignatureAgreesWithCurl: curl's own SigV4 (--aws-sigv4, the one
 // deploy/backup.sh already trusts for off-box backups) signs a PUT, and the
 // fake bucket - which checks it with s3SignRequest - must accept it. Skipped
@@ -128,7 +138,7 @@ func TestStage95SignatureAgreesWithCurl(t *testing.T) {
 	if string(out) != "200" {
 		t.Fatalf("the fake bucket refused curl's signature: HTTP %s", out)
 	}
-	if got := string(fake.objects["designs/Design-HO-26-27-000006/a1.txt"]); got != "hello drive" {
+	if got, _ := fake.object("designs/Design-HO-26-27-000006/a1.txt"); string(got) != "hello drive" {
 		t.Fatalf("object not stored: %q", got)
 	}
 	// A folder with a space (the client's "Image/Design Image"): curl and
@@ -136,7 +146,7 @@ func TestStage95SignatureAgreesWithCurl(t *testing.T) {
 	out, err = exec.Command(curl, "-s", "-o", os.DevNull, "-w", "%{http_code}", "--aws-sigv4", "aws:amz:auto:s3",
 		"--user", "AKCURL95:curl-secret/95", "-X", "PUT", "--data-binary", "spaced",
 		srv.URL+"/erp-images/Image/Design%20Image/a2.txt").Output()
-	if err != nil || string(out) != "200" || string(fake.objects["Image/Design Image/a2.txt"]) != "spaced" {
+	if got, _ := fake.object("Image/Design Image/a2.txt"); err != nil || string(out) != "200" || string(got) != "spaced" {
 		t.Fatalf("a folder with a space: HTTP %s, err %v", out, err)
 	}
 }
@@ -374,7 +384,7 @@ func TestStage95POImagesOnDriveAndServer(t *testing.T) {
 	if _, _, err := ReadMediaTransform("default", res.Image.ID, "small"); err != nil {
 		t.Fatalf("resized copy: %v", err)
 	}
-	if _, ok := fake.objects[mediaDerivedKey(key, "small")]; !ok {
+	if _, ok := fake.object(mediaDerivedKey(key, "small")); !ok {
 		t.Fatal("the resized copy must be kept beside the original on the drive")
 	}
 

@@ -1082,9 +1082,10 @@ async function renderPIMWorkbenchTab(container) {
     ? `<tr><td colspan="6" class="s-306094">No items found. Create one under Setup &raquo; Item.</td></tr>`
     : entries.map(e => {
         const badgeClass = e.score >= 80 ? 'badge-success' : e.score >= 40 ? 'badge-warning' : 'badge-danger';
+        // 235.1: the Item cell keeps its code (data-link-swept); Name beside it shows the name.
         return `
           <tr class="pim-workbench-row s-74fa97" data-item="${escapeHTMLText(e.item_code)}">
-            <td class="s-355794">${escapeHTMLText(e.item_code)}</td>
+            <td class="s-355794" data-link-swept="1">${escapeHTMLText(e.item_code)}</td>
             <td>${escapeHTMLText(e.name || '')}</td>
             <td ${e.family ? `data-link-ref="${escapeHTMLText(e.family)}" data-link-doctype="ProductFamily"` : ''}>${escapeHTMLText(e.family || '')}</td>
             <td><span class="badge badge-secondary">${escapeHTMLText(e.status || '')}</span></td>

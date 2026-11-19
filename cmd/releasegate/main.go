@@ -2,6 +2,8 @@
 //
 //	releasegate check   [-root .] [-base <sha>] [-tree <sha>] [-out dir] [-impact-file f]
 //	                    [-result build=pass ...] [-artifact name=path] [-govulncheck path] [-skip-vuln]
+//	                    [-github-kinds browser_budget,journey]   kinds release.yml's evidence job makes
+//	releasegate judge   -kinds browser_budget,journey [-commit <sha>]   that job's verdict: exit 1 only when the policy blocks
 //	releasegate payload -id <exception id> [-out file]    the text a P1 exception's signature covers
 //	releasegate record  -kind <evidence kind> -result pass|fail -by <name> [-note ..] [-date ..]
 //	releasegate record  -from <evidence file> -commit <sha>   ingest a record the restore drill wrote
@@ -32,7 +34,7 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: releasegate check|payload|record|verify ...")
+		fmt.Fprintln(os.Stderr, "usage: releasegate check|judge|payload|record|verify ...")
 		os.Exit(2)
 	}
 	args := os.Args[2:]
@@ -45,6 +47,8 @@ func main() {
 		os.Exit(record(args))
 	case "verify":
 		os.Exit(verify(args))
+	case "judge":
+		os.Exit(judge(args))
 	}
 	fmt.Fprintln(os.Stderr, "unknown command", os.Args[1])
 	os.Exit(2)
@@ -74,6 +78,7 @@ func check(args []string) int {
 	vuln := fs.String("govulncheck", "", "path to govulncheck (default: PATH, then ~/go/bin)")
 	skipVuln := fs.Bool("skip-vuln", false, "do not run govulncheck (recorded as not-run)")
 	now := fs.String("now", "", "override today, YYYY-MM-DD (tests)")
+	github := fs.String("github-kinds", "", "evidence kinds release.yml's evidence job makes on the candidate (comma-separated): recorded as deferred, not read from release/evidence")
 	var results, artifacts multi
 	fs.Var(&results, "result", "name=value from the release's own run (build, vet, tests), repeatable")
 	fs.Var(&artifacts, "artifact", "name=path, repeatable")
@@ -114,28 +119,18 @@ func check(args []string) int {
 		in.Artifacts = append(in.Artifacts, h)
 	}
 
-	var err error
-	if pb, ok := readIf(filepath.Join(*root, "release", "gate-policy.json")); ok {
-		in.Policy, err = releasegate.ParsePolicy(pb)
-	} else {
-		in.Policy, err = releasegate.ParsePolicy(nil)
-	}
+	ghKinds, err := parseKinds(*github)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "-github-kinds:", err)
 		return 2
 	}
-	if eb, ok := readIf(filepath.Join(*root, "release", "exceptions.json")); ok {
-		f, err := releasegate.ParseExceptions(eb)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 2
+	if len(ghKinds) > 0 {
+		in.GitHubKinds = map[string]bool{}
+		for _, k := range ghKinds {
+			in.GitHubKinds[k] = true
 		}
-		in.Exceptions = &f
 	}
-	if kb, ok := readIf(filepath.Join(*root, "release", "signing.pub")); ok {
-		in.PublicKey, _ = releasegate.ParsePublicKey(kb)
-	}
-	if in.Evidence, err = releasegate.LoadEvidence(filepath.Join(*root, "release", "evidence")); err != nil {
+	if err := loadRegisters(*root, &in); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
@@ -185,6 +180,102 @@ func check(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// loadRegisters reads what check and judge both judge against: the policy,
+// the exception register and its public key, and release/evidence.
+func loadRegisters(root string, in *releasegate.Input) error {
+	var err error
+	if pb, ok := readIf(filepath.Join(root, "release", "gate-policy.json")); ok {
+		in.Policy, err = releasegate.ParsePolicy(pb)
+	} else {
+		in.Policy, err = releasegate.ParsePolicy(nil)
+	}
+	if err != nil {
+		return err
+	}
+	if eb, ok := readIf(filepath.Join(root, "release", "exceptions.json")); ok {
+		f, err := releasegate.ParseExceptions(eb)
+		if err != nil {
+			return err
+		}
+		in.Exceptions = &f
+	}
+	if kb, ok := readIf(filepath.Join(root, "release", "signing.pub")); ok {
+		in.PublicKey, _ = releasegate.ParsePublicKey(kb)
+	}
+	in.Evidence, err = releasegate.LoadEvidence(filepath.Join(root, "release", "evidence"))
+	return err
+}
+
+func knownKind(kind string) bool {
+	for _, k := range releasegate.EvidenceKinds {
+		if k.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// parseKinds splits a comma-separated list of evidence kinds and refuses an
+// unknown one, so a typo never silently skips a kind.
+func parseKinds(s string) ([]string, error) {
+	var kinds []string
+	for _, k := range strings.Split(s, ",") {
+		if k = strings.TrimSpace(k); k == "" {
+			continue
+		}
+		if !knownKind(k) {
+			return nil, fmt.Errorf("unknown evidence kind %q", k)
+		}
+		kinds = append(kinds, k)
+	}
+	return kinds, nil
+}
+
+// judge is the last step of release.yml's evidence job (47.9.4, 47.17.2): it
+// judges the evidence the job just wrote with the click's own rules and exits
+// 1 only when the policy blocks, so a kind on block_after_pass warns until its
+// first pass and blocks after it.
+func judge(args []string) int {
+	fs := flag.NewFlagSet("judge", flag.ExitOnError)
+	root := fs.String("root", ".", "worktree holding release/evidence")
+	kindList := fs.String("kinds", "", "evidence kinds to judge, comma-separated")
+	commit := fs.String("commit", "", "the candidate commit the evidence must be for (default: HEAD)")
+	now := fs.String("now", "", "override today, YYYY-MM-DD (tests)")
+	fs.Parse(args)
+	kinds, err := parseKinds(*kindList)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "-kinds:", err)
+		return 2
+	}
+	if len(kinds) == 0 {
+		fmt.Fprintln(os.Stderr, "need -kinds, one or more evidence kinds")
+		return 2
+	}
+	in := releasegate.Input{Now: time.Now()}
+	if *now != "" {
+		if in.Now, err = time.Parse("2006-01-02", *now); err != nil {
+			fmt.Fprintln(os.Stderr, "-now:", err)
+			return 2
+		}
+	}
+	if err := loadRegisters(*root, &in); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	if *commit == "" {
+		*commit = gitOut(*root, "rev-parse", "HEAD")
+	}
+	in.IsAncestor = releasegate.IsAncestor(*root, *commit)
+	code := 0
+	for _, c := range releasegate.JudgeEvidence(in, kinds) {
+		fmt.Printf("%-8s %-22s %s\n", strings.ToUpper(string(c.Status)), c.ID, c.Detail)
+		if c.Status == releasegate.Fail {
+			code = 1
+		}
+	}
+	return code
 }
 
 func payload(args []string) int {
@@ -251,11 +342,7 @@ func record(args []string) int {
 		fmt.Println("wrote", p, "-", ev.Kind, ev.Result, ev.Date)
 		return 0
 	}
-	known := false
-	for _, k := range releasegate.EvidenceKinds {
-		known = known || k.Kind == *kind
-	}
-	if !known || (*result != "pass" && *result != "fail") || *by == "" {
+	if !knownKind(*kind) || (*result != "pass" && *result != "fail") || *by == "" {
 		fmt.Fprintln(os.Stderr, "need -kind (one of the evidence kinds), -result pass|fail and -by")
 		return 2
 	}

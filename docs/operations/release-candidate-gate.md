@@ -119,6 +119,35 @@ Who writes each kind (all through `releasegate.WriteEvidence`, so the first pass
 | `backup_restore` | `deploy/restore_drill.sh` writes `$BACKUP_DIR/restore-drill-evidence.json` on the server; Deploy step D5 ingests it with `releasegate record -from <file> -commit <deployed commit>` |
 | others | `releasegate record` by hand |
 
+### Browser budgets and journeys on GitHub (47.9.4, 47.17.2)
+
+With tests on GitHub, the click no longer reads these two kinds. G10b passes
+`-github-kinds browser_budget,journey`, so the record shows both as **deferred**
+to `release.yml`'s evidence job, and G0 stops the release if promote does not
+need that job. The job:
+
+1. downloads the last run's `release-evidence` artifact into `release/evidence/`,
+   so each kind keeps its `first_pass`;
+2. builds the candidate, migrates an empty database and starts the server on
+   `127.0.0.1:8740` with outside side effects off;
+3. runs `perf-budget.cjs --record-gate .` (Playwright and Chromium installed for
+   the run) and `journeylab journey -record-gate .`, all seven journeys;
+4. runs `go run ./cmd/releasegate judge -kinds browser_budget,journey`: the same
+   rules, policy and exceptions as G10b. It prints one line per kind into the run
+   summary and fails the job when a kind would block;
+5. uploads the two evidence files as `release-evidence` (kept 90 days) and the raw
+   reports as `evidence-reports`.
+
+Only evidence made on the candidate commit counts. A miss before the kind's first
+pass warns; after it, the job fails and main does not move. That includes a harness
+failure: if the server, Playwright or `pg_dump` breaks, the run records nothing, and
+the judge then fails once the kind has passed. To ship past a known miss, file a P2
+exception that `covers` the kind.
+
+```powershell
+go run ./cmd/releasegate judge -kinds browser_budget,journey   # same verdict on the laptop
+```
+
 ## Policy: `release/gate-policy.json`
 
 Each optional check is `"warn"` or `"block"`; run evidence can also be
@@ -128,7 +157,7 @@ The schedule approved on 2026-11-11 (item 162.20):
 | Check | Mode |
 |---|---|
 | `backup_restore`, `outbox_drill`, `rollback` | `block_after_pass` |
-| `browser_budget`, `journey` | `block_after_pass` (blocks once their runs are wired and pass) |
+| `browser_budget`, `journey` | `block_after_pass`; made by `release.yml`'s evidence job (ask 241) |
 | `race`, `dynamic` | `warn` |
 | `govulncheck` | `block` (since the Go 1.27.4 toolchain, 162.1) |
 

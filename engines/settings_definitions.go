@@ -370,6 +370,14 @@ func registerStage282Settings() {
 		},
 		Description: "What a Purchase Order does with the design number when an item name's design is added with the design number left blank. Inherit searches only the PO vendor's designs (a design with no vendor still matches). Typing an existing design number always loads that design, whichever is chosen.",
 	})
+	// Ask 237.4 (internal/server/bulk_purchase.go): the bulk PO upload makes
+	// designs and combinations from a row's attributes; off, it only orders
+	// what already exists.
+	RegisterSetting(SettingDefinition{
+		Key: "procurement.bulk_po_new_designs", Module: "Procurement",
+		Label: "Bulk PO upload makes new designs", Type: SettingTypeBool, Default: "true",
+		Description: "When on, a bulk PO upload row whose attributes match no design makes a new design or combination. An existing design with the same item name, vendor and attributes is always used. When off, such rows do not load and are listed in the rows-to-fix file.",
+	})
 
 	// --- Point of Sale ---
 	RegisterSetting(SettingDefinition{

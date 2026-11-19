@@ -1457,6 +1457,8 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/transfer/allocation", apiMiddleware(moduleGate("inventory", handleTransferAllocationUpload)))
 	http.HandleFunc("GET /api/v1/transfer/allocation", apiMiddleware(moduleGate("inventory", handleTransferAllocationRun)))
 	http.HandleFunc("POST /api/v1/transfer/allocation/decide", apiMiddleware(moduleGate("inventory", handleTransferAllocationDecide)))
+	// Ask 237.7: the allocation sheet for a posted goods receipt.
+	http.HandleFunc("GET /api/v1/transfer/allocation/grn-sheet", apiMiddleware(moduleGate("inventory", handleTransferAllocationGRNSheet)))
 	// Stage 73.2.18: supply proposals (reorder / MRP) the planner approves or rejects.
 	http.HandleFunc("GET /api/v1/planning/proposals", apiMiddleware(moduleGate("inventory", handleListSupplyProposals)))
 	http.HandleFunc("POST /api/v1/planning/proposals/generate", apiMiddleware(moduleGate("inventory", handleGenerateSupplyProposals)))
@@ -1510,6 +1512,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRuns)))
 	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRun)))
 	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}/file", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRunFile)))
+	// Ask 237.6: the upload's rows that did not load, each with its reason.
+	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}/errors", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRunErrors)))
 	// Stage 142.3: Sales from one Excel file (Sales Invoice → Upload from Excel).
 	http.HandleFunc("GET /api/v1/sales/bulk-upload/template", apiMiddleware(handleBulkSalesTemplate))
 	http.HandleFunc("POST /api/v1/sales/bulk-upload/preview", apiMiddleware(handleBulkSalesPreview))

@@ -90,11 +90,54 @@ type Input struct {
 	Evidence    map[string]*Evidence
 	IsAncestor  func(string) bool
 	LimitsExist bool
+	// GitHubKinds are the evidence kinds release.yml's evidence job makes on
+	// the candidate commit itself (47.9.4, 47.17.2). The click records them as
+	// deferred instead of reading release/evidence: promote needs that job, so
+	// main moves to the commit only when the job's judge passes.
+	GitHubKinds map[string]bool
+}
+
+func utcDay(t time.Time) time.Time {
+	return time.Date(t.UTC().Year(), t.UTC().Month(), t.UTC().Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// evidenceCheck judges one kind against the policy; a valid exception that
+// lists the kind in "covers" turns a miss into excepted.
+func evidenceCheck(in Input, valid map[string]Exception, kind string, today time.Time) Check {
+	covered := false
+	for _, e := range valid {
+		for _, cv := range e.Covers {
+			if cv == kind {
+				covered = true
+			}
+		}
+	}
+	anc := in.IsAncestor
+	if anc == nil {
+		anc = func(string) bool { return false }
+	}
+	return CheckEvidence(kind, in.Evidence[kind], in.Policy.Evidence[kind], today, anc, covered)
+}
+
+// JudgeEvidence is the verdict of release.yml's evidence job (47.9.4,
+// 47.17.2): the named kinds judged by the same rules, policy and exceptions
+// as the click's gate, so the job fails exactly when the gate would block.
+func JudgeEvidence(in Input, kinds []string) []Check {
+	today := utcDay(in.Now)
+	var valid map[string]Exception
+	if in.Exceptions != nil {
+		valid = CheckExceptions(*in.Exceptions, in.PublicKey, today).Valid
+	}
+	checks := make([]Check, 0, len(kinds))
+	for _, k := range kinds {
+		checks = append(checks, evidenceCheck(in, valid, k, today))
+	}
+	return checks
 }
 
 // Evaluate runs every rule and builds the record.
 func Evaluate(in Input) Record {
-	today := time.Date(in.Now.UTC().Year(), in.Now.UTC().Month(), in.Now.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	today := utcDay(in.Now)
 	rec := Record{
 		SchemaVersion: RecordSchema, GeneratedAt: in.Now.UTC().Format(time.RFC3339), Version: in.Version,
 		BaseCommit: in.BaseCommit, Tree: in.Tree, Migrations: in.Migrations, MigrationsSHA: in.MigrationsSHA,
@@ -168,19 +211,12 @@ func Evaluate(in Input) Record {
 
 	// run evidence
 	for _, k := range EvidenceKinds {
-		covered := false
-		for _, e := range valid {
-			for _, cv := range e.Covers {
-				if cv == k.Kind {
-					covered = true
-				}
-			}
+		if in.GitHubKinds[k.Kind] {
+			add(Check{ID: "evidence." + k.Kind, Requirement: k.Need, Gate: "release.yml evidence job", Status: Deferred,
+				Detail: "made on GitHub by release.yml's evidence job on this commit; main moves to it only when that job passes"})
+			continue
 		}
-		anc := in.IsAncestor
-		if anc == nil {
-			anc = func(string) bool { return false }
-		}
-		add(CheckEvidence(k.Kind, in.Evidence[k.Kind], in.Policy.Evidence[k.Kind], today, anc, covered))
+		add(evidenceCheck(in, valid, k.Kind, today))
 	}
 	add(CheckLimits(in.LimitsExist, in.Policy.SupportedLimits))
 

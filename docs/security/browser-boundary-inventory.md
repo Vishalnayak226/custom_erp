@@ -118,8 +118,9 @@ frame-ancestors 'none'
 ```
 
 `'unsafe-inline'` is gone from `script-src` and, since ask 191 (49.4.3), from `style-src` too.
-The report-only header is the same policy plus the next candidate, Trusted Types
-(`require-trusted-types-for 'script'`).
+The report-only header is the same policy, so what it would refuse is reported. With
+`CSP_TRUSTED_TYPES_TRIAL=on` it also carries the next candidate, Trusted Types
+(`require-trusted-types-for 'script'`); off by default since 238.2.
 
 **No nonce and no hash list**, deliberately. A nonce exists to permit inline `<script>` elements and
 there are none — `index.html` loads six external scripts and contains no inline block — so a nonce
@@ -244,6 +245,6 @@ classification. Still open:
 - **Found and fixed**: `public/pim-catalog-share.html` had an inline script that the enforced CSP blocks (the shared-catalog page could not load); moved to `public/pim-catalog-share.js`. The bulk-selection CSV export in `public/view-documents.js` did not neutralise a leading `= + - @` cell; it now does (as `view-dashboards.js` already did). Server CSV writers already use the formula-safe writer (49.8.2); the leftover plain writers hold sanitised cells (`import.go`, `import_resume.go`) or a bank file format (`payment_file.go`, deliberately plain).
 - **User files**: attachments are `nosniff`, `private, no-store`, downloaded (not inline) unless an image; SVG is now always a download, and every file response carries `Content-Security-Policy: sandbox; default-src 'none'`. No route serves user-supplied HTML.
 - **Style CSP** (updated ask 191, 2026-11-15): the remaining run-time inline `style="..."` attributes (a full 85-route crawl went from 1,486 console reports to 44) moved to the CSSOM, and `style-src 'self'` is now enforced after a 397-screen crawl with zero violations and 35/35 print paths with it enforced.
-- **Trusted Types**: evaluation only, not enabled. `require-trusted-types-for 'script'` is now in the report-only header alone (49.4.3). A 14-screen sweep logged 146 reports, most of them `innerHTML` assignments in `app.js` and the view modules, so it cannot be enforced without a policy that wraps `esc()`'d markup. Read the reports for two weeks, then decide.
+- **Trusted Types**: evaluation only, not enabled. `require-trusted-types-for 'script'` is now in the report-only header alone (49.4.3). A 14-screen sweep logged 146 reports, most of them `innerHTML` assignments in `app.js` and the view modules, so it cannot be enforced without a policy that wraps `esc()`'d markup. Read the reports for two weeks, then decide. 238.2 (2026-11-19): the trial is off by default and runs only with `CSP_TRUSTED_TYPES_TRIAL=on`, for a CSP sweep crawl, because each report costs 0.5-1.3 ms a write on a laptop and ~20 ms on a slow phone, and the evidence (3,440 reports) is already gathered.
   The full 397-screen crawl in ask 191 logged 3,440 reports.
 - **Open**: new-code scanning of `innerHTML` with unescaped values (the sink scan harness covers it offline), Trusted Types, 47.8.3 token storage (see `adr-session-topology.md`).

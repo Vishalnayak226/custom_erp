@@ -4,6 +4,10 @@
 // receipts, in one upload. Preview says what each row will do and changes
 // nothing; Apply does it in the background; uploading the same file again
 // makes nothing twice. Server: internal/server/bulk_purchase.go.
+// Ask 237: four templates made from this client's lists (PO, PO + GRN with
+// the vendor invoice no. and date, and the Reorder pair that takes only a
+// Design No or Combination ID); after Apply, "Rows to fix" downloads the rows
+// that did not load, each with its reason, ready to upload again.
 
 const BP_API = '/api/v1/procurement/bulk-upload';
 const bpEsc = s => escapeHTMLText(String(s == null ? '' : s));
@@ -15,6 +19,7 @@ const BP_BADGES = {
   'new design': ['badge-success', 'New design'],
   'new combination': ['badge-success', 'New combination'],
   error: ['badge-danger', 'Problem'],
+  fix: ['badge-warning', 'Rows to fix'],
   note: ['badge-secondary', 'Note'],
   done: ['badge-success', 'Done'],
   failed: ['badge-danger', 'Failed'],
@@ -58,7 +63,12 @@ export async function renderBulkPurchase(screen, { head }) {
     <div class="s-c20e4d">
       <section>
         <h4 class="s-00f1b9">1. Template</h4>
-        <button type="button" class="btn btn-outline" data-bp="template">Download template</button>
+        <div class="s-8ed0b3">
+          <button type="button" class="btn btn-outline" data-bp-tpl="kind=new">PO</button>
+          <button type="button" class="btn btn-outline" data-bp-tpl="kind=new&amp;grn=1">PO + GRN</button>
+          <button type="button" class="btn btn-outline" data-bp-tpl="kind=reorder">Reorder</button>
+          <button type="button" class="btn btn-outline" data-bp-tpl="kind=reorder&amp;grn=1">Reorder + GRN</button>
+        </div>
       </section>
       <section>
         <h4 class="s-00f1b9">2. Upload and check</h4>
@@ -85,7 +95,8 @@ export async function renderBulkPurchase(screen, { head }) {
         <div data-bp="runs"><p class="text-muted">Loading…</p></div>
       </section>
     </div>`;
-  screen.querySelector('[data-bp="template"]').addEventListener('click', e => bpDownload(`${BP_API}/template`, 'bulk-purchase-template.xlsx', e.currentTarget));
+  screen.querySelectorAll('[data-bp-tpl]').forEach(b => b.addEventListener('click', e =>
+    bpDownload(`${BP_API}/template?${b.getAttribute('data-bp-tpl')}`, 'bulk-po-template.xlsx', e.currentTarget)));
   screen.querySelector('[data-bp="file"]').addEventListener('change', e => {
     bpFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
     screen.querySelector('[data-bp="file-name"]').textContent = bpFile ? bpFile.name : 'No file chosen';
@@ -247,10 +258,13 @@ async function bpFollow(screen, runID, withPhotos) {
       <h4 class="s-00f1b9">${run.status === 'Completed' ? 'Done' : bpEsc(run.status || 'Finished')}${run.file_name ? ` - ${bpEsc(run.file_name)}` : ''}</h4>
       ${run.message ? `<p class="s-5e0faa">${bpEsc(run.message)}</p>` : ''}
       ${bpTotalsHtml(t, true)}
-      ${(t.failed || t.errors || t.waiting) ? '<p class="s-0006b9">Fix Failed or Problem rows (or approve Waiting ones), then upload the same file again - nothing is made twice.</p>' : ''}
+      ${t.rows_to_fix ? `<div class="s-8ed0b3"><button type="button" class="btn btn-primary" data-bp-fix="${bpEsc(runID)}">Rows to fix (${bpEsc(t.rows_to_fix)})</button></div>
+        <p class="s-0006b9">Correct each row by its Reason and upload that file - the rest is already made.</p>`
+        : (t.failed || t.errors || t.waiting) ? '<p class="s-0006b9">Fix Failed or Problem rows (or approve Waiting ones), then upload the same file again - nothing is made twice.</p>' : ''}
       ${run.result ? bpResultHtml(run.result, true) : ''}
     </section>`;
   bpWireStickers(out);
+  bpWireFix(out);
   bpRenderRuns(screen);
   if (withPhotos && bpPhotos.size && run.result) {
     const box = document.createElement('section');
@@ -269,6 +283,12 @@ function bpPhotoSummary(result) {
     ? ` - <span class="s-25f4ca">${missing.length} not chosen (marked ✗)</span>` : ''}. They are added after Apply.</p>`;
 }
 
+// bpWireFix: "Rows to fix" downloads a run's rows that did not load (237.6).
+function bpWireFix(root) {
+  root.querySelectorAll('[data-bp-fix]').forEach(b => b.addEventListener('click', e =>
+    bpDownload(`${BP_API}/runs/${encodeURIComponent(b.getAttribute('data-bp-fix'))}/errors`, 'bulk-po-rows-to-fix.xlsx', e.currentTarget)));
+}
+
 function bpTotalsHtml(t, applied) {
   const parts = [
     [t.new_pos, `${t.new_pos} new PO${t.new_pos === 1 ? '' : 's'}`],
@@ -278,7 +298,7 @@ function bpTotalsHtml(t, applied) {
     [t.new_vendors, `${t.new_vendors} new vendor${t.new_vendors === 1 ? '' : 's'}`]
   ].filter(([n]) => n).map(([, s]) => `<span>${bpEsc(s)}</span>`);
   const badges = (applied
-    ? [['done', t.done], ['waiting', t.waiting], ['failed', t.failed], ['error', t.errors]]
+    ? [['done', t.done], ['waiting', t.waiting], ['failed', t.failed], ['error', t.errors], ['fix', t.rows_to_fix]]
     : [['error', t.errors]]).filter(([, n]) => n).map(([k, n]) => `<span>${bpBadge(k)} ${bpEsc(n)}</span>`);
   return `<div class="s-0e8c55">${parts.concat(badges).join('')}</div>`;
 }
@@ -388,6 +408,7 @@ async function bpRenderRuns(screen) {
             <td class="s-86abda">
               <button type="button" class="btn btn-outline btn-sm" data-bp-run="${bpEsc(r.id)}">Details</button>
               <button type="button" class="btn btn-outline btn-sm" data-bp-file="${bpEsc(r.id)}">Download file</button>
+              ${t.rows_to_fix ? `<button type="button" class="btn btn-outline btn-sm" data-bp-fix="${bpEsc(r.id)}">Rows to fix</button>` : ''}
             </td></tr>`;
         }).join('')}</tbody>
       </table>
@@ -398,4 +419,5 @@ async function bpRenderRuns(screen) {
   }));
   box.querySelectorAll('[data-bp-file]').forEach(b => b.addEventListener('click', e =>
     bpDownload(`${BP_API}/runs/${encodeURIComponent(b.getAttribute('data-bp-file'))}/file`, 'bulk-purchase.xlsx', e.currentTarget)));
+  bpWireFix(box);
 }

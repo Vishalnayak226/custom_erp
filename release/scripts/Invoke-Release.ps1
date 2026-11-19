@@ -65,6 +65,8 @@ function Save-Report {
 function Stop-Release([string]$why) {
     Write-Host ''
     Write-Host "RELEASE STOPPED: $why" -ForegroundColor Red
+    # 177.5: a stop mid-G7 leaves G4c's background build running; end it and its compilers.
+    if ($script:budgetBuild -and -not $script:budgetBuild.Proc.HasExited) { & taskkill.exe /T /F /PID $script:budgetBuild.Proc.Id *> $null }
     $report.Add(''); $report.Add("**Stopped:** $why")
     if (Test-Path $wt) { $report.Add("Worktree kept for inspection: $wt") }
     Save-Report
@@ -137,7 +139,12 @@ if ($onGitHub) {
     if ($promote -match 'git push[^\r\n]*refs/heads/main' -and $promote -notmatch 'fetch-depth:\s*0') {
         Stop-Release '.github/workflows/release.yml promote pushes main from a depth-1 checkout, which GitHub refuses ("fetch first") - move main through the API (gh api -X PATCH .../git/refs/heads/main -F force=false) or check out with fetch-depth: 0'
     }
-    Note 'release.yml promote can move main'
+    # 47.9.4/47.17.2 (ask 241): G10b defers browser budgets and journeys to release.yml's
+    # evidence job, so promote must wait for that job or main moves without them.
+    if ($promote -notmatch '(?m)^\s+needs:[^\r\n]*\bevidence\b') {
+        Stop-Release '.github/workflows/release.yml promote does not need the evidence job - G10b defers browser budgets and journeys to it, so main would move without them'
+    }
+    Note 'release.yml promote can move main and waits for the evidence job'
 }
 $branch =(Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
 if ($branch -ne 'main') { Stop-Release "the repo is on '$branch', not main" }
@@ -311,12 +318,15 @@ if ($publicChanged.Count) {
     }
     # Stage 137: qz-print.js is a shell script of its own (qz-print.js?v=N);
     # it changed in 06547bb with no new N, so browsers could keep the old one.
-    if ($ship | Where-Object { $_.Path -eq 'public/qz-print.js' }) {
+    # 234.6: theme-boot.js and components/erp-typeahead.js are shell scripts too (?v=N).
+    # Each is its path under public/, which is also how index.html names it.
+    foreach ($shellJs in @('qz-print.js', 'theme-boot.js', 'components/erp-typeahead.js')) {
+        if (-not ($ship | Where-Object { $_.Path -eq "public/$shellJs" })) { continue }
         $html = Read-Text $htmlPath
         $headHtml = (& git -C $wt show 'HEAD:public/index.html') -join "`n"
-        $qzRe = 'qz-print\.js\?v=(\d+)'
+        $qzRe = [regex]::Escape($shellJs) + '\?v=(\d+)'
         $q1 = [int]([regex]::Match($html, $qzRe).Groups[1].Value); $q0 = [int]([regex]::Match($headHtml, $qzRe).Groups[1].Value)
-        if ($q1 -eq $q0) { Write-Text $htmlPath ([regex]::Replace($html, $qzRe, "qz-print.js?v=$($q1 + 1)")); Note "qz-print.js ?v=$q1 -> $($q1 + 1)" }
+        if ($q1 -eq $q0) { Write-Text $htmlPath ([regex]::Replace($html, $qzRe, "$shellJs`?v=$($q1 + 1)")); Note "$shellJs ?v=$q1 -> $($q1 + 1)" }
     }
 } else { Note 'no public/ change' }
 
@@ -395,42 +405,52 @@ Write-Gate 'G4c Release budget'
 # way CI builds it (.github/workflows/ci.yml, "Enforce release artifact
 # budgets"). Before, G4c never passed -binary, so every release passed while
 # CI was red on every push at the binary budget.
-$budgetDir = Join-Path $env:TEMP 'erp_release_budget'
-New-Item -ItemType Directory -Force -Path $budgetDir | Out-Null
-$budgetBin = Join-Path $budgetDir 'erp-server'
-$savedEnv = @{ CGO_ENABLED = $env:CGO_ENABLED; GOOS = $env:GOOS; GOARCH = $env:GOARCH }
-try {
-    $env:CGO_ENABLED = '0'; $env:GOOS = 'linux'; $env:GOARCH = 'amd64'
-    Invoke-Native -Exe $go -Arguments @('build', '-trimpath', '-ldflags=-s -w', '-o', $budgetBin, './cmd/server') -WorkDir $wt | Out-Null
-} finally {
-    foreach ($k in $savedEnv.Keys) { [Environment]::SetEnvironmentVariable($k, $savedEnv[$k], 'Process') }
+# 177.5: that build takes 30-60 s, so it runs in the background at below-normal
+# priority (Start-BudgetBuild) from the moment its inputs are final - right after
+# G7's KB step, the last step that rewrites a file the server embeds - and is
+# judged before G7's document register, with G4f (Wait-BudgetBuild). Here the
+# cold core is judged at once, so an overrun still stops the click early.
+$budgetBin = Join-Path (Join-Path $env:TEMP 'erp_release_budget') 'erp-server'
+function Test-BudgetReport([string]$text, [switch]$Binary) {
+    if ($text -match '"status":\s*"over') {
+        $over = [regex]::Matches($text, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
+        Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module, or condense comments in app.js / view-pos.js. binary_stripped_bytes is the stripped Linux server (NFR-COST-001): look for a new dependency or embedded file"
+    }
+    if ($text -notmatch '"cold_core_gzip_bytes"' -or ($Binary -and $text -notmatch '"binary_stripped_bytes"[^{}]*\{[^{}]*"status":\s*"within_budget"')) {
+        Stop-Release "releasebudget gave no full report:`n$(($text -split "`n" | Select-Object -Last 15) -join "`n")"
+    }
 }
-$budgetText = (Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget', '-binary', $budgetBin) -WorkDir $wt -AllowFail) -join "`n"
-Remove-Item -LiteralPath $budgetBin -ErrorAction SilentlyContinue
-if ($budgetText -match '"status":\s*"over') {
-    $over = [regex]::Matches($budgetText, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
-    Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module, or condense comments in app.js / view-pos.js. binary_stripped_bytes is the stripped Linux server (NFR-COST-001): look for a new dependency or embedded file"
+function Start-BudgetBuild {
+    New-Item -ItemType Directory -Force -Path (Split-Path $budgetBin) | Out-Null
+    Remove-Item -LiteralPath $budgetBin -ErrorAction SilentlyContinue
+    $log = Join-Path $env:TEMP "release_budget_build_$ts.log"
+    $saved = @{ CGO_ENABLED = $env:CGO_ENABLED; GOOS = $env:GOOS; GOARCH = $env:GOARCH }
+    try {
+        # The child takes this environment when it starts; the click's own stays Windows.
+        $env:CGO_ENABLED = '0'; $env:GOOS = 'linux'; $env:GOARCH = 'amd64'
+        $p = Start-Process -FilePath $go -ArgumentList "build -trimpath `"-ldflags=-s -w`" -o `"$budgetBin`" ./cmd/server" -WorkingDirectory $wt -RedirectStandardOutput $log -RedirectStandardError "$log.err" -NoNewWindow -PassThru
+    } finally {
+        foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k], 'Process') }
+    }
+    $null = $p.Handle
+    try { $p.PriorityClass = 'BelowNormal' } catch { }   # compile.exe inherits it
+    $script:budgetBuild = [pscustomobject]@{ Proc = $p; Log = $log }
 }
-if ($budgetText -notmatch '"cold_core_gzip_bytes"' -or $budgetText -notmatch '"binary_stripped_bytes"[^{}]*\{[^{}]*"status":\s*"within_budget"') {
-    Stop-Release "releasebudget gave no full report:`n$(($budgetText -split "`n" | Select-Object -Last 15) -join "`n")"
+function Wait-BudgetBuild {
+    $b = $script:budgetBuild
+    $b.Proc.WaitForExit()
+    $out = @(Get-Content -LiteralPath $b.Log -ErrorAction SilentlyContinue) + @(Get-Content -LiteralPath "$($b.Log).err" -ErrorAction SilentlyContinue)
+    Remove-Item -LiteralPath $b.Log, "$($b.Log).err" -ErrorAction SilentlyContinue
+    $script:budgetBuild = $null
+    if ($b.Proc.ExitCode -ne 0) { Stop-Release "stripped Linux build (G4c) failed:`n$(($out | Select-Object -Last 20) -join "`n")" }
+    $text = (Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget', '-binary', $budgetBin) -WorkDir $wt -AllowFail) -join "`n"
+    Remove-Item -LiteralPath $budgetBin -ErrorAction SilentlyContinue
+    Test-BudgetReport $text -Binary
+    $text
 }
-Note 'release budget within limits (stripped Linux binary included)'
-
-# ------------------------------------------------- G4f footprint ledger
-# 162.21 (user, 2026-11-11): each release records one entry in the footprint
-# ledger (cmd/epicledger, docs/qa/epic-ledger.json), from the budget report just
-# taken, so the next epic has a point to compare with. Warn-only: a missing entry
-# never stops a release. Its commit is the one this release is built on.
-Write-Gate 'G4f Footprint ledger'
-$budgetFile = Join-Path $env:TEMP "release_budget_$ts.json"
-$i, $j = $budgetText.IndexOf('{'), $budgetText.LastIndexOf('}')
-if ($i -ge 0 -and $j -gt $i) {
-    Write-Text $budgetFile $budgetText.Substring($i, $j - $i + 1)
-    $ledgerOut = Invoke-Native -Exe $go -Arguments @('run', './cmd/epicledger', 'record', '-id', "release-$releaseVersion", '-label', "release $releaseVersion", '-root', '.', '-budget', $budgetFile, '-replace') -WorkDir $wt -AllowFail
-    if ($LASTEXITCODE -ne 0) { Note "WARNING footprint ledger not recorded: $(($ledgerOut | Select-Object -Last 3) -join ' ')" }
-    else { Note "footprint ledger: release-$releaseVersion recorded" }
-    Remove-Item -LiteralPath $budgetFile -ErrorAction SilentlyContinue
-} else { Note 'WARNING footprint ledger not recorded: no budget report' }
+$budgetText = (Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget') -WorkDir $wt -AllowFail) -join "`n"
+Test-BudgetReport $budgetText
+Note 'release budget: cold core within limits; the stripped Linux binary builds in the background from G7 and is judged before its register'
 
 # ------------------------------------------------- G4e compliance reviews
 # Stage 47.16.1a: every row of docs/security/compliance-control-matrix.json
@@ -529,6 +549,11 @@ if (-not (Test-Path -LiteralPath (Join-Path $graphDir 'graph.json'))) {
 }
 $kb = Invoke-Docs 'KB'
 if (-not $kb.ok) { Stop-Release "update-docs -Group KB failed:`n$(($kb.out | Select-Object -Last 15) -join "`n")" }
+# 177.5: the KB content is embedded in the server and was the last such file
+# to change, so G4c's stripped Linux build starts now and runs beside the rest of G7.
+Start-BudgetBuild
+# G7's own steps are timed apart (KB above; map and brain; register) to see what to cut next.
+Write-Gate 'G7 Checklist map, brain'
 # The checklist's module map (2026-11-10): counts and empty-sub-module markers are refreshed
 # here, so a session that forgot to run it never ships stale numbers; a skeleton that differs
 # between the tracker and its archive, an open item in the archive or an item outside a module
@@ -574,6 +599,30 @@ if ($unclaimed.Count) {
 $brain = Invoke-Docs 'Brain'
 if (-not $brain.ok) { Stop-Release "brain redraw failed:`n$(($brain.out | Select-Object -Last 15) -join "`n")" }
 Note 'brain: every file filed; counts from the last graph, exact map after the push'
+
+# G4c's second half and G4f come before the register: the register records the
+# footprint ledger's bytes and hash, so the ledger must be final first.
+Write-Gate 'G4c Release budget: stripped binary'
+$budgetText = Wait-BudgetBuild
+Note 'release budget within limits (stripped Linux binary included)'
+
+# ------------------------------------------------- G4f footprint ledger
+# 162.21 (user, 2026-11-11): each release records one entry in the footprint
+# ledger (cmd/epicledger, docs/qa/epic-ledger.json), from the budget report just
+# taken, so the next epic has a point to compare with. Warn-only: a missing entry
+# never stops a release. Its commit is the one this release is built on.
+Write-Gate 'G4f Footprint ledger'
+$budgetFile = Join-Path $env:TEMP "release_budget_$ts.json"
+$i, $j = $budgetText.IndexOf('{'), $budgetText.LastIndexOf('}')
+if ($i -ge 0 -and $j -gt $i) {
+    Write-Text $budgetFile $budgetText.Substring($i, $j - $i + 1)
+    $ledgerOut = Invoke-Native -Exe $go -Arguments @('run', './cmd/epicledger', 'record', '-id', "release-$releaseVersion", '-label', "release $releaseVersion", '-root', '.', '-budget', $budgetFile, '-replace') -WorkDir $wt -AllowFail
+    if ($LASTEXITCODE -ne 0) { Note "WARNING footprint ledger not recorded: $(($ledgerOut | Select-Object -Last 3) -join ' ')" }
+    else { Note "footprint ledger: release-$releaseVersion recorded" }
+    Remove-Item -LiteralPath $budgetFile -ErrorAction SilentlyContinue
+} else { Note 'WARNING footprint ledger not recorded: no budget report' }
+
+Write-Gate 'G7 Document register'
 $regTmp = Join-Path $env:TEMP "release_register_$ts.json"
 $lint = Invoke-Native -Exe $go -Arguments @('run', './cmd/doclint', '-root', '.', '-write-register', $regTmp) -WorkDir $wt -AllowFail
 if (-not (Test-Path $regTmp)) { Stop-Release 'doclint could not write the document register' }
@@ -928,7 +977,9 @@ $rcOut = Join-Path $env:TEMP "release_rc_$ts"
 $impactFile = Join-Path $env:TEMP "release_impact_$ts.txt"
 $rcResults = if ($onGitHub) {
     # 177.2: build, vet and tests run on GitHub after the push; main moves only when they pass there.
-    @('-result', 'build=github (release.yml, before main moves)', '-result', 'vet=github (release.yml, before main moves)', '-result', 'tests=github (release.yml: every package, 16 shards)', '-result', "smoke=$smokeResult")
+    # 47.9.4 / 47.17.2 (ask 241): release.yml's evidence job runs the browser budgets and the
+    # journeys on the candidate and judges them; promote needs it. The record says deferred.
+    @('-result', 'build=github (release.yml, before main moves)', '-result', 'vet=github (release.yml, before main moves)', '-result', 'tests=github (release.yml: every package, 16 shards)', '-result', "smoke=$smokeResult", '-github-kinds', 'browser_budget,journey')
 } else {
     @('-result', 'build=pass', '-result', 'vet=pass', '-result', "tests=pass ($ranCount engines+server tests, $($state.flaky.Count) flaky)", '-result', "smoke=$smokeResult")
 }
@@ -1057,7 +1108,9 @@ $cacheLines = @(
     @{ File = 'public/app.js'; Re = "const VIEW_MODULE_VERSION = '(\d+)';"; Fmt = "const VIEW_MODULE_VERSION = '{0}';" },
     @{ File = 'public/index.html'; Re = 'app\.js\?v=(\d+)'; Fmt = 'app.js?v={0}' },
     @{ File = 'public/index.html'; Re = 'styles\.css\?v=(\d+)'; Fmt = 'styles.css?v={0}' },
-    @{ File = 'public/index.html'; Re = 'qz-print\.js\?v=(\d+)'; Fmt = 'qz-print.js?v={0}' }
+    @{ File = 'public/index.html'; Re = 'qz-print\.js\?v=(\d+)'; Fmt = 'qz-print.js?v={0}' },
+    @{ File = 'public/index.html'; Re = 'theme-boot\.js\?v=(\d+)'; Fmt = 'theme-boot.js?v={0}' },
+    @{ File = 'public/index.html'; Re = 'erp-typeahead\.js\?v=(\d+)'; Fmt = 'erp-typeahead.js?v={0}' }
 )
 foreach ($c in $cacheLines) {
     $dst = Join-Path $repo $c.File; $src = Join-Path $wt $c.File

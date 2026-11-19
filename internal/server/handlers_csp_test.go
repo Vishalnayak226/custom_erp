@@ -97,19 +97,32 @@ func TestCSPReportHandlerBoundsAndRedactsBrowserReport(t *testing.T) {
 
 // 49.4.3: the report-only candidate runs the Trusted Types trial, which the enforced policy does not
 // carry yet (it changes only once a browser sweep shows zero violations). Both carry the strict style-src;
-// the enforced one since ask 191's zero-violation crawl.
+// the enforced one since ask 191's zero-violation crawl. 238.2: the trial is sent only when
+// CSP_TRUSTED_TYPES_TRIAL is on (a CSP sweep crawl); by default the report-only policy still reports
+// what the enforced one refuses, without a report per innerHTML write.
 func TestSecurityHeadersTrustedTypesTrialIsReportOnly(t *testing.T) {
-	response := httptest.NewRecorder()
-	securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
-	enforced := response.Header().Get("Content-Security-Policy")
-	reportOnly := response.Header().Get("Content-Security-Policy-Report-Only")
-	if !strings.Contains(reportOnly, "require-trusted-types-for 'script'") {
-		t.Errorf("the report-only policy must carry the Trusted Types trial: %q", reportOnly)
+	headers := func() (enforced, reportOnly string) {
+		response := httptest.NewRecorder()
+		securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+		return response.Header().Get("Content-Security-Policy"), response.Header().Get("Content-Security-Policy-Report-Only")
 	}
-	if strings.Contains(reportOnly, "unsafe-inline") || !strings.Contains(reportOnly, "style-src 'self';") {
-		t.Errorf("the report-only policy must carry the strict style-src: %q", reportOnly)
-	}
-	if strings.Contains(enforced, "require-trusted-types-for") {
-		t.Errorf("Trusted Types must not be enforced until a sweep shows zero violations: %q", enforced)
+	for _, c := range []struct {
+		value string
+		trial bool
+	}{{"", false}, {"off", false}, {"yes please", false}, {"on", true}, {" ON ", true}, {"1", true}, {"true", true}} {
+		t.Setenv("CSP_TRUSTED_TYPES_TRIAL", c.value)
+		enforced, reportOnly := headers()
+		if got := strings.Contains(reportOnly, "require-trusted-types-for 'script'"); got != c.trial {
+			t.Errorf("CSP_TRUSTED_TYPES_TRIAL=%q: report-only carries the Trusted Types trial = %v, want %v: %q", c.value, got, c.trial, reportOnly)
+		}
+		if !strings.HasSuffix(reportOnly, "report-uri /api/v1/security/csp-report") {
+			t.Errorf("CSP_TRUSTED_TYPES_TRIAL=%q: the report-only policy must still report: %q", c.value, reportOnly)
+		}
+		if strings.Contains(reportOnly, "unsafe-inline") || !strings.Contains(reportOnly, "style-src 'self';") {
+			t.Errorf("the report-only policy must carry the strict style-src: %q", reportOnly)
+		}
+		if strings.Contains(enforced, "require-trusted-types-for") {
+			t.Errorf("Trusted Types must not be enforced until a sweep shows zero violations: %q", enforced)
+		}
 	}
 }

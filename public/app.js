@@ -424,7 +424,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '89';
+const VIEW_MODULE_VERSION = '90';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -659,8 +659,10 @@ function showToast(message, opts = {}) {
 // identifier (SKU, PO number, etc.) here and paste it into a search box
 // elsewhere, without adding a new UI framework/library. Kept as one shared
 // helper so every table that renders through it behaves identically.
-const COPY_ICON_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-const COPY_ICON_DONE_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+// 234.1: the icon (copy, then a tick once copied) is drawn by .copy-chip::before
+// in styles.css, not an inline SVG per chip: a list carries ~200 chips, and
+// their svg/rect/path were a third of the screen's elements to style, lay out
+// and paint on every switch.
 
 function copyableCell(displayValue, rawValue) {
   const raw = rawValue === undefined || rawValue === null ? '' : String(rawValue);
@@ -682,7 +684,38 @@ function copyableCell(displayValue, rawValue) {
   // which row it is on. `title` alone is only a last-resort accessible name
   // and several screen readers skip it, so aria-label is what makes these
   // reachable rather than merely hoverable.
-  return `<span class="copyable-cell"><span>${escapeHTMLText(displayValue)}</span><button type="button" class="copy-chip" title="Copy" aria-label="Copy ${escapeHTMLText(raw)}" data-copy-value="${encodeURIComponent(raw)}" ${actionAttrs('copyValueToClipboard', [ACTION_ARG_ELEMENT], { stop: true })}>${COPY_ICON_SVG}</button></span>`;
+  return `<span class="copyable-cell"><span>${escapeHTMLText(displayValue)}</span><button type="button" class="copy-chip" title="Copy" aria-label="Copy ${escapeHTMLText(raw)}" data-copy-value="${encodeURIComponent(raw)}" ${actionAttrs('copyValueToClipboard', [ACTION_ARG_ELEMENT], { stop: true })}></button></span>`;
+}
+
+// 234.4: a record list draws its first LIST_FIRST_ROWS rows with the screen
+// and the rest the moment they could be wanted: the list scrolls, focus
+// reaches the last drawn row, Ctrl+F / Ctrl+P / End / PageDown is pressed,
+// the page prints, or the last drawn row comes within 200 px of the window
+// (a tall window draws them all at once). Drawing 44-50 rows was nearly all
+// of a list's switch time (style, layout and paint, not script). rowHTML
+// runs when the rows are drawn, so a tick made meanwhile shows on them.
+// Event handlers are delegated by each list, so later rows need no wiring.
+const LIST_FIRST_ROWS = 20;
+function drawRestOfRows(tbody, rest, rowHTML) {
+  if (!tbody || !rest.length) return;
+  const ctl = new AbortController();
+  let io = null;
+  const draw = () => {
+    ctl.abort(); io?.disconnect();
+    if (tbody.isConnected) tbody.insertAdjacentHTML('beforeend', rest.map(rowHTML).join(''));
+  };
+  const opt = { capture: true, passive: true, signal: ctl.signal };
+  document.addEventListener('scroll', e => { if (!tbody.isConnected) ctl.abort(); else if (e.target === document || e.target.contains?.(tbody)) draw(); }, opt);
+  document.addEventListener('keydown', e => {
+    if (!tbody.isConnected) ctl.abort();
+    else if ((e.ctrlKey || e.metaKey) && /^[fp]$/i.test(e.key) || e.key === 'End' || e.key === 'PageDown') draw();
+  }, opt);
+  tbody.addEventListener('focusin', e => { if (tbody.lastElementChild?.contains(e.target)) draw(); }, { signal: ctl.signal });
+  window.addEventListener('beforeprint', draw, { signal: ctl.signal });
+  if ('IntersectionObserver' in window && tbody.lastElementChild) {
+    io = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) draw(); }, { rootMargin: '0px 0px 200px 0px' });
+    io.observe(tbody.lastElementChild);
+  } else draw();
 }
 
 window.copyValueToClipboard = async function(btn) {
@@ -704,14 +737,9 @@ window.copyValueToClipboard = async function(btn) {
     try { document.execCommand('copy'); } catch (e2) { /* best-effort fallback only */ }
     document.body.removeChild(ta);
   }
-  const original = btn.innerHTML;
   btn.classList.add('copy-chip-done');
-  btn.innerHTML = COPY_ICON_DONE_SVG;
   clearTimeout(btn._copyResetTimer);
-  btn._copyResetTimer = setTimeout(() => {
-    btn.innerHTML = original;
-    btn.classList.remove('copy-chip-done');
-  }, 900);
+  btn._copyResetTimer = setTimeout(() => btn.classList.remove('copy-chip-done'), 900);
 };
 
 // Page banner (Stage 23) - dismissible bar at the top of a screen container,
@@ -914,24 +942,9 @@ let editingDocVersion = null;
 const NAV_STATE_KEY = 'erp_nav_state';
 
 function saveNavState() {
-  // Stage 41: mirror the current screen into the address bar, so the URL
-  // always describes what is on it - copy it, duplicate the tab, or reload,
-  // and you land back on the same screen. This is the other half of the deep
-  // links the setup hints hand out: without it the hash would be left stale
-  // pointing at whichever hinted screen was opened last.
-  //
-  // pushState/replaceState rather than assigning location.hash: neither fires
-  // the hashchange listener (which would bounce straight back into a second
-  // render of the view being rendered right now).
-  //
-  // Stage 64.6 (the user: "if I go to Reports and click Chrome Back it closes
-  // the ERP"): moving to a different screen now pushes one history entry, so
-  // browser Back / Forward walk between ERP screens (the hashchange listener
-  // renders them) instead of leaving the app. Paging or searching within the
-  // same screen still replaces, so Back is one press per screen, not per click.
-  // Replaced, not pushed: the first screen after sign-in (no deep link yet, so
-  // Back would land on a blank entry) and a setup detour's own entry, which
-  // openSetupDoctype has just pushed.
+  // Stage 41 / 64.6: mirror the current screen into the address bar (pushState/replaceState, so
+  // hashchange does not re-render). A new screen pushes one entry, so browser Back walks screens;
+  // paging/search, the first screen after sign-in and a setup detour replace.
   try {
     // BLD-034: carries page/search along on a doctype-table screen, so a
     // refresh restores where the user actually was, not just which doctype -
@@ -1110,8 +1123,17 @@ function refusedListRead(url) {
   return new Response(JSON.stringify({ error: 'You do not have permission to perform this action. Please contact your administrator.', code: 'GLOBAL-0011', user_action: 'Contact admin for access.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
 }
 
+// 234.1: counts writes, as each starts and ends. A screen that redraws a list
+// from its last copy (Purchase Orders) uses the copy only while this count is
+// the one it was fetched under, so no save ever shows an old status.
+let apiWriteSeq = 0;
+
 async function apiFetch(url, options = {}) {
-  if ((options.method && options.method !== 'GET') || options.body || options.signal) return apiFetchOnce(url, options);
+  if (options.method && options.method !== 'GET') {
+    apiWriteSeq++;
+    try { return await apiFetchOnce(url, options); } finally { apiWriteSeq++; }
+  }
+  if (options.body || options.signal) return apiFetchOnce(url, options);
   const refused = refusedListRead(url);
   if (refused) return refused;
   const key = url + '|' + JSON.stringify(options.headers || {});
@@ -1541,22 +1563,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     window.addEventListener('resize', placeMenu); if (!trackFrame) { trackedAt = ''; trackFrame = requestAnimationFrame(trackBox); }
   }
 
-  // Stage 53.3: opts.filters narrows the picker to a subset of the doctype,
-  // as plain field=value pairs the generic doc endpoint already understands as
-  // custom query filters (handlers_core_doc_engine.go skips q/limit/offset/
-  // sort/count and treats the rest as data filters). Added here, once, rather
-  // than as a POS-specific control: the POS screen needs "sellable locations
-  // only", and the same need - "Active vendors only", "this family's items" -
-  // is one line away for any screen that wants it next.
-  //
-  // Off by default, so all ~45 existing pickers send exactly the request they
-  // sent before.
-  //
-  // Stage 127.7: except the search scope - a picker finds a record by what
-  // identifies it (code, name, number, barcode, phone; q_fields=@identity),
-  // so typing "A" no longer lists every record whose status reads "Active"
-  // (the user's 94.24 bug, once fixed on the PO screen only). opts.anyField
-  // keeps the old every-field search for a picker that needs it.
+  // Stage 53.3: opts.filters narrows the picker with field=value filters (off by default).
+  // Stage 127.7: searches identity fields only (q_fields=@identity); opts.anyField searches every field.
   const typeaheadFilters = { ...(opts.filters || {}) };
   if (!typeaheadFilters.q_fields && !opts.anyField && typeof opts.source !== 'function') typeaheadFilters.q_fields = '@identity';
   const filterParams = Object.entries(typeaheadFilters)
@@ -1725,29 +1733,9 @@ function attachLinkTypeahead(inputEl, doctype, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// attachCodeNamePicker (Stage 41)
-//
-// A picker whose visible value and stored value are different fields of the
-// same record: the user sees and searches the NAME, the form submits the
-// CODE.
-//
-// Built for the POS location box, which showed a raw location code ("HO",
-// "BKC01") in a field labelled "Location Code" - correct, and useless to a
-// cashier who knows their shop by its name. It could not simply be changed to
-// display the name, because the code is what every downstream call needs:
-// session open/close, availability lookup, the cart number, the receipt. So
-// the two are split - a visible search box and a hidden input carrying the
-// code - and every existing reader of the hidden input is untouched.
-//
-// Deliberately generic rather than POS-specific, because the same mismatch
-// exists on 15 other screens that pick a location; this is the mechanism they
-// can adopt one at a time without a new pattern being invented each time.
-//
-// Free typing still works. A user who types a code and tabs away gets it
-// resolved on blur (exact code, short code, or name), so muscle memory built
-// on the old field is not punished. Text that resolves to nothing clears the
-// hidden value rather than submitting something that does not exist - the
-// failure the old free-text field had, where a typo'd code reached the server.
+// attachCodeNamePicker (Stage 41): the user sees and searches a record's NAME,
+// the hidden input submits its CODE. Typed text resolves on blur (code, short
+// code or name); text that matches nothing clears the hidden value.
 function attachCodeNamePicker(displayEl, hiddenEl, doctype, opts = {}) {
   if (!displayEl || !hiddenEl) return;
   const codeOf = doc => doc.code || doc.id || '';
@@ -2388,29 +2376,9 @@ function resolveActionArgs(raw, el, event) {
   });
 }
 
-// resolveActionFunction looks up an action by name, and refuses to be a
-// general-purpose call primitive while doing it.
-//
-// A plain `window[name]` lookup is not safe enough. `window['eval']` is a
-// function, so `fn.apply(null, args)` with a string argument would execute
-// that string - the dispatcher would hand any code path that could influence
-// a data-act name full script execution. Today no renderer can: every name
-// comes from a string literal in this repository's own source. The point is
-// that it stays harmless if that ever stops being true, because one renderer
-// passing a record field where it meant to pass a function name should be a
-// broken button, not arbitrary code execution.
-//
-// Three checks, in order of what they rule out:
-//
-//  1. the name must be a plain identifier - no property paths, no indexing;
-//  2. it must be an OWN property of window, which excludes everything
-//     inherited from Object.prototype (`constructor`, `__proto__`,
-//     `toString`, `valueOf`);
-//  3. it must not be a native built-in. Every action in this app is a
-//     function declared in app.js or published by a view module, so none of
-//     them is native, while `eval`, `Function`, `alert`, `fetch`, `open` and
-//     the rest of the platform all are. This is an allowlist by construction
-//     rather than a denylist that has to keep up with the platform.
+// resolveActionFunction: a data-act name must be (1) a plain identifier,
+// (2) an own property of window and (3) not a native built-in, so a stray
+// record value can break a button but never reach eval/Function.
 const ACTION_NAME_RE = /^[A-Za-z_$][\w$]*$/;
 
 function resolveActionFunction(name) {
@@ -2879,20 +2847,10 @@ const SETUP_MSG = {
 };
 
 // --- deep links -----------------------------------------------------------
-//
-// Until now this app had no addressable views at all: every screen was
-// reached by mutating module state and calling renderView(), so "open this in
-// a new tab" was not expressible - a new tab would just reopen whatever was
-// in localStorage. A hash route fixes that without a router, a build step or
-// a server-side change, because the fragment never reaches the server.
-//
 //   #/setup/<Doctype>  - a Master record type's list
 //   #/view/<view>      - a named view, the same strings renderViewContent takes
-// extra ({page, search}) is optional and only ever passed by saveNavState's
-// own self-referential write (BLD-034) - every other caller (setupOpenLinks'
-// hint/"open in new tab" affordances, "back to X" shortcuts) calls this with
-// just a doctype and must keep landing clean on page 1/no search, which
-// omitting the argument still does.
+// extra ({page, search}) is passed only by saveNavState (BLD-034); other callers
+// omit it and land on page 1 with no search.
 function deepLinkForDoctype(doctype, extra) {
   let link = `#/setup/${encodeURIComponent(doctype)}`;
   if (extra && (extra.page > 1 || extra.search)) {
@@ -3842,17 +3800,10 @@ async function init() {
   // an input created by the very first view is already covered.
   initFieldFormatListeners();
 
-  // Stage 40.3: these four were four sequential round trips, each waiting on
-  // the one before it for no reason - none of them reads the others' results.
-  // On a 120ms link that was ~half a second of blank screen before the first
-  // view could even start. Issued together, the boot pays for the slowest one
-  // instead of the sum. loadFieldFormats joins them because it is needed by
-  // the first decorate sweep, which runs after restoreLastView.
-  // Stage 41 adds two more to the same batch for the same reason: the setup
-  // status and the country/phone rule are needed by the first rendered view
-  // (its banner, its pickers, its phone fields) and neither depends on the
-  // others, so they cost nothing extra here and would cost a visible pop-in
-  // if fetched later.
+  // Stage 40.3 / 41 / ask 207 (162.5): independent boot calls go out together, so boot pays
+  // for the slowest, not the sum. The Data Healer strip joins (waited for at most 1 s) so it
+  // never pushes the first view down (CLS).
+  const healerReady = loadViewModule('/view-data-healer.js?v=1').then(() => window.dataHealer?.mount(currentView, currentView === 'doctype-table' ? currentDoctype : '')).catch(() => {});
   await Promise.all([
     fetchLabels(),
     fetchRegisteredDoctypes(),
@@ -3860,7 +3811,8 @@ async function init() {
     fetchAndApplyModules(),
     loadFieldFormats(),
     fetchSetupStatus(),
-    fetchLocalization()
+    fetchLocalization(),
+    Promise.race([healerReady, new Promise(resolve => setTimeout(resolve, 1000))])
   ]);
   applyProductPathRouting();
   // BLD-045: before the first view, not after - off production this banner is the LCP.
@@ -3871,8 +3823,6 @@ async function init() {
   fetchAndApplyProfile();
   loadAppVersion();
   loadViewModule('/view-store.js?v=1').then(m => m.mountStoreSwitch()).catch(() => {});
-  // Ask 207: the Data Healer strip on every screen and its save check.
-  loadViewModule('/view-data-healer.js?v=1').then(() => window.dataHealer?.mount(currentView, currentView === 'doctype-table' ? currentDoctype : '')).catch(() => {});
 }
 
 // Stage 47.0.5: fetch once at boot and show a strip at the top of the page.
@@ -4808,20 +4758,9 @@ async function fetchAndApplyModules() {
   applyModuleEntitlements();
 }
 
-// applyProductPathRouting (Stage 27) is a pure navigation convenience, run
-// once at boot right after module entitlements load and before
-// restoreLastView() picks a screen - it never affects access control (every
-// API route still enforces its own moduleGate regardless of the URL) and
-// it deliberately changes nothing about which screen renders, only the
-// address bar. A tenant whose enabled (non-core) modules resolve to
-// exactly one sellable product (state.modules.solePackage, set server-side
-// by engines.ResolveSoleProductPackage) gets bare "/" silently rewritten to
-// that product's own URL (e.g. "/" -> "/wms") via replaceState (no reload,
-// no history entry) - this is the concrete guarantee that a single-module
-// client always lands somewhere scoped to them, never a generic screen
-// that half-belongs to products they don't have. A multi-product or
-// full-suite tenant (solePackage === null) is untouched - exactly today's
-// behavior at "/".
+// applyProductPathRouting (Stage 27): navigation only, never access control. A tenant whose
+// modules resolve to one product (state.modules.solePackage) has "/" rewritten to that
+// product's URL (e.g. /wms) via replaceState; others are untouched.
 function applyProductPathRouting() {
   if (location.pathname === '/' && state.modules.solePackage) {
     history.replaceState(null, '', state.modules.solePackage.url_prefix);
@@ -4879,8 +4818,13 @@ async function fetchRegisteredDoctypes() {
 // filter lists every match flat. A list with its own menu entry
 // (data-doctype, e.g. CRM > Customers) is not repeated here.
 let setupMenuFilter = '';
-// 162.5 (ask 191): one collator for the menu sort; localeCompare per comparison was a cold-load cost. Same order.
-const setupMenuCollator = new Intl.Collator();
+// 234.5: menu and search names sort without Intl. The page's first Intl.Collator
+// sort cost 160-350 ms on a 6x-throttled phone at boot (a plain sort: 6 ms).
+// Ignores case, then exact - the collator's order for English names.
+function labelOrder(a, b) {
+  const x = String(a).toLowerCase(), y = String(b).toLowerCase();
+  return x < y ? -1 : x > y ? 1 : a < b ? -1 : a > b ? 1 : 0;
+}
 // Stage 88.1: Inventory-module lists that belong to the ERP side; every other one is filed under WMS.
 // A new ERP inventory list is added here.
 const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule'];
@@ -4903,7 +4847,15 @@ function fillSetupRow(row) {
   row.querySelector('.menu-subflyout').innerHTML = pending.html;
 }
 // The Ctrl+K index reads every menu entry, so it fills them all first.
-window.fillSetupMenuRows = () => [...pendingSetupRows.keys()].forEach(fillSetupRow);
+// 234.5: in one parse - a write per row cost a Trusted Types trial report each.
+window.fillSetupMenuRows = () => {
+  const rows = [...pendingSetupRows.keys()];
+  if (!rows.length) return;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = rows.map(r => `<ul>${pendingSetupRows.get(r).html}</ul>`).join('');
+  [...tpl.content.children].forEach((ul, i) => rows[i].querySelector('.menu-subflyout').replaceChildren(...ul.childNodes));
+  pendingSetupRows.clear();
+};
 function fillSetupRowFor(doctype) {
   for (const [row, pending] of pendingSetupRows) if (pending.names.has(doctype)) fillSetupRow(row);
 }
@@ -4911,7 +4863,7 @@ function fillSetupRowFor(doctype) {
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
   if (!sub) return;
-  sub.innerHTML = '';
+  sub.replaceChildren();
   pendingSetupRows = new Map();
 
   // 162.5 (ask 191): the lists with their own menu entry, read once - a query per doctype was a cold-load cost.
@@ -4934,9 +4886,10 @@ function renderSidebarSubmenu() {
   // it apart from a real entry when deciding whether the whole flyout is empty.
   const tools = document.createElement('li');
   tools.className = 'submenu-tools';
-  tools.innerHTML = `<input type="text" class="submenu-filter" id="setup-menu-filter" placeholder="Filter setup lists..." value="${escapeHTMLText(setupMenuFilter)}" autocomplete="off">`;
+  // 234.5: built as nodes, not markup - no HTML parse on each filter keystroke.
+  const filterInput = Object.assign(document.createElement('input'), { type: 'text', className: 'submenu-filter', id: 'setup-menu-filter', placeholder: 'Filter setup lists...', defaultValue: setupMenuFilter, autocomplete: 'off' });
+  tools.appendChild(filterInput);
   sub.appendChild(tools);
-  const filterInput = tools.querySelector('#setup-menu-filter');
   filterInput.addEventListener('input', (e) => {
     setupMenuFilter = e.target.value;
     renderSidebarSubmenu();
@@ -4959,25 +4912,24 @@ function renderSidebarSubmenu() {
   const entry = d => `<li><a class="submenu-item" data-view="${escapeHTMLText(d.name)}">${escapeHTMLText(label(d))}</a></li>`;
   const byModule = {};
   visible.filter(matches).forEach(d => (byModule[groupOf(d)] = byModule[groupOf(d)] || []).push(d));
-  Object.keys(byModule).sort().forEach(mod => {
-    const list = byModule[mod].sort((a, b) => setupMenuCollator.compare(label(a), label(b)));
+  // 234.5: every module row is written in one go. A row each cost an HTML parse
+  // and a Trusted Types trial report each (49.4.3) - ~300 ms of a phone's boot.
+  const lazyRows = [];
+  const rowsHTML = Object.keys(byModule).sort().map(mod => {
+    const list = byModule[mod].sort((a, b) => labelOrder(label(a), label(b)));
     const advanced = list.filter(d => d.setup_advanced).map(entry).join('');
     const items = (SETUP_PAGES[mod] || '') + list.filter(d => !d.setup_advanced).map(entry).join('') + (advanced ? `<li class="submenu-group-label">Advanced</li>${advanced}` : '');
-    const row = document.createElement('li');
-    if (needle) {
-      row.className = 'submenu-group-label';
-      row.textContent = mod;
-      sub.appendChild(row);
-      sub.insertAdjacentHTML('beforeend', items);
-      return;
-    }
-    row.className = 'has-subflyout';
+    if (needle) return `<li class="submenu-group-label">${escapeHTMLText(mod)}</li>${items}`;
     const lazy = !SETUP_PAGES[mod];
-    row.innerHTML = `<a class="menu-item submenu-parent">${escapeHTMLText(mod)}</a><ul class="menu-subflyout">${lazy ? '' : items}</ul>`;
-    if (lazy) pendingSetupRows.set(row, { html: items, names: new Set(list.map(d => d.name)) });
-    sub.appendChild(row);
+    if (lazy) lazyRows.push({ html: items, names: new Set(list.map(d => d.name)) });
+    return `<li class="has-subflyout"${lazy ? ' data-setup-lazy' : ''}><a class="menu-item submenu-parent">${escapeHTMLText(mod)}</a><ul class="menu-subflyout">${lazy ? '' : items}</ul></li>`;
+  }).join('');
+  const rowsOut = rowsHTML || (needle ? '<li class="submenu-group-label">No setup list matches that.</li>' : '');
+  if (rowsOut) sub.insertAdjacentHTML('beforeend', rowsOut);
+  sub.querySelectorAll(':scope > li[data-setup-lazy]').forEach((row, i) => {
+    row.removeAttribute('data-setup-lazy');
+    pendingSetupRows.set(row, lazyRows[i]);
   });
-  if (needle && !Object.keys(byModule).length) sub.insertAdjacentHTML('beforeend', '<li class="submenu-group-label">No setup list matches that.</li>');
   bindSubFlyoutRows(sub);
   // Setup's own flyout trigger has no read access left once every Master
   // doctype it lists is filtered out - re-evaluate the flyout-hiding pass
@@ -5702,19 +5654,9 @@ document.addEventListener('pointermove', (e) => {
   }
 }, { passive: true, capture: true });
 
-// True only when the pointer is on a trajectory that actually lands inside the
-// open flyout panel: moving right, fast enough to be deliberate, and aimed at
-// the panel's vertical span.
-//
-// The previous test asked only "is the pointer moving right, and is the panel
-// to its right". The panel always sits to the right of the sidebar, so the
-// second half was true for essentially every pointer position in the nav, and
-// the first half was a single noisy sample. Every module switch therefore paid
-// the full 500ms aim grace roughly half the time, at random - and if the user
-// moved rightwards to where they expected the menu during that wait, they left
-// the row, the pending open was cancelled and the hide fired instead, so no
-// menu ever appeared. Clicking the arrow bypassed the whole ladder, which is
-// why clicking was the only thing that reliably worked.
+// True only when the pointer is heading into the open flyout panel: moving right,
+// fast enough to be deliberate, and aimed at the panel's vertical span (a looser
+// test made every module switch wait the 500 ms aim grace at random).
 function pointerAimingAtOpenFlyout(exceptContainer) {
   const openContainer = document.querySelector('.has-flyout.flyout-open');
   if (!openContainer || openContainer === exceptContainer) return false;
@@ -5847,17 +5789,10 @@ function closeSubmenus(except) {
   });
 }
 
-// Module-grouped sidebar (Stage 20 nav redesign): the left sidebar shows
-// only module-level entries; hovering (or clicking, for keyboard/touch
-// users) reveals the module's actual screens in a flyout beside it.
-// Idempotent per-container (marked via data-flyout-bound) and safe to call
-// again after a view (e.g. Database Schema Design) injects its own new
-// `.has-flyout` markup - re-running only binds the newly-added containers,
-// it never double-binds the sidebar's own.
-// Stage 88.1: a second menu beside a flyout row (WMS's Inbound, Setup's modules, Reports' areas). It is a
-// DOM child of the row, so moving into it never counts as leaving the module, and it sits flush against
-// the flyout so it needs no hover bridge. Switching rows waits a moment, so a diagonal reach into the
-// open menu can cross a neighbouring row without swapping it.
+// Module-grouped sidebar (Stage 20): hover or click a module to show its screens in a
+// flyout. Idempotent per container (data-flyout-bound), so views may re-run it.
+// Stage 88.1: a row's second menu is a DOM child of the row, flush with the flyout;
+// switching rows waits a moment so a diagonal reach does not swap it.
 let subFlyoutTimer = null;
 function closeSubFlyouts(scope, except) {
   scope.querySelectorAll('.subflyout-open').forEach(row => {
@@ -6280,7 +6215,9 @@ async function renderView(view, keep) {
     // gives it its overflow - it then scrolls away. One forced layout read
     // after paint fixes it, for every view's tables at once.
     requestAnimationFrame(() => { void root.offsetHeight; });
-    setTimeout(translateDOM, 50);
+    // 234.1: idle time, not a timer that ran before the next input or frame.
+    if (window.requestIdleCallback) requestIdleCallback(() => translateDOM(root), { timeout: 500 });
+    else setTimeout(() => translateDOM(root), 50);
     // Stage 40.2: placeholders and hints for every recognised input, here once.
     decorateFieldFormats(root);
     // Stage 41: in finally, so a screen that failed still names missing setup.
@@ -6336,9 +6273,13 @@ async function renderViewContent(view, root) {
 }
 
 // Translate labels in DOM dynamically
-function translateDOM() {
+// 234.1: the whole page once per set of labels (the sidebar and header do not
+// change between screens), then only the screen just drawn.
+let labelsWalkedSrc = null;
+function translateDOM(root) {
   if (!Object.keys(state.labels).length) return; // BLD-045: nothing to swap, skip the page walk
-  const elements = document.querySelectorAll('.page-title, .page-subtitle, .card-title, .card-desc, th, td, label, span, h1, h2, h3, a');
+  if (labelsWalkedSrc !== state.labels || !root) { labelsWalkedSrc = state.labels; root = document; }
+  const elements = root.querySelectorAll('.page-title, .page-subtitle, .card-title, .card-desc, th, td, label, span, h1, h2, h3, a');
   elements.forEach(el => {
     if (el.children.length === 0 && el.textContent.trim() !== '') {
       const orig = el.textContent.trim();
@@ -6807,19 +6748,8 @@ async function trySyncOfflineQueue() {
   }
 }
 
-// Registered once at app init (see init()). The 'online' browser event is
-// the primary trigger; the 30s poll is a fallback for the cases that event
-// doesn't reliably fire (some OS/browser network-transition paths), and is
-// cheap to skip when the queue is already empty.
-//
-// 24.36: 'visibilitychange'/'pagehide' additionally re-beacon the queue's
-// current state whenever the tab is about to be hidden or closed - the
-// single highest-value moment to catch, since it's the last chance to get
-// a checkpoint out before a cashier could clear storage or walk away from
-// an unattended tab. The 30s poll already re-heartbeats implicitly via
-// saveOfflineQueue if it triggers a sync, but a page that's simply idle
-// (queue non-empty, nothing changing) wouldn't otherwise re-beacon between
-// the initial queue and whenever it's next touched.
+// Registered once in init(). 'online' is the main trigger; the 30s poll is the fallback.
+// 24.36: 'visibilitychange'/'pagehide' re-beacon the queue before the tab hides or closes.
 function setupOfflineSync() {
   window.addEventListener('online', trySyncOfflineQueue);
   setInterval(() => {
@@ -6882,6 +6812,9 @@ function formatMoney(v) {
 // 47.14.2: counts and plain numbers, grouped like formatMoney (not the browser's own locale).
 function formatNumber(v) {
   const n = Number(v);
+  // 234.5: a whole number under 1,000 has no grouping, so it skips Intl - the
+  // first NumberFormat cost ~185 ms on the phone profile at boot (Data Healer strip).
+  if (Number.isInteger(n) && n > -1000 && n < 1000) return String(n);
   return isFinite(n) ? (plainNumberFmt = plainNumberFmt || new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 })).format(n) : '0';
 }
 // 47.14.2: a Date or timestamp as "03 Feb 2026 14:05" (dateOnly drops the time), in the client's date order.

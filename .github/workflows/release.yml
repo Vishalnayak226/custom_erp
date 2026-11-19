@@ -156,9 +156,128 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # 47.9.4 / 47.17.2 (ask 241): the browser budgets and the seven journeys run
+  # here, on this exact commit, instead of on the laptop. The click records the
+  # two kinds as deferred (G10b passes -github-kinds) and promote needs this
+  # job. The tool steps never fail the job themselves; the judge does, by
+  # release/gate-policy.json: block_after_pass warns until a kind's first pass
+  # and blocks after it. The first-pass day is carried in the release-evidence
+  # artifact from run to run. The checkout is one commit deep, so only evidence
+  # this run wrote counts for this commit.
+  evidence:
+    name: Browser budgets and journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read # only to fetch the last run's evidence (its first-pass day)
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: custom_erp
+          POSTGRES_HOST_AUTH_METHOD: trust
+          TZ: Asia/Kolkata
+        ports: ['5435:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PORT: '8740'
+      HOST: 127.0.0.1
+      # a throwaway key for this run's server and the tools that mint its tokens
+      JWT_SECRET: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+      ERP_DISABLE_EXTERNAL_SIDE_EFFECTS: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
+        with:
+          go-version: '1.27.4'
+      - name: Last run's evidence (first-pass day)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          for id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --limit 20 --json databaseId,status --jq '.[] | select(.status == "completed") | .databaseId'); do
+            rm -rf /tmp/carried
+            if gh run download "$id" --repo "$GITHUB_REPOSITORY" -n release-evidence -D /tmp/carried 2>/dev/null; then
+              mkdir -p release/evidence
+              for k in browser_budget journey; do
+                if [ -f "/tmp/carried/$k.json" ]; then cp "/tmp/carried/$k.json" release/evidence/; fi
+              done
+              echo "carried from run $id:"; ls release/evidence; exit 0
+            fi
+          done
+          echo "no earlier evidence: the first pass starts here"
+      - name: Start the candidate on a throwaway database
+        id: start
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          go build -o /tmp/erp-server ./cmd/server
+          go build -o /tmp/journeylab ./cmd/journeylab
+          go build -o /tmp/minttoken ./cmd/minttoken
+          /tmp/erp-server -migrate
+          nohup /tmp/erp-server > /tmp/erp-server.log 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/api/v1/health"; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::the server did not answer on port $PORT"; tail -50 /tmp/erp-server.log; exit 1
+      - name: Browser budgets (perf-budget.cjs)
+        if: steps.start.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 35
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/evidence-src
+          # Playwright stays a CI tool (dependency ledger): installed into the
+          # runner's home, where capture-screenshots.js resolves it, never committed.
+          (cd ~ && npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.64.1 && npx --no-install playwright install --with-deps chromium)
+          for i in $(seq 1 16); do /tmp/minttoken manager1 "Store Manager"; echo; done > /tmp/tokens.txt
+          node docs/qa/perf-budget.cjs --base "http://127.0.0.1:$PORT" --tokens /tmp/tokens.txt --ratchet --out /tmp/evidence-src/perf.json --record-gate .
+      - name: Journeys (journeylab)
+        if: steps.start.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/evidence-src
+          command -v pg_dump >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q postgresql-client; }
+          /tmp/journeylab journey -base-url "http://127.0.0.1:$PORT" -allow-db custom_erp -server-bin /tmp/erp-server -server-pid "$SERVER_PID" -out /tmp/evidence-src -record-gate .
+      - name: Judge the evidence (release/gate-policy.json)
+        if: always()
+        run: |
+          set -o pipefail
+          go run ./cmd/releasegate judge -kinds browser_budget,journey | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep the evidence for the next run
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.2 (pinned)
+        with:
+          name: release-evidence
+          path: |
+            release/evidence/browser_budget.json
+            release/evidence/journey.json
+          retention-days: 90
+          if-no-files-found: ignore
+      - name: Keep the run's reports
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.2 (pinned)
+        with:
+          name: evidence-reports
+          path: |
+            /tmp/evidence-src/
+            /tmp/erp-server.log
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Stop the server
+        if: always()
+        run: kill "${SERVER_PID:-0}" 2>/dev/null || true
+
   promote:
     name: Move main to this commit
-    needs: [guards, checks, tests]
+    needs: [guards, checks, tests, evidence]
     if: startsWith(github.ref, 'refs/heads/candidate/')
     runs-on: ubuntu-24.04
     timeout-minutes: 5

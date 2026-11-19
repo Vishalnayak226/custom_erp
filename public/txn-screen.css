@@ -340,6 +340,12 @@
   border-radius: 6px;
   color: var(--text-muted);
 }
+/* 162.5 (ask 233): on a phone the status gets its own row with room for two
+   lines, so the session check's answer replacing "Checking session..." no
+   longer reflows the buttons and pushes the till down (CLS 0.10 on its own). */
+@media (max-width: 560px) {
+  #pos-session-status { flex: 1 0 100%; min-height: 2lh; }
+}
 
 /* Stage 94.6: the one-tap MRP choice on a till line. */
 .pos-mrp-choice {

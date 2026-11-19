@@ -363,6 +363,17 @@ function priceHTML(v) {
       priced && canDo('price') ? `<button type="button" class="btn btn-outline" data-gs="regroup">Check prices again</button>` : '')}`;
 }
 
+// The margin and warning a line's typed MRP gives - drawn with the row and
+// redrawn in place as the MRP is typed (230.2).
+function mrpCheck(l) {
+  const m = num(gs.mrp[l.line_no]);
+  const exGST = m == null ? null : m / (1 + (Number(l.gst_rate) || 0) / 100);
+  const margin = exGST ? Math.round((exGST - l.grn_price) / exGST * 1000) / 10 : null;
+  const warn = m == null || m <= 0 ? (l.needs_mrp ? '<span class="gs-red">MRP needed</span>' : '')
+    : (exGST < l.grn_price ? '<span class="gs-red">Below cost</span>' : (l.current_mrp && m < l.current_mrp ? '<span class="gs-amber">Below the current MRP</span>' : ''));
+  return { margin: margin == null ? '' : margin + '%', warn };
+}
+
 // ④ MRP and posting, one child at a time.
 function postHTML(v) {
   const children = v.children || [];
@@ -371,17 +382,13 @@ function postHTML(v) {
     const lines = v.lines.filter(l => l.child === c.key);
     const posted = c.status === 'Posted';
     const rows = lines.map(l => {
-      const m = num(gs.mrp[l.line_no]);
-      const exGST = m == null ? null : m / (1 + (Number(l.gst_rate) || 0) / 100);
-      const margin = exGST ? Math.round((exGST - l.grn_price) / exGST * 1000) / 10 : null;
-      const warn = m == null || m <= 0 ? (l.needs_mrp ? '<span class="gs-red">MRP needed</span>' : '')
-        : (exGST < l.grn_price ? '<span class="gs-red">Below cost</span>' : (l.current_mrp && m < l.current_mrp ? '<span class="gs-amber">Below the current MRP</span>' : ''));
+      const chk = mrpCheck(l);
       return `<tr>
         <td>${itemCell(l)}</td><td class="num">${l.accepted_qty}</td><td class="num">${money(l.grn_price)}</td>
         <td class="num">${l.current_mrp ? mrpText(l.current_mrp) : '<span class="text-muted">none</span>'}</td>
         <td class="num">${posted ? mrpText(l.mrp) : numInput(l.line_no, 'mrp', gs.mrp[l.line_no], '1')}</td>
         <td class="num">${l.suggested_mrp ? mrpText(l.suggested_mrp) : ''}${l.suggested_mrp && l.suggested_mrp_rule ? `<div class="text-muted s-a11453" title="MRP rule (Setup &gt; MRP Rule)">${esc(l.suggested_mrp_rule)}</div>` : ''}</td>
-        <td class="num">${margin == null ? '' : margin + '%'}</td><td>${posted ? '' : warn}</td></tr>`;
+        <td class="num" data-gs-margin>${chk.margin}</td><td data-gs-warn>${posted ? '' : chk.warn}</td></tr>`;
     }).join('');
     return `<section class="gs-child">
       <div class="gs-child-head"><h3>${esc(v.code)}/${c.key} &middot; ${esc(c.name)}</h3><span class="text-muted">${lines.length} line${lines.length === 1 ? '' : 's'}</span>
@@ -478,7 +485,18 @@ function onInput(e) {
   if (!line || !field) return;
   if (field === 'mrp') {
     gs.mrp[line] = t.value;
-    if (e.type === 'change') render();
+    // 230.2: only this row's margin and warning are redrawn. Redrawing the
+    // step on change (leaving the box) replaced Save and post under the
+    // pointer, so the first click on it was lost.
+    const l = (gs.view.lines || []).find(x => String(x.line_no) === String(line));
+    const row = t.closest('tr');
+    if (l && row) {
+      const chk = mrpCheck(l);
+      const mc = row.querySelector('[data-gs-margin]');
+      const wc = row.querySelector('[data-gs-warn]');
+      if (mc) mc.textContent = chk.margin;
+      if (wc) wc.innerHTML = chk.warn;
+    }
     return;
   }
   const lv = PRICE_FIELDS.includes(field) && (gs.view.lines || []).find(x => String(x.line_no) === String(line));

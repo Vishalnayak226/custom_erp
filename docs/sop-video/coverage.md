@@ -9,15 +9,15 @@ audience: [trainers, product, QA, engineering]
 applies_to: local ERP working tree on 2026-10-05
 authority: historical
 confidentiality: internal
-last_verified: 2026-10-10
-review_by: 2026-11-05
+last_verified: 2026-11-18
+review_by: 2027-02-16
 supersedes: none
 superseded_by: none
 ---
 
 # Video coverage register
 
-As of 2026-10-10, **25 chapters (64 replaceable segments) are recorded as drafts**
+As of 2026-11-17, **25 chapters (64 replaceable segments) are re-recorded as drafts on the final screens**
 on the disposable training database, one per module, each built from shared setup
 segments and ending on its saved record read back in the app. Draft is not
 published: every clip still needs the clean recording pass on a fresh database,
@@ -29,7 +29,7 @@ A chapter becomes “published” only when every referenced clip shows a verifi
 transaction, its exception, saved readback and accountable reviewer. A process with
 an open functional defect may have a draft clip, but must not be taught as complete.
 
-| Domain | Draft chapters recorded (2026-10-10) | Not yet recorded | Reviewer |
+| Domain | Draft chapters recorded (2026-11-17) | Not yet recorded | Reviewer |
 |---|---|---|---|
 | Core/masters | Department, vendor, item, location, customer, users and roles | Entity, series, tax master | Administrator |
 | Procurement/RFQ | Requisition, RFQ to winning quote, PO and approval, GRN, purchase return | ASN, receipt discrepancy | Buyer + receiver |
@@ -37,7 +37,7 @@ an open functional defect may have a draft clip, but must not be taught as compl
 | Sales/POS | Till open, cash sale, coupon sale, till close | Refund | Cashier + Account Head |
 | Inventory | Stock transfer warehouse to shop | Count, hold, valuation, stock correction | Stock controller + Account Head |
 | WMS | Bins and zones, putaway, bin-to-bin move, pick/pack/dispatch | Inbound appointment, load, 3PL billing | Warehouse owner |
-| OMS/marketplace | Phone order, release, dispatch, invoice | Channel intake, notification, customer return | OMS owner |
+| OMS/marketplace | Phone order, dispatch, invoice | Channel intake and its accept step, notification, customer return | OMS owner |
 | PIM/stickers | Family, attribute, required attribute, workbench enrichment; label printer and GRN labels | Variants, media, publish; label design, reprint | Merchandiser + print owner |
 | Manufacturing/quality | Finished item, BOM, production order, inspection and approval | Planning, failed-inspection disposition | Planner + quality owner |
 | HR/expenses/assets | Employee to posted payroll, leave, attendance, expense claim to payment, asset register and transfer | Asset disposal, appraisal | HR and Account Head, CA if applicable |

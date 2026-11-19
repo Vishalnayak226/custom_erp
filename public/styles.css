@@ -25,8 +25,11 @@
      face is built once per weight inside the first layout, and dropping it
      took first paint from 2.4 s to 1.4 s in BLD-045's interleaved pairs. */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Inter, sans-serif;
-  /* Tabular figures for money columns, so digits line up down a column. */
-  --font-numeric: "SF Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* Tabular figures for money columns, so digits line up down a column.
+     234.1: not "Cascadia Mono" - like Segoe UI Variable above, Windows 11's
+     variable face is built per weight inside a layout: the Ctrl+K box's
+     first result list (its code tags) took ~400 ms at 4x CPU, ~230 with Consolas. */
+  --font-numeric: "SF Mono", ui-monospace, Consolas, monospace;
   --sidebar-width: 270px;
   --transition-speed: 0.25s;
   /* Interaction feedback (hover, press) has to land inside the ~100ms a human
@@ -765,6 +768,10 @@ body {
   height: var(--view-pad-top);
   margin-bottom: calc(-1 * var(--view-gap));
 }
+/* 162.5 (ask 233): nothing to see before the first view arrives, and hidden it
+   does not count as moved when a strip above it (Data Healer) lands first -
+   on a phone that empty box alone was CLS 0.048. */
+.page-container:empty { visibility: hidden; }
 
 .page-header {
   display: flex;
@@ -961,6 +968,10 @@ body {
    landing screen's tile grid and were removed with it (2026-08-01).
    .dashboard-stats-row below is unrelated and still in use by Finance, the
    Reports exec dashboard, System Status and Tenant Usage. */
+
+/* 234.1: the Reports dashboard's "Add tile" picker gets its reports on first use
+   (view-reports.js), so its width is set here, not by its longest report name. */
+#dashboard-add-tile-picker { width: 14rem; max-width: 100%; }
 
 .card-title {
   font-size: 16px;
@@ -1240,6 +1251,32 @@ tr:hover td {
 .copy-chip.copy-chip-done {
   opacity: 1;
   color: var(--success-color);
+}
+
+/* 234.1: the chip's icon, drawn here instead of an inline SVG in each of a
+   list's ~200 chips (copy; a tick once copied). It is painted only while the
+   chip shows: an unseen chip (opacity 0) still cost a masked paint each. */
+.copy-chip::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  visibility: hidden;
+  transition: visibility var(--transition-fast);
+  background-color: currentColor;
+  -webkit-mask: var(--copy-icon) center / contain no-repeat;
+  mask: var(--copy-icon) center / contain no-repeat;
+  --copy-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='9' y='9' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E");
+}
+.copyable-cell:hover .copy-chip::before,
+.copy-chip:focus-visible::before,
+.copy-chip.copy-chip-done::before {
+  visibility: visible;
+}
+.copy-chip.copy-chip-done::before {
+  --copy-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+}
+@media (forced-colors: active) {
+  .copy-chip::before { forced-color-adjust: none; background-color: ButtonText; }
 }
 
 /* Modals */
@@ -3218,6 +3255,23 @@ body.rf-shell #view-root {
 @media (min-width: 821px) {
   .app-container.nav-hidden .sidebar { display: none; }
   .app-container.nav-hidden .header-brand { display: inline-flex; }
+}
+
+/* 234.2: the frame painted while app.js downloads, when a sign-in is stored
+   (theme-boot.js sets data-boot): the header bar and the menu column with the
+   logo. No menu items, buttons or name show until app.js has checked the
+   sign-in and the permissions, and nothing takes a click. It lasts only while
+   app.js has shown neither the app nor the sign-in page. */
+html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden {
+  display: flex !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar, .app-header) { visibility: visible; }
+html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar > :not(.sidebar-header), .app-header > :not(.header-brand)) { visibility: hidden; }
+@media (min-width: 821px) {
+  html[data-boot~="nav-hidden"] #login-screen.hidden ~ #app-root.hidden .sidebar { display: none; }
+  html[data-boot~="nav-hidden"] #login-screen.hidden ~ #app-root.hidden .header-brand { display: inline-flex; }
 }
 
 .nav-scrim {

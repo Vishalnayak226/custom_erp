@@ -9,7 +9,9 @@
 // documents already made (engines/data_healer_rename.go): preview, then YES.
 
 const esc = (s) => escapeHTMLText(String(s ?? ''));
-const num = (n) => Number(n || 0).toLocaleString();
+// 234.5: app.js's cached en-IN formatter. toLocaleString built a second ICU
+// formatter at boot (177 ms on the phone profile) and grouped by browser locale.
+const num = (n) => formatNumber(n || 0);
 let cache = null;
 let openHealID = '';
 const PAST = '#past-names';
@@ -27,13 +29,21 @@ adoptCss('data-healer-css', `
 .heal-sum { padding: 8px 16px; margin: 0; }
 `);
 
+// inflight: boot mounts the strip while the first view renders and mounts it
+// again (162.5), so the two share one request instead of sending two.
+let inflight = null;
 async function loadHeals(force) {
   if (!force && cache && Date.now() - cache.at < 60000) return cache;
-  const res = await apiFetch('/api/v1/heals');
-  if (!res || !res.ok) return cache || { heals: [], can_run: false, can_rename: false, at: 0 };
-  const j = await res.json();
-  cache = { heals: j.heals || [], can_run: !!j.can_run, can_rename: !!j.can_rename, at: Date.now() };
-  return cache;
+  if (!force && inflight) return inflight;
+  const p = (async () => {
+    const res = await apiFetch('/api/v1/heals');
+    if (!res || !res.ok) return cache || { heals: [], can_run: false, can_rename: false, at: 0 };
+    const j = await res.json();
+    cache = { heals: j.heals || [], can_run: !!j.can_run, can_rename: !!j.can_rename, at: Date.now() };
+    return cache;
+  })();
+  inflight = p;
+  try { return await p; } finally { if (inflight === p) inflight = null; }
 }
 
 const waiting = (c) => (c.heals || []).filter(h => h.status === 'Waiting');
@@ -71,8 +81,9 @@ function renderStrip(c) {
     root.parentNode.insertBefore(strip, root);
     strip.addEventListener('click', (e) => { if (e.target.closest('[data-heal-open]')) openHealer(w.length === 1 ? w[0].id : ''); });
   }
-  strip.innerHTML = w.map(h => `<span><strong>${esc(h.title)}</strong> · ${num(h.count)} to heal</span>`).join('') +
+  const html = w.map(h => `<span><strong>${esc(h.title)}</strong> · ${num(h.count)} to heal</span>`).join('') +
     (c.can_run ? '<button type="button" class="btn btn-primary" data-heal-open>Fix now</button>' : '<span>Ask your admin</span>');
+  if (strip._html !== html) { strip.innerHTML = html; strip._html = html; } // 234.1: unchanged, left alone
 }
 
 function renderPanel(c, view, doctype) {
@@ -100,10 +111,18 @@ function renderPanel(c, view, doctype) {
 
 // mount runs after every screen renders: the strip everywhere, the panel on
 // a covered record type's list.
+// 234.1: drawn from the cache in the screen's own pass. A cache past its
+// minute is refreshed behind it and redrawn only if a waiting heal changed,
+// so the panel no longer lands a moment after the screen.
+const healsKey = (c) => JSON.stringify([waiting(c).map(h => [h.id, h.count, h.doctypes]), c.can_run]);
 async function mount(view, doctype) {
+  const draw = (c) => { renderStrip(c); renderPanel(c, view, doctype); };
+  const shown = cache;
+  if (shown) draw(shown);
+  if (shown && Date.now() - shown.at < 60000) return;
   const c = await loadHeals(false);
-  renderStrip(c);
-  renderPanel(c, view, doctype);
+  const still = typeof currentView === 'undefined' || (currentView === view && (view !== 'doctype-table' || currentDoctype === doctype));
+  if (still && (!shown || healsKey(c) !== healsKey(shown))) draw(c);
 }
 
 // allowSave is asked before a form saves. A record type a waiting heal covers

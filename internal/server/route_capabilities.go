@@ -447,6 +447,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/procurement/bulk-upload/runs":                         {LevelAuthenticated, "procurement.default"},
 	"GET /api/v1/procurement/bulk-upload/runs/{id}":                    {LevelAuthenticated, "procurement.default"},
 	"GET /api/v1/procurement/bulk-upload/runs/{id}/file":               {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/procurement/bulk-upload/runs/{id}/errors":             {LevelAuthenticated, "procurement.default"},
 	// Stage 142.3: the sales upload - the same gate as the Sales Invoice list.
 	"GET /api/v1/sales/bulk-upload/template":                     {LevelAuthenticated, "finance.default"},
 	"POST /api/v1/sales/bulk-upload/preview":                     {LevelAuthenticated, "finance.default"},
@@ -536,6 +537,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/system/environment":                             {LevelAuthenticated, "system.default"},
 	"GET /api/v1/transfer/detail":                                {LevelAuthenticated, "inventory.default"},
 	"GET /api/v1/transfer/allocation":                            {LevelAuthenticated, "inventory.default"},
+	"GET /api/v1/transfer/allocation/grn-sheet":                  {LevelAuthenticated, "inventory.default"},
 	"GET /api/v1/planning/proposals":                             {LevelAuthenticated, "inventory.default"},
 	"GET /api/v1/unicommerce/credentials":                        {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/unicommerce/inventory-syncs":                    {LevelAuthenticated, "oms.default"},

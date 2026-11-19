@@ -9,8 +9,8 @@ audience: [trainers, operators, administrators]
 applies_to: 2026-10-05 modular training edition
 authority: proposed-policy
 confidentiality: internal
-last_verified: 2026-10-10
-review_by: 2026-11-05
+last_verified: 2026-11-17
+review_by: 2027-02-15
 supersedes: none
 superseded_by: none
 ---
@@ -36,11 +36,18 @@ Open Vendor under Setup. Enter the legal/trading name and the business fields
 your organization requires. Save and find the record again. This training
 supplier is synthetic; a real supplier's tax and bank details need approval.”
 
+## Category, product type and item name
+
+“An item is built from the lists above it. Create the category and the product
+type once, then the item name: pick its category and product type, and give it
+its HSN and GST rate. Every item sold under that name starts from it.”
+
 ## Item setup
 
-“Confirm the item before ordering or receiving it. Use the name people recognize,
-then check the barcode, HSN/tax setup, traceability and cost against approved
-master data. This is training data, not tax advice. Save and read it back.”
+“Confirm the item before ordering or receiving it. Pick its item name from the
+list, then enter the name people recognize, the barcode, HSN/tax setup and cost
+against approved master data. This is training data, not tax advice. Save and
+read it back.”
 
 ## Location check
 
@@ -69,10 +76,13 @@ The buyer must not approve their own order.”
 
 ## GRN post
 
-“Start from the approved PO. Load its remaining lines, check the physical
-quantity and condition, then post the receipt. Read back the GRN number and
-check the stock view at the receiving warehouse. A partial or rejected receipt
-needs its own exception lesson; do not silently treat damaged stock as saleable.”
+“Start from the approved PO and choose Receive goods. Its remaining lines load.
+Key the supplier's bill from the delivery: invoice number, date and amount
+including GST. Save the receipt, then work its steps: verify the quantity and
+condition, check the prices against the order, enter the MRP, and post. Posting
+puts the stock in the warehouse and records the supplier's bill, already matched.
+Leave it in Payables for accounts to pay. A partial or rejected receipt needs its
+own exception lesson; do not silently treat damaged stock as saleable.”
 
 ## Role setup
 
@@ -82,8 +92,8 @@ module and nothing else.”
 
 ## User setup
 
-“Now the person. Enter their username and name, choose the role you just made,
-and save. They sign in and see only their module. Give a new password through the
+“Now the person. Enter their username, choose the role you just made and the
+department they work in, and save. They sign in and see only their module. Give a new password through the
 reset flow, never by sharing one.”
 
 ## Bin and zone setup
@@ -94,9 +104,11 @@ same form — you do not have to leave and come back.”
 
 ## Request for quotation
 
-“Before ordering, ask suppliers for prices. Describe what you need, invite the
-vendor, record each quote as it comes in, then choose the winning price. The
-choice is recorded with the RFQ, so the order that follows can be traced to it.”
+“Before ordering, ask suppliers for prices. Choose where the goods go, add each
+item and quantity, and create the RFQ. Invite the vendor and mark it Sent. When a
+vendor replies by phone or on paper, key their reply on their row: price, lead
+time and terms. Compare the quotes side by side, then award the best one. The
+award creates a Draft purchase order and the RFQ points to it.”
 
 ## Stock transfer
 
@@ -106,13 +118,14 @@ on the same order — until then the stock is in transit, not lost.”
 
 ## Open the till
 
-“Choose the shop by name, then count the opening cash — the float — and open
-the till. No sale can be rung up until the till is open.”
+“Choose the shop in the top bar, then count the opening cash — the float — and
+open the till. No sale can be rung up until the till is open.”
 
 ## Cash sale
 
-“Search the item by name or scan it. Check the quantity and price in the cart,
-take payment, and complete the sale. The receipt shows exactly what was charged
+“Search the item by name or scan it. Check the quantity and price in the cart.
+Every bill has a customer: take their mobile number, or choose Walk-in when they
+do not give one. Take payment and complete the sale. The receipt shows exactly what was charged
 and collected.”
 
 ## Close the till
@@ -123,31 +136,34 @@ day's summary is saved for the store manager.”
 
 ## Supplier bill
 
-“Record the supplier's bill against the order and receipt it relates to, then
-match it. If the quantity or price disagrees with what was received, the match
-holds the bill and shows why. A matched bill is paid, and the GST on it becomes
-input credit.”
+“The supplier's bill was keyed on the goods receipt, so it is already here and
+matched to the order and the receipt. Never key it a second time. If the quantity
+or price had disagreed with what was received, the match would hold the bill and
+show why. Find the matched bill and pay it; the GST on it becomes input credit.”
 
 ## Phone order
 
 “A customer orders by phone. Enter them by name, add the items, choose cash on
-delivery or prepaid, and save. The order gets a number the customer can quote.”
-
-## Release to the warehouse
-
-“Check the order and release it. Only a released order reaches the warehouse's
-queue; until then it can still be changed.”
+delivery or prepaid, and save. The order gets a number the customer can quote.
+You keyed it in, so it is accepted at once and goes straight to the warehouse's
+pick queue.”
 
 ## Pick, pack and dispatch
 
-“The warehouse picks the items, packs them and dispatches. Stock leaves the
-books at dispatch, and the order shows as shipped. A short pick ships what was
-found and the rest goes back to be reserved.”
+“On Pick, open the order's task and scan each unit off the shelf. Go to Pack,
+scan each unit into the box, weigh it and confirm the bill is inside. Pack, bill
+and label closes the box, makes its GST bill and books the courier for the
+delivery pincode. Print the label and stick it on the box: a parcel goes on a
+manifest only once its label is printed. On Ship, make the manifest, raise the gate pass for the
+vehicle, and hand over. Stock leaves the books at handover, and the order shows
+as shipped. A short pick ships what was found and the rest goes back to be
+reserved.”
 
-## Post the order's invoice
+## Settle the order's invoice
 
-“The invoice bills what was actually shipped, with its GST. Post it, then record
-the payment against it so the customer's balance is cleared.”
+“The invoice was made and posted at Pack, for what went in the box, with its
+GST. When the customer's payment arrives, settle it so the customer's balance is
+cleared.”
 
 ## Raise a journal voucher
 
@@ -196,7 +212,7 @@ destination cannot take it. Every move is in the stock ledger with both bins.”
 ## Product group
 
 “Group the products a promotion will cover. Name the group and add the items
-by name. One group can be used by many offers.”
+by barcode. One group can be used by many offers.”
 
 ## Coupon offer
 
@@ -205,20 +221,21 @@ to, the coupon code customers will quote, and the dates it runs. Save it active.
 
 ## Coupon at the till
 
-“At the till, ring up an item from the group and enter the customer's coupon.
-The discount appears as its own line, and the receipt shows it.”
+“At the till (open it with the float first if it is closed), ring up an item from
+the group and enter the customer's coupon. The discount appears as its own line,
+and the receipt shows it.”
 
 ## Purchase return
 
-“Choose the goods receipt the damaged goods arrived on. The lines show what can
-still be returned — never more than arrived. Enter the quantity and reason, save,
-then post. Stock leaves and a debit note is raised against the supplier
+“Choose the goods receipt the goods arrived on. The lines show what can still be
+returned — never more than arrived. Enter the quantity, choose the reason (damaged
+goods need a photo attached), save, then post. Stock leaves and a debit note is raised against the supplier
 automatically.”
 
 ## Add an employee
 
-“Enter the employee's name, department, location and joining date, and save.
-They can now have a salary, leave and attendance.”
+“Enter the employee's name, pick their department from the list, then location
+and joining date, and save. They can now have a salary, leave and attendance.”
 
 ## Salary structure
 
@@ -228,7 +245,7 @@ month. Payroll reads it; nobody types salaries month by month.”
 ## Leave
 
 “The employee applies for leave with the dates and type. Their manager approves
-it in Approvals. Approved leave is counted in payroll.”
+it from the leave list. Approved leave is counted in payroll.”
 
 ## Attendance
 
@@ -259,8 +276,9 @@ paid when the money is sent. The expense and any GST credit are posted.”
 ## Register a fixed asset
 
 “Record equipment the business will use for years: its category, cost, useful
-life, location and the person responsible. Save, then capitalise it. Its cost
-moves to fixed assets and depreciation starts.”
+life, location and the person responsible. Save, then capitalise it. The
+confirmation shows what posts - Fixed Assets against GRN Suspense - and the
+monthly depreciation. Confirm, and depreciation starts.”
 
 ## Transfer an asset
 
@@ -269,8 +287,9 @@ responsible now, then confirm. The register shows where it is.”
 
 ## Finished product
 
-“Set up the product you will make, like any other item — name, unit, tax. It
-needs its own record before it can have a bill of materials.”
+“Set up the product you will make like any other item: its item name first,
+under the same category and product type, then the item itself. It needs its
+own record before it can have a bill of materials.”
 
 ## Bill of materials
 
@@ -284,8 +303,10 @@ finished goods. Raw material stock goes down and finished stock goes up.”
 
 ## Quality inspection
 
-“Inspect the batch: the inspection number, what was checked, how many passed
-and failed. Save and submit it for approval.”
+“Inspect the batch. Choose production output and the production order; its item
+and location come from the order. Enter how many were inspected and each reading
+with Pass or Fail. Record it: the result follows from the readings. Submit it for
+approval.”
 
 ## Approve an inspection
 
@@ -325,9 +346,9 @@ as tickets close.”
 
 ## Log a service ticket
 
-“When the customer calls, log a ticket: number, customer, asset, what is wrong,
-priority and the dates you must respond and resolve by. Link the contract. Save,
-then assign it to the technician by username.”
+“When the customer calls, log a ticket: customer, asset, what is wrong,
+priority and the dates you must respond and resolve by. Link the contract. Save:
+the system gives the ticket its number. Then assign it to the technician by username.”
 
 ## Work a ticket to closure
 
@@ -342,7 +363,7 @@ Edit the customer and add it. Only the day and month are used.”
 
 ## Birthday campaign
 
-“Name the campaign, choose the Birthday trigger, and write the message — the
+“Name the campaign, choose the Birthday trigger and the channel, and write the message — the
 customer-name placeholder is replaced with each customer's name. Enter what it
 costs and save it active. Every hour the system finds today's birthdays and
 sends the message once.”
@@ -373,6 +394,6 @@ up, labels open in the normal print dialog.”
 
 ## Labels for a goods receipt
 
-“Print labels from the receipt itself. Choose Goods Receipt, pick the document,
-and its lines load — one row per item, copies equal to the accepted quantity.
-Choose the printer and Print Selected. The run is logged against the receipt.”
+“Print labels from the receipt itself. Choose Goods Receipt and the printer,
+then pick the document: its labels open in a preview at once, one for each
+accepted unit. Print there. The run is logged against the receipt.”

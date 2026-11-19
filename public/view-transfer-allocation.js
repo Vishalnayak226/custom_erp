@@ -2,23 +2,33 @@
 // one Draft transfer per store; Preview checks the rows first and shows what
 // the source cannot cover. Submit and Approve then act on the whole run
 // through the ordinary transfer approval.
+// Ask 237.7: "Download sheet" gives a posted goods receipt's SKUs with a
+// column per store (and sets From to the receipt's location); the file may
+// be that .xlsx or a CSV. A run makes the good rows' Drafts; "Rows to fix"
+// downloads the rest with a reason, to upload again under a new run ID.
 
 const esc = escapeHTMLText;
 const API = '/api/v1/transfer/allocation';
+const VQ = new URL(import.meta.url).search;
 let taFile = null;
 let taRun = '';
+let taBody = null;
 
 export async function renderTransferAllocationView(container) {
   const res = await apiFetch('/api/v1/doc/Location');
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Locations could not be loaded.'); return; }
   const locs = (await res.json()).map(l => (l.data || l).code || l.id).filter(Boolean).sort();
-  taFile = null; taRun = '';
+  taFile = null; taRun = ''; taBody = null;
   const box = document.createElement('div');
   box.className = 'table-panel';
   box.style.padding = '24px';
   box.innerHTML = `
     <h3 class="s-ca6dfe">Allocation</h3>
+    <div class="s-7e6838">
+      <div class="form-group"><label class="form-label" for="ta-grn">From a goods receipt</label><input id="ta-grn" class="form-input" autocomplete="off" placeholder="GRN no."></div>
+    </div>
+    <div class="s-881549"><button class="btn" id="ta-grn-sheet" disabled>Download sheet</button></div>
     <div class="s-7e6838">
       <div class="form-group"><label class="form-label" for="ta-run">Run ID</label><input id="ta-run" class="form-input" autocomplete="off"></div>
       <div class="form-group"><label class="form-label" for="ta-from">From</label>
@@ -26,14 +36,17 @@ export async function renderTransferAllocationView(container) {
       <div class="form-group"><label class="form-label" for="ta-purpose">Purpose</label>
         <select id="ta-purpose" class="form-select"><option value="">Replenishment</option><option>New store</option><option>Launch allocation</option></select></div>
     </div>
-    <div class="form-group"><label class="form-label" for="ta-file">File (CSV: store, sku, qty)</label><input id="ta-file" type="file" accept=".csv,text/csv"></div>
+    <div class="form-group"><label class="form-label" for="ta-file">File (Excel or CSV)</label><input id="ta-file" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
     <div class="s-881549">
       <button class="btn" id="ta-preview" disabled>Preview</button>
       <button class="btn btn-primary" id="ta-make" disabled>Make Drafts</button>
     </div>
-    <div id="ta-out"></div>`;
+    <div id="ta-out"></div>
+    <div id="ta-runbox"></div>`;
   container.appendChild(box);
   const q = (s) => document.getElementById(s);
+  q('ta-grn').addEventListener('input', () => { q('ta-grn-sheet').disabled = !q('ta-grn').value.trim(); });
+  q('ta-grn-sheet').addEventListener('click', () => taGRNSheet(q('ta-grn-sheet')));
   q('ta-file').addEventListener('change', (e) => {
     taFile = e.target.files[0] || null;
     q('ta-preview').disabled = q('ta-make').disabled = !taFile;
@@ -42,8 +55,40 @@ export async function renderTransferAllocationView(container) {
   q('ta-make').addEventListener('click', () => taSend(false));
 }
 
+async function taSave(blob, name) {
+  const { downloadBlob } = await import('./print-pdf.js' + VQ);
+  downloadBlob(blob, name);
+}
+
+async function taGRNSheet(btn) {
+  const grn = document.getElementById('ta-grn').value.trim();
+  if (!grn) return;
+  btn.disabled = true;
+  const res = await apiFetch(`${API}/grn-sheet?grn=${encodeURIComponent(grn)}`, { timeoutMs: 60000 });
+  btn.disabled = false;
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The sheet could not be made.'); return; }
+  const from = res.headers.get('X-Allocation-From') || '';
+  const sel = document.getElementById('ta-from');
+  if (from && [...sel.options].some(o => o.value === from)) sel.value = from;
+  const run = document.getElementById('ta-run');
+  if (!run.value.trim()) run.value = grn;
+  const m = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+  await taSave(await res.blob(), m ? m[1] : 'allocation.xlsx');
+}
+
+// taFixFile: the rows that were left out, as a CSV the upload reads again.
+function taFixFile() {
+  if (!taBody || !taBody.fix_rows || !taBody.fix_rows.length) return;
+  const cell = v => { let s = v === null || v === undefined ? '' : String(v); if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = `'${s}`; return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const text = [taBody.fix_header || [], ...taBody.fix_rows].map(r => r.map(cell).join(',')).join('\r\n');
+  const name = `${(taBody.run_id || 'allocation').replace(/[^A-Za-z0-9_-]+/g, '-')}-rows-to-fix.csv`;
+  taSave(new Blob([String.fromCharCode(0xFEFF) + text], { type: 'text/csv' }), name);
+}
+
 async function taSend(dry) {
   const out = document.getElementById('ta-out');
+  document.getElementById('ta-runbox').innerHTML = '';
   const runId = document.getElementById('ta-run').value.trim();
   const fd = new FormData();
   fd.append('file', taFile, taFile.name);
@@ -54,13 +99,18 @@ async function taSend(dry) {
   const res = await apiUpload(API, fd);
   if (!res) return;
   const body = await res.clone().json().catch(() => ({}));
+  taBody = null;
   if (!res.ok && !(body.errors && body.errors.length)) {
     out.innerHTML = `<p class="s-196e02">${esc(await getErrorMessage(res, 'The file could not be read.'))}</p>`;
     return;
   }
+  taBody = body;
   let html = '';
   if (body.errors && body.errors.length) {
     html += `<ul class="s-cbbc5d">${body.errors.map(e => `<li>Row ${e.row_number}: ${esc(e.message)}</li>`).join('')}</ul>`;
+  }
+  if (body.fix_rows && body.fix_rows.length) {
+    html += `<div class="s-881549"><button class="btn" id="ta-fix">Rows to fix (${body.fix_rows.length})</button></div>`;
   }
   if (body.stores && body.stores.length) {
     html += `<table class="data-table"><thead><tr><th>Store</th><th>Lines</th><th>Units</th></tr></thead><tbody>${body.stores.map(s => `<tr><td>${esc(s.store)}</td><td>${s.lines}</td><td>${s.units}</td></tr>`).join('')}</tbody></table>`;
@@ -69,15 +119,17 @@ async function taSend(dry) {
     html += `<p class="s-62cb07">Source is short</p><table class="data-table"><thead><tr><th>SKU</th><th>Wanted</th><th>Available</th><th>Short</th></tr></thead><tbody>${body.shortfalls.map(s => `<tr><td>${esc(s.sku)}</td><td>${s.wanted}</td><td>${s.available}</td><td>${s.short}</td></tr>`).join('')}</tbody></table>`;
   }
   out.innerHTML = html;
+  const fix = document.getElementById('ta-fix');
+  if (fix) fix.addEventListener('click', taFixFile);
   if (!dry && res.ok) { taRun = runId; await taShowRun(); }
 }
 
 async function taShowRun() {
-  const out = document.getElementById('ta-out');
+  const box = document.getElementById('ta-runbox');
   const res = await apiFetch(`${API}?run_id=${encodeURIComponent(taRun)}`);
   if (!res || !res.ok) return;
   const { transfers = [] } = await res.json();
-  out.innerHTML = `
+  box.innerHTML = `
     <p class="s-b5b844">${esc(taRun)}: ${transfers.length} transfer(s)</p>
     <table class="data-table"><thead><tr><th>Transfer</th><th>Store</th><th>Lines</th><th>Status</th></tr></thead>
     <tbody>${transfers.map(t => `<tr><td>${esc(t.id)}</td><td>${esc(t.store)}</td><td>${t.lines}</td><td>${esc(t.status)}</td></tr>`).join('')}</tbody></table>

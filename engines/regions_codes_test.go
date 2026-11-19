@@ -280,6 +280,12 @@ func preserveSeries(t *testing.T, schema string, doctypes ...string) {
 	}
 	configs, counters := snap("prefix_configs", "doc_type"), snap("sequence_counters", "doc_type")
 	t.Cleanup(func() {
+		// 232.1: a counter never goes back. Documents the test numbered may
+		// outlive it (another test's, or a note it did not clean up), and a
+		// counter restored below them hands the next test a number already in
+		// use (duplicate documents_pkey on a debit note when every package
+		// shares one database, as ci.yml runs them).
+		drawn := snap("sequence_counters", "doc_type")
 		for _, table := range []string{"prefix_configs", "sequence_counters"} {
 			_, _ = db.DB.Exec("DELETE FROM "+schema+"."+table+" WHERE doc_type = ANY($1)", pqStringArray(doctypes))
 		}
@@ -288,6 +294,12 @@ func preserveSeries(t *testing.T, schema string, doctypes ...string) {
 				if _, err := db.DB.Exec("INSERT INTO "+schema+"."+table+" SELECT * FROM json_populate_record(NULL::"+schema+"."+table+", $1::json)", row); err != nil {
 					t.Errorf("restore %s: %v", table, err)
 				}
+			}
+		}
+		for _, row := range drawn {
+			if _, err := db.DB.Exec("INSERT INTO "+schema+".sequence_counters SELECT * FROM json_populate_record(NULL::"+schema+".sequence_counters, $1::json)"+
+				" ON CONFLICT (doc_type, store_code, financial_year) DO UPDATE SET current_val = GREATEST(sequence_counters.current_val, EXCLUDED.current_val)", row); err != nil {
+				t.Errorf("keep drawn counter: %v", err)
 			}
 		}
 	})

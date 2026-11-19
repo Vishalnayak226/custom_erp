@@ -411,8 +411,9 @@ func fetchGRNQuantities(tenantID, poID, excludeGRNID string, acceptedOnly bool) 
 		return nil, err
 	}
 	// Stage 62: a multi-PO GRN lists every PO in po_ids, and only its lines
-	// drawn from poID count against it.
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'GRN' AND status != 'Cancelled'
+	// drawn from poID count against it. 230.1: a GRN in the recycle bin
+	// (generic delete, only allowed before it posts) counts for nothing.
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'GRN' AND status != 'Cancelled' AND deleted_at IS NULL
 		AND (data->>'po_id' = $1 OR (',' || COALESCE(data->>'po_ids', '') || ',') LIKE '%%,' || $1 || ',%%')`, schema), poID)
 	if err != nil {
 		return nil, err

@@ -48,6 +48,14 @@ func dastBinaryBody(ctype string) bool {
 	return false
 }
 
+// dastStoredLogRoutes return the error log itself: an operator reads the
+// driver text other requests logged there (the System Logs screen), so a match
+// in its body is the stored record, not this request leaking. 232.1: ci.yml
+// runs every package against one database, and the rows earlier tests log
+// (TestStage49104DriverTextNeverReachesTheClient's "pq: ...") made this sweep
+// fail. Panics, 5xx and the error envelope are still checked on these routes.
+var dastStoredLogRoutes = regexp.MustCompile(`^/api/v1/logs/system$`)
+
 // dastSkipRoutes are the commands a sweep must not fire against a shared
 // test database: they re-shape the client or the platform (packages, module
 // and feature switches, users and roles, patches, extension hooks, sandbox
@@ -196,7 +204,7 @@ func TestStage49104AuthenticatedDAST(t *testing.T) {
 					note("panic escaped the middleware", rt.Pattern, tier.name, p.name, code, panicked)
 				case code >= 500:
 					note("5xx", rt.Pattern, tier.name, p.name, code, body)
-				case dastLeakPattern.MatchString(body) && !dastBinaryBody(ctype):
+				case dastLeakPattern.MatchString(body) && !dastBinaryBody(ctype) && !dastStoredLogRoutes.MatchString(rt.Pattern):
 					note("leak in body", rt.Pattern, tier.name, p.name, code, body)
 				case code >= 400 && !strings.Contains(body, `"error"`) && !strings.Contains(body, `"code"`):
 					note("refusal is not the JSON envelope", rt.Pattern, tier.name, p.name, code, body+" ["+ctype+"]")

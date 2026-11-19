@@ -61,11 +61,13 @@ async function renderReportsView(container) {
 
   if (currentReportTab === 'exec-dashboard') {
     // 162.5: the shell paints first; the layouts, catalog and tile reads start after it, off the critical path.
-    panel.innerHTML = '<p class="s-de2e81">Loading dashboard&hellip;</p>';
+    // 234.1: a return visit draws the last dashboard at once and refreshes it behind.
+    if (execDashboardLast) drawExecDashboardBody(panel, execDashboardLast.tiles, execDashboardLast.results);
+    else panel.innerHTML = '<p class="s-de2e81">Loading dashboard&hellip;</p>';
     requestAnimationFrame(() => setTimeout(async () => {
       if (!panel.isConnected) return;
       try { await renderExecDashboard(panel); }
-      catch (e) { if (panel.isConnected) panel.innerHTML = '<p class="s-de2e81">The dashboard could not load. Refresh to try again.</p>'; }
+      catch (e) { if (panel.isConnected && !panel._sig) panel.innerHTML = '<p class="s-de2e81">The dashboard could not load. Refresh to try again.</p>'; }
     }, 0));
   } else if (currentReportTab === 'dashboards') {
     const open = sessionStorage.getItem('erp_open_dashboard') || '';
@@ -136,7 +138,7 @@ async function loadDashboardLayouts() {
 }
 
 async function renderExecDashboard(panel) {
-  panel.innerHTML = `<p class="s-de2e81">Loading dashboard&hellip;</p>`;
+  if (!panel.firstChild) panel.innerHTML = `<p class="s-de2e81">Loading dashboard&hellip;</p>`;
   await loadDashboardLayouts();
   if (dashboardCurrentTiles === null) {
     dashboardCurrentTiles = defaultDashboardTiles();
@@ -144,10 +146,20 @@ async function renderExecDashboard(panel) {
   await renderExecDashboardBody(panel);
 }
 
+// 234.1: the last dashboard read, drawn at once when Reports opens again.
+let execDashboardLast = null;
+let kpiContractSummary = null;
+
 async function renderExecDashboardBody(panel) {
-  const username = localStorage.getItem('erp_username') || '';
   const tiles = dashboardCurrentTiles || defaultDashboardTiles();
   const results = await Promise.all(tiles.map(t => fetchReportRows(t.report_id, {})));
+  if (!kpiContractSummary) kpiContractSummary = (await import('./view-dashboards.js' + new URL(import.meta.url).search)).kpiContractSummary;
+  execDashboardLast = { tiles, results };
+  drawExecDashboardBody(panel, tiles, results);
+}
+
+function drawExecDashboardBody(panel, tiles, results) {
+  const username = localStorage.getItem('erp_username') || '';
 
   // The 7-day sales trend is a bonus, not a tile - shown only when a
   // sales-register tile happens to be on the current layout (true for the
@@ -193,6 +205,15 @@ async function renderExecDashboardBody(panel) {
     `<option value="${escapeHTMLText(d.id)}">${escapeHTMLText(d.label)}</option>`
   ).join('');
 
+  // 234.1: the refresh behind a drawn dashboard redraws only when something
+  // shown changed; a card's hover text (its contract) is updated in place.
+  const cardTitle = (i) => results[i].contract ? `Click to open in Report Catalog · ${kpiContractSummary(results[i].contract)}` : 'Click to open in Report Catalog';
+  const sig = JSON.stringify([layoutOptions, addTileOptions, trendHtml, tiles, results.map(r => [r.rows.length, r.masked])]);
+  if (panel._sig === sig) {
+    panel.querySelectorAll('#exec-dashboard-cards > .stat-card').forEach((card, i) => { if (results[i]) card.title = cardTitle(i); });
+    return;
+  }
+  panel._sig = sig;
   panel.innerHTML = `
     <div class="s-b7cc9b">
       <select id="dashboard-layout-picker" aria-label="Dashboard layout" class="form-input s-30e741">
@@ -203,7 +224,6 @@ async function renderExecDashboardBody(panel) {
       <button id="dashboard-delete-btn" class="btn btn-outline btn-sm" ${dashboardSelectedLayoutId ? '' : 'disabled'}>Delete Layout</button>
       <select id="dashboard-add-tile-picker" aria-label="Add a tile" class="form-input s-30e741">
         <option value="">+ Add tile&hellip;</option>
-        ${addTileOptions}
       </select>
     </div>
     <div class="dashboard-stats-row" id="exec-dashboard-cards"></div>
@@ -217,14 +237,13 @@ async function renderExecDashboardBody(panel) {
   // below already guards its own container.
   const cardsRow = document.getElementById('exec-dashboard-cards');
   if (!cardsRow) return;
-  const contractSummary = (await import('./view-dashboards.js' + new URL(import.meta.url).search)).kpiContractSummary;
   tiles.forEach((t, i) => {
     const value = results[i].rows.length;
     const card = document.createElement('div');
     card.className = 'stat-card';
     card.style.cursor = 'pointer';
     card.style.position = 'relative';
-    card.title = results[i].contract ? `Click to open in Report Catalog · ${contractSummary(results[i].contract)}` : 'Click to open in Report Catalog';
+    card.title = cardTitle(i);
     card.innerHTML = `
       <span class="stat-label">${escapeHTMLText(t.title || t.report_id)}</span>
       <span class="stat-val ${value > 0 ? 'u-red' : 'u-green'}">${value}</span>
@@ -281,7 +300,13 @@ async function renderExecDashboardBody(panel) {
     await loadDashboardLayouts();
     renderExecDashboardBody(panel);
   });
-  document.getElementById('dashboard-add-tile-picker').addEventListener('change', (e) => {
+  // 234.1: the catalog's ~460 reports go into the picker on its first use. Drawn with
+  // the screen, every visit restyled them and measured each name to size the box
+  // (~140 ms of the switch at 4x CPU); styles.css gives the box its width instead.
+  const tilePicker = document.getElementById('dashboard-add-tile-picker');
+  const fillTilePicker = () => { if (tilePicker.options.length === 1) tilePicker.insertAdjacentHTML('beforeend', addTileOptions); };
+  ['pointerdown', 'mousedown', 'focus', 'keydown'].forEach(t => tilePicker.addEventListener(t, fillTilePicker));
+  tilePicker.addEventListener('change', (e) => {
     const reportId = e.target.value;
     if (!reportId) return;
     const def = dashboardReportCatalog.find(d => d.id === reportId);
@@ -1291,7 +1316,8 @@ function renderReportCatalogResultTable(container, result, params) {
       // Stage 75.3.4: an image column carries a media id, drawn as a thumbnail below.
       // Stage 75.3: a column titled "... Code" / "... ID" asked for the code, so
       // the screen-wide code -> name swap (sweepLinkNames) leaves it alone.
-      const keepCode = /\b(code|id)$/i.test(c.label || '') ? ' data-link-swept="1"' : '';
+      // 230.4: so did a column titled "SKU" - an item is known by its SKU (147.2).
+      const keepCode = /\b(code|id|sku)$/i.test(c.label || '') ? ' data-link-swept="1"' : '';
       // Stage 148.34: a doclink column opens the document named by <key>_doctype and <key>_id (or the value).
       html += c.type === 'doclink' && row[c.key + '_doctype']
         ? `<td${keepCode}><a class="doc-link" href="#/setup/${encodeURIComponent(row[c.key + '_doctype'])}?q=${encodeURIComponent(String(row[c.key + '_id'] || row[c.key]))}">${escapeHTMLText(reportCellText(row[c.key]))}</a></td>`

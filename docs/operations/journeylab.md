@@ -49,6 +49,8 @@ A release uses: `journeylab journey ... -out release/evidence-src` and takes `ov
 
 Add `-record-gate .` (the repo root) to record the run as the release gate's `journey` evidence (`release/evidence/journey.json`). Only a run of all seven journeys without `-inject-mismatch` counts; it is a pass only if every journey passed.
 
+A release with tests on GitHub runs this itself: `release.yml`'s evidence job runs all seven journeys against the candidate with `-server-bin` and `-server-pid` (so J7 can verify the restore) and `-record-gate .` (47.17.2). See [the release-candidate gate](release-candidate-gate.md).
+
 ## Soak
 
 ```

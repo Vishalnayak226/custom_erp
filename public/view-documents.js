@@ -414,6 +414,7 @@ function renderDocTable() {
       <tbody>
   `;
 
+  let drawRest = null;
   if (items.length === 0) {
     // Stage 30.5.2: this one placeholder serves every one of the 50+ generic
     // record lists, so it is the highest-leverage empty state in the app -
@@ -428,7 +429,9 @@ function renderDocTable() {
         : `No ${label} records yet.`;
     tableHTML += `<tr><td colspan="${cols.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {
-    items.forEach(row => {
+    // 234.4: the first LIST_FIRST_ROWS rows draw with the screen, the rest on scroll (app.js drawRestOfRows).
+    const rowHTML = row => {
+      let tableHTML = '';
       tableHTML += `<tr>`;
       if (bulkEditingEnabled) {
         tableHTML += `<td><input type="checkbox" aria-label="Select ${escapeHTMLText(row.id)}" data-pim-doc-id="${escapeHTMLText(row.id)}" ${bulkSelectedDocIDs.has(row.id) ? 'checked' : ''}></td>`;
@@ -596,11 +599,20 @@ function renderDocTable() {
           </button>` : ''}
         </td>
       </tr>`;
-    });
+      return tableHTML;
+    };
+    // A redraw of the list the user has already scrolled (a tick, Select all) keeps
+    // every row, so the page does not shrink under them and jump.
+    const listKey = `${currentDoctype}|${currentTablePage}|${currentSearchQuery}`;
+    const first = wrapper.dataset.listKey === listKey && wrapper.querySelectorAll('tbody tr').length > LIST_FIRST_ROWS ? items.length : LIST_FIRST_ROWS;
+    wrapper.dataset.listKey = listKey;
+    tableHTML += items.slice(0, first).map(rowHTML).join('');
+    drawRest = () => drawRestOfRows(wrapper.querySelector('tbody'), items.slice(first), rowHTML);
   }
 
   tableHTML += `</tbody></table>`;
   wrapper.innerHTML = tableHTML;
+  drawRest?.();
   const DOC_ACTIONS_IN_PROCUREMENT = new Set(['submit-quality-inspection', 'send-subcontract-order', 'receive-subcontract-order', 'merge-customer', 'submit-document', 'charge-bill', 'charge-lines', 'vendor-op']);
   if (!wrapper.dataset.actionListenersBound) {
     wrapper.dataset.actionListenersBound = 'true';

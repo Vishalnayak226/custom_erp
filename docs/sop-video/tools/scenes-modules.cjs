@@ -6,7 +6,7 @@
 // it, and returns the one-line result shown on the end card. Every scene ends
 // on its saved record, read back in the app.
 
-const { showRow, pick, confirmDialog, slug } = require('./scene-helpers.cjs');
+const { showRow, showRowById, outlineRow, openNew, pick, pickItem, newItem, confirmDialog, slug } = require('./scene-helpers.cjs');
 
 // Order Management re-renders its queue after every action and dialog, which
 // resets the scroll position - so settle first, then centre and outline the
@@ -22,14 +22,20 @@ async function showOrderRow(page, h, orderId, status, message) {
   await h.note(message);
 }
 
-// Every POS chapter starts by choosing the shop: the till checks for an open
-// session only once it knows which store it is at. Skipped when the box is
-// already bound (read-only) to a store.
+// Every POS chapter starts at the right shop: the till works at the store
+// chosen in the top bar. Skipped when the login already works there; a login
+// tied to one store has no switch to press.
 async function chooseShop(page, h, state) {
-  const display = page.locator('#pos-location-display');
-  await display.waitFor();
-  if (await display.getAttribute('readonly') !== null) return;
-  await h.step(`Choose the shop by name: ${state.store.name}.`, () => pick(page, h, '#pos-location-display', 'Audit Retail', state.store.name), '#pos-location-display');
+  const label = page.locator('#store-switch .store-switch-label');
+  await label.waitFor({ state: 'attached' });
+  if ((await label.innerText()).trim() === state.store.name) return;
+  const btn = page.locator('#store-switch-btn');
+  if (!(await btn.count())) throw new Error(`This login works only at ${(await label.innerText()).trim()}, not ${state.store.name}.`);
+  await h.step(`Choose the shop in the top bar: ${state.store.name}.`, async () => {
+    await btn.click();
+    await h.post('/api/v1/me/working-store', () => page.locator('#store-switch-pop .store-switch-opt').filter({ hasText: state.store.name }).first().click());
+  }, '#store-switch-btn');
+  await page.locator('#store-switch .store-switch-label', { hasText: state.store.name }).waitFor({ state: 'attached' });
 }
 
 module.exports = {
@@ -59,10 +65,17 @@ module.exports = {
     if (!state.role) throw new Error('Record role_setup first.');
     const username = `sop.keeper.${slug(state.tag)}`;
     await h.open('/#/view/users', 'Now create the person. Every user needs a role; the role must already exist.');
+    const newUser = '[data-act-args*="users-screen:new"]';
+    await h.step('Choose + New User.', () => page.locator(newUser).first().click(), newUser);
+    await page.locator('#user-username').waitFor();
     await h.step(`Enter the username: ${username}.`, () => h.type('#user-username', username), '#user-username');
     await h.step('Enter a temporary password. Give it to the person yourself; they replace it at their first sign-in.',
       () => h.type('#user-password', 'Training-Temp-2026!'), '#user-password');
     await h.step(`Choose the role: ${state.role}.`, () => page.locator('#user-role').selectOption({ label: state.role }), '#user-role');
+    await h.step(`Choose their department: ${state.department.name}.`, async () => {
+      const sel = page.locator('#user-department');
+      await sel.selectOption(await sel.locator('option').filter({ hasText: state.department.name }).first().getAttribute('value'));
+    }, '#user-department');
     await h.step('Create the user.', () => h.post('/api/v1/admin/users', () => page.locator('#user-create-btn').click()), '#user-create-btn');
     await showRow(page, h, username, `${username} is Active. At first sign-in they must set their own password, and they see only the Inventory module.`);
     state.user = username;
@@ -100,34 +113,49 @@ module.exports = {
   transfer_stock: async (page, h, state) => {
     if (!state.store?.name || !state.item?.name) throw new Error('Needs the warehouse, shop and item fixtures.');
     await h.open('/#/view/transfers', 'Move stock from the warehouse to the shop: create the transfer, approve it, dispatch it, and receive it at the shop.');
+    await h.step('Choose + New Transfer.', () => page.locator('[data-act-args*="transfer-screen:new"]').first().click(), '[data-act-args*="transfer-screen:new"]');
+    await page.locator('#transfer-from').waitFor();
     await h.step(`From: ${state.location.name}.`, () => pick(page, h, '#transfer-from', 'Audit', state.location.name), '#transfer-from');
     await h.step(`To: ${state.store.name}.`, () => pick(page, h, '#transfer-to', 'Audit', state.store.name), '#transfer-to');
-    await h.step(`Add the item: ${state.item.name}, quantity 20.`, async () => {
-      await pick(page, h, '#transfer-line-sku', 'SOP Raw', state.item.name);
+    await h.step(`Scan the item's barcode: the list shows ${state.item.name}. Quantity 20.`, async () => {
+      await pickItem(page, h, '#transfer-line-sku', state.item);
       await h.type('#transfer-line-qty', '20');
       await page.locator('#transfer-add-line-btn').click();
     }, '#transfer-line-sku');
     const created = await h.step('Create the transfer. It starts as Draft.',
       () => h.post('/api/v1/doc/TransferOrder', () => page.locator('#transfer-create-btn').click()), '#transfer-create-btn');
     const id = created.id;
-    const enc = encodeURIComponent(id);
-    let row = await showRow(page, h, id, `Transfer ${id} is saved as Draft.`);
-    await h.step('Approve it.', () => h.post(`/api/v1/doc/TransferOrder/${enc}`, () => row.getByRole('button', { name: 'Mark Approved' }).click()));
-    row = await showRow(page, h, id, 'Approved. Now pick and dispatch it from the warehouse.');
+    // The list shows the transfer number; its buttons carry the id.
+    const number = created.transfer_number || created.code || id;
+    const showTransfer = async message => {
+      const r = page.locator('#view-root tbody tr').filter({ has: page.locator(`[data-act-args*="${id}"]`) }).first();
+      await r.waitFor({ timeout: 12000 });
+      await r.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; e.style.outlineOffset = '-3px'; });
+      await h.note(message);
+      return r;
+    };
+    let row = await showTransfer(`Transfer ${number} is saved as Draft.`);
+    await h.step('Approve it now: its value is below the limit a store manager approves alone.', async () => {
+      await row.getByRole('button', { name: 'Approve now' }).click();
+      await h.post('/api/v1/transfer/approve-direct', () => confirmDialog(page));
+    });
+    row = await showTransfer('Approved. Now pick and dispatch it from the warehouse.');
     await h.step('Dispatch it. Stock leaves the warehouse and is in transit.', async () => {
       await row.getByRole('button', { name: 'Dispatch', exact: true }).click();
       await h.post('/api/v1/transfer/dispatch', () => confirmDialog(page));
     });
-    row = await showRow(page, h, id, 'Dispatched. At the shop, receive what arrived.');
-    await h.step('Receive it at the shop, confirming the quantity that arrived: 20.', async () => {
+    row = await showTransfer('Dispatched. At the shop, receive what arrived.');
+    await h.step('Receive it at the shop: 20 arrived in good condition.', async () => {
       await row.getByRole('button', { name: 'Receive' }).click();
-      await h.post('/api/v1/transfer/receive', () => confirmDialog(page));
+      await page.locator('#transfer-dialog .trcv-good').first().waitFor();
+      await page.waitForTimeout(1200);
+      await h.post('/api/v1/transfer/receive', () => page.locator('#transfer-dialog-submit').click());
     });
-    await showRow(page, h, id, `Transfer ${id} is Received.`);
+    await showTransfer(`Transfer ${number} is Received.`);
     await h.open('/#/view/inventory', 'Check Inventory: 20 moved from the warehouse to the shop.');
     await showRow(page, h, state.store.name, `${state.store.name} now holds the 20 received units.`);
-    state.transfer = { id };
-    return `Transfer ${id} created, approved, dispatched and received`;
+    state.transfer = { id, number };
+    return `Transfer ${number} created, approved, dispatched and received`;
   },
 
   // --- POS: a cashier's shift (recorded as the CASHIER) ---------------------
@@ -165,7 +193,10 @@ module.exports = {
       await h.note(`Only one product matches, so ${state.item.name} goes straight into the cart.`);
     }
     await page.locator('#pos-cart-body tr').first().waitFor();
-    await page.waitForTimeout(1200); // the price quote lands from the server
+    // Every bill has a customer: their mobile, or the store's walk-in customer.
+    await h.step('The customer does not give a mobile number: choose Walk-in.',
+      () => h.post('/api/v1/pos/walk-in-customer', () => page.locator('#pos-customer-walkin-btn').click()), '#pos-customer-walkin-btn');
+    await page.waitForTimeout(1500); // the price quote lands from the server
     const total = Number((await page.locator('#pos-cart-total').innerText()).replace(/[^0-9.]/g, '')) || 0;
     await h.note(`The price, offers and tax come from the system, not the cashier. Total: ${total.toFixed(2)}.`);
     await h.step('Cash payment: enter the amount handed over.', () => h.type('#pos-cash-tendered', String(Math.ceil(total / 100) * 100 || 100)), '#pos-cash-tendered');
@@ -199,83 +230,77 @@ module.exports = {
 
   // --- Procurement: request for quotation -----------------------------------
   rfq_quotes: async (page, h, state) => {
-    if (!state.vendor?.name) throw new Error('Record vendor_setup first.');
-    const need = `Packing cartons for ${state.tag}`;
-    await h.open('/#/view/rfq', 'Ask suppliers for prices before ordering. Create the request, invite the vendors, record their quotes, choose one.');
-    await h.step('Describe what you need.', () => h.type('#rfq-description', need), '#rfq-description');
-    await h.step('Enter the quantity: 500.', () => h.type('#rfq-quantity', '500'), '#rfq-quantity');
-    await h.step('Create the RFQ. It starts as Draft.', () => h.post('/api/v1/doc/RFQ', () => page.locator('#rfq-create-btn').click()), '#rfq-create-btn');
-    const row = await showRow(page, h, need, 'The RFQ is saved as Draft.');
-    await h.step('Open its vendors and quotes.', () => row.getByRole('button', { name: /Vendors/ }).click());
+    if (!state.vendor?.name || !state.item?.name) throw new Error('Record vendor_setup and item_setup first.');
+    const where = state.location?.name || 'Audit Distribution Center';
+    await h.open('/#/view/rfq', 'Ask suppliers for prices before ordering: list the items, invite the vendors, record their quotes, award one.');
+    await h.step('Choose + New RFQ.', () => page.locator('[data-act-args*="rfq-screen:new"]').first().click(), '[data-act-args*="rfq-screen:new"]');
+    await page.locator('#rfq-location').waitFor();
+    await h.step(`Deliver to: ${where}.`, () => pick(page, h, '#rfq-location', 'Audit Dis', where), '#rfq-location');
+    await h.step(`Item, picked from the list: ${state.item.name}.`, () => pick(page, h, '#rfq-line-item', 'SOP Raw', state.item.name), '#rfq-line-item');
+    await h.step('Quantity: 500. Add the line.', async () => {
+      await h.type('#rfq-line-qty', '500');
+      await page.locator('#rfq-line-add').click();
+      await page.locator('#rfq-lines tbody tr').first().waitFor();
+    }, '#rfq-line-qty');
+    const saved = await h.step('Create the RFQ. It starts as Draft.', () => h.post('/api/v1/rfq/save', () => page.locator('#rfq-create-btn').click()), '#rfq-create-btn');
+    const base = `/api/v1/rfq/${encodeURIComponent(saved.id)}`;
+    const detail = page.locator('#rfq-detail');
     await page.locator('#rfq-invite-vendor').waitFor();
     await h.step(`Invite ${state.vendor.name}.`, async () => {
       await pick(page, h, '#rfq-invite-vendor', 'SOP Supply', state.vendor.name);
-      await page.locator('#rfq-invite-btn').click();
+      await h.post(`${base}/invite`, () => page.locator('#rfq-invite-btn').click());
     }, '#rfq-invite-vendor');
-    await page.locator('.rfq-vendor-chips').filter({ hasText: state.vendor.name }).waitFor();
-    await h.step('Mark the RFQ as Sent once you have sent it to them.', async () => {
-      await page.locator('#view-root tbody tr').filter({ hasText: need }).first().getByRole('button', { name: 'Mark as Sent' }).click();
-      await page.locator('#view-root tbody tr').filter({ hasText: need }).filter({ hasText: 'Sent' }).first().waitFor();
-    });
-    await h.step(`Record the quote ${state.vendor.name} sent back: 18.50 per unit, 7 days.`, async () => {
-      await pick(page, h, '#quote-vendor', 'SOP Supply', state.vendor.name);
-      await h.type('#quote-price', '18.50');
-      await h.type('#quote-lead-time', '7');
-      await h.post('/api/v1/doc/VendorQuote', () => page.locator('#quote-submit-btn').click());
-    }, '#quote-vendor');
-    await h.step('Choose the winning quote. The others are rejected and the RFQ closes.', async () => {
-      await page.getByRole('button', { name: 'Select as Winner' }).first().click();
-      await h.post('/api/v1/rfq/select-quote', () => confirmDialog(page));
-    });
-    await showRow(page, h, need, 'The RFQ is Closed with its winning quote. The buyer raises the PO next.');
-    await showRow(page, h, 'Selected', 'The winning quote is marked Selected; any others are Rejected.');
-    state.rfq = need;
-    return `RFQ closed with a selected quote: ${need}`;
+    const vendorRow = detail.locator('tr').filter({ hasText: state.vendor.name }).filter({ has: page.getByRole('button', { name: 'Key reply' }) }).first();
+    await vendorRow.waitFor();
+    await h.step('Mark the RFQ as Sent once you have sent it to them.', () =>
+      h.post(`/api/v1/doc/RFQ/${encodeURIComponent(saved.id)}`, () => detail.getByRole('button', { name: 'Mark as Sent' }).click()));
+    await detail.locator('.badge', { hasText: 'Sent' }).first().waitFor();
+    await h.step(`${state.vendor.name} replied by phone. Choose Key reply on their row.`, () => vendorRow.getByRole('button', { name: 'Key reply' }).click());
+    await page.locator('#quote-vendor').waitFor({ state: 'visible' });
+    await h.step('Their price: 18.50 per unit, 7 days, 30 days to pay, valid for a month.', async () => {
+      await page.locator('#rfq-quotes tr[data-line] .ql-price').first().fill('18.50');
+      await page.locator('#rfq-quotes tr[data-line] .ql-lead').first().fill('7');
+      await page.locator('#quote-valid').fill(new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10));
+      await h.type('#quote-lead', '7');
+      await h.type('#quote-terms', '30 days');
+    }, '#rfq-quotes tr[data-line]');
+    await h.step('Record the quote.', () => h.post(`${base}/quote`, () => page.locator('#quote-submit-btn').click()), '#quote-submit-btn');
+    const award = detail.getByRole('button', { name: 'Award', exact: true }).first();
+    await award.waitFor();
+    await h.note('The comparison shows every quote side by side: landed cost, lead time, terms and the vendor\'s track record.');
+    await h.step('Award the best quote.', () => award.click());
+    await page.locator('#rfq-award-dialog.open #award-submit').waitFor();
+    const won = await h.step('Create the purchase order. Other quotes are rejected.', () => h.post(`${base}/award`, () => page.locator('#award-submit').click()), '#award-submit');
+    await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
+    await h.note(`Purchase order ${won.po_id} is created as a Draft from the quote.`);
+    await confirmDialog(page);
+    const notice = detail.locator('.notice', { hasText: 'Awarded' }).first();
+    await notice.waitFor();
+    await notice.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
+    await h.note('The RFQ is Closed and points to its purchase order. The buyer reviews it and sends it for approval.');
+    state.rfq = { id: saved.id, po_id: won.po_id };
+    return `RFQ awarded; Draft purchase order ${won.po_id}`;
   },
 
   // --- Accounts payable: the supplier's bill (recorded as the AP clerk) -----
+  // The supplier's bill is keyed on the goods receipt (Stage 94); posting the
+  // receipt makes the bill and matches it, so AP finds it Matched and pays it.
   supplier_invoice: async (page, h, state) => {
-    if (!state.po?.id || !state.grn?.id) throw new Error('Record po_create ... grn_post first.');
-    // What the supplier should bill: the PO's tax-inclusive total for this
-    // full receipt, read from the app rather than hard-coded.
-    const po = await page.evaluate(async id => (await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(id)}`)).json(), state.po.id).catch(() => null);
-    await h.open('/#/view/vendor-invoices', 'The supplier\'s bill has arrived. Record it, let the system check it against the order and the receipt, then pay it.');
-    const billAmount = Number(po?.grand_total || po?.total_amount || 0);
-    const invoiceNo = `SUP-${slug(state.tag).toUpperCase()}-${state.grn.id.split('/').pop()}`;
-    await h.step('Choose + New Vendor Invoice.', async () => {
-      await page.locator('#vi-new-btn').click();
-      await page.locator('#doc-create-button').click();
-    }, '#vi-new-btn');
-    await page.locator('#dynamic-modal.open').waitFor();
-    const f = name => `#dyn-field-VendorInvoice-${name}`;
-    await h.step(`Enter the supplier's own invoice number: ${invoiceNo}.`, () => h.type(f('invoice_number'), invoiceNo), f('invoice_number'));
-    await h.step(`Choose the vendor: ${state.vendor.name}.`, () => page.locator(f('vendor_id')).selectOption({ label: state.vendor.name }), f('vendor_id'));
-    await h.step(`Choose the purchase order it bills: ${state.po.id}.`, () => page.locator(f('po_id')).selectOption(state.po.id), f('po_id'));
-    await h.step(`Choose the goods receipt it bills: ${state.grn.id}.`, () => page.locator(f('grn_id')).selectOption(state.grn.id), f('grn_id'));
-    await h.step(`Enter the amount exactly as printed on the bill, GST included: ${billAmount.toFixed(2)}.`, () => h.type(f('invoice_amount'), String(billAmount)), f('invoice_amount'));
-    await h.step('Enter the financial year: 2026-27.', () => h.type(f('financial_year'), '2026-27'), f('financial_year'));
-    await h.step('Status starts as Draft.', () => page.locator(f('status')).selectOption('Draft'), f('status'));
-    await h.step('Save the invoice.', () => h.saveDoc('VendorInvoice'), '#dynamic-modal-form button[type="submit"]');
-
-    await h.open('/#/view/vendor-invoices', 'Back on Vendor Invoices, the bill is listed as Draft.');
-    let row = await showRow(page, h, invoiceNo, 'Draft: recorded, not yet checked.');
-    await h.step('Match it. The PO and receipt are already on the invoice, so nothing is asked again.', async () => {
-      await h.post('/api/v1/procurement/vendor-invoice/match', () => row.getByRole('button', { name: 'Match' }).click());
-    });
-    await page.locator('#custom-dialog-container:not(.hidden)').filter({ hasText: 'Matched' }).waitFor();
-    await h.step('The result says what was compared: the bill against the accepted goods and the PO, both including tax.', async () => {
-      await page.waitForTimeout(2800);
-      await confirmDialog(page);
-    }, '#custom-dialog-container');
-    row = await showRow(page, h, invoiceNo, 'Matched: the bill agrees with what was ordered and accepted. It can now be paid.');
-    await h.step('Pay it.', async () => {
-      await row.getByRole('button', { name: 'Pay', exact: true }).click();
+    if (!state.grn?.invoice_no) throw new Error('Record grn_post first.');
+    const invoiceNo = state.grn.invoice_no;
+    await h.open('/#/view/vendor-invoices', "The supplier's bill was keyed on the goods receipt. Posting the receipt recorded it here and matched it against the order and the receipt.");
+    const row = await showRow(page, h, invoiceNo, `Bill ${invoiceNo} is Matched: it agrees with what was ordered and accepted, both including tax.`);
+    await h.step('Pay it. The whole outstanding amount is offered.', async () => {
+      await row.locator('[data-vi-pay]').click();
       await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
+      await page.waitForTimeout(1500);
       await h.post('/api/v1/procurement/vendor-invoice/pay', () => confirmDialog(page));
-    });
+    }, `[data-vi-pay]`);
+    await page.locator('#custom-dialog-container:not(.hidden)').filter({ hasText: 'Paid' }).waitFor();
+    await h.step('The payment is recorded.', async () => { await page.waitForTimeout(1500); await confirmDialog(page); }, '#custom-dialog-container');
     await showRow(page, h, invoiceNo, 'Paid. The GST in the bill went to GST Input Credit, to be claimed back; the rest cleared the goods received.');
-    state.vendor_invoice = { number: invoiceNo, amount: billAmount };
-    return `Supplier bill ${invoiceNo} matched and paid (${billAmount.toFixed(2)})`;
+    state.vendor_invoice = { number: invoiceNo, amount: state.grn.amount };
+    return `Supplier bill ${invoiceNo} paid (${Number(state.grn.amount || 0).toFixed(2)})`;
   },
 
   // --- Online orders: order desk -> warehouse -> accounts ----------------------
@@ -284,79 +309,158 @@ module.exports = {
     const customer = `SOP Online Customer ${state.tag}`;
     const ref = `WEB-${slug(state.tag).toUpperCase()}-${Date.now().toString().slice(-5)}`;
     await h.open('/#/view/oms', 'A customer orders by phone. The order desk enters it as a manual order - it goes through the same checks a marketplace order does.');
+    await h.step('Choose + New Order.', () => page.locator('[data-act-args*="oms-screen:new"]').first().click(), '[data-act-args*="oms-screen:new"]');
+    await page.locator('#mo-customer').waitFor();
     await h.step(`Customer name: ${customer}.`, () => h.type('#mo-customer', customer), '#mo-customer');
     await h.step('Customer phone.', () => h.type('#mo-phone', '9876543210'), '#mo-phone');
     await h.step(`Your own reference for this order: ${ref}. Sending the same reference twice gives back the same order, never a duplicate.`, () => h.type('#mo-ref', ref), '#mo-ref');
     await h.step('Payment: Confirmed (the customer has paid). Cash on delivery also goes straight through; Pending holds the order.', () => page.locator('#mo-payment').selectOption('Confirmed'), '#mo-payment');
-    await h.step('Shipping address, with the PIN code.', () => h.type('#mo-address', '12 MG Road, Bengaluru, Karnataka 560001'), '#mo-address');
-    await h.step(`Find the item by name: ${state.item.name}.`, () => pick(page, h, '#mo-lines-body [data-mo-field="sku"]', 'SOP Raw', state.item.name), '#mo-lines-body');
+    await h.step('Shipping address: street, city, state and PIN code.', async () => {
+      await h.type('#mo-address', '12 MG Road');
+      await h.type('#mo-city', 'Bengaluru');
+      const st = page.locator('#mo-state');
+      if (await st.evaluate(e => e.tagName === 'SELECT')) await st.selectOption({ label: 'Karnataka' });
+      else await h.type('#mo-state', 'Karnataka');
+      await h.type('#mo-pin', '560001');
+    }, '#mo-address');
+    await h.step(`Scan the item's barcode: the list shows ${state.item.name}.`, () => pickItem(page, h, '#mo-lines-body [data-mo-field="sku"]', state.item), '#mo-lines-body');
     await h.step('Quantity 2, at the agreed price 25.', async () => {
       await h.type('#mo-lines-body [data-mo-field="qty"]', '2');
       await h.type('#mo-lines-body [data-mo-field="unit_price"]', '25');
     }, '#mo-lines-body');
-    const created = await h.step('Create the order. Stock is checked and reserved for it straight away.', () => h.post('/api/v1/orders', () => page.locator('#mo-create').click()), '#mo-create');
+    const created = await h.step('Create the order. You keyed it in, so it is accepted at once: its stock is reserved and it goes to Pick.', () => h.post('/api/v1/orders', () => page.locator('#mo-create').click()), '#mo-create');
     await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
     await page.waitForTimeout(1500);
     await confirmDialog(page);
-    await showOrderRow(page, h, created.order_id, 'Reserved', 'The order is in the queue as Reserved: the stock is held for it, and it shows its source and your reference.');
+    await showOrderRow(page, h, created.order_id, 'Released', 'The order is in the queue as Released: the warehouse has its pick work, and it shows its source and your reference.');
     state.oms_order = { id: created.order_id, customer, ref };
-    return `Manual order ${ref} created and Reserved`;
+    return `Manual order ${ref} created and Released to Pick`;
   },
 
-  oms_release: async (page, h, state) => {
-    if (!state.oms_order?.id) throw new Error('Record oms_manual_order first.');
-    await h.open('/#/view/oms', 'A Reserved order is waiting for the warehouse. Release it so the pick work is created.');
-    const open = page.locator(`[data-open-order="${state.oms_order.id}"]`).first();
-    await h.step(`Open the order for ${state.oms_order.customer}.`, () => open.click(), `[data-open-order="${state.oms_order.id}"]`);
-    await page.locator('#oms-order-detail-modal').waitFor();
-    await h.note('The order page shows its lines, where the stock is reserved, and - empty for now - its fulfillment tasks.');
-    await h.step('Release to Fulfillment. One pick task is created for each location holding the stock.', () =>
-      h.post(`/api/v1/orders/${state.oms_order.id}/release-to-fulfillment`, () => page.locator('#oms-order-detail-modal [data-action="fulfil"]').click()),
-    '#oms-order-detail-modal [data-action="fulfil"]');
-    await page.locator('#oms-order-detail-modal').waitFor({ state: 'detached' });
-    await showOrderRow(page, h, state.oms_order.id, 'Released', 'Released: the warehouse now has the work. Once released, the order can no longer be split or cancelled here.');
-    return `Order ${state.oms_order.ref} released to fulfillment`;
-  },
-
+  // Stage 88.2 retired the Fulfillment screen: a released order is worked on
+  // the Order Management steps Pick -> Pack -> Ship. The training business has
+  // one courier set up for every pincode (CourierServiceArea SOP-ALL-PIN), so
+  // Pack books it; Ship makes the manifest, the gate pass and the handover.
   fulfillment_dispatch: async (page, h, state) => {
-    if (!state.oms_order?.id) throw new Error('Record oms_release first.');
-    await h.open('/#/view/fulfillment', 'In the warehouse: the released order\'s pick task is on the Fulfillment screen, routed to the location holding the stock.');
-    const row = () => page.locator('#view-root tbody tr').filter({ hasText: state.oms_order.id }).first();
-    await showRow(page, h, state.oms_order.id, `This is the task for ${state.oms_order.customer}'s order - the row names the customer and your reference. Work it through: pick, pack, dispatch.`);
-    await h.step('Start Picking.', () => h.post('/api/v1/fulfillment/task/transition', () => row().getByRole('button', { name: 'Start Picking' }).click()));
-    await showRow(page, h, state.oms_order.id, 'Picking. Collect the items from the shelves.');
-    await h.step('Mark Packed once the parcel is packed.', () => h.post('/api/v1/fulfillment/task/transition', () => row().getByRole('button', { name: 'Mark Packed' }).click()));
-    await showRow(page, h, state.oms_order.id, 'Packed and ready to leave.');
-    await h.step('Dispatch as it leaves the building. The stock leaves the books and its cost is posted.', () => h.post('/api/v1/fulfillment/task/transition', () => row().getByRole('button', { name: 'Dispatch' }).click()));
-    await showRow(page, h, state.oms_order.id, 'Dispatched.');
+    if (!state.oms_order?.id) throw new Error('Record oms_manual_order first.');
+    const o = state.oms_order;
+    await h.open('/#/view/oms:pick', 'In the warehouse: a released order waits on Pick, at the location holding its stock.');
+    const pickRow = page.locator('#view-root tbody tr').filter({ hasText: o.customer }).filter({ has: page.locator('[data-pick-act="scan"]') }).first();
+    await outlineRow(page, h, pickRow, `The pick task for ${o.customer}: how many units to pick and how long it has waited.`);
+    await h.step('Choose Pick. The scan panel lists what to pick.', () => pickRow.locator('[data-pick-act="scan"]').click());
+    const scanPanel = page.locator('.oms-scan-panel');
+    await scanPanel.locator('[data-scan-lines] tbody tr').first().waitFor();
+    // The line shows the item's name; a scanner reads its barcode (147.2).
+    const sku = state.item.barcode;
+    // One scan is one unit: scan until the step offers its next move.
+    const scanUntil = async (step, done) => {
+      for (let i = 0; i < 8 && !(await page.locator(done).count()); i++) {
+        await h.post(`/api/v1/wms/${step}-scan`, async () => {
+          await h.type('.oms-scan-panel [data-scan-input]', sku);
+          await page.keyboard.press('Enter');
+        });
+        await page.waitForTimeout(900);
+      }
+      await page.locator(done).first().waitFor();
+    };
+    await h.step(`Scan each unit as it comes off the shelf. Here its barcode, ${sku}, is typed into the scan box; the Picked count goes up with each scan.`,
+      () => scanUntil('pick', '[data-to-pack]'), '.oms-scan-panel [data-scan-input]');
+    await h.step('Every line is picked. Go to Pack.', () => page.locator('[data-to-pack]').click(), '[data-to-pack]');
+    await page.locator('.oms-scan-panel', { hasText: 'Packing' }).waitFor();
+    await h.step('At the packing bench, scan each unit into the box.', () => scanUntil('pack', '[data-pack-finish]'), '.oms-scan-panel [data-scan-input]');
+    await h.step('Weigh the parcel, 0.8 kg, and tick that the bill and documents are in the box.', async () => {
+      await h.type('[data-pack-weight]', '0.8');
+      await page.locator('[data-pack-docs]').check();
+    }, '.oms-pack-finish');
+    await h.step('Pack, bill and label: the box is closed, its GST bill is made, and the courier for the delivery pincode is booked.', () =>
+      h.post('/api/v1/marketplace/logistics/book', () => page.locator('[data-pack-finish]').click()), '[data-pack-finish]');
+    await page.locator('[data-to-ship]').waitFor();
+    const done = page.locator('.oms-pack-steps');
+    await done.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; e.style.outlineOffset = '3px'; });
+    await h.note(`Done: ${(await done.innerText()).split('\n').map(s => s.trim()).filter(Boolean).join(' · ')}. The bill goes in the box.`);
+    // A packed parcel joins a manifest only once its label is printed
+    // (Stage 35.4.3); opening the label is what records the print.
+    await h.step('Print label: the label opens with the courier and the AWB. Print it and stick it on the box.', async () => {
+      await page.locator('[data-print-label]').click();
+      await page.locator('#shipping-label-modal').waitFor();
+      await page.waitForTimeout(1800);
+    }, '[data-print-label]');
+    await page.locator('#shipping-label-modal .modal-footer .btn-secondary').click();
+    await page.locator('#shipping-label-modal').waitFor({ state: 'detached' });
+    await h.step('Go to Ship.', () => page.locator('[data-to-ship]').click(), '[data-to-ship]');
+    const carrier = page.locator('[data-manifest-carrier]').first();
+    await carrier.waitFor();
+    const made = await h.step('The booked parcels are grouped by courier and location. Make the manifest: the list the courier signs for.', () =>
+      h.post('/api/v1/marketplace/logistics/manifest', () => carrier.click()), '[data-manifest-carrier]');
+    const mid = made.manifest_id;
+    const gp = page.locator(`[data-gp-new="${mid}"]`);
+    await gp.waitFor();
+    await h.step('Raise the gate pass for the vehicle collecting it: vehicle number, then the driver.', async () => {
+      await gp.click();
+      await page.locator('#custom-dialog-prompt-input').fill('KA01AB1234');
+      await page.waitForTimeout(700);
+      await confirmDialog(page);
+      await page.locator('#custom-dialog-container:not(.hidden)', { hasText: 'Driver' }).waitFor();
+      await page.locator('#custom-dialog-prompt-input').fill('Ravi 9876543210');
+      await page.waitForTimeout(700);
+      await h.post('/api/v1/oms/gate-passes', () => confirmDialog(page));
+    }, `[data-gp-new="${mid}"]`);
+    const manifestRow = page.locator('#view-root tr', { has: page.locator(`[data-handover="${mid}"]`) }).first();
+    await manifestRow.getByText('Issued').waitFor();
+    await outlineRow(page, h, manifestRow, `Manifest ${mid}: its gate pass is Issued to vehicle KA01AB1234.`);
+    await h.step('Hand over to the courier as the vehicle leaves. The parcels are dispatched: stock leaves the books and the order moves to Shipped.', async () => {
+      await page.locator(`[data-handover="${mid}"]`).click();
+      await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
+      await page.waitForTimeout(1200);
+      await h.post('/api/v1/marketplace/logistics/manifest/handover', () => confirmDialog(page));
+    }, `[data-handover="${mid}"]`);
+    const onTheWay = page.locator('#view-root tr').filter({ hasText: o.customer }).filter({ has: page.locator('[data-track="In-Transit"]') }).first();
+    await outlineRow(page, h, onTheWay, 'The parcel is On the way. Mark it In transit and Delivered as the courier reports it.');
     await h.open('/#/view/oms', 'Back in Order Management, the order itself has moved on.');
-    await showOrderRow(page, h, state.oms_order.id, 'Shipped', 'Shipped - and a draft invoice for what was shipped has been created for accounts.');
-    return `Order ${state.oms_order.ref} picked, packed, dispatched and Shipped`;
+    // Pack made the order's GST invoice and posted it. SalesInvoice has no
+    // sales_order_id filter, so find it in the list rows, which carry the order id.
+    const invoices = await page.evaluate(async () => {
+      const r = await fetch('/api/v1/doc/SalesInvoice?limit=50', { headers: { Authorization: `Bearer ${localStorage.getItem('erp_token')}` } });
+      return r.ok ? r.json() : [];
+    });
+    const invoice = (Array.isArray(invoices) ? invoices : []).find(v => v.sales_order_id === o.id && v.status !== 'Cancelled');
+    if (!invoice) throw new Error(`No sales invoice found for order ${o.id}.`);
+    o.invoice_id = invoice.id;
+    await showOrderRow(page, h, o.id, 'Shipped', 'Shipped. Its GST invoice was made and posted at Pack; accounts settles it when the customer pays.');
+    return `Order ${o.ref} picked, packed, handed to the courier and Shipped`;
   },
 
   sales_invoice_post: async (page, h, state) => {
     if (!state.oms_order?.id) throw new Error('Record fulfillment_dispatch first.');
-    const invoiceId = `INV-${state.oms_order.id}`;
-    await h.open('/#/view/sales-invoices', 'Accounts: the shipped order\'s invoice is waiting as a Draft.');
-    const row = () => page.locator('#view-root tbody tr').filter({ hasText: invoiceId }).first();
-    await showRow(page, h, invoiceId, 'Draft: worked out from what was actually shipped, with its GST.');
-    await h.step('Post it. The amount becomes money the customer owes, and its GST is set aside as tax payable.', () =>
-      h.post(`/api/v1/finance/sales-invoice/${invoiceId}/post`, () => row().getByRole('button', { name: 'Post' }).click()));
-    await showRow(page, h, invoiceId, 'Approved: posted to the accounts and ageing as a receivable.');
-    await h.step('When the customer\'s payment arrives, Settle it.', async () => {
-      await row().getByRole('button', { name: 'Settle' }).click();
+    if (!state.oms_order.invoice_id) throw new Error('Record fulfillment_dispatch again: it finds the order\'s invoice.');
+    const invoiceId = state.oms_order.invoice_id;
+    await h.open('/#/view/sales-invoices', 'Accounts: the shipped order\'s invoice was made and posted at Pack.');
+    // The row shows the invoice number; its status cell carries the id.
+    const row = () => page.locator('#view-root tbody tr', { has: page.locator(`[data-einv-id="${invoiceId}"]`) }).first();
+    await outlineRow(page, h, row(), 'Approved: billed for what went in the box, with its GST, and ageing as a receivable.');
+    await h.step('When the customer\'s payment arrives, Settle it. The whole amount owed is offered.', async () => {
+      await row().locator(`[data-si-settle="${invoiceId}"]`).click();
       await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
-      await h.post(`/api/v1/finance/sales-invoice/${invoiceId}/settle`, () => confirmDialog(page));
+      await page.waitForTimeout(1200);
+      await h.post(`/api/v1/finance/sales-invoice/${encodeURIComponent(invoiceId)}/settle`, () => confirmDialog(page));
     });
-    await showRow(page, h, invoiceId, 'Paid. The order is complete from order desk to cash.');
-    return `Invoice for order ${state.oms_order.ref} posted and settled`;
+    // The receipt is confirmed in its own alert; the list reloads once it is closed.
+    await h.step('The receipt is recorded: the invoice is fully settled.', async () => {
+      await page.locator('#custom-dialog-container:not(.hidden) #custom-dialog-ok-btn').waitFor();
+      await page.waitForTimeout(1500);
+      await confirmDialog(page);
+    });
+    await row().getByText('Paid').waitFor();
+    await outlineRow(page, h, row(), 'Paid. The order is complete from order desk to cash.');
+    return `Invoice for order ${state.oms_order.ref} settled`;
   },
 
   // --- Finance: a manual journal (accountant raises, controller approves) --
   jv_create: async (page, h, state) => {
     const narration = `Accrue October salaries ${state.tag}`;
     await h.open('/#/view/journal-vouchers', 'Month end: salaries for October are owed but not paid until next month. Record the cost now with a journal voucher.');
-    await h.step('Choose + New Journal Voucher.', () => page.locator('#jv-new-btn').click(), '#jv-new-btn');
+    const newJv = '[data-act-args*="jv-screen:new"]';
+    await h.step('Choose + New Journal Voucher.', () => page.locator(newJv).first().click(), newJv);
     await page.locator('#jv-lines-body tr').first().waitFor();
     await h.step(`Narration - say what the entry is for: ${narration}.`, () => h.type('#jv-narration', narration), '#jv-narration');
     const line = (i, field) => `#jv-lines-body [data-jv-line="${i}"][data-jv-field="${field}"]`;
@@ -383,7 +487,7 @@ module.exports = {
   jv_approve: async (page, h, state) => {
     if (!state.jv?.id) throw new Error('Record jv_create first.');
     await h.open('/#/view/approvals', 'The controller signs in with their own account. The voucher is waiting in their approval queue.');
-    const row = page.locator('#view-root tbody tr').filter({ hasText: state.jv.id }).first();
+    const row = page.locator('#inbox-approvals tbody tr').filter({ has: page.locator(`[data-act-args*="${state.jv.id}"]`) }).first();
     await row.waitFor();
     await h.step('Check the voucher in the queue: who raised it and the amount.', async () => {
       await row.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
@@ -418,11 +522,12 @@ module.exports = {
     if (!state.bin || !state.item?.name) throw new Error('Needs the bin and item fixtures.');
     await h.open('/#/view/putaway', 'Received stock sits at the warehouse until it is put away into a bin. Record where it went.');
     await h.step(`Bin: ${state.bin}.`, () => pick(page, h, '#putaway-bin', state.bin.slice(0, 6), state.bin), '#putaway-bin');
-    await h.step(`Item, by name: ${state.item.name}.`, () => pick(page, h, '#putaway-sku', 'SOP Raw', state.item.name), '#putaway-sku');
+    await h.step(`Item: scan its barcode. The list shows ${state.item.name}.`, () => pickItem(page, h, '#putaway-sku', state.item), '#putaway-sku');
     await h.step('Quantity: 30.', () => h.type('#putaway-qty', '30'), '#putaway-qty');
     await h.step('Put Away.', () => h.post('/api/v1/wms/putaway', () => page.locator('#putaway-submit-btn').click()), '#putaway-submit-btn');
-    await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
-    await h.step('The confirmation repeats what went where.', async () => { await page.waitForTimeout(2200); await confirmDialog(page); }, '#custom-dialog-container');
+    // A success toast repeats what went where; the form clears for the next scan.
+    await page.locator('#toast-container .toast-success').first().waitFor();
+    await h.step('The confirmation repeats what went where, and the form clears for the next scan.', () => page.waitForTimeout(2200), '#toast-container');
     await h.note(`30 of ${state.item.name} are now recorded in bin ${state.bin}.`);
     return `30 units put away into ${state.bin}`;
   },
@@ -430,6 +535,7 @@ module.exports = {
   location_movement: async (page, h, state) => {
     if (!state.bin || !state.bin2) throw new Error('Record bin_second_setup and putaway_stock first.');
     await h.open('/#/view/location-movement', 'Re-slot stock inside the warehouse: move part of a bin to another bin. The stock stays at the same location.');
+    await openNew(page, h, 'locmove-screen', 'New Movement');
     await h.step(`Pick the warehouse by name: ${state.location.name}.`, () => pick(page, h, '#locmove-location', 'Audit Dis', state.location.name), '#locmove-location');
     await page.locator('#locmove-result tbody tr').first().waitFor();
     const fromRow = page.locator('#locmove-result tbody tr').filter({ hasText: state.bin }).filter({ hasText: state.item.name }).first();
@@ -444,8 +550,10 @@ module.exports = {
     }, '#locmove-to-bin');
     await h.step('Reason, for the record.', () => h.type('#locmove-reason', 'Re-slot fast mover near packing'), '#locmove-reason');
     await h.step('Move Stock.', () => h.post('/api/v1/wms/bin-move', () => page.locator('#locmove-submit-btn').click()), '#locmove-submit-btn');
-    await page.locator('#locmove-result tbody tr').filter({ hasText: state.bin2 }).first().waitFor();
-    await showRow(page, h, state.bin2, `${state.bin2} now holds the 12 moved units; ${state.bin} keeps the rest. Both bins are on the stock ledger record.`);
+    // The screen returns to the movement history, the move on top.
+    const moved = page.locator('#locmove-history tbody tr').filter({ hasText: state.bin }).filter({ hasText: state.bin2 }).first();
+    await moved.waitFor();
+    await outlineRow(page, h, moved, `The move is on top of the history: 12 units from ${state.bin} to ${state.bin2}, with the reason. Both bins are on the stock ledger record.`);
     return `12 units moved from ${state.bin} to ${state.bin2}`;
   },
 
@@ -462,9 +570,9 @@ module.exports = {
     }
     await h.step(`Name: ${group}.`, () => h.type(f('name'), group), f('name'));
     await h.step('Type: Static - you choose the products. (Dynamic follows rules instead.)', () => page.locator(f('group_type')).selectOption('Static'), f('group_type'));
-    await h.step(`Add a product line and pick ${state.item.name} by name.`, async () => {
+    await h.step(`Add a product line and scan the item's barcode: ${state.item.name}.`, async () => {
       await page.locator('#dynamic-modal .json-line-add').first().click();
-      await pick(page, h, '#dynamic-modal [data-line-key="item_code"]', 'SOP Raw', state.item.name);
+      await pickItem(page, h, '#dynamic-modal [data-line-key="item_code"]', state.item);
     }, '#dynamic-modal .json-line-editor');
     if (await page.locator(f('status')).count()) await page.locator(f('status')).selectOption('Active');
     const reply = await h.step('Save the group.', () => h.saveDoc('PIMProductGroup'), '#dynamic-modal-form button[type="submit"]');
@@ -505,6 +613,17 @@ module.exports = {
     if (!state.offer?.coupon) throw new Error('Record offer_setup first.');
     await h.open('/#/view/pos', 'A customer brings the festive coupon. Ring up the sale and apply it.');
     await chooseShop(page, h, state);
+    // The shift chapter ends with the till closed, so this sale opens a new session first.
+    await page.locator('#pos-session-close-btn:not(.hidden), #pos-session-open-btn:not(.hidden)').first().waitFor();
+    if (await page.locator('#pos-session-open-btn:not(.hidden)').count()) {
+      await h.step('The till is closed: open the session with the 2,000 float first.', async () => {
+        await page.locator('#pos-session-open-btn').click();
+        await page.locator('#custom-dialog-prompt-input').fill('2000');
+        await h.post('/api/v1/pos/session/open', () => confirmDialog(page));
+      }, '#pos-session-open-btn');
+      state.float = 2000;
+      state.sales_cash = 0;
+    }
     await page.locator('#pos-session-close-btn:not(.hidden)').waitFor();
     await h.step('Scan or search the item and press Enter.', async () => {
       await h.type('#pos-sku-input', 'SOP Raw');
@@ -514,7 +633,9 @@ module.exports = {
     const list = page.locator('#pos-search-results .pos-result-row').filter({ hasText: state.item.name });
     if (await list.count()) await h.step(`Pick ${state.item.name}.`, () => list.first().click(), '#pos-search-results');
     await page.locator('#pos-cart-body tr').first().waitFor();
-    await page.waitForTimeout(1200);
+    await h.step('No mobile number given: choose Walk-in.',
+      () => h.post('/api/v1/pos/walk-in-customer', () => page.locator('#pos-customer-walkin-btn').click()), '#pos-customer-walkin-btn');
+    await page.waitForTimeout(1500);
     const before = Number((await page.locator('#pos-cart-total').innerText()).replace(/[^0-9.]/g, '')) || 0;
     await h.step(`Type the coupon code: ${state.offer.coupon}.`, async () => {
       await h.type('#pos-coupon-code', state.offer.coupon);
@@ -534,14 +655,15 @@ module.exports = {
 
   // --- HR: employee, salary, leave, attendance, payroll -------------------
   employee_setup: async (page, h, state) => {
+    if (!state.department?.name) throw new Error('Record department_setup first.');
     const name = `SOP Store Associate ${state.tag}`;
     await h.open('/#/setup/Employee', 'Every HR and payroll action starts from the employee record.');
     await h.step('Choose New Employee.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-Employee-${n}`;
     await h.step(`Name: ${name}.`, () => h.type(f('name'), name), f('name'));
-    await h.step('Department and designation.', async () => {
-      await h.type(f('department'), 'Retail Operations');
+    await h.step(`Department, picked from the list: ${state.department.name}. Then the designation.`, async () => {
+      await pick(page, h, f('department'), 'SOP Buying', state.department.name);
       await h.type(f('designation'), 'Store Associate');
     }, f('department'));
     await h.step('Date of joining.', () => page.locator(f('date_of_joining')).fill('2026-10-01'), f('date_of_joining'));
@@ -579,8 +701,8 @@ module.exports = {
 
   leave_request: async (page, h, state) => {
     if (!state.employee?.name) throw new Error('Record employee_setup first.');
-    await h.open('/#/view/hr', 'HR: an employee needs two days of casual leave.');
-    await h.step('Open the Leave tab.', () => page.locator('[data-hr-tab="leave"]').click(), '[data-hr-tab="leave"]');
+    await h.open('/#/view/hr:leave', 'HR, Leave: an employee needs two days of casual leave.');
+    await openNew(page, h, 'hr-leave', 'Apply Leave');
     await page.locator('#leave-type').waitFor();
     await h.step(`Employee, by name: ${state.employee.name}.`, () => pick(page, h, '#leave-employee', 'SOP Store', state.employee.name), '#leave-employee');
     await h.step('Casual leave, 12 to 13 October, 2 days.', async () => {
@@ -589,21 +711,24 @@ module.exports = {
       await page.locator('#leave-to').fill('2026-10-13');
       await h.type('#leave-days', '2');
     }, '#leave-type');
-    await h.step('Apply.', () => h.post('/api/v1/doc/Leave', () => page.locator('#leave-save-btn').click()), '#leave-save-btn');
-    const row = () => page.locator('#view-root tbody tr').filter({ hasText: '2026-10-12' }).first();
-    await showRow(page, h, '2026-10-12', 'The request is pending a decision.');
+    const saved = await h.step('Apply.', () => h.post('/api/v1/doc/Leave', () => page.locator('#leave-save-btn').click()), '#leave-save-btn');
+    // The new request is found by its own leave number, not by its dates.
+    const code = saved.code || saved.id || saved.data?.code || saved.data?.id;
+    if (!code) throw new Error('The leave was saved without a number.');
+    const row = () => page.locator('#view-root tbody tr').filter({ hasText: code }).first();
+    await showRow(page, h, code, `Leave ${code} is pending a decision.`);
     await h.step('The manager approves it.', async () => {
       await row().getByRole('button', { name: 'Approve' }).click();
-      await page.locator('#view-root tbody tr').filter({ hasText: '2026-10-12' }).filter({ hasText: 'Approved' }).first().waitFor();
+      await row().filter({ hasText: 'Approved' }).waitFor();
     });
-    await showRow(page, h, '2026-10-12', 'Approved. Approved leave is what payroll and the attendance view count.');
+    await showRow(page, h, code, 'Approved. Approved leave is what payroll and the attendance view count.');
     return `Leave applied and approved for ${state.employee.name}`;
   },
 
   attendance_mark: async (page, h, state) => {
     if (!state.employee?.name) throw new Error('Record employee_setup first.');
-    await h.open('/#/view/hr', 'Mark the day\'s attendance.');
-    await h.step('Open the Attendance tab.', () => page.locator('[data-hr-tab="attendance"]').click(), '[data-hr-tab="attendance"]');
+    await h.open('/#/view/hr:attendance', 'HR, Attendance: mark the day\'s attendance.');
+    await openNew(page, h, 'hr-att', 'Mark Attendance');
     await page.locator('#att-status').waitFor();
     await h.step(`Employee: ${state.employee.name}.`, () => pick(page, h, '#att-employee', 'SOP Store', state.employee.name), '#att-employee');
     await h.step('Date: 9 October. Status: Present.', async () => {
@@ -618,8 +743,8 @@ module.exports = {
 
   payroll_run: async (page, h, state) => {
     if (!state.employee?.name) throw new Error('Record salary_structure_setup first.');
-    await h.open('/#/view/hr', 'Month end: run payroll for the employee and post it to the accounts.');
-    await h.step('Open the Payroll tab.', () => page.locator('[data-hr-tab="payroll"]').click(), '[data-hr-tab="payroll"]');
+    await h.open('/#/view/hr:payroll', 'HR, Payroll: at month end, run payroll for the employee and post it to the accounts.');
+    await openNew(page, h, 'hr-payroll', 'Run Payroll');
     await page.locator('#payroll-run-btn').waitFor();
     await h.step(`Employee: ${state.employee.name}.`, () => pick(page, h, '#payroll-run-employee', 'SOP Store', state.employee.name), '#payroll-run-employee');
     await h.step('Period: 1 to 31 October.', async () => {
@@ -644,23 +769,25 @@ module.exports = {
 
   // --- Manufacturing: finished good, bill of materials, production order ---
   fg_item_setup: async (page, h, state) => {
+    if (!state.category?.name || !state.product_type?.name) throw new Error('Record item_name_setup first.');
     const name = `SOP Gift Box ${state.tag}`;
     const sku = `SOP-FG-${slug(state.tag).toUpperCase()}`;
-    await h.open('/#/setup/Item', 'The finished product needs its own item record before it can be made.');
-    await h.step('Choose New Item.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
+    await h.open('/#/setup/ItemName', 'The finished product needs its own item name, then its own item record, before it can be made.');
+    await h.step('Choose New Item Name.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
     await page.locator('#dynamic-modal.open').waitFor();
-    const f = n => `#dyn-field-Item-${n}`;
-    await h.step(`Name: ${name}.`, () => h.type(f('name'), name), f('name'));
-    if (await page.locator(f('code')).count() && await page.locator(f('code')).isEditable()) await h.step(`SKU code: ${sku}.`, () => h.type(f('code'), sku), f('code'));
-    await h.step(`Barcode: ${sku}.`, () => h.type(f('barcode'), sku), f('barcode'));
-    await h.step('HSN 9999 and GST 18 percent.', async () => {
-      await h.type(f('hsn_code'), '9999');
-      await h.type(f('gst_rate'), '18');
-    }, f('hsn_code'));
-    await h.step('Standard cost: 60.', () => h.type(f('standard_cost'), '60'), f('standard_cost'));
-    const reply = await h.step('Save the item.', () => h.saveDoc('Item'), '#dynamic-modal-form button[type="submit"]');
-    await showRow(page, h, name, `${name} is saved.`);
-    state.fg_item = { name, id: reply.id };
+    const n = f => `#dyn-field-ItemName-${f}`;
+    await h.step(`Category ${state.category.name}, product type ${state.product_type.name}.`, async () => {
+      await page.locator(n('category')).selectOption({ label: state.category.name });
+      await page.locator(n('product_type')).selectOption({ label: state.product_type.name });
+    }, n('category'));
+    await h.step(`Name: ${name}. HSN 9999, GST 18 percent.`, async () => {
+      await h.type(n('name'), name);
+      await h.type(n('hsn_code'), '9999');
+      await h.type(n('gst_rate'), '18');
+    }, n('name'));
+    await h.step('Save the item name.', () => h.saveDoc('ItemName'), '#dynamic-modal-form button[type="submit"]');
+    await h.open('/#/setup/Item', 'Now the item record for the finished product.');
+    state.fg_item = await newItem(page, h, { itemName: name, name, barcode: sku, cost: 60 });
     return `Finished-good item saved: ${name}`;
   },
 
@@ -668,12 +795,26 @@ module.exports = {
     if (!state.fg_item?.name || !state.item?.id) throw new Error('Needs the finished-good and raw-material items.');
     const bom = `BOM-${slug(state.tag).toUpperCase()}`;
     await h.open('/#/view/manufacturing', 'A bill of materials says what goes into one finished product.');
+    const newBom = '[data-act-args*="mfg-orders:bom"]';
+    await h.step('Choose + New BOM.', () => page.locator(newBom).first().click(), newBom);
+    await page.locator('#bom-code').waitFor();
     await h.step(`BOM code: ${bom}.`, () => h.type('#bom-code', bom), '#bom-code');
-    await h.step(`Finished product, by name: ${state.fg_item.name}.`, () => pick(page, h, '#bom-parent-item', 'SOP Gift', state.fg_item.name), '#bom-parent-item');
-    await h.step(`Components: 2 of the raw material per box - its SKU and quantity, ${state.item.id}:2.`, () => h.type('#bom-components', `${state.item.id}:2`), '#bom-components');
+    await h.step(`Finished product: scan its barcode. The list shows ${state.fg_item.name}.`, () => pickItem(page, h, '#bom-parent-item', state.fg_item), '#bom-parent-item');
+    await h.step(`Component: 2 of ${state.item.name} per box.`, async () => {
+      await pickItem(page, h, '#bom-lines tr:first-child .bom-line-sku', state.item);
+      await h.type('#bom-lines tr:first-child .bom-line-qty', '2');
+    }, '#bom-lines');
     await h.step('Create BOM.', () => h.post('/api/v1/doc/BOM', () => page.locator('#bom-create-btn').click()), '#bom-create-btn');
-    await page.locator('#po-mfg-bom option').filter({ hasText: bom }).first().waitFor({ state: 'attached' });
-    await page.locator('#po-mfg-bom').evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
+    // Read it back where it is used: the BOM list of a new production order.
+    const newOrder = '[data-act-args*="mfg-orders:new"]';
+    await page.locator(newOrder).first().waitFor();
+    await h.step('Open + New Production Order: the BOM is offered there.', async () => {
+      await page.locator(newOrder).first().click();
+      const sel = page.locator('#po-mfg-bom');
+      await sel.waitFor();
+      await sel.selectOption(await sel.locator('option').filter({ hasText: bom }).first().getAttribute('value'));
+      await sel.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
+    }, '#po-mfg-bom');
     await h.note(`${bom} is saved: one ${state.fg_item.name} uses 2 of ${state.item.name}. It is now offered when creating a production order.`);
     state.bom = bom;
     return `BOM ${bom} created`;
@@ -682,6 +823,9 @@ module.exports = {
   production_order: async (page, h, state) => {
     if (!state.bom) throw new Error('Record bom_create first.');
     await h.open('/#/view/manufacturing', 'Make 10 gift boxes at the warehouse.');
+    const newOrder = '[data-act-args*="mfg-orders:new"]';
+    await h.step('Choose + New Production Order.', () => page.locator(newOrder).first().click(), newOrder);
+    await page.locator('#po-mfg-bom').waitFor();
     await h.step(`Choose the BOM: ${state.bom}.`, async () => {
       const sel = page.locator('#po-mfg-bom');
       const value = await sel.locator('option').filter({ hasText: state.bom }).first().getAttribute('value');
@@ -691,17 +835,19 @@ module.exports = {
     await h.step(`Location, by name: ${state.location.name}.`, () => pick(page, h, '#po-mfg-location', 'Audit Dis', state.location.name), '#po-mfg-location');
     const reply = await h.step('Create Order. It starts as a Draft.', () => h.post('/api/v1/doc/ProductionOrder', () => page.locator('#po-mfg-create-btn').click()), '#po-mfg-create-btn');
     const id = reply.id;
-    const row = () => page.locator('#view-root tbody tr').filter({ hasText: id }).first();
-    await showRow(page, h, id, 'Draft.');
+    const number = reply.code || id;
+    // The list shows the order number; its buttons carry the id.
+    const row = () => page.locator('#view-root tbody tr').filter({ has: page.locator(`[data-act-args*="${id}"]`) }).first();
+    await showRowById(page, h, id, `${number} is a Draft.`);
     await h.step('Issue Material: the 20 units of raw material leave stock into production.', () =>
       h.post('/api/v1/manufacturing/issue-material', () => row().getByRole('button', { name: 'Issue Material' }).click()));
-    await showRow(page, h, id, 'Material Issued - the work is in progress.');
+    await showRowById(page, h, id, 'Material Issued - the work is in progress.');
     await h.step('Complete (Receive FG) when the boxes are made: the 10 finished boxes come into stock.', async () => {
       await row().getByRole('button', { name: 'Complete (Receive FG)' }).click();
       await page.locator('#custom-dialog-container:not(.hidden)').waitFor();
       await h.post('/api/v1/manufacturing/complete', () => confirmDialog(page));
     });
-    await showRow(page, h, id, 'Completed. Raw material went out, finished goods came in, each at its cost.');
+    await showRow(page, h, number, 'Completed. Raw material went out, finished goods came in, each at its cost.');
     state.production_order = { id };
     return `Production order ${id}: 10 made, materials issued and finished goods received`;
   },
@@ -709,8 +855,7 @@ module.exports = {
   // --- PIM: family, attribute, link, item in family, enrich -------------
   pim_family_setup: async (page, h, state) => {
     const family = `SOP Gift Hampers ${state.tag}`;
-    await h.open('/#/view/pim', 'PIM enriches products for selling. Step one: a product family - one per kind of product.');
-    await h.step('Open Product Families.', () => page.locator('[data-pim-tab="families"]').click(), '[data-pim-tab="families"]');
+    await h.open('/#/setup/ProductFamily', 'PIM enriches products for selling. Step one: a product family - one per kind of product. Families are under Setup.');
     await h.step('Choose New.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-ProductFamily-${n}`;
@@ -723,8 +868,7 @@ module.exports = {
   },
 
   pim_attribute_setup: async (page, h, state) => {
-    await h.open('/#/view/pim', 'Step two: the attributes that describe the products - reusable across families.');
-    await h.step('Open Attribute Definitions.', () => page.locator('[data-pim-tab="attributes"]').click(), '[data-pim-tab="attributes"]');
+    await h.open('/#/setup/ProductAttributeDef', 'Step two: the attributes that describe the products - reusable across families. Attribute Definitions are under Setup.');
     await h.step('Choose New.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-ProductAttributeDef-${n}`;
@@ -742,8 +886,7 @@ module.exports = {
 
   pim_family_attribute: async (page, h, state) => {
     if (!state.pim_family || !state.pim_attribute) throw new Error('Record the family and attribute first.');
-    await h.open('/#/view/pim', 'Step three: say which attributes a family needs - this list is exactly what completeness checks.');
-    await h.step('Open Family Attributes.', () => page.locator('[data-pim-tab="family-attributes"]').click(), '[data-pim-tab="family-attributes"]');
+    await h.open('/#/setup/ProductFamilyAttribute', 'Step three: say which attributes a family needs - this list, Family Attributes, is exactly what completeness checks.');
     await h.step('Choose New.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-ProductFamilyAttribute-${n}`;
@@ -781,8 +924,7 @@ module.exports = {
 
   pim_workbench: async (page, h, state) => {
     if (!state.fg_item?.id || !state.pim_attribute) throw new Error('Needs the item in its family.');
-    await h.open('/#/view/pim', 'Step five: the Workbench - fill in the product until it is complete.');
-    await h.step('Open the Workbench.', () => page.locator('[data-pim-tab="workbench"]').click(), '[data-pim-tab="workbench"]');
+    await h.open('/#/view/pim:workbench', 'Step five: the PIM Workbench - fill in the product until it is complete.');
     const row = page.locator(`.pim-workbench-row[data-item="${state.fg_item.id}"]`).first();
     await row.waitFor();
     await row.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
@@ -810,29 +952,34 @@ module.exports = {
   // --- Quality: inspect a production batch, approve the result -----------
   quality_inspection: async (page, h, state) => {
     if (!state.production_order?.id) throw new Error('Record production_order first.');
-    await h.open('/#/view/manufacturing', 'Before the boxes are sold, quality inspects the batch and records the result.');
-    await h.step('Open Quality Inspections.', () => page.locator('[data-mfg-tab="quality"]').click(), '[data-mfg-tab="quality"]');
-    await page.locator('#doc-create-button').waitFor();
-    await h.step('Choose New.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
-    await page.locator('#dynamic-modal.open').waitFor();
-    const f = n => `#dyn-field-QualityInspection-${n}`;
-    if (await page.locator(f('code')).count() && await page.locator(f('code')).isEditable()) {
-      await h.step('Inspection number.', () => h.type(f('code'), `QI-${slug(state.tag).toUpperCase()}-01`), f('code'));
-    }
-    await h.step(`The production order inspected: ${state.production_order.id}.`, () => page.locator(f('production_order_id')).selectOption(state.production_order.id), f('production_order_id'));
-    await h.step('Result: Pass. Remarks: what was checked.', async () => {
-      await page.locator(f('result')).selectOption('Pass');
-      await h.type(f('remarks'), 'Sample of 2 checked: seal, print and weight OK');
-    }, f('result'));
-    await h.step('Status starts as Draft. Save.', async () => {
-      await page.locator(f('status')).selectOption('Draft');
-      return h.saveDoc('QualityInspection');
-    }, '#dynamic-modal-form button[type="submit"]');
-    const row = page.locator('#view-root tbody tr').filter({ hasText: state.production_order.id }).first();
-    await row.waitFor();
-    const qiId = (await row.locator('td').first().innerText()).trim();
-    await h.step('Submit it for approval - a second person signs off the result.', () =>
-      h.post('/api/v1/approval/submit', () => row.locator('[data-doc-action="submit-quality-inspection"]').click()));
+    const poId = state.production_order.id;
+    await h.open('/#/view/manufacturing:quality', 'Before the boxes are sold, quality inspects the batch and records the result.');
+    await openNew(page, h, 'qi-screen', 'New Inspection');
+    await page.locator('#qi-type').waitFor();
+    await h.step('Inspecting: production output.', () => page.locator('#qi-type').selectOption('Production'), '#qi-type');
+    await h.step(`The production order: ${poId}. Its finished item and location come from the order.`, async () => {
+      await h.type('#qi-source', poId);
+      await page.waitForTimeout(900);
+      const opt = page.locator('.typeahead-menu .typeahead-item').filter({ hasText: poId }).first();
+      if (await opt.count()) await opt.click(); else await page.locator('#qi-qty').focus();
+    }, '#qi-source');
+    await h.step('Quantity inspected: 2.', () => h.type('#qi-qty', '2'), '#qi-qty');
+    await h.step('One reading: seal, print and weight. OK, Pass.', async () => {
+      const r = page.locator('#qi-readings tr').first();
+      await r.locator('.rd-param').pressSequentially('Seal, print and weight', { delay: 40 });
+      await r.locator('.rd-spec').pressSequentially('Intact, legible, 250 g', { delay: 40 });
+      await r.locator('.rd-reading').pressSequentially('OK', { delay: 55 });
+      await r.locator('.rd-result').selectOption('Pass');
+    }, '#qi-readings');
+    await h.step('Remarks: what was checked.', () => h.type('#qi-remarks', 'Sample of 2 checked'), '#qi-remarks');
+    const saved = await h.step('Record the inspection. It is saved as Draft with its result.', () =>
+      h.post('/api/v1/quality/inspection', () => page.locator('#qi-save').click()), '#qi-save');
+    const qiId = saved.id;
+    const submitSel = `[data-qi-act="submit"][data-id="${qiId}"]`;
+    await page.locator(submitSel).waitFor({ timeout: 15000 });
+    await outlineRow(page, h, page.locator('#view-root tbody tr').filter({ has: page.locator(submitSel) }).first(),
+      `${qiId}: Pass, Draft. A second person signs off a production inspection.`);
+    await h.step('Submit it for approval.', () => h.post('/api/v1/approval/submit', () => page.locator(submitSel).click()), submitSel);
     await page.waitForTimeout(1000);
     await h.note('Pending approval by the store manager.');
     state.qi = { id: qiId };
@@ -842,7 +989,7 @@ module.exports = {
   quality_approve: async (page, h, state) => {
     if (!state.production_order?.id) throw new Error('Record quality_inspection first.');
     await h.open('/#/view/approvals', 'The store manager signs off the inspection.');
-    const row = page.locator('#view-root tbody tr').filter({ hasText: 'Quality Inspection' }).first();
+    const row = page.locator('#inbox-approvals tbody tr').filter({ hasText: 'Quality Inspection' }).first();
     await row.waitFor();
     await h.step('Check the inspection in the queue.', async () => {
       await row.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
@@ -860,6 +1007,8 @@ module.exports = {
     if (!state.employee?.name || !state.location?.name) throw new Error('Needs the employee and location fixtures.');
     const assetNo = `AST-${slug(state.tag).toUpperCase()}-01`;
     await h.open('/#/view/assets', 'A new billing counter was bought for the warehouse. Record it as a fixed asset so it is depreciated and someone is responsible for it.');
+    await openNew(page, h, 'asset-screen', 'New Asset');
+    await page.locator('#asset-category').waitFor();
     if (await page.locator('#asset-code').isEditable()) await h.step(`Asset number: ${assetNo}.`, () => h.type('#asset-code', assetNo), '#asset-code');
     await h.step('Category and cost: Furniture, 60,000.', async () => {
       await h.type('#asset-category', 'Furniture');
@@ -873,8 +1022,13 @@ module.exports = {
     const id = reply.id;
     const row = () => page.locator('#view-root tbody tr').filter({ hasText: id }).first();
     await showRow(page, h, id, 'Draft: recorded, not yet on the books.');
-    await h.step('Capitalise it. Its cost moves to Fixed Assets and depreciation starts.', () =>
-      h.post('/api/v1/assets/capitalize', () => row().getByRole('button', { name: 'Capitalise' }).click()));
+    await h.step('Capitalise it.', () => row().getByRole('button', { name: 'Capitalise' }).click());
+    // The confirmation shows the entry and the monthly depreciation before anything posts.
+    await page.locator('#custom-dialog-container:not(.hidden)').filter({ hasText: 'Fixed Assets' }).waitFor();
+    await h.step('The confirmation shows what posts: Fixed Assets against GRN Suspense, and the monthly depreciation. Confirm.', async () => {
+      await page.waitForTimeout(2500);
+      await h.post('/api/v1/assets/capitalize', () => confirmDialog(page));
+    }, '#custom-dialog-container');
     await showRow(page, h, id, 'Capitalised - cost, accumulated depreciation and net book value are shown on the register.');
     state.asset = { id };
     return `Asset ${id} registered and capitalised`;
@@ -898,6 +1052,7 @@ module.exports = {
   expense_claim: async (page, h, state) => {
     if (!state.employee?.name) throw new Error('Record employee_setup first.');
     await h.open('/#/view/expenses', 'An employee paid for a client visit taxi from their own pocket. Claim it back.');
+    await openNew(page, h, 'exp-screen', 'New Expense Claim');
     await h.step(`Employee, by name: ${state.employee.name}.`, () => pick(page, h, '#exp-employee', 'SOP Store', state.employee.name), '#exp-employee');
     await h.step(`Location: ${state.location.name} - the claim goes to that location's manager for approval.`, () => pick(page, h, '#exp-location', 'Audit Dis', state.location.name), '#exp-location');
     await h.step('Date and category: 7 October, Conveyance.', async () => {
@@ -922,7 +1077,7 @@ module.exports = {
   expense_approve: async (page, h, state) => {
     if (!state.expense?.id) throw new Error('Record expense_claim first.');
     await h.open('/#/view/approvals', 'The store manager reviews the claim in their approval queue.');
-    const row = page.locator('#view-root tbody tr').filter({ hasText: state.expense.id }).first();
+    const row = page.locator('#inbox-approvals tbody tr').filter({ has: page.locator(`[data-act-args*="${state.expense.id}"]`) }).first();
     await row.waitFor();
     await h.step('Check who claimed, for what and how much.', async () => {
       await row.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
@@ -955,13 +1110,23 @@ module.exports = {
   // --- Procurement: sending goods back to the supplier --------------------
   purchase_return: async (page, h, state) => {
     if (!state.grn?.id) throw new Error('Record grn_post first.');
-    const reason = `Damaged in transit ${state.tag}`;
-    await h.open('/#/view/purchase-returns', 'Some received goods are damaged. Send them back against the receipt they arrived on; the supplier owes us for them.');
-    await h.step(`Choose the goods receipt: ${state.grn.id}.`, () => page.locator('#prt-grn').selectOption(state.grn.id), '#prt-grn');
+    const reason = `Not as ordered ${state.tag}`;
+    await h.open('/#/view/purchase-returns', 'Some received goods are not as ordered. Send them back against the receipt they arrived on; the supplier owes us for them.');
+    await openNew(page, h, 'prt-screen', 'New Purchase Return');
+    await h.step(`Choose the goods receipt: ${state.grn.code || state.grn.id}.`, async () => {
+      const sel = page.locator('#prt-grn');
+      const values = await sel.locator('option').evaluateAll(os => os.map(o => o.value));
+      const v = values.find(x => x === state.grn.id) || values.find(x => state.grn.code && x.startsWith(state.grn.code));
+      if (!v) throw new Error(`GRN ${state.grn.id} is not in the return list.`);
+      await sel.selectOption(v);
+    }, '#prt-grn');
     await page.locator('#prt-lines .prt-qty').first().waitFor();
     await h.note('The lines show what was received and what can still be returned - you can never return more than arrived.');
     await h.step('Return 5 of the item.', () => h.type('#prt-lines .prt-qty', '5'), '#prt-lines');
-    await h.step('Reason for the return.', () => h.type('#prt-reason', reason), '#prt-reason');
+    await h.step('Reason: Quality not as ordered, with a short note.', async () => {
+      await page.locator('#prt-reason-code').selectOption('PR-QUALITY');
+      await h.type('#prt-reason', reason);
+    }, '#prt-reason-code');
     await h.step('Save the return. Nothing moves until it is posted.', () => h.post('/api/v1/doc/PurchaseReturn', () => page.locator('#prt-save-btn').click()), '#prt-save-btn');
     const row = () => page.locator('#view-root tbody tr').filter({ hasText: reason }).first();
     await showRow(page, h, reason, 'Saved as Draft.');
@@ -994,7 +1159,7 @@ module.exports = {
   // --- Finance: debit and credit notes -------------------------------------
   debit_note: async (page, h, state) => {
     if (!state.vendor?.name || !state.po?.id) throw new Error('Needs the vendor and PO fixtures.');
-    const noteNo = `DN-${slug(state.tag).toUpperCase()}-01`;
+    let noteNo;
     await h.open('/#/view/finance-notes', 'The supplier agreed to a 100 rebate for late delivery. Record it as a debit note - money they owe us back.');
     await h.step('Choose + New Debit Note.', async () => {
       await page.locator('#dn-new-btn').click();
@@ -1002,13 +1167,16 @@ module.exports = {
     }, '#dn-new-btn');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-DebitNote-${n}`;
-    await h.step(`Note number: ${noteNo}.`, () => h.type(f('note_number'), noteNo), f('note_number'));
     await h.step(`Vendor: ${state.vendor.name}.`, () => page.locator(f('vendor_id')).selectOption({ label: state.vendor.name }), f('vendor_id'));
     await h.step(`The purchase order it relates to: ${state.po.id}.`, () => page.locator(f('reference_po')).selectOption(state.po.id), f('reference_po'));
     await h.step('Amount: 100.', () => h.type(f('amount'), '100'), f('amount'));
     await h.step('Reason, in plain words.', () => h.type(f('reason'), 'Rebate agreed for late delivery'), f('reason'));
     await h.step('Status starts as Draft.', () => page.locator(f('status')).selectOption('Draft'), f('status'));
-    await h.step('Save.', () => h.saveDoc('DebitNote'), '#dynamic-modal-form button[type="submit"]');
+    // The note number comes from the prefix setup when it is saved.
+    await h.step('Save. The system gives the note its number.', async () => {
+      const saved = await h.saveDoc('DebitNote');
+      noteNo = saved.note_number || saved.id;
+    }, '#dynamic-modal-form button[type="submit"]');
     await h.open('/#/view/finance-notes', 'Back on Debit / Credit Notes, the note is a Draft until it is posted.');
     const row = () => page.locator('#view-root tbody tr').filter({ hasText: noteNo }).first();
     await showRow(page, h, noteNo, 'Draft: nothing has reached the accounts yet.');
@@ -1023,21 +1191,24 @@ module.exports = {
 
   credit_note: async (page, h, state) => {
     if (!state.customer?.name) throw new Error('Needs the customer fixture.');
-    const noteNo = `CN-${slug(state.tag).toUpperCase()}-01`;
-    await h.open('/#/view/finance-notes', 'A customer was overcharged by 50. Refund it with a credit note.');
+    let noteNo;
+    await h.open('/#/view/finance-notes:customer-credit', 'A customer was overcharged by 50. Refund it with a credit note, under Customer Credit Notes.');
     await h.step('Choose + New Credit Note.', async () => {
       await page.locator('#cn-new-btn').click();
       await page.locator('#doc-create-button').click();
     }, '#cn-new-btn');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-CreditNote-${n}`;
-    await h.step(`Note number: ${noteNo}.`, () => h.type(f('note_number'), noteNo), f('note_number'));
     await h.step(`Customer, by name: ${state.customer.name}.`, () => page.locator(f('customer_id')).selectOption({ label: state.customer.name }), f('customer_id'));
     await h.step('Amount: 50.', () => h.type(f('amount'), '50'), f('amount'));
     await h.step('Reason.', () => h.type(f('reason'), 'Overcharged on delivery fee'), f('reason'));
     await h.step('Status starts as Draft.', () => page.locator(f('status')).selectOption('Draft'), f('status'));
-    await h.step('Save.', () => h.saveDoc('CreditNote'), '#dynamic-modal-form button[type="submit"]');
-    await h.open('/#/view/finance-notes', 'The credit note waits as a Draft.');
+    // The note number comes from the prefix setup when it is saved.
+    await h.step('Save. The system gives the note its number.', async () => {
+      const saved = await h.saveDoc('CreditNote');
+      noteNo = saved.note_number || saved.id;
+    }, '#dynamic-modal-form button[type="submit"]');
+    await h.open('/#/view/finance-notes:customer-credit', 'The credit note waits as a Draft.');
     const row = () => page.locator('#view-root tbody tr').filter({ hasText: noteNo }).first();
     await showRow(page, h, noteNo, 'Draft.');
     await h.step('Post it. The refund is booked against Sales Returns & Allowances and paid out.', async () => {
@@ -1073,12 +1244,10 @@ module.exports = {
 
   service_ticket_raise: async (page, h, state) => {
     if (!state.service_contract?.id || !state.user) throw new Error('Record service_contract_setup first.');
-    const ticketNo = `SVC-${slug(state.tag).toUpperCase()}-01`;
     await h.open('/#/setup/ServiceTicket', 'The customer calls: the counter drawer is jammed. Log a service ticket, then hand it to a technician.');
     await h.step('Choose New Service Ticket.', () => page.locator('#doc-create-button').click(), '#doc-create-button');
     await page.locator('#dynamic-modal.open').waitFor();
     const f = n => `#dyn-field-ServiceTicket-${n}`;
-    await h.step(`Ticket number: ${ticketNo}.`, () => h.type(f('code'), ticketNo), f('code'));
     await h.step(`Customer: ${state.customer.name}.`, () => h.type(f('customer'), state.customer.name), f('customer'));
     await h.step(`Asset: ${state.asset.id}.`, () => page.locator(f('asset')).selectOption(state.asset.id), f('asset'));
     await h.step('What is wrong, in the customer\'s words.', () => h.type(f('description'), 'Cash drawer jammed, will not open'), f('description'));
@@ -1089,7 +1258,15 @@ module.exports = {
     }, f('respond_by_date'));
     await h.step(`Service contract: ${state.service_contract.id} - this visit is counted against it.`, () => page.locator(f('service_contract_id')).selectOption(state.service_contract.id), f('service_contract_id'));
     await h.step('Status starts as Draft. Leave technician and notes empty - the buttons on the row fill them in.', () => page.locator(f('status')).selectOption('Draft'), f('status'));
-    const reply = await h.step('Save.', () => h.saveDoc('ServiceTicket'), '#dynamic-modal-form button[type="submit"]');
+    // The ticket number comes from the prefix setup when it is saved.
+    const reply = await h.step('Save. The system gives the ticket its number.', () => h.saveDoc('ServiceTicket'), '#dynamic-modal-form button[type="submit"]');
+    // The save reply carries the internal id; the ticket number is read back from the record.
+    const saved = await page.evaluate(async id => {
+      const r = await fetch(`/api/v1/doc/ServiceTicket/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${localStorage.getItem('erp_token')}` } });
+      return r.ok ? r.json() : {};
+    }, reply.id);
+    const ticketNo = saved.code;
+    if (!ticketNo) throw new Error(`Service ticket ${reply.id} has no number.`);
     const row = () => page.locator('#view-root tbody tr').filter({ hasText: ticketNo }).first();
     await showRow(page, h, ticketNo, 'Draft - logged, nobody on it yet.');
     await h.step(`Assign it to the technician by username: ${state.user}.`, async () => {
@@ -1159,6 +1336,7 @@ module.exports = {
     const f = n => `#dyn-field-Campaign-${n}`;
     await h.step(`Campaign name: ${name}.`, () => h.type(f('name'), name), f('name'));
     await h.step('Trigger: Birthday. The other trigger, Lapsed Customer, reaches anyone who has not bought for a number of days you set.', () => page.locator(f('trigger_type')).selectOption('Birthday'), f('trigger_type'));
+    await h.step('Channel: WhatsApp. SMS and Email work the same way.', () => page.locator(f('channel')).selectOption('WhatsApp'), f('channel'));
     await h.step('The message. {{customer_name}} is replaced with each customer\'s name.', () =>
       h.type(f('message_template'), 'Happy birthday {{customer_name}}! Enjoy 10% off in store this week.'), f('message_template'));
     await h.step('What the campaign costs, so the report can show its return: 500.', () => h.type(f('cost'), '500'), f('cost'));
@@ -1171,8 +1349,7 @@ module.exports = {
 
   campaign_roi: async (page, h, state) => {
     if (!state.campaign?.name) throw new Error('Record campaign_setup first.');
-    await h.open('/#/view/reports', 'A day later, see who the campaign reached and what they spent. Open Reports.');
-    await h.step('Choose Report Catalog.', () => page.locator('[data-report-tab="report-catalog"]').click(), '[data-report-tab="report-catalog"]');
+    await h.open('/#/view/reports:report-catalog', 'A day later, see who the campaign reached and what they spent. Open Reports, Report Catalog.');
     await page.locator('#rc-report-select').waitFor();
     await h.step('Report: Campaign ROI, under CRM.', () => page.locator('#rc-report-select').selectOption('campaign-roi'), '#rc-report-select');
     await h.step('Run.', () => page.locator('#rc-run-btn').click(), '#rc-run-btn');
@@ -1182,8 +1359,7 @@ module.exports = {
 
   // --- Reports: the GST position, and any report as a spreadsheet -----------
   report_gst_summary: async (page, h, state) => {
-    await h.open('/#/view/reports', 'Before filing GST, check the month\'s position. Open Reports.');
-    await h.step('Choose GST Return Summary.', () => page.locator('[data-report-tab="gst-return-summary"]').click(), '[data-report-tab="gst-return-summary"]');
+    await h.open('/#/view/reports:gst-return-summary', 'Before filing GST, check the month\'s position. Open Reports, GST Return Summary, under Finance.');
     await page.locator('#gst-start-date').waitFor();
     await h.step('The period: this month to date. Change the dates for any other period.', async () => {
       await page.locator('#gst-start-date').fill('2026-10-01');
@@ -1200,8 +1376,7 @@ module.exports = {
 
   report_catalog_export: async (page, h, state) => {
     if (!state.item?.id) throw new Error('Needs the item fixture.');
-    await h.open('/#/view/reports', 'Every other report is in the Report Catalog, and any of them can be taken out as a spreadsheet.');
-    await h.step('Choose Report Catalog.', () => page.locator('[data-report-tab="report-catalog"]').click(), '[data-report-tab="report-catalog"]');
+    await h.open('/#/view/reports:report-catalog', 'Every other report is in the Report Catalog, and any of them can be taken out as a spreadsheet.');
     await page.locator('#rc-report-select').waitFor();
     await h.step('Report: Stock Ledger - every stock movement, in and out.', () => page.locator('#rc-report-select').selectOption('stock-ledger'), '#rc-report-select');
     await h.step('Run.', () => page.locator('#rc-run-btn').click(), '#rc-run-btn');
@@ -1245,18 +1420,22 @@ module.exports = {
   sticker_print_grn: async (page, h, state) => {
     if (!state.grn?.id || !state.printer?.name) throw new Error('Needs the GRN and printer fixtures.');
     await h.open('/#/view/stickers', 'Goods have been received. Print their barcode labels from the receipt itself - nothing is typed by hand.');
+    await openNew(page, h, 'sticker-print', 'Print Stickers');
     await h.step('Module: Goods Receipt (GRN).', () => page.locator('#sticker-source-doctype').selectOption('GRN'), '#sticker-source-doctype');
-    await h.step(`Document: start typing the receipt number and pick ${state.grn.id}. Its lines load.`, () =>
-      pick(page, h, '#sticker-source-doc', state.grn.id.slice(0, 10), state.grn.id), '#sticker-source-doc');
-    if (!await page.locator('#sticker-source-lines tbody tr').count()) await page.locator('#sticker-source-load-btn').click();
+    await h.step(`Printer: ${state.printer.name}. This computer remembers it.`, () => page.locator('#sticker-printer').selectOption({ label: state.printer.name }), '#sticker-printer');
+    const grnRef = state.grn.code || state.grn.id;
+    await h.step(`Document: start typing the receipt number and pick ${grnRef}. Its labels open in a preview at once.`, () =>
+      // The receipt itself, not one of its children (<number>/<key>).
+      pick(page, h, '#sticker-source-doc', grnRef, new RegExp(grnRef.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '(?!/)')), '#sticker-source-doc');
+    const print = page.locator('[data-stk-preview="print"]');
+    await print.waitFor({ timeout: 15000 });
+    await h.note('One label per accepted unit - rejected or damaged units get none. The preview shows exactly what prints.');
+    await h.step('Print. The run is logged against the receipt, so a re-print later asks for a reason.', () =>
+      h.post('/api/v1/stickers/print', () => print.click()), '[data-stk-preview="print"]');
+    await page.waitForTimeout(1500);
     const lines = page.locator('#sticker-source-lines');
-    await lines.locator('tbody tr').first().waitFor();
     await lines.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.style.outline = '3px solid #f6c85f'; });
-    await h.note('One row per item. Copies is the accepted quantity - rejected or damaged units get no label. The Template column shows the layout each will use.');
-    await h.step(`Printer: ${state.printer.name}.`, () => page.locator('#sticker-printer').selectOption({ label: state.printer.name }), '#sticker-printer');
-    await h.step('Print Selected. The run is logged against the receipt, so a re-print later asks for a reason.', () =>
-      h.post('/api/v1/stickers/print', () => page.locator('#sticker-source-print-btn').click()), '#sticker-source-print-btn');
-    await showRow(page, h, state.grn.id, 'The labels go to the printer - straight to it once silent printing is set up, otherwise through the print dialog - and the run is listed in Print History.');
-    return `Labels printed for ${state.grn.id} on ${state.printer.name}`;
+    await h.note('The labels go to the printer - straight to it once silent printing is set up, otherwise through the print dialog. The lines stay here to re-print a few.');
+    return `Labels printed for ${state.grn.code || state.grn.id} on ${state.printer.name}`;
   },
 };

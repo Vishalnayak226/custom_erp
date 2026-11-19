@@ -67,3 +67,52 @@ func TestSearchIdentityScope(t *testing.T) {
 		}
 	}
 }
+
+// 230.3: a doctype's own code is identity, so a picker finds a bin by the
+// bin_code people know (and the Bin picker shows), not only by its generated id.
+func TestSearchIdentityOwnCode(t *testing.T) {
+	db.InitDB(testConnStr())
+	const id = "T2303-BIN"
+	cleanup := func() { _, _ = db.DB.Exec(`DELETE FROM tenant_default.documents WHERE id = $1`, id) }
+	cleanup()
+	defer cleanup()
+	if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES ($1, 'Bin', '{"bin_code":"QZXQ2303-A1","zone":"qzxq2303-zone","status":"Active"}', 'Active', 'system')`, id); err != nil {
+		t.Fatalf("insert bin: %v", err)
+	}
+	token := engines.SignToken("admin", "admin", "HR/Admin", "default", "HO", currentCredentialVersion("admin"))
+	engines.ResetLiveUserStateCache()
+	found := func(query string) bool {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Bin?"+query, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.SetPathValue("doctype", "Bin")
+		rec := httptest.NewRecorder()
+		apiMiddleware(handleGenericDoc)(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d %s", query, rec.Code, rec.Body.String())
+		}
+		var rows []map[string]interface{}
+		_ = json.Unmarshal(rec.Body.Bytes(), &rows)
+		for _, r := range rows {
+			if r["id"] == id {
+				return true
+			}
+		}
+		return false
+	}
+	if !found("q=QZXQ2303-A1&q_fields=@identity&limit=50") {
+		t.Errorf("@identity must find a bin by its bin_code")
+	}
+	if found("q=qzxq2303-zone&q_fields=@identity&limit=50") {
+		t.Errorf("@identity must not find a bin by its zone")
+	}
+	for doctype, want := range map[string]string{"Bin": "bin_code", "LPN": "lpn_code", "Hold": "hold_code"} {
+		has := false
+		for _, f := range engines.SearchIdentityFields("default", doctype) {
+			has = has || f == want
+		}
+		if !has {
+			t.Errorf("%s @identity must include %s: %v", doctype, want, engines.SearchIdentityFields("default", doctype))
+		}
+	}
+}

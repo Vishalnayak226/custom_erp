@@ -7,22 +7,22 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 150 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 141 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
-| JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 7 | 1 | 6 |
-| JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 2 | 0 | 2 |
+| JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 6 | 1 | 5 |
+| JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 1 | 0 | 1 |
 | JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 0 | 0 | 0 |
 | JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 11 | 0 | 9 |
 | JRN-05 WMS | REF-WAREHOUSE-IN | Warehouse owner; Stage 36/47.6 | 0 | 0 | 0 |
 | JRN-06 warehouse billing/3PL | REF-WAREHOUSE-IN | Warehouse/finance; 47.5; mixed owner excluded | 0 | 0 | 0 |
-| JRN-07 source-to-pay | REF-WAREHOUSE-IN | Buyer/AP; Stage 37/procurement | 2 | 0 | 2 |
+| JRN-07 source-to-pay | REF-WAREHOUSE-IN | Buyer/AP; Stage 37/procurement | 1 | 0 | 1 |
 | JRN-08 PIM/catalog/DAM | REF-RETAIL-IN | Product data steward; 26.4/47.13 | 0 | 0 | 0 |
 | JRN-09 record-to-report | REF-RETAIL-IN, REF-WAREHOUSE-IN | Qualified accountant; 26.6/Stage 37 | 0 | 0 | 0 |
 | JRN-10 FX/intercompany/consolidation | deferred - outside both | Finance policy owner; Stage 37; depth decision DEC-01 | 0 | 0 | 0 |
 | JRN-11 revenue schedules | deferred - outside both | Accountant; existing contract engine; separate from SaaS billing | 0 | 0 | 0 |
-| JRN-12 India tax | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tax/legal owner; 26.2/26.6/47.16 | 2 | 0 | 2 |
+| JRN-12 India tax | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tax/legal owner; 26.2/26.6/47.16 | 1 | 0 | 1 |
 | JRN-13 manufacturing | deferred - outside both | Factory/cost owner; 26.9/Stage 37 | 0 | 0 | 0 |
 | JRN-14 quality/maintenance | deferred - outside both | Quality/maintenance owner; chosen industry scope | 0 | 0 | 0 |
 | JRN-15 CRM/loyalty | REF-RETAIL-IN | Marketing/privacy/store; 26.7 | 2 | 0 | 2 |
@@ -31,14 +31,14 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 | JRN-18 expenses | deferred - outside both | Finance/employee owner; existing expenses scope | 0 | 0 | 0 |
 | JRN-19 projects/service | deferred - outside both | Service/project owner; Experimental scope preserved | 0 | 0 | 0 |
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 0 | 0 | 0 |
-| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 8 | 1 | 0 |
-| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 38 | 3 | 34 |
+| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 7 | 0 | 0 |
+| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 37 | 2 | 34 |
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 6 | 0 | 6 |
 | Cross-journey acceptance and audits | - | - | 38 | 2 | 28 |
-| Engineering housekeeping | - | - | 3 | 0 | 3 |
-| Unmapped - place these stages | - | - | 31 | 5 | 16 |
+| Engineering housekeeping | - | - | 3 | 1 | 1 |
+| Unmapped - place these stages | - | - | 28 | 5 | 13 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 149 (1), Stage 154 (2), Stage 158 (1), Stage 162 (3), Stage 176 (1), Stage 177 (6), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 205 (1), Stage 212 (1), Stage 213 (2), Stage 214 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (3), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 232 (1), Stage 234 (2), Stage 240 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -48,12 +48,10 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 - **102.5.2** Real phones *(blocked)*
 - **31.1.8** Live verification against a real QZ Tray and a real printer — partially closed 2026-0... *(blocked)*
 - **31.1.9** Replace QZ Tray with our own lightweight agent (PrintBridge) — Windows deployable; ma... *(decision)*
-- **53.15** Deploy *(blocked)*
 
 ## JRN-02 OMS/order-to-cash
 
 - **99.8.1** End to end on a real Shopify development store *(blocked)*
-- **99.9.1** Guides and release gate *(blocked)*
 
 ## JRN-04 inventory
 
@@ -71,12 +69,10 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 
 ## JRN-07 source-to-pay
 
-- **129.5** Docs, tests, live check *(blocked)*
 - **98.5.2** Walk-through *(blocked)*
 
 ## JRN-12 India tax
 
-- **66.9** Confirm every live client has its industry set *(blocked)*
 - **47.16** India-first data lifecycle and compliance-control implementation *(blocked)*
 
 ## JRN-15 CRM/loyalty
@@ -91,7 +87,6 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 - **56.2** SB-015 — encrypted database link
 - **56.3** SB-012 — proxy trust against Railway's edge
 - **56.5** Flip `ENV=production` and confirm a clean boot
-- **109.12** Smart cleanup bot every 10 days *(decision)*
 - **56.10** Stand up the backup job itself on Railway
 - **56.13** Docs
 
@@ -127,7 +122,6 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 - **49.16.1** Applicability register *(blocked)*
 - **49.16.4** Contract truth gate *(blocked)*
 - **49.17** Security release gate, scorecard and continuous improvement loop *(blocked)*
-- **49.17.1** Per-change security gate *(decision)*
 - **49.17.3** Configuration go-live gate *(blocked)*
 - **49.17.5** Fixed operating cadence *(blocked)*
 - **49.17.6** Canary and rollback *(blocked)*
@@ -188,14 +182,13 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 
 ## Engineering housekeeping
 
-- **132.9** Guide learns the whole ERP *(blocked)*
-- **132.12** Guide expert in every module's setup and inside each module, and the help manual *(blocked)*
+- **132.9** Guide learns the whole ERP
+- **132.12** Guide expert in every module's setup and inside each module, and the help manual *(decision)*
 - **132.4** Whole ERP, every screen and form, each role; production read-only pass when the user says *(blocked)*
 
 ## Unmapped
 
 - **146.5.12** Typed product relationships *(blocked)*
-- **149.2** PIM ▸ Workbench does not load
 - **146.3.9** Weighing scale at pack *(blocked)*
 - **176.7** Finite capacity scheduling *(blocked)*
 - **143.6** Barcode print sorted: select the GRN and print *(blocked)*
@@ -212,16 +205,14 @@ BLD-002: the 150 open checklist items reconciled into the business journeys they
 - **146.4.1** A real Unicommerce integration *(blocked)*
 - **146.5.2** Marketplace templates from their own file, per category, with validation *(blocked)*
 - **185.3** Razorpay payment links *(blocked)*
-- **205.24** Guides and live check
 - **162.17** MFA tiers: when to require? *(decision)*
 - **162.16** Cross-origin write check: when to enforce? *(decision)*
-- **162.5** Meet the browser and server budgets
-- **177.1** The full test suite runs on GitHub's machines *(blocked)*
-- **177.2** The Release click stops running the tests on the laptop *(blocked)*
+- **162.5** Meet the browser and server budgets *(decision)*
+- **234.5** Phone LCP: a smaller first-load app.js
 - **177.3** Deploy waits for the GitHub run *(blocked)*
-- **177.4** ci.yml has been red on every push *(blocked)*
 - **177.5** The click's own gates must take about a minute *(blocked)*
-- **177.7** Guard tests first
-- **158.2** Is `OPS_ALERT_WEBHOOK_URL` set on production? *(decision)*
+- **232.1** ci.yml on main is still red after 177.4
+- **234.6** G4 does not bump `theme-boot.js?v=`
+- **240.1** Push and deploy once every build is done
 - **214.1** Guide `journey`: the whole store journey, watched and recorded at human speed
 - **143.3** The same file on minn *(decision)*

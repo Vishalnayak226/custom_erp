@@ -53,9 +53,14 @@ node docs/qa/perf-budget.cjs --base http://127.0.0.1:8740 --tokens tokens.txt `
 ```
 
 Add `--ratchet` for the release script's regression gate. The same run as a Guide suite:
+`pwsh Guide.ps1 -Suite perf -Roles manager1 -Repo <worktree> -WorkingTree -Port <free> -Db <scratch>`.
 
 Add `--record-gate <repo root>` to record the result as the release gate's `browser_budget` evidence. A full run only: PASS records pass, a miss records fail (cover a known miss with a P2 exception), an error or a partial run (`--no-server`, fewer profiles) records nothing.
-`pwsh Guide.ps1 -Suite perf -Roles manager1 -Repo <worktree> -WorkingTree -Port <free> -Db <scratch>`.
+
+A release with tests on GitHub runs this itself: `release.yml`'s evidence job starts the
+candidate, mints the tokens and runs `--ratchet --record-gate .` with Playwright's Chromium
+(47.9.4). The laptop run is then only needed to check a fix. See
+[the release-candidate gate](release-candidate-gate.md).
 
 ## Output contract
 

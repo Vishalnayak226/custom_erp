@@ -852,22 +852,26 @@ func securityHeaders(next http.Handler) http.Handler {
 		"base-uri 'self'; " +
 		"form-action 'self'; " +
 		"frame-ancestors 'none'"
-	// The report-only candidate is the enforced policy plus the next step,
-	// Trusted Types. Reported, not enforced, for exactly the reason script-src
-	// and style-src were reported first - the violations have to be seen in
-	// real browser journeys before the policy can refuse them.
-	const cspReportOnly = "default-src 'self'; " +
+	// The report-only copy of the enforced policy sends what it would refuse to
+	// the report endpoint (the enforced policy has no report-uri). With
+	// CSP_TRUSTED_TYPES_TRIAL=on it also carries the next step, Trusted Types,
+	// reported and not enforced, for the reason script-src and style-src were
+	// reported first: the violations are seen in real journeys before a policy
+	// refuses them.
+	const cspReportOnlyBase = "default-src 'self'; " +
 		"script-src 'self'; " +
 		"style-src 'self'; " +
 		"font-src 'self'; " +
 		"img-src 'self' data: blob:; " +
 		"connect-src 'self' ws://localhost:* ws://127.0.0.1:* wss://localhost.qz.io:*; " +
 		"frame-src 'self' printbridge:; " +
-		"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; " +
-		// 49.4.3: the Trusted Types trial - every string-to-DOM sink (innerHTML, insertAdjacentHTML, ...) that is not
-		// given a TrustedHTML is reported as a trusted-types-sink violation and still runs. Report-only.
-		"require-trusted-types-for 'script'; " +
-		"report-uri /api/v1/security/csp-report"
+		"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; "
+	cspReportOnly := cspReportOnlyBase + "report-uri /api/v1/security/csp-report"
+	if cspTrustedTypesTrial() {
+		// 49.4.3: every string-to-DOM sink (innerHTML, insertAdjacentHTML, ...) not given a TrustedHTML is
+		// reported as a trusted-types-sink violation and still runs.
+		cspReportOnly = cspReportOnlyBase + "require-trusted-types-for 'script'; " + "report-uri /api/v1/security/csp-report"
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -892,6 +896,19 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Permissions-Policy", permissionsPolicyFor(r.URL.Path))
 		next.ServeHTTP(w, r)
 	})
+}
+
+// cspTrustedTypesTrial reports whether the report-only policy carries the
+// Trusted Types trial (49.4.3). Off unless CSP_TRUSTED_TYPES_TRIAL is on, 1 or
+// true (238.2): the app writes markup through innerHTML hundreds of times a
+// screen, and the browser files a report for each one (about 1 ms a write on a
+// laptop, 20 ms on a slow phone). Turn it on for a CSP sweep crawl only.
+func cspTrustedTypesTrial() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CSP_TRUSTED_TYPES_TRIAL"))) {
+	case "on", "1", "true":
+		return true
+	}
+	return false
 }
 
 // permissionsPolicyFor allows the camera, same-origin only, on the store app

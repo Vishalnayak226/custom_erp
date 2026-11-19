@@ -26,6 +26,14 @@
       "fixture_contract": "vendor-name"
     },
     {
+      "id": "item_name_setup",
+      "title": "Set up a category, product type and item name",
+      "actor": "Administrator",
+      "file": "media/item-name-setup.webm",
+      "status": "ready",
+      "fixture_contract": "category-product-type-item-name"
+    },
+    {
       "id": "item_setup",
       "title": "Set up an item",
       "actor": "Administrator",
@@ -107,7 +115,7 @@
     },
     {
       "id": "rfq_quotes",
-      "title": "Request quotes, invite a vendor, choose the winner",
+      "title": "Request quotes, invite a vendor, award the purchase order",
       "actor": "Buyer",
       "file": "media/rfq-quotes.webm",
       "status": "ready",
@@ -147,7 +155,7 @@
     },
     {
       "id": "supplier_invoice",
-      "title": "Record, match and pay the supplier's bill",
+      "title": "Pay the supplier's matched bill",
       "actor": "Accounts",
       "file": "media/supplier-invoice.webm",
       "status": "ready",
@@ -162,14 +170,6 @@
       "fixture_contract": "item-with-stock"
     },
     {
-      "id": "oms_release",
-      "title": "Release the order to the warehouse",
-      "actor": "Order desk",
-      "file": "media/oms-release.webm",
-      "status": "ready",
-      "fixture_contract": "reserved-order"
-    },
-    {
       "id": "fulfillment_dispatch",
       "title": "Pick, pack and dispatch",
       "actor": "Warehouse",
@@ -179,7 +179,7 @@
     },
     {
       "id": "sales_invoice_post",
-      "title": "Post and settle the order's invoice",
+      "title": "Settle the order's invoice",
       "actor": "Accounts",
       "file": "media/sales-invoice-post.webm",
       "status": "ready",
@@ -542,6 +542,7 @@
       "end": "End: a numbered PO is approved by a different authorized person and ready for receipt.",
       "segments": [
         "vendor_setup",
+        "item_name_setup",
         "item_setup",
         "location_check",
         "po_create",
@@ -557,6 +558,7 @@
       "end": "End: a numbered GRN is posted and the item/location stock view is checked.",
       "segments": [
         "vendor_setup",
+        "item_name_setup",
         "item_setup",
         "location_check",
         "po_create",
@@ -589,12 +591,14 @@
     },
     {
       "id": "request_for_quotation",
-      "title": "Request for quotation - from vendor to chosen price",
+      "title": "Request for quotation - from vendor to purchase order",
       "actor": "Administrator and buyer",
-      "start": "Start: the supplier you will invite must exist as a vendor.",
-      "end": "End: a Closed RFQ with one selected quote; the buyer raises the purchase order next.",
+      "start": "Start: the supplier you will invite must exist as a vendor, and what you buy as an item.",
+      "end": "End: the RFQ awarded to the best quote, which becomes a Draft purchase order.",
       "segments": [
         "vendor_setup",
+        "item_name_setup",
+        "item_setup",
         "rfq_quotes"
       ]
     },
@@ -629,6 +633,7 @@
       "end": "End: the bill is Matched against the PO and the accepted goods, then Paid; its GST sits in GST Input Credit.",
       "segments": [
         "vendor_setup",
+        "item_name_setup",
         "item_setup",
         "location_check",
         "po_create",
@@ -646,7 +651,6 @@
       "end": "End: the order is Shipped, its stock and cost are posted, and its invoice is posted and settled.",
       "segments": [
         "oms_manual_order",
-        "oms_release",
         "fulfillment_dispatch",
         "sales_invoice_post"
       ]
@@ -670,6 +674,7 @@
       "end": "End: a posted debit note against the supplier's order and a posted credit note refunding the customer.",
       "segments": [
         "vendor_setup",
+        "item_name_setup",
         "item_setup",
         "location_check",
         "po_create",
@@ -716,6 +721,7 @@
       "end": "End: the returned units have left stock and a posted debit note records what the supplier owes.",
       "segments": [
         "vendor_setup",
+        "item_name_setup",
         "item_setup",
         "location_check",
         "po_create",
@@ -772,6 +778,7 @@
       "start": "Start: the raw material is in stock at the warehouse; the finished product is new.",
       "end": "End: a completed production order - raw material issued, finished goods received at cost.",
       "segments": [
+        "item_name_setup",
         "item_setup",
         "location_check",
         "fg_item_setup",
@@ -786,6 +793,7 @@
       "start": "Start: a batch has been produced and must be checked before it is sold.",
       "end": "End: an inspection recorded against the production order and approved by a second person.",
       "segments": [
+        "item_name_setup",
         "item_setup",
         "location_check",
         "fg_item_setup",

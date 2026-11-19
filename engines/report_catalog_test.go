@@ -98,6 +98,36 @@ func TestCatalogWiringIsCatalog(t *testing.T) {
 	}
 }
 
+// TestCatCreatedDayOnAUTCClock covers 230.5: the catalog's SQL day filter gives
+// a stored created_at the same business date on a UTC server (production) as on
+// an IST one, so a bill at 01:30 or 09:00 IST is found by a one-day report.
+func TestCatCreatedDayOnAUTCClock(t *testing.T) {
+	db.InitDB(testConnStr())
+	tx, err := db.DB.Begin()
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback()
+	for _, c := range []struct{ zone, stored, want string }{
+		{"UTC", "2026-11-18 20:00:00", "2026-11-19"},          // 01:30 IST on the 19th
+		{"UTC", "2026-11-19 03:30:00", "2026-11-19"},          // 09:00 IST
+		{"UTC", "2026-11-19 18:00:00", "2026-11-19"},          // 23:30 IST
+		{"Asia/Kolkata", "2026-11-19 01:30:00", "2026-11-19"}, // a dev machine's clock
+		{"Asia/Kolkata", "2026-11-19 23:30:00", "2026-11-19"},
+	} {
+		if _, err := tx.Exec("SET LOCAL TimeZone = '" + c.zone + "'"); err != nil {
+			t.Fatalf("set zone: %v", err)
+		}
+		var got string
+		if err := tx.QueryRow(`SELECT `+catCreatedDay+` FROM (SELECT $1::timestamp AS created_at) v`, c.stored).Scan(&got); err != nil {
+			t.Fatalf("%s %s: %v", c.zone, c.stored, err)
+		}
+		if got != c.want {
+			t.Errorf("%s clock: created_at %s filters on %s, want %s", c.zone, c.stored, got, c.want)
+		}
+	}
+}
+
 // TestCatDayIsTheBusinessDay covers 214.4: a stamp is dated on the business's
 // calendar, not sliced from its UTC text, while a plain date stays as it is.
 func TestCatDayIsTheBusinessDay(t *testing.T) {

@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,7 +19,8 @@ import (
 )
 
 // Stage 129: the Bulk Purchase Upload. A client fills one Excel file
-// (Vendors, Purchase and Bills sheets; the template is bulkPurchaseTemplate)
+// (Vendors, Purchase and Bills sheets; ask 237 builds the template per
+// client, bulk_purchase_template.go)
 // and one upload makes what it needs - vendors, categories, product types,
 // HSN codes, item names, attribute values, designs and combinations - then
 // the purchase orders (one per vendor + PO Ref), approved as the uploader
@@ -54,12 +54,17 @@ const (
 	bpColInvoice  = "vendor invoice no"
 	bpColRecv     = "received qty"
 	bpColPhoto    = "photo"
+	// 237.2: the PO + GRN template carries the invoice date on every row
+	// (no Bills sheet). 237.5: the reorder template names a combination.
+	bpColInvDate = "invoice date"
+	bpColCombo   = "combination id"
 )
 
 var bpNotAttributes = map[string]bool{
 	"check": true, bpColRef: true, bpColVendor: true, bpColStore: true, bpColDesign: true, bpColType: true,
 	bpColCategory: true, bpColHSN: true, bpColGST: true, bpColQty: true, bpColRate: true, bpColMRP: true,
 	"amount": true, bpColInvoice: true, bpColRecv: true, "received amount": true, bpColPhoto: true,
+	bpColInvDate: true, bpColCombo: true, "reason": true,
 }
 
 // bpGRNLineChars: what one received line takes in the goods receipt's
@@ -92,6 +97,13 @@ type bpLine struct {
 	Recv                                                 int
 	HasRecv                                              bool
 	err                                                  string
+	// 237.5: Combo is a reorder row's Combination ID; reorder rows name what
+	// exists and never make a design. 237.2: InvDate (ISO) is set on every
+	// row of the PO + GRN template (invMode).
+	Combo, InvDate   string
+	reorder, invMode bool
+	// 237.6: dropped - the row is left out to fix; the rest of its PO goes on.
+	dropped bool
 
 	vendorID, storeID string
 	hsn               string
@@ -108,6 +120,9 @@ type bpBillIn struct {
 	Invoice, Vendor, Date string
 	Total                 float64
 	err                   string
+	// fromRows: made from the PO + GRN template's rows (237.2); its total
+	// is its rows' total.
+	fromRows bool
 }
 
 // ---------------------------------------------------------------- output
@@ -172,6 +187,7 @@ type bpBillOut struct {
 	SKUs     []string `json:"skus,omitempty"`
 	vendorID string
 	lines    []*bpLine
+	fromRows bool // the PO + GRN template's bill: its problems are its rows'
 }
 
 type bpTotals struct {
@@ -187,6 +203,7 @@ type bpTotals struct {
 	Done        int     `json:"done"`
 	Failed      int     `json:"failed"`
 	Waiting     int     `json:"waiting"`
+	RowsToFix   int     `json:"rows_to_fix"` // rows in the "rows to fix" file (237.6)
 }
 
 type bpResult struct {
@@ -195,6 +212,18 @@ type bpResult struct {
 	POs     []*bpPOOut   `json:"pos"`
 	Bills   []*bpBillOut `json:"bills"`
 	Totals  bpTotals     `json:"totals"`
+	// Fix: 237.6 - the rows that did not load, with why; the run's "rows to
+	// fix" workbook is the file's own rows for these plus a Reason column.
+	Fix []bpFixRow `json:"fix_rows,omitempty"`
+}
+
+// bpFixRow is one sheet row that did not load. NewRef is the PO Ref the row
+// must carry when uploaded again, set when its PO was made without it.
+type bpFixRow struct {
+	Sheet  string `json:"sheet"` // vendors | purchase | bills
+	Row    int    `json:"row"`
+	Reason string `json:"reason"`
+	NewRef string `json:"new_ref,omitempty"`
 }
 
 // ---------------------------------------------------------------- reading
@@ -299,6 +328,11 @@ func bpRead(file []byte, dateOrder string) ([]*bpVendorIn, []*bpLine, []*bpBillI
 				City: t.get(r, "City"), GSTIN: strings.ToUpper(t.get(r, "GSTIN")), Phone: t.get(r, "Phone"), Email: t.get(r, "Email")})
 		}
 	}
+	// 237.5: the reorder template names a Combination ID and has no Product
+	// Type; its rows only order what exists. 237.2: the PO + GRN template
+	// has an Invoice Date column, and every row carries its bill.
+	reorder := pt.has(bpColCombo) && !pt.has(bpColType)
+	invMode := pt.has(bpColInvDate)
 	// Attribute columns, in sheet order.
 	type colAt struct {
 		key string
@@ -306,7 +340,7 @@ func bpRead(file []byte, dateOrder string) ([]*bpVendorIn, []*bpLine, []*bpBillI
 	}
 	var ac []colAt
 	for k, c := range pt.cols {
-		if !bpNotAttributes[k] {
+		if !bpNotAttributes[k] && !reorder {
 			ac = append(ac, colAt{k, c})
 		}
 	}
@@ -320,7 +354,7 @@ func bpRead(file []byte, dateOrder string) ([]*bpVendorIn, []*bpLine, []*bpBillI
 		l := &bpLine{Row: r.Num, Ref: pt.get(r, bpColRef), Vendor: pt.get(r, bpColVendor), Store: pt.get(r, bpColStore),
 			Design: pt.get(r, bpColDesign), PType: pt.get(r, bpColType), Category: pt.get(r, bpColCategory),
 			HSNText: pt.get(r, bpColHSN), GSTText: pt.get(r, bpColGST), Invoice: pt.get(r, bpColInvoice), Attrs: map[string]string{},
-			Photos: bpPhotoNames(pt.get(r, bpColPhoto))}
+			Photos: bpPhotoNames(pt.get(r, bpColPhoto)), Combo: pt.get(r, bpColCombo), reorder: reorder, invMode: invMode}
 		for _, c := range ac {
 			if c.at < len(r.Cells) {
 				if v := strings.TrimSpace(r.Cells[c.at]); v != "" {
@@ -328,16 +362,25 @@ func bpRead(file []byte, dateOrder string) ([]*bpVendorIn, []*bpLine, []*bpBillI
 				}
 			}
 		}
+		invDate := pt.get(r, bpColInvDate)
 		filled := l.Ref != "" || l.Vendor != "" || l.Store != "" || l.Design != "" || l.PType != "" || l.Category != "" ||
 			l.HSNText != "" || l.Invoice != "" || len(l.Attrs) > 0 || pt.get(r, bpColQty) != "" || pt.get(r, bpColRate) != "" ||
-			pt.get(r, bpColMRP) != "" || pt.get(r, bpColRecv) != ""
+			pt.get(r, bpColMRP) != "" || pt.get(r, bpColRecv) != "" || l.Combo != "" || invDate != ""
 		if !filled {
 			continue // only automatic columns (Check, GST %, Amount) on this row
 		}
-		var miss []string
-		for _, f := range [][2]string{{"PO Ref", l.Ref}, {"Vendor", l.Vendor}, {"Store", l.Store},
+		need := [][2]string{{"PO Ref", l.Ref}, {"Vendor", l.Vendor}, {"Store", l.Store},
 			{"Product Type", l.PType}, {"Category", l.Category}, {"HSN Code", l.HSNText}, {"Qty", pt.get(r, bpColQty)},
-			{"Purchase Rate", pt.get(r, bpColRate)}, {"MRP", pt.get(r, bpColMRP)}} {
+			{"Purchase Rate", pt.get(r, bpColRate)}, {"MRP", pt.get(r, bpColMRP)}}
+		if reorder {
+			// Vendor, rate and MRP left blank come from the design (237.5).
+			need = [][2]string{{"PO Ref", l.Ref}, {"Store", l.Store}, {"Qty", pt.get(r, bpColQty)}, {"Combination ID or Design No", l.Combo + l.Design}}
+		}
+		if invMode {
+			need = append(need, [2]string{"Vendor Invoice No", l.Invoice}, [2]string{"Invoice Date", invDate})
+		}
+		var miss []string
+		for _, f := range need {
 			if strings.TrimSpace(f[1]) == "" {
 				miss = append(miss, f[0])
 			}
@@ -384,11 +427,18 @@ func bpRead(file []byte, dateOrder string) ([]*bpVendorIn, []*bpLine, []*bpBillI
 				probs = append(probs, "Received Qty needs the Vendor Invoice No")
 			}
 		}
+		if invMode && invDate != "" {
+			if d, err := bpDate(invDate, dateOrder); err != nil {
+				probs = append(probs, "Invoice Date "+err.Error())
+			} else {
+				l.InvDate = d
+			}
+		}
 		l.err = strings.Join(probs, "; ")
 		lines = append(lines, l)
 	}
 	var bills []*bpBillIn
-	if t := tables["bills"]; t != nil {
+	if t := tables["bills"]; t != nil && !invMode {
 		for _, r := range t.rows {
 			b := &bpBillIn{Row: r.Num, Invoice: t.get(r, "Vendor Invoice No"), Vendor: t.get(r, "Vendor")}
 			date, total := t.get(r, "Invoice Date"), t.get(r, "Invoice Total")
@@ -439,18 +489,33 @@ type bpDesign struct {
 	key, designNo, vendorID, id, name string
 	inm                               *bpItemName
 	exists                            bool
-	detail                            engines.DesignDetail
-	lines                             []*bpLine
-	skus                              map[string]string // combination key -> SKU
-	err                               string
+	// detail is shared with the design pool (237.3): a combination one group
+	// of rows makes is there for the next group that joins the design.
+	detail *engines.DesignDetail
+	lines  []*bpLine
+	skus   map[string]string // combination key -> SKU
+	err    string
+}
+
+// bpPoolDesign is a design a group of rows may join (237.3): one already in
+// Wholeops, or one this upload made.
+type bpPoolDesign struct {
+	id     string
+	attrs  map[string]string // design attributes, lower case
+	detail *engines.DesignDetail
+	// label: the file's Design No that took the design in this upload. Rows
+	// under another label are another design (the client said so).
+	label string
 }
 
 type bpPO struct {
-	key, ref, vendorID, storeID string
-	lines                       []*bpLine
-	out                         *bpPOOut
-	existingLines               []bpPOItem // a PO this file already made: its lines, in order
-	failed                      bool
+	key, vkey, ref, vendorID, storeID string
+	lines                             []*bpLine // the rows that go on
+	out                               *bpPOOut
+	existingLines                     []bpPOItem // a PO this file already made: its lines, in order
+	failed                            bool
+	dropped                           int    // rows left out to fix (237.6)
+	newRef                            string // the PO Ref those rows take when uploaded again
 }
 
 type bpPOItem struct {
@@ -482,7 +547,17 @@ type bpRun struct {
 	told      map[string]bool // attribute value already listed as new
 	designs   map[string]*bpDesign
 	progress  func(step string, done, total int)
+	// 237.3 / 237.4 / 237.6
+	allowNew bool                       // procurement.bulk_po_new_designs
+	pools    map[string][]*bpPoolDesign // item name + vendor -> designs rows may join
+	madeSKU  map[string]string          // combination made by this upload -> its row action
+	newSeq   int                        // preview stand-ins for combinations not made yet
+	poKeys   map[string]bool            // vendor + PO Ref in this file, and refs handed out
+	billOf   map[*bpLine]*bpBillOut
+	shapes   map[string]*engines.DesignDetail // design -> detail, for a PO already made
 }
+
+const bpNewDesignsSetting = "procurement.bulk_po_new_designs"
 
 func newBPRun(c *swCaller, apply bool) (*bpRun, error) {
 	sw, err := newSWRun(c, false, apply)
@@ -491,7 +566,9 @@ func newBPRun(c *swCaller, apply bool) (*bpRun, error) {
 	}
 	return &bpRun{sw: sw, apply: apply, res: &bpResult{Vendors: []*bpRowOut{}, Masters: []*bpRowOut{}, POs: []*bpPOOut{}, Bills: []*bpBillOut{}},
 		vendors: map[string]string{}, vendorNm: map[string]string{}, vendorErr: map[string]string{}, perms: map[string]bool{}, cats: map[string]string{}, types: map[string]string{},
-		hsns: map[string]string{}, names: map[string]*bpItemName{}, attrs: map[*bpItemName]map[string]*bpAttrInfo{}, newAttrs: map[string]*bpAttrInfo{}, newRows: map[string]*bpRowOut{}, told: map[string]bool{}, designs: map[string]*bpDesign{}}, nil
+		hsns: map[string]string{}, names: map[string]*bpItemName{}, attrs: map[*bpItemName]map[string]*bpAttrInfo{}, newAttrs: map[string]*bpAttrInfo{}, newRows: map[string]*bpRowOut{}, told: map[string]bool{}, designs: map[string]*bpDesign{},
+		allowNew: engines.GetSettingBool(c.tenantID, bpNewDesignsSetting), pools: map[string][]*bpPoolDesign{}, madeSKU: map[string]string{},
+		poKeys: map[string]bool{}, billOf: map[*bpLine]*bpBillOut{}, shapes: map[string]*engines.DesignDetail{}}, nil
 }
 
 // write replays one API call and returns its JSON answer.
@@ -575,18 +652,141 @@ func (b *bpRun) process(vendors []*bpVendorIn, lines []*bpLine, bills []*bpBillI
 	b.step("Vendors", 0, 5)
 	b.doVendors(vendors, lines, bills)
 	pos := b.groupPOs(lines)
+	// 237.2: the PO + GRN template has no Bills sheet - each vendor +
+	// invoice on its rows is one bill.
+	for _, l := range lines {
+		if l.invMode {
+			bills = bpBillsFromRows(lines)
+			break
+		}
+	}
 	b.step("Item names", 1, 5)
 	b.doMasters(pos)
+	b.matchExisting(pos)
 	b.doAttributes(pos, attrCols)
 	b.step("Designs", 2, 5)
 	b.doDesigns(pos, attrCols)
 	b.step("Purchase orders", 3, 5)
 	b.doPOs(pos)
+	for _, po := range pos {
+		if po.dropped > 0 && !po.failed {
+			note := fmt.Sprintf("%d row(s) left out to fix", po.dropped)
+			if po.out.Message != "" {
+				note = po.out.Message + "; " + note
+			}
+			po.out.Message = note
+		}
+	}
 	b.step("Goods receipts", 4, 5)
 	b.doBills(bills, lines)
+	b.fixRows(lines)
 	b.step("", 5, 5)
 	b.totals()
 	return b.res
+}
+
+// bpBillsFromRows: one bill per vendor + Vendor Invoice No on the PO + GRN
+// template's rows, dated by its rows (237.2).
+func bpBillsFromRows(lines []*bpLine) []*bpBillIn {
+	var out []*bpBillIn
+	by := map[string]*bpBillIn{}
+	first := map[*bpBillIn]int{}
+	for _, l := range lines {
+		if l.Invoice == "" || l.Vendor == "" {
+			continue
+		}
+		k := bpAttrKey(l.Vendor) + "|" + swNorm(l.Invoice)
+		bi := by[k]
+		if bi == nil {
+			bi = &bpBillIn{Row: l.Row, Invoice: l.Invoice, Vendor: l.Vendor, Date: l.InvDate, fromRows: true}
+			by[k], first[bi] = bi, l.Row
+			out = append(out, bi)
+			continue
+		}
+		if bi.Date == "" {
+			bi.Date, first[bi] = l.InvDate, l.Row
+		} else if l.InvDate != "" && l.InvDate != bi.Date && bi.err == "" {
+			bi.err = fmt.Sprintf("row %d has Invoice Date %s and row %d has %s - one bill, one date", first[bi], bi.Date, l.Row, l.InvDate)
+		}
+	}
+	return out
+}
+
+// fixRows lists each sheet row that did not fully load, with why - the
+// "rows to fix" file (237.6). A row left out of a PO that was made (or will
+// be, in the preview) takes a new PO Ref: its own is used now. A row that is
+// ordered but not received keeps its PO Ref, so the same row again finds its
+// PO and receives it.
+func (b *bpRun) fixRows(lines []*bpLine) {
+	seen := map[string]bool{}
+	add := func(sheet string, row int, reason, ref string) {
+		k := sheet + "|" + strconv.Itoa(row)
+		if row <= 0 || seen[k] {
+			return
+		}
+		seen[k] = true
+		b.res.Fix = append(b.res.Fix, bpFixRow{Sheet: sheet, Row: row, Reason: reason, NewRef: ref})
+	}
+	for _, v := range b.res.Vendors {
+		if v.Action == "error" || v.Result == "failed" {
+			add("vendors", v.Row, v.Message, "")
+		}
+	}
+	badBill := func(o *bpBillOut) bool {
+		return o.Action == "error" || o.Action == "waiting" || o.Result == "failed" || o.Result == "waiting"
+	}
+	for _, l := range lines {
+		po := l.po
+		if po == nil || l.out == nil {
+			continue
+		}
+		switch {
+		case l.dropped:
+			ref := ""
+			if po.out.POID != "" || (!b.apply && !po.failed) {
+				ref = b.nextRef(po)
+			}
+			add("purchase", l.Row, l.out.Message, ref)
+		case po.failed:
+			add("purchase", l.Row, fmt.Sprintf("PO Ref %s: %s", po.ref, po.out.Message), "")
+		case l.Invoice != "":
+			bill := b.billOf[l]
+			switch {
+			case bill == nil:
+				add("purchase", l.Row, firstNonEmptyStr(l.out.Message, "its bill is not received"), "")
+			case badBill(bill):
+				add("purchase", l.Row, fmt.Sprintf("ordered on PO Ref %s; bill %s not received: %s", po.ref, l.Invoice, bill.Message), "")
+			}
+		}
+	}
+	for _, bill := range b.res.Bills {
+		if badBill(bill) && !bill.fromRows {
+			add("bills", bill.Row, bill.Message, "")
+		}
+	}
+}
+
+// nextRef: the PO Ref a PO's left-out rows take when uploaded again -
+// "<ref>-2", "-3"... one this file and the vendor's POs do not use yet.
+func (b *bpRun) nextRef(po *bpPO) string {
+	if po.newRef != "" {
+		return po.newRef
+	}
+	for n := 2; n < 1000; n++ {
+		ref := fmt.Sprintf("%s-%d", po.ref, n)
+		k := po.vkey + "|" + swNorm(ref)
+		if b.poKeys[k] {
+			continue
+		}
+		if po.vendorID != "" {
+			if id, _, _, _, _ := bpFindPO(b.sw.schema, po.vendorID, ref); id != "" {
+				continue
+			}
+		}
+		b.poKeys[k], po.newRef = true, ref
+		return ref
+	}
+	return ""
 }
 
 // --- vendors
@@ -710,13 +910,24 @@ func (b *bpRun) groupPOs(lines []*bpLine) []*bpPO {
 	designShape := map[string]*bpLine{} // vendor + design -> first row
 	nameHSN := map[string]*bpLine{}     // type + category -> first row
 	for _, l := range lines {
-		vkey := bpAttrKey(l.Vendor)
-		if l.err == "" {
+		reFam := ""
+		if l.reorder && l.err == "" {
+			reFam, l.err = b.reorderRow(l)
+		}
+		// The vendor is found even on a row with a problem, so the row joins
+		// its PO's group and the rows to fix carry the right PO Ref (237.6).
+		if l.vendorID == "" && l.Vendor != "" {
 			if id, pending, err := b.vendorFor(l.Vendor); err != nil {
-				l.err = err.Error()
+				if l.err == "" {
+					l.err = err.Error()
+				}
 			} else if !pending {
 				l.vendorID = id
 			}
+		}
+		vkey := "n:" + bpAttrKey(l.Vendor)
+		if l.vendorID != "" {
+			vkey = "id:" + l.vendorID
 		}
 		if l.err == "" {
 			id, pending, err := b.sw.resolveLink("Location", l.Store)
@@ -729,7 +940,7 @@ func (b *bpRun) groupPOs(lines []*bpLine) []*bpPO {
 				l.storeID = id
 			}
 		}
-		if l.err == "" {
+		if l.err == "" && !l.reorder {
 			dk := vkey + "|" + swNorm(l.Design)
 			if f, ok := designShape[dk]; l.Design != "" && ok && (swNorm(f.PType) != swNorm(l.PType) || swNorm(f.Category) != swNorm(l.Category)) {
 				l.err = fmt.Sprintf("design %s is %s %s on row %d - one design has one Product Type and Category", l.Design, f.Category, f.PType, f.Row)
@@ -746,9 +957,10 @@ func (b *bpRun) groupPOs(lines []*bpLine) []*bpPO {
 		key := vkey + "|" + swNorm(l.Ref)
 		po := byKey[key]
 		if po == nil {
-			po = &bpPO{key: key, ref: l.Ref, vendorID: l.vendorID, storeID: l.storeID,
+			po = &bpPO{key: key, vkey: vkey, ref: l.Ref, vendorID: l.vendorID, storeID: l.storeID,
 				out: &bpPOOut{Ref: l.Ref, Vendor: l.Vendor, Store: l.Store, Lines: []*bpLineOut{}}}
 			byKey[key] = po
+			b.poKeys[key] = true
 			pos = append(pos, po)
 		}
 		if l.err == "" && po.storeID != "" && l.storeID != po.storeID {
@@ -762,10 +974,11 @@ func (b *bpRun) groupPOs(lines []*bpLine) []*bpPO {
 		}
 		l.po = po
 		po.lines = append(po.lines, l)
-		l.out = &bpLineOut{Row: l.Row, Design: l.Design, Qty: l.Qty, Rate: l.Rate, MRP: l.MRP, Bill: l.Invoice, Photos: l.Photos, Action: "error"}
+		l.out = &bpLineOut{Row: l.Row, Design: firstNonEmptyStr(l.Design, l.Combo), Qty: l.Qty, Rate: l.Rate, MRP: l.MRP, Bill: l.Invoice, Photos: l.Photos, Action: "error"}
+		if l.reorder && l.err == "" {
+			l.out.Action, l.out.SKU, l.out.Code = "existing", l.sku, reFam
+		}
 		po.out.Lines = append(po.out.Lines, l.out)
-		po.out.Qty += l.Qty
-		po.out.Amount = math.Round((po.out.Amount+float64(l.Qty)*l.Rate)*100) / 100
 	}
 	// A PO already made from an earlier upload of this file.
 	for _, po := range pos {
@@ -779,24 +992,160 @@ func (b *bpRun) groupPOs(lines []*bpLine) []*bpPO {
 		po.out.Action, po.out.POID, po.out.PONumber, po.out.Status = "existing", id, number, status
 		po.existingLines = items
 	}
+	// 237.6: a row with a problem is left out to fix; the PO is made from
+	// its other rows. A PO with no good row is not made.
 	for _, po := range pos {
-		bad := 0
+		var good []*bpLine
 		for _, l := range po.lines {
 			if l.err != "" {
-				bad++
+				l.dropped = true
 				l.out.Message = l.err
+				po.dropped++
+			} else {
+				good = append(good, l)
 			}
 		}
-		if bad > 0 {
+		po.lines = good
+		po.resum()
+		if len(good) == 0 {
 			po.failed = true
 			po.out.Action = "error"
-			po.out.Message = fmt.Sprintf("%d row(s) to fix first - nothing of this PO is made until every row is right", bad)
+			po.out.Message = "no row of this PO can be made - fix its rows"
 		} else if po.out.Action == "" {
 			po.out.Action = "new"
 		}
 		b.res.POs = append(b.res.POs, po.out)
 	}
 	return pos
+}
+
+// resum recounts a PO's qty and amount from the rows that go on.
+func (po *bpPO) resum() {
+	po.out.Qty, po.out.Amount = 0, 0
+	for _, l := range po.lines {
+		po.out.Qty += l.Qty
+		po.out.Amount += float64(l.Qty) * l.Rate
+	}
+	po.out.Amount = math.Round(po.out.Amount*100) / 100
+}
+
+// dropLine leaves one row out to fix (237.6); its PO goes on without it,
+// and is not made at all when no row is left.
+func (b *bpRun) dropLine(l *bpLine, msg string) {
+	if l.dropped {
+		return
+	}
+	l.dropped = true
+	l.out.Action, l.out.Message, l.out.SKU = "error", msg, ""
+	po := l.po
+	keep := make([]*bpLine, 0, len(po.lines))
+	for _, x := range po.lines {
+		if x != l {
+			keep = append(keep, x)
+		}
+	}
+	po.lines = keep
+	po.dropped++
+	po.resum()
+	if len(keep) == 0 {
+		b.failPO(po, "no row of this PO can be made - fix its rows")
+	}
+}
+
+// reorderRow resolves a reorder template row (237.5): its Combination ID,
+// or a design with one combination, must exist; a blank vendor, rate or
+// MRP comes from the combination and its design. Nothing is ever made.
+// It returns the combination's design.
+func (b *bpRun) reorderRow(l *bpLine) (string, string) {
+	schema := b.sw.schema
+	fam := ""
+	var mrp, rate float64
+	if l.Combo != "" {
+		id, code, family, m, c := bpFindItem(schema, l.Combo)
+		if id == "" {
+			return "", fmt.Sprintf("Combination ID %s does not exist in Wholeops", l.Combo)
+		}
+		l.sku, fam, mrp, rate = firstNonEmptyStr(code, id), family, m, c
+		if l.Design != "" {
+			did, _ := bpFindDesignCode(schema, l.Design)
+			if did == "" {
+				return "", fmt.Sprintf("design %s does not exist in Wholeops", l.Design)
+			}
+			if famID, _ := bpFindDesignCode(schema, fam); !strings.EqualFold(famID, did) {
+				return "", fmt.Sprintf("Combination ID %s is not of design %s - give one of them, or both of the same design", l.Combo, l.Design)
+			}
+		}
+	} else {
+		did, _ := bpFindDesignCode(schema, l.Design)
+		if did == "" {
+			return "", fmt.Sprintf("design %s does not exist in Wholeops - give its Wholeops design number or the Combination ID", l.Design)
+		}
+		det, err := engines.GetDesign(b.sw.c.tenantID, did)
+		if err != nil {
+			return "", err.Error()
+		}
+		if n := len(det.Combinations); n != 1 {
+			return "", fmt.Sprintf("design %s has %d combinations - give the Combination ID", l.Design, n)
+		}
+		l.sku, fam = det.Combinations[0].SKU, det.Code
+		_, _, _, mrp, rate = bpFindItem(schema, l.sku)
+	}
+	famID, vendor, dmrp, drate := bpDesignRow(schema, fam)
+	if l.Vendor == "" {
+		if vendor == "" {
+			return famID, "its design has no vendor - fill the Vendor"
+		}
+		l.vendorID = vendor
+		l.Vendor = b.sw.display("Vendor", vendor)
+		b.vendorNm[vendor] = l.Vendor
+	}
+	if l.Rate == 0 {
+		l.Rate = firstAbove0(rate, drate)
+	}
+	if l.MRP == 0 {
+		l.MRP = firstAbove0(mrp, dmrp)
+	}
+	switch {
+	case l.Rate == 0:
+		return famID, "the combination has no purchase rate - fill the Purchase Rate"
+	case l.MRP == 0:
+		return famID, "the combination has no MRP - fill the MRP"
+	case l.MRP < l.Rate:
+		return famID, "MRP is below the Purchase Rate"
+	}
+	return famID, ""
+}
+
+func firstAbove0(vals ...float64) float64 {
+	for _, v := range vals {
+		if v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+// bpFindItem finds a combination by its Combination ID (code or id).
+func bpFindItem(schema, ref string) (id, code, family string, mrp, cost float64) {
+	var m, c string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id, COALESCE(data->>'code', ''), COALESCE(NULLIF(data->>'family', ''), data->>'parent_product_code', ''),
+		COALESCE(data->>'mrp', ''), COALESCE(data->>'standard_cost', '') FROM %s.documents
+		WHERE doctype = 'Item' AND deleted_at IS NULL AND (lower(id) = lower($1) OR lower(data->>'code') = lower($1))
+		ORDER BY (id = $1) DESC LIMIT 1`, schema), strings.TrimSpace(ref)).Scan(&id, &code, &family, &m, &c)
+	mrp, _ = swNumber(m)
+	cost, _ = swNumber(c)
+	return id, code, family, mrp, cost
+}
+
+// bpDesignRow reads a design's vendor and prices (code or id).
+func bpDesignRow(schema, ref string) (id, vendor string, mrp, rate float64) {
+	var m, r string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id, COALESCE(data->>'vendor', ''), COALESCE(data->>'mrp', ''), COALESCE(data->>'purchase_rate', '')
+		FROM %s.documents WHERE doctype = 'ProductFamily' AND deleted_at IS NULL AND (lower(id) = lower($1) OR lower(data->>'code') = lower($1))
+		LIMIT 1`, schema), strings.TrimSpace(ref)).Scan(&id, &vendor, &m, &r)
+	mrp, _ = swNumber(m)
+	rate, _ = swNumber(r)
+	return id, vendor, mrp, rate
 }
 
 func bpFindPO(schema, vendorID, ref string) (id, number, status string, items []bpPOItem, err error) {
@@ -852,12 +1201,12 @@ func (b *bpRun) failPO(po *bpPO, msg string) {
 
 func (b *bpRun) doMasters(pos []*bpPO) {
 	for _, l := range bpUsable(pos) {
-		if l.po.failed {
+		if l.po.failed || l.dropped || l.reorder {
 			continue
 		}
 		inm, err := b.itemName(l)
 		if err != nil {
-			b.failPO(l.po, fmt.Sprintf("row %d: %v", l.Row, err))
+			b.dropLine(l, err.Error())
 			continue
 		}
 		l.inm = inm
@@ -1020,7 +1369,7 @@ func (b *bpRun) doAttributes(pos []*bpPO, cols []bpAttrCol) {
 	byName := map[*bpItemName][]*bpLine{}
 	var order []*bpItemName
 	for _, l := range bpUsable(pos) {
-		if l.po.failed || l.inm == nil {
+		if l.po.failed || l.dropped || l.inm == nil {
 			continue
 		}
 		if _, ok := byName[l.inm]; !ok {
@@ -1064,7 +1413,7 @@ func (b *bpRun) doAttributes(pos []*bpPO, cols []bpAttrCol) {
 				msg := fmt.Sprintf("%s is not asked in the PO for %s - turn on In the PO for %s under Configuration > Item fields (or add it to the product type's attributes)", a.label, inm.Name, a.label)
 				for _, l := range byName[inm] {
 					if l.Attrs[k] != "" {
-						b.failPO(l.po, fmt.Sprintf("row %d: %s", l.Row, msg))
+						b.dropLine(l, msg)
 					}
 				}
 				continue
@@ -1074,7 +1423,16 @@ func (b *bpRun) doAttributes(pos []*bpPO, cols []bpAttrCol) {
 			}
 			var add []string
 			for _, v := range used[k] {
-				if bpOption(a.options, v) == "" {
+				if bpOption(a.options, v) != "" {
+					continue
+				}
+				// Only for a row still going on: a row left out to fix
+				// (another attribute's problem) adds nothing.
+				live := false
+				for _, l := range byName[inm] {
+					live = live || (!l.dropped && strings.EqualFold(l.Attrs[k], v))
+				}
+				if live {
 					add = append(add, v)
 				}
 			}
@@ -1112,7 +1470,7 @@ func (b *bpRun) doAttributes(pos []*bpPO, cols []bpAttrCol) {
 					lastErr = err
 					for _, l := range byName[inm] {
 						if strings.EqualFold(l.Attrs[k], v) {
-							b.failPO(l.po, fmt.Sprintf("row %d: %s %s could not be added: %v", l.Row, a.label, v, err))
+							b.dropLine(l, fmt.Sprintf("%s %s could not be added: %v", a.label, v, err))
 						}
 					}
 					continue
@@ -1181,32 +1539,131 @@ func (b *bpRun) attrsFor(inm *bpItemName, all engines.DesignMatrix) map[string]*
 
 // --- designs and combinations, as the PO's Add design makes them
 
-func (b *bpRun) doDesigns(pos []*bpPO, cols []bpAttrCol) {
-	// A PO this file already made: its rows are its lines, in the order the
-	// upload wrote them, so no design is looked up or made again.
+// matchExisting: the rows of a PO this file already made are its lines, so
+// no design is looked up or made again. Each row takes the unused line of
+// the same item and qty - the same place first. A row that is no line of the
+// PO is left out to fix under a new PO Ref (237.6), the rest go on.
+func (b *bpRun) matchExisting(pos []*bpPO) {
+	var all engines.DesignMatrix
+	loaded := false
+	type exLine struct {
+		sku, shape string
+		ids        map[string]bool
+		qty        int
+		used       bool
+	}
 	for _, po := range pos {
 		if po.failed || po.out.Action != "existing" {
 			continue
 		}
-		if len(po.existingLines) < len(po.lines) {
-			b.failPO(po, fmt.Sprintf("%s has %d lines and the file has %d rows for PO Ref %s - put new rows under a new PO Ref",
-				po.out.PONumber, len(po.existingLines), len(po.lines), po.ref))
-			continue
+		if !loaded {
+			all, _ = engines.GetDesignMatrix(b.sw.c.tenantID)
+			loaded = true
 		}
-		for i, l := range po.lines {
-			if e := po.existingLines[i]; e.qty != l.Qty {
-				b.failPO(po, fmt.Sprintf("row %d (qty %d) is not line %d of %s (qty %d) - the rows of a PO Ref already made cannot change; put new rows under a new PO Ref",
-					l.Row, l.Qty, i+1, po.out.PONumber, e.qty))
-				break
+		var lines []*exLine
+		for _, e := range po.existingLines {
+			shape, ids := b.itemShape(e.sku)
+			lines = append(lines, &exLine{sku: e.sku, shape: shape, ids: ids, qty: e.qty})
+		}
+		for i, l := range append([]*bpLine{}, po.lines...) {
+			shape := ""
+			if !l.reorder {
+				shape = b.rowShape(l, all)
 			}
-			l.sku = po.existingLines[i].sku
-			l.out.Action, l.out.SKU = "existing", l.sku
-			l.out.Code = bpItemDesign(b.sw.schema, l.sku) // for photos added on a later upload
+			match := func(x *exLine) bool {
+				if x.used || x.qty != l.Qty {
+					return false
+				}
+				if l.reorder {
+					return x.ids[strings.ToLower(l.sku)]
+				}
+				return shape != "" && x.shape == shape
+			}
+			var hit *exLine
+			if i < len(lines) && match(lines[i]) {
+				hit = lines[i]
+			} else {
+				for _, x := range lines {
+					if match(x) {
+						hit = x
+						break
+					}
+				}
+			}
+			if hit == nil {
+				b.dropLine(l, fmt.Sprintf("not on %s (same item and qty) - the rows of a PO Ref already made cannot change; give this row a new PO Ref",
+					firstNonEmptyStr(po.out.PONumber, po.ref)))
+				continue
+			}
+			hit.used = true
+			l.sku = hit.sku
+			l.out.Action, l.out.SKU = "existing", hit.sku
+			l.out.Code = bpItemDesign(b.sw.schema, hit.sku) // for photos added on a later upload
 		}
 	}
+}
+
+// bpShape: an item name and its attribute values, as one comparable key.
+func bpShape(itemName string, vals map[string]string) string {
+	var parts []string
+	for _, k := range bpSortedKeys(vals) {
+		if v := vals[k]; v != "" {
+			parts = append(parts, strings.ToLower(k)+":"+strings.ToLower(v))
+		}
+	}
+	return strings.ToLower(itemName) + "|" + strings.Join(parts, ";")
+}
+
+// itemShape: a PO line's item as bpShape, and the ids it is known by.
+func (b *bpRun) itemShape(sku string) (string, map[string]bool) {
+	id, code, fam, _, _ := bpFindItem(b.sw.schema, sku)
+	ids := map[string]bool{strings.ToLower(sku): true}
+	for _, s := range []string{id, code} {
+		if s != "" {
+			ids[strings.ToLower(s)] = true
+		}
+	}
+	if fam == "" {
+		return "", ids
+	}
+	famID, itemName := bpFindDesignCode(b.sw.schema, fam)
+	det := b.designDetail(famID)
+	if famID == "" || det == nil {
+		return "", ids
+	}
+	vals := bpLower(det.Attributes)
+	for _, c := range det.Combinations {
+		if ids[strings.ToLower(c.SKU)] {
+			for k, v := range bpLower(c.Options) {
+				vals[k] = v
+			}
+		}
+	}
+	return bpShape(itemName, vals), ids
+}
+
+// rowShape: a Purchase row as bpShape, by the attribute codes its columns
+// are; "" when a column is no attribute yet (so it is on no PO line).
+func (b *bpRun) rowShape(l *bpLine, all engines.DesignMatrix) string {
+	if l.inm == nil || l.inm.ID == "" {
+		return ""
+	}
+	info := b.attrsFor(l.inm, all)
+	vals := map[string]string{}
+	for k, v := range l.Attrs {
+		a := info[k]
+		if a == nil || a.code == "" {
+			return ""
+		}
+		vals[a.code] = v
+	}
+	return bpShape(l.inm.ID, vals)
+}
+
+func (b *bpRun) doDesigns(pos []*bpPO, cols []bpAttrCol) {
 	var order []*bpDesign
 	for _, l := range bpUsable(pos) {
-		if l.po.failed || l.inm == nil || l.po.out.Action == "existing" {
+		if l.po.failed || l.dropped || l.inm == nil || l.reorder || l.po.out.Action == "existing" {
 			continue
 		}
 		// The Design No only groups this file's rows (1, 1, 1 = one design);
@@ -1231,13 +1688,33 @@ func (b *bpRun) doDesigns(pos []*bpPO, cols []bpAttrCol) {
 			b.step("Designs", 2, 5)
 		}
 		if err := b.design(d, cols); err != nil {
-			label := "design " + d.designNo
-			if d.designNo == "" {
-				label = fmt.Sprintf("row %d", d.lines[0].Row)
+			msg := err.Error()
+			if d.designNo != "" {
+				msg = "design " + d.designNo + ": " + msg
 			}
+			// Rows the design already gave a combination go on.
 			for _, l := range d.lines {
-				b.failPO(l.po, fmt.Sprintf("%s: %v", label, err))
+				if l.sku == "" || !b.apply {
+					b.dropLine(l, msg)
+				}
 			}
+		}
+	}
+	// One item once per PO (237.3 can make two rows the same item).
+	for _, po := range pos {
+		if po.failed || po.out.Action == "existing" {
+			continue
+		}
+		seen := map[string]*bpLine{}
+		for _, l := range append([]*bpLine{}, po.lines...) {
+			if l.sku == "" {
+				continue
+			}
+			if f, ok := seen[strings.ToLower(l.sku)]; ok {
+				b.dropLine(l, fmt.Sprintf("same item as row %d on PO Ref %s - add the qty to one row", f.Row, po.ref))
+				continue
+			}
+			seen[strings.ToLower(l.sku)] = l
 		}
 	}
 	// What each row will be, for the preview and the result.
@@ -1344,11 +1821,13 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 				return fmt.Errorf("%s is a Wholeops design of %s - to reorder it use its Product Type and Category, or give a new design another label",
 					d.designNo, b.sw.display("ItemName", itemName))
 			}
-			detail, err := engines.GetDesign(b.sw.c.tenantID, id)
-			if err == nil {
-				d.exists, d.id, d.name, d.detail = true, detail.Code, detail.Name, detail
+			if det := b.designDetail(id); det != nil {
+				d.exists, d.id, d.name, d.detail = true, det.Code, det.Name, det
 			}
 		}
+	}
+	if !d.exists {
+		b.reuse(d, sorted, distinct)
 	}
 	if d.exists {
 		// Axes over the existing combinations and the new rows together.
@@ -1389,14 +1868,13 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 			}
 		}
 		sort.Strings(axes)
-		action := map[string]string{}
 		for _, l := range d.lines {
-			if l.po.failed {
+			if l.po.failed || l.dropped {
 				continue
 			}
 			key := bpKey(l.codes, axes)
 			if sku, ok := d.skus[key]; ok {
-				l.sku, l.out.SKU, l.out.Action = sku, sku, action[key]
+				b.takeSKU(l, sku)
 				continue
 			}
 			want := map[string]string{}
@@ -1413,30 +1891,40 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 					match = match && merged[k] == v
 				}
 				if match {
-					l.sku = c.SKU
+					d.skus[key] = c.SKU
 					break
 				}
 			}
-			if l.sku != "" {
-				d.skus[key], action[key] = l.sku, "existing"
-				l.out.Action, l.out.SKU = "existing", l.sku
+			if sku, ok := d.skus[key]; ok {
+				b.takeSKU(l, sku)
 				continue
 			}
-			l.out.Action = "new combination"
+			if !b.allowNew {
+				b.dropLine(l, "a new combination is needed and new designs from an upload are turned off (Settings › Procurement)")
+				continue
+			}
+			var sku string
 			if !b.apply {
 				if err := b.mayCreate("Item"); err != nil {
 					return err
 				}
-				continue
+				b.newSeq++
+				sku = fmt.Sprintf("#new%d", b.newSeq)
+			} else {
+				var err error
+				if sku, err = b.newItem(d, l, key, axes); err != nil {
+					return err
+				}
 			}
-			sku, err := b.newItem(d, l, key, axes)
-			if err != nil {
-				return err
-			}
-			d.skus[key], action[key] = sku, "new combination"
-			l.sku, l.out.SKU = sku, sku
+			b.madeSKU[sku] = "new combination"
+			d.skus[key] = sku
+			d.detail.Combinations = append(d.detail.Combinations, engines.DesignCombination{SKU: sku, Options: bpPick(l.codes, axes)})
+			b.takeSKU(l, sku)
 		}
 		return nil
+	}
+	if !b.allowNew {
+		return errors.New("a new design is needed and new designs from an upload are turned off (Settings › Procurement)")
 	}
 
 	// A new design: one value on every row = a design attribute, several =
@@ -1464,8 +1952,7 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 	}
 	var live []*bpLine
 	for _, l := range d.lines {
-		if !l.po.failed {
-			l.out.Action = "new design"
+		if !l.po.failed && !l.dropped {
 			live = append(live, l)
 		}
 	}
@@ -1473,15 +1960,31 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 		return nil
 	}
 	d.lines = live
-	seen := map[string]int{}
-	for _, l := range d.lines {
-		key := bpKey(l.codes, axes)
-		if first, ok := seen[key+"|"+l.po.key]; ok {
-			return fmt.Errorf("rows %d and %d are the same item on PO Ref %s - add the qty to one row", first, l.Row, l.Ref)
+	// In the pool, so a later group of the same item name and vendor joins
+	// it instead of making the same design again (237.3).
+	det := &engines.DesignDetail{Name: d.name, Attributes: designAttrs}
+	register := func(id string) {
+		det.Code, d.detail = id, det
+		b.pools[b.poolKey(d)] = append(b.pool(d), &bpPoolDesign{id: id, attrs: bpLower(designAttrs), detail: det, label: swNorm(d.designNo)})
+		if id != "" {
+			b.shapes[id] = det
 		}
-		seen[key+"|"+l.po.key] = l.Row
+	}
+	// combo: a combination made (or, in the preview, to be made) for a row.
+	combo := func(l *bpLine, key, sku string) {
+		d.skus[key], b.madeSKU[sku] = sku, "new design"
+		det.Combinations = append(det.Combinations, engines.DesignCombination{SKU: sku, Options: bpPick(l.codes, axes)})
 	}
 	if !b.apply {
+		register("")
+		for _, l := range d.lines {
+			key := bpKey(l.codes, axes)
+			if _, ok := d.skus[key]; !ok {
+				b.newSeq++
+				combo(l, key, fmt.Sprintf("#new%d", b.newSeq))
+			}
+			b.takeSKU(l, d.skus[key])
+		}
 		return nil
 	}
 	attrString := bpKey(designAttrs, sorted)
@@ -1501,19 +2004,203 @@ func (b *bpRun) design(d *bpDesign, cols []bpAttrCol) error {
 		return fmt.Errorf("could not be made: %v", err)
 	}
 	d.id, d.exists = id, true
+	register(id)
 	for _, l := range d.lines {
 		key := bpKey(l.codes, axes)
-		if sku, ok := d.skus[key]; ok {
-			l.sku, l.out.SKU = sku, sku
-			continue
+		if _, ok := d.skus[key]; !ok {
+			sku, err := b.newItem(d, l, key, axes)
+			if err != nil {
+				return err
+			}
+			combo(l, key, sku)
 		}
-		sku, err := b.newItem(d, l, key, axes)
-		if err != nil {
-			return err
-		}
-		d.skus[key], l.sku, l.out.SKU = sku, sku, sku
+		b.takeSKU(l, d.skus[key])
 	}
 	return nil
+}
+
+// takeSKU puts a row on a combination. A preview stand-in (#new1) is no
+// Combination ID, so the row shows none.
+func (b *bpRun) takeSKU(l *bpLine, sku string) {
+	l.sku = sku
+	l.out.Action = firstNonEmptyStr(b.madeSKU[sku], "existing")
+	l.out.SKU = sku
+	if strings.HasPrefix(sku, "#new") {
+		l.out.SKU = ""
+	}
+}
+
+func bpPick(codes map[string]string, axes []string) map[string]string {
+	out := map[string]string{}
+	for _, a := range axes {
+		if v := codes[a]; v != "" {
+			out[a] = v
+		}
+	}
+	return out
+}
+
+// designDetail: a design and its combinations, read once per upload.
+func (b *bpRun) designDetail(id string) *engines.DesignDetail {
+	if det := b.shapes[id]; det != nil {
+		return det
+	}
+	d, err := engines.GetDesign(b.sw.c.tenantID, id)
+	if err != nil {
+		return nil
+	}
+	b.shapes[id] = &d
+	return &d
+}
+
+func (b *bpRun) poolKey(d *bpDesign) string {
+	vk := d.vendorID
+	if vk == "" && len(d.lines) > 0 {
+		vk = "n:" + bpAttrKey(d.lines[0].Vendor)
+	}
+	ik := d.inm.ID
+	if ik == "" {
+		ik = "n:" + strings.ToLower(d.inm.Name)
+	}
+	return ik + "|" + vk
+}
+
+// pool: the designs a group of rows may join - the item name's active
+// designs of the vendor (or of no vendor), oldest first, then the ones this
+// upload made. Their combinations are read only when a design fits.
+func (b *bpRun) pool(d *bpDesign) []*bpPoolDesign {
+	key := b.poolKey(d)
+	if p, ok := b.pools[key]; ok {
+		return p
+	}
+	var out []*bpPoolDesign
+	if d.inm.ID != "" {
+		rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, COALESCE(data->>'design_attributes', '') FROM %s.documents
+			WHERE doctype = 'ProductFamily' AND deleted_at IS NULL AND COALESCE(status, 'Active') = 'Active'
+			AND lower(COALESCE(data->>'item_name', '')) = lower($1) AND COALESCE(data->>'vendor', '') IN ('', $2)
+			ORDER BY created_at, id`, b.sw.schema), d.inm.ID, d.vendorID)
+		if err == nil {
+			for rows.Next() {
+				var id, attrs string
+				if rows.Scan(&id, &attrs) == nil {
+					out = append(out, &bpPoolDesign{id: id, attrs: bpLower(bpPairs(attrs))})
+				}
+			}
+			rows.Close()
+		}
+	}
+	b.pools[key] = out
+	return out
+}
+
+// bpPairs reads "colour:Red;metal:Brass", as a design's attributes are kept.
+func bpPairs(s string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(s, ";") {
+		if k, v, ok := strings.Cut(part, ":"); ok && strings.TrimSpace(k) != "" && strings.TrimSpace(v) != "" {
+			out[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		}
+	}
+	return out
+}
+
+// reuse (237.3, "if same do not create new"): a design of the same item
+// name and vendor whose own attributes every row carries, and whose
+// attributes are the rows' own, takes the rows - as combinations it has, or
+// new ones of it. Of several, the one that has most of the rows already,
+// then the oldest. A Design No the file gave another design keeps them
+// apart (the client said they differ).
+func (b *bpRun) reuse(d *bpDesign, sorted []string, distinct map[string]map[string]string) {
+	one := map[string]string{} // attribute -> its one value on every row
+	all := map[string]bool{}
+	for _, c := range sorted {
+		lc := strings.ToLower(c)
+		all[lc] = true
+		if len(distinct[c]) == 1 {
+			for lv := range distinct[c] {
+				one[lc] = lv
+			}
+		}
+	}
+	label := swNorm(d.designNo)
+	var best *bpPoolDesign
+	bestN := -1
+	for _, p := range b.pool(d) {
+		if label != "" && p.label != "" && p.label != label {
+			continue
+		}
+		fits := true
+		for k, v := range p.attrs {
+			fits = fits && one[k] == v
+		}
+		if !fits {
+			continue
+		}
+		if p.detail == nil {
+			p.detail = b.designDetail(p.id)
+			if p.detail == nil {
+				continue
+			}
+		}
+		keys := map[string]bool{}
+		for k := range p.attrs {
+			keys[k] = true
+		}
+		for _, c := range p.detail.Combinations {
+			for k, v := range c.Options {
+				if v != "" {
+					keys[strings.ToLower(k)] = true
+				}
+			}
+		}
+		if len(keys) != len(all) {
+			continue
+		}
+		for k := range keys {
+			fits = fits && all[k]
+		}
+		if !fits {
+			continue
+		}
+		n := 0
+		for _, l := range d.lines {
+			if bpComboOf(p.detail, l.codes) != "" {
+				n++
+			}
+		}
+		if n > bestN {
+			best, bestN = p, n
+		}
+	}
+	if best == nil {
+		return
+	}
+	if label != "" {
+		best.label = label
+	}
+	d.exists, d.id, d.name, d.detail = true, best.id, firstNonEmptyStr(best.detail.Name, d.inm.Name), best.detail
+}
+
+// bpComboOf: the combination of a design that is exactly these values.
+func bpComboOf(det *engines.DesignDetail, codes map[string]string) string {
+	want := bpLower(codes)
+	for _, c := range det.Combinations {
+		have := bpLower(det.Attributes)
+		for k, v := range bpLower(c.Options) {
+			have[k] = v
+		}
+		if len(have) != len(want) {
+			continue
+		}
+		same := true
+		for k, v := range want {
+			same = same && have[k] == v
+		}
+		if same {
+			return c.SKU
+		}
+	}
+	return ""
 }
 
 // newItem makes one combination of a design, as the PO's Add design does.
@@ -1649,9 +2336,14 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 	for i, bi := range bills {
 		b.step(fmt.Sprintf("Goods receipts (%d of %d)", i+1, len(bills)), 4, 5)
 		k := bpAttrKey(bi.Vendor) + "|" + swNorm(bi.Invoice)
-		out := &bpBillOut{Row: bi.Row, Invoice: bi.Invoice, Vendor: bi.Vendor, Date: bi.Date, Total: bi.Total, Action: "new"}
+		out := &bpBillOut{Row: bi.Row, Invoice: bi.Invoice, Vendor: bi.Vendor, Date: bi.Date, Total: bi.Total, Action: "new", fromRows: bi.fromRows}
 		b.res.Bills = append(b.res.Bills, out)
 		fail := func(msg string) { out.Action, out.Message = "error", msg }
+		for _, l := range byBill[k] {
+			if b.billOf[l] == nil {
+				b.billOf[l] = out
+			}
+		}
 		if bi.err != "" {
 			fail(bi.err)
 			continue
@@ -1666,6 +2358,7 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			fail("no Purchase row has this bill no for this vendor")
 			continue
 		}
+		out.lines = rows
 		for _, l := range rows {
 			q := l.Qty
 			if l.HasRecv {
@@ -1678,7 +2371,11 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			}
 		}
 		out.RowsSum = math.Round(out.RowsSum*100) / 100
-		if math.Abs(out.RowsSum-bi.Total) > 1 {
+		if bi.fromRows {
+			// The PO + GRN template has no bill total: the rows are the bill.
+			bi.Total, out.Total = out.RowsSum, out.RowsSum
+		}
+		if !bi.fromRows && math.Abs(out.RowsSum-bi.Total) > 1 {
 			fail(fmt.Sprintf("the bill total %s and its rows (%s) differ by %s - fix the total or the rows", swNumText(bi.Total), swNumText(out.RowsSum), swNumText(math.Round((bi.Total-out.RowsSum)*100)/100)))
 			continue
 		}
@@ -1698,6 +2395,10 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 		store := ""
 		for _, l := range rows {
 			switch {
+			case l.dropped:
+				// A bill is received whole or not at all (237.2): held until
+				// its row is fixed and the file uploaded again.
+				blocked = append(blocked, fmt.Sprintf("row %d is to fix", l.Row))
 			case l.po == nil || l.po.failed:
 				blocked = append(blocked, fmt.Sprintf("row %d's PO Ref %s has a problem", l.Row, l.Ref))
 			case store != "" && l.po.storeID != store:
@@ -1712,7 +2413,6 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			continue
 		}
 		out.vendorID = rows[0].po.vendorID
-		out.lines = rows
 		if out.vendorID != "" {
 			if id := bpFindGRN(b.sw.schema, out.vendorID, bi.Invoice); id != "" {
 				out.Action, out.GRNID = "existing", id
@@ -1942,7 +2642,15 @@ func (b *bpRun) totals() {
 		t.Lines += len(po.Lines)
 		t.Qty += po.Qty
 		t.Amount = math.Round((t.Amount+po.Amount)*100) / 100
+		if po.Action != "error" {
+			for _, l := range po.Lines {
+				if l.Action == "error" {
+					t.Errors++ // a row left out of a PO that goes on
+				}
+			}
+		}
 	}
+	t.RowsToFix = len(b.res.Fix)
 	for _, bo := range b.res.Bills {
 		t.Bills++
 		if bo.Action == "error" {
@@ -2046,7 +2754,7 @@ func handleBulkPurchaseApply(w http.ResponseWriter, r *http.Request) {
 		t := res.Totals
 		errorCSV := bpErrorCSV(res)
 		status := "Completed"
-		if t.Failed > 0 || t.Errors > 0 || t.Waiting > 0 {
+		if t.Failed > 0 || t.Errors > 0 || t.Waiting > 0 || t.RowsToFix > 0 {
 			status = "Completed with errors"
 		}
 		_ = engines.UpdateWorkbookRun(c.tenantID, engines.BulkPurchaseDoctype, runID, map[string]interface{}{
@@ -2100,20 +2808,6 @@ func handleBulkPurchaseRunFile(w http.ResponseWriter, r *http.Request) {
 	swWriteXLSX(w, name, file)
 }
 
-// bulkPurchaseTemplate is the blank template (Stage 129.1): Start Here,
-// Vendors, Purchase, Bills, Example, Lists and the fixed Codes sheet (HSN
-// chapter 71 and the GST states). It is the workbook the client is given.
-//
-//go:embed bulk_purchase_template.xlsx
-var bulkPurchaseTemplate []byte
-
-func handleBulkPurchaseTemplate(w http.ResponseWriter, r *http.Request) {
-	if !bpAllowed(w, r, "read") {
-		return
-	}
-	swWriteXLSX(w, "bulk-purchase-template.xlsx", bulkPurchaseTemplate)
-}
-
 // bpErrorCSV is the failed-rows file of a run. The keys come from the
 // uploaded workbook, so every cell is made safe to open in a spreadsheet.
 func bpErrorCSV(res *bpResult) string {
@@ -2126,12 +2820,13 @@ func bpErrorCSV(res *bpResult) string {
 		}
 	}
 	for _, po := range res.POs {
-		if po.Action == "error" || po.Result == "failed" {
+		bad := po.Action == "error" || po.Result == "failed"
+		if bad {
 			_ = cw.Write([]string{"Purchase", "", po.Ref, po.Message})
-			for _, l := range po.Lines {
-				if l.Message != "" {
-					_ = cw.Write([]string{"Purchase", strconv.Itoa(l.Row), l.Design, l.Message})
-				}
+		}
+		for _, l := range po.Lines {
+			if l.Message != "" && (bad || l.Action == "error") {
+				_ = cw.Write([]string{"Purchase", strconv.Itoa(l.Row), l.Design, l.Message})
 			}
 		}
 	}

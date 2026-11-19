@@ -330,6 +330,12 @@ func catLineList(v interface{}) []map[string]interface{} {
 
 func catSQLField(f string) string { return strings.ReplaceAll(f, "'", "") }
 
+// catCreatedDay is a document's business date in SQL. created_at is a naive
+// stamp on the database's own clock (UTC on production), so it is read on that
+// clock before it is turned to the business's zone (230.5): a bill at 01:30 IST
+// is stored 20:00 the day before and must still filter on its own day.
+const catCreatedDay = "to_char(public.erp_local_date(created_at), 'YYYY-MM-DD')"
+
 // docRows reads a document source with the standard filters.
 func (s *catSource) docRows(schema string, p map[string]string, noDates bool) ([]*catRow, error) {
 	where := []string{"doctype = $1", "deleted_at IS NULL"}
@@ -343,7 +349,7 @@ func (s *catSource) docRows(schema string, p map[string]string, noDates bool) ([
 	}
 	// 214.4: the same business day catDay gives the row - a moment (created_at,
 	// or a stamp with a zone) is dated in the business's zone, not the server's.
-	created := "to_char(created_at AT TIME ZONE public.erp_business_tz(), 'YYYY-MM-DD')"
+	created := catCreatedDay
 	dateExpr := created
 	if s.DateField != "" {
 		v := fmt.Sprintf("NULLIF(data->>'%s', '')", catSQLField(s.DateField))
