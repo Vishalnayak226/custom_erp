@@ -10,17 +10,21 @@ import (
 	"strings"
 )
 
-// QZ Tray silent printing endpoints (Stage 31.1).
+// Silent printing endpoints (Stage 31.1), used by the local print agent
+// (PrintBridge, which speaks the QZ Tray protocol).
 //
-// The browser cannot hold the signing key, so these three endpoints are what
-// public/qz-print.js needs to talk to a local QZ Tray instance:
+// The browser cannot hold the signing key, so these endpoints are what
+// public/print-agent.js needs to talk to the agent:
 //
-//	GET  /api/v1/print/qz/certificate  - public cert, sent in the handshake
-//	POST /api/v1/print/qz/sign         - signs one request hash
-//	GET  /api/v1/print/qz/printers     - configured Printer Masters
-//	POST /api/v1/print/qz/payload      - builds what to actually print
-//	POST /api/v1/print/qz/log          - records the outcome
-//	GET  /api/v1/print/qz/log          - print audit trail
+//	GET  /api/v1/print/agent/certificate  - public cert, sent in the handshake
+//	POST /api/v1/print/agent/sign         - signs one request hash
+//	GET  /api/v1/print/agent/printers     - configured Printer Masters
+//	POST /api/v1/print/agent/payload      - builds what to actually print
+//	POST /api/v1/print/agent/log          - records the outcome
+//	GET  /api/v1/print/agent/log          - print audit trail
+//
+// Each is also served under /api/v1/print/qz/ (the path before ask 263), so a
+// page loaded before a deploy keeps printing.
 //
 // All of them sit behind apiMiddleware and the existing "stickers" module
 // gate - the Printer doctype is already mapped to that key
@@ -28,12 +32,12 @@ import (
 // A new key would 403 every existing tenant until their plan was edited, the
 // trap called out in db/migrations/migrations_stage30_7_pos_offers.sql.
 
-func handleQZCertificate(w http.ResponseWriter, r *http.Request) {
+func handleAgentCertificate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
-	cert, err := engines.QZCertificatePEM()
+	cert, err := engines.AgentCertificatePEM()
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError,
 			"Print signing is not configured on this server: "+err.Error())
@@ -42,7 +46,7 @@ func handleQZCertificate(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"certificate": cert})
 }
 
-func handleQZSign(w http.ResponseWriter, r *http.Request) {
+func handleAgentSign(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
@@ -54,24 +58,24 @@ func handleQZSign(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
-	sig, err := engines.QZSignRequest(req.Request)
+	sig, err := engines.AgentSignRequest(req.Request)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"signature": sig,
-		"algorithm": engines.QZSignAlgorithm,
+		"algorithm": engines.AgentSignAlgorithm,
 	})
 }
 
-func handleQZPrinters(w http.ResponseWriter, r *http.Request) {
+func handleAgentPrinters(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
-	printers, err := engines.ListQZPrinters(tenantID)
+	printers, err := engines.ListAgentPrinters(tenantID)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -79,14 +83,14 @@ func handleQZPrinters(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(printers)
 }
 
-// handleQZPrintPayload turns "print this thing" into the exact data array QZ
-// Tray expects, choosing raw commands or a rasterised document based on the
+// handleAgentPrintPayload turns "print this thing" into the exact data array the
+// print agent expects, choosing raw commands or a rasterised document based on the
 // target printer's configured language.
 //
 // Deliberately one endpoint rather than one per document type: the browser
 // then has a single call to make, and adding a new printable document later
 // means one new case here instead of a new route, handler and client method.
-func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
+func handleAgentPrintPayload(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
@@ -122,13 +126,13 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		req.Copies = 1
 	}
 
-	printer, err := resolveQZPrinter(tenantID, req.PrinterCode, req.JobType, req.PrintKind, req.Computer, req.Location)
+	printer, err := resolveAgentPrinter(tenantID, req.PrinterCode, req.JobType, req.PrintKind, req.Computer, req.Location)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 
-	var payload *engines.QZPrintPayload
+	var payload *engines.AgentPrintPayload
 
 	switch strings.TrimSpace(req.JobType) {
 	case "Shipping Label":
@@ -145,7 +149,7 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 	case "Sticker":
 		// Routed through PrintStickers/PrintStickersForDocument so the
 		// existing SKU validation, DEVICE-0298 printer check and
-		// sticker_print_log audit trail all still run - QZ changes how a
+		// sticker_print_log audit trail all still run - the agent changes how a
 		// sticker reaches the printer, not the rules about what may be
 		// printed.
 		var labels []engines.StickerLabel
@@ -188,7 +192,7 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'data_base64' is required for a document print")
 			return
 		}
-		// Strip a data: URI prefix if the caller pasted one - QZ's base64
+		// Strip a data: URI prefix if the caller pasted one - the agent's base64
 		// flavor wants the payload bare, and this is an easy mistake to make
 		// when the PDF came from a marketplace download link.
 		data := req.DataBase64
@@ -237,7 +241,7 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'document_ref' is required for a purchase order")
 			return
 		}
-		payload, err = engines.BuildPurchaseOrderQZPayload(tenantID, req.DocumentRef, printer)
+		payload, err = engines.BuildPurchaseOrderAgentPayload(tenantID, req.DocumentRef, printer)
 		if err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
@@ -257,17 +261,17 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resolveQZPrinter picks the printer for a job, first match wins: an explicit
+// resolveAgentPrinter picks the printer for a job, first match wins: an explicit
 // printer_code; this computer's own printer for this kind of print (98.4,
 // chosen once); an Active printer whose "Default For" is the kind at the
 // job's own store (98.4.1 - with 100 stores, store A must never print on
 // store B's printer); then one anywhere in the company, as before 98.4.
 // Falling back to the role is what makes one-click printing possible - each
 // bench is configured once and never asks again.
-func resolveQZPrinter(tenantID, printerCode, jobType, kind, computer, location string) (engines.QZPrinter, error) {
-	printers, err := engines.ListQZPrinters(tenantID)
+func resolveAgentPrinter(tenantID, printerCode, jobType, kind, computer, location string) (engines.AgentPrinter, error) {
+	printers, err := engines.ListAgentPrinters(tenantID)
 	if err != nil {
-		return engines.QZPrinter{}, err
+		return engines.AgentPrinter{}, err
 	}
 
 	if printerCode != "" {
@@ -276,7 +280,7 @@ func resolveQZPrinter(tenantID, printerCode, jobType, kind, computer, location s
 				return p, nil
 			}
 		}
-		return engines.QZPrinter{}, &engines.ValidationError{
+		return engines.AgentPrinter{}, &engines.ValidationError{
 			Code:    "DEVICE-0298",
 			Message: fmt.Sprintf("printer %q is not configured or is inactive", printerCode),
 		}
@@ -300,7 +304,7 @@ func resolveQZPrinter(tenantID, printerCode, jobType, kind, computer, location s
 			return p, nil
 		}
 	}
-	return engines.QZPrinter{}, &engines.ValidationError{
+	return engines.AgentPrinter{}, &engines.ValidationError{
 		Code: "DEVICE-0298",
 		Message: fmt.Sprintf("no printer is chosen for %q on this computer and no active printer is set as the default for it - "+
 			"print once to choose one, or set 'Default For' on a Printer record", kind),
@@ -316,11 +320,11 @@ func containsStr(list []string, s string) bool {
 	return false
 }
 
-// handleQZPrinterChoices (Stage 98.4): GET lists a computer's printer per
+// handleAgentPrinterChoices (Stage 98.4): GET lists a computer's printer per
 // kind of print; POST remembers one ("ask one time ... then never ask"). Any
 // signed-in user may save their own computer's choice - it is the print they
 // are making - which makes the Printer record for that OS printer if needed.
-func handleQZPrinterChoices(w http.ResponseWriter, r *http.Request) {
+func handleAgentPrinterChoices(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method == http.MethodGet {
 		q := r.URL.Query()
@@ -333,7 +337,7 @@ func handleQZPrinterChoices(w http.ResponseWriter, r *http.Request) {
 		// ?kind= also answers where a print of that kind would go now - this
 		// computer's choice, else the store's default, else nowhere yet.
 		if kind := q.Get("kind"); kind != "" {
-			if p, err := resolveQZPrinter(tenantID, "", "", kind, q.Get("computer"), q.Get("location")); err == nil {
+			if p, err := resolveAgentPrinter(tenantID, "", "", kind, q.Get("computer"), q.Get("location")); err == nil {
 				out["printer"] = p
 			}
 		}
@@ -344,12 +348,17 @@ func handleQZPrinterChoices(w http.ResponseWriter, r *http.Request) {
 		Computer string `json:"computer"`
 		Location string `json:"location"`
 		Kind     string `json:"print_kind"`
-		Printer  string `json:"qz_printer_name"`
-		Language string `json:"printer_language"`
+		Printer  string `json:"os_printer_name"`
+		// Legacy: the key a page loaded before ask 263 sends.
+		LegacyPrinter string `json:"qz_printer_name"`
+		Language      string `json:"printer_language"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+	if body.Printer == "" {
+		body.Printer = body.LegacyPrinter
 	}
 	p, err := engines.ChoosePrinter(tenantID, r.Header.Get("Resolved-User-ID"), body.Computer, body.Location, body.Kind, body.Printer, body.Language)
 	if err != nil {
@@ -359,7 +368,7 @@ func handleQZPrinterChoices(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"printer": p})
 }
 
-func handleQZPrintLog(w http.ResponseWriter, r *http.Request) {
+func handleAgentPrintLog(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 
@@ -378,18 +387,23 @@ func handleQZPrintLog(w http.ResponseWriter, r *http.Request) {
 			JobType       string `json:"job_type"`
 			DocumentRef   string `json:"document_ref"`
 			PrinterCode   string `json:"printer_code"`
-			QZPrinterName string `json:"qz_printer_name"`
-			Format        string `json:"print_format"`
-			Copies        int    `json:"copies"`
-			Status        string `json:"status"`
-			ErrorDetail   string `json:"error_detail"`
+			OSPrinterName string `json:"os_printer_name"`
+			// Legacy: the key a page loaded before ask 263 sends.
+			LegacyPrinterName string `json:"qz_printer_name"`
+			Format            string `json:"print_format"`
+			Copies            int    `json:"copies"`
+			Status            string `json:"status"`
+			ErrorDetail       string `json:"error_detail"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 			return
 		}
+		if req.OSPrinterName == "" {
+			req.OSPrinterName = req.LegacyPrinterName
+		}
 		if err := engines.LogPrintJob(tenantID, req.JobType, req.DocumentRef, req.PrinterCode,
-			req.QZPrinterName, req.Format, req.Copies, userID, req.Status, req.ErrorDetail); err != nil {
+			req.OSPrinterName, req.Format, req.Copies, userID, req.Status, req.ErrorDetail); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}

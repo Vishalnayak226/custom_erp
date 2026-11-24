@@ -135,6 +135,10 @@ function renderPOSView(container) {
             <option value="UPI">UPI</option>
           </select>
         </div>
+        <div class="form-group">
+          <label class="form-label" for="pos-remarks">Remarks</label>
+          <input id="pos-remarks" class="form-input" maxlength="200" placeholder="Optional" autocomplete="off">
+        </div>
         <!-- Stage 53.11: cash tendered and change due (in the bar). Shown for
              Cash only; a card or UPI sale is for the exact amount. -->
         <!-- Stage 85.E3: shown when the store asks for the salesman. -->
@@ -289,7 +293,7 @@ function renderPOSView(container) {
   returnPane.id = 'pos-return-pane';
   returnPane.dataset.pane = 'return';
   panel.appendChild(returnPane);
-  posExtras().then(m => { if (returnPane.isConnected) m.renderPOSReturnPanel(returnPane); }, () => {});
+  posExtras().then(m => { if (returnPane.isConnected) { m.renderPOSReturnPanel(returnPane); m.wirePOSPayModeActions(posTill); } }, () => {}); // 260.1
   // Stage 85.D3: the Advance tab (view-pos-customer.js).
   const advancePane = document.createElement('div');
   advancePane.className = 'txn-pane hidden';
@@ -460,12 +464,25 @@ function posExactBarcode(rows, term) {
     || rows.find(r => !String(r.barcode || '').trim() && String(r.code || r.id || '').toLowerCase() === lower);
 }
 
+// Ask 262.1: each match carries ats, its sellable quantity at this store, so
+// the list shows only what can be sold here. Without the figures (the lookup
+// failed) the list shows every match, as before.
 async function fetchPOSProductMatches(term) {
-  const res = await apiFetch(`/api/v1/doc/Item?q=${encodeURIComponent(term)}&limit=25`);
+  const res = await apiFetch(`/api/v1/doc/Item?q=${encodeURIComponent(term)}&limit=100`);
   if (!res) return null;
   if (!res.ok) return { error: true };
-  return { rows: (await res.json()) || [] };
+  const rows = (await res.json()) || [];
+  const skus = rows.map(r => r.code || r.id).filter(Boolean);
+  if (skus.length && posLocation) {
+    const a = await apiFetch(`/api/v1/availability?skus=${encodeURIComponent(skus.join(','))}&location=${encodeURIComponent(posLocation)}`).catch(() => null);
+    const ats = a && a.ok ? ((await a.json()) || {}).ats : null;
+    if (ats) rows.forEach(r => { r.ats = Number(ats[r.code || r.id]) || 0; });
+  }
+  return { rows };
 }
+
+const POS_LIST_MAX = 25;
+const posSellableRows = (rows) => rows.filter(r => r.ats === undefined || r.ats > 0).slice(0, POS_LIST_MAX);
 
 function onPOSScanInput(e) {
   clearTimeout(posSearchTimer);
@@ -531,19 +548,22 @@ function highlightPOSSearchResult(idx) {
   if (rows[idx]) rows[idx].scrollIntoView({ block: 'nearest' });
 }
 
-function renderPOSSearchResults(rows, term) {
+function renderPOSSearchResults(all, term) {
   const el = document.getElementById('pos-search-results');
   if (!el) return;
+  const rows = posSellableRows(all); // 262.1: only what can be sold here
   posSearchResults = rows;
   posSearchTerm = term;
   posSearchActiveIndex = rows.length ? 0 : -1;
   el.innerHTML = `
     <div class="s-4777e4">
-      ${rows.length} product(s) matching &ldquo;${cfgEsc(term)}&rdquo; &mdash; click one, or use the arrow keys and Enter.
+      ${rows.length ? `${rows.length} product(s) in stock matching &ldquo;${cfgEsc(term)}&rdquo; &mdash; click one, or use the arrow keys and Enter.`
+        : `None in stock here matches &ldquo;${cfgEsc(term)}&rdquo;.`}
     </div>
     ${rows.map((r, i) => `
       <div class="pos-result-row s-e14388" data-idx="${i}">
         <span class="s-814ed6">${cfgEsc(r.name || r.code || r.id || '')}</span>
+        ${r.ats !== undefined ? `<span class="s-6e0fd9"><strong>${cfgEsc(r.ats)} available</strong></span>` : ''}
         <span class="s-6e0fd9">${cfgEsc(r.code || r.id || '')}</span>
         ${r.parent_product_code ? `<span class="s-6e0fd9">Design ${cfgEsc(r.parent_product_code)}</span>` : ''}
         ${r.barcode ? `<span class="s-6e0fd9">${cfgEsc(r.barcode)}</span>` : ''}
@@ -647,8 +667,19 @@ async function addResolvedItemToPOSCart(sku, name, scanned) {
   const heldText = (Array.isArray(avail.locations) ? avail.locations : [])
     .filter(l => !l.sellable && l.qty > 0).map(l => `${l.name} ${l.qty}`).join(' · ');
 
-  posLastAddedSku = sku;
+  // Ask 262.2: a scan or pick that would go past what can be sold here adds
+  // nothing. An item that keeps no stock (a service) needs none.
   const existing = posCart.find(line => line.sku === sku);
+  if (avail.tracked !== false && (existing ? existing.qty : 0) + 1 > sellable) {
+    if (errorEl) {
+      errorEl.textContent = `${name || sku}: ${sellable > 0 ? `only ${sellable} in stock here` : 'not in stock here'}. Not added.${heldText ? ` Not sellable here: ${heldText}.` : ''}`;
+      errorEl.classList.remove('hidden');
+    }
+    if (skuInput) { skuInput.value = ''; skuInput.focus(); }
+    return;
+  }
+
+  posLastAddedSku = sku;
   if (existing) {
     existing.qty += 1;
     if (!scanned) existing.scanned = ''; // 49.5.6a: scanned only if every add was
@@ -1251,6 +1282,7 @@ async function submitPOSCheckoutInner() {
       second_payment: posSecondPayment,
       exchange_credit_id: posExchange ? posExchange.id : '',
       coupon_codes: currentPOSCouponCodes(),
+      remarks: (document.getElementById('pos-remarks')?.value || '').trim(), // 260.3
       // 47.2.4: what the cashier is looking at. If the server re-resolves to
       // something else, it says so rather than charging either figure.
       quote_version: posQuoteVersion,
@@ -1419,6 +1451,7 @@ async function submitPOSCheckoutInner() {
       // Stage 72.8: read before freezePOSTill clears the tenders.
       giftCards: posGiftCardTenders.map(g => ({ card: g.card, amount: g.amount })),
       advanceUsed: (checkoutPayload.advances || []).reduce((sum, a) => sum + a.amount, 0),
+      remarks: checkoutPayload.remarks,
       tendered: isNaN(tendered) ? null : tendered,
       changeDue: isNaN(tendered) ? null : tendered - rest,
       canPrint: true
@@ -1491,6 +1524,7 @@ function freezePOSTill(sale) {
       <span class="s-b14cdc">${cfgEsc(sale.paymentMode || '')}</span>
     </div>
     ${sale.note ? `<div class="s-afa980">${cfgEsc(sale.note)}</div>` : ''}
+    ${sale.remarks ? `<div class="s-b14cdc">Remarks: ${cfgEsc(sale.remarks)}</div>` : ''}
     <div class="s-0fd874">
       ${lines}
       ${sale.offerDiscount > 0 ? money('Discount (offers and bill)', -sale.offerDiscount) : ''}
@@ -1628,7 +1662,7 @@ async function loadPOSStoreProfile() {
   posStoreProfile = profile;
 }
 
-// The browser receipt (the fallback behind QZ Tray) is in view-pos-extras.js;
+// The browser receipt (the fallback behind PrintBridge) is in view-pos-extras.js;
 // Stage 73.1.6 moved it out of the cold core.
 const printPOSReceipt = (...a) => posExtras().then(m => m.printPOSReceipt(posTill, ...a));
 
@@ -1664,6 +1698,7 @@ function clearPOSRedemption() {
   posAppliedOffers = [];
   const couponEl = document.getElementById('pos-coupon-code');
   if (couponEl) couponEl.value = '';
+  (document.getElementById('pos-remarks') || {}).value = '';
   const offersRow = document.getElementById('pos-offers-row');
   if (offersRow) { offersRow.classList.add('hidden'); offersRow.innerHTML = ''; }
 }

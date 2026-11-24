@@ -107,9 +107,12 @@ func releaseShortPickHolds(tenantID, sku, location string) {
 			continue
 		}
 		patch, _ := json.Marshal(map[string]string{"status": WTStatusCompleted})
-		_, _ = db.DB.Exec(fmt.Sprintf(`
+		if _, err := db.DB.Exec(fmt.Sprintf(`
 			UPDATE %s.documents SET data = data || $1::jsonb, status = 'Completed', updated_at = CURRENT_TIMESTAMP
 			 WHERE doctype = 'WarehouseTask' AND status IN ('Pending', 'Assigned', 'In Progress')
-			   AND data->>'task_type' = 'Count' AND data->>'source_doc_type' = 'Hold' AND data->>'source_doc_id' = $2`, schema), patch, id)
+			   AND data->>'task_type' = 'Count' AND data->>'source_doc_type' = 'Hold' AND data->>'source_doc_id' = $2`, schema), patch, id); err != nil {
+			// 252.1: the hold is released; its count task is left open, so say so.
+			LogSystemError(tenantID, "", "WARN", "releaseShortPickHolds", fmt.Sprintf("hold %s released, but its count task was not closed: %v", id, err), "")
+		}
 	}
 }

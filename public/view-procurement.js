@@ -2626,8 +2626,8 @@ window.copyPurchaseOrder = (poId) => window.amendPurchaseOrder(poId, { copy: tru
 // The print dialog (trade-docs.js): Purchase Order or Vendor PO, the
 // best-matching designed template (or the standard layout), the store it is
 // generated from, a preview, CSV / Excel / PDF / Send, and Print - straight to
-// this computer's PO printer when QZ Tray runs (Stage 98.4; this replaced
-// 40.10's QZ print of a fixed server layout, so a PO prints in its template).
+// this computer's PO printer when PrintBridge runs (Stage 98.4; this replaced
+// 40.10's silent print of a fixed server layout, so a PO prints in its template).
 // ---------------------------------------------------------------------------
 window.printPurchaseOrder = async function(poId) {
   const m = await tradeDocsReady;

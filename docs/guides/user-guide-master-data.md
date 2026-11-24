@@ -515,6 +515,8 @@ While a heal waits:
 - Those records do not save. If you can run the heal, Save offers to run it first: say yes and the save goes on. Otherwise you are told to ask your admin.
 - Bills, GRNs, POS and every other screen work as usual.
 
+**Heals so far.** *Item aliases* gives items saved before 0.25.0 their short sticker name. *Printer names* moves the exact Windows name of each printer saved before the printing rename to the **OS Printer Name** field; printing keeps working until it runs, and only the Printer form waits.
+
 **Running a heal.** Open **Data Healer** in the Settings menu (shortcut `DH`) and click **Open** on the heal. Each record shows the value it will get; type over any you want different (an alias takes 14 characters at most). Click **Run heal** and confirm. The strip goes away and the heal shows **Done**, with who ran it, when, and how many records it fixed. It never runs again; a record saved later gets its value as it is saved.
 
 **Past names.** Renaming an item changes every screen and every new print. To change the old name on documents already made, including their first print, a Super Admin opens **Data Healer → Past names**, types the old and new name, clicks **Preview**, then **Apply** and types **YES**. Documents filed with GST keep the old name. The admin guide, C.2.3, has the details.

@@ -277,11 +277,20 @@ func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, reference
 	// Stage 101.11.1 (D11): with pending points on, every row waits out the bill's return window.
 	until := crmPendingUntil(tenantID)
 	// 146.2: one row per rule (base, then each bonus offer), stamped with the store.
+	// 252.1: the rows commit together, so a bill never earns part of its points.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	for _, r := range plan.Rows {
-		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at, pending_until, location, reason)
+		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at, pending_until, location, reason)
 			VALUES ($1, 'Earn', $2, 'POSCart', $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''))`, schema), customerID, r.Points, referenceID, expiresAt, until, in.Location, r.Reason); err != nil {
 			return err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	// Stage 73.2.12: when accruing, the earned points' value is a liability.
 	if err := postLoyaltyValue(tenantID, "POSCart", referenceID, "POSCart:"+referenceID+":LOYALTY_ACCRUE",

@@ -70,7 +70,7 @@ Jump straight to the thing you're trying to do.
 | List stock older than 90 days, oldest first | [§6.3](user-guide-purchase-orders.md#63-batches-and-expiry-dates-for-items-that-need-them) (*Batch Lookup & Ageing → Older than*) |
 | See how much stock is 0-30, 31-60, 61-90, 91-180 or over 180 days old | [§6.3](user-guide-purchase-orders.md#63-batches-and-expiry-dates-for-items-that-need-them) (*Stock Ageing by GRN batch*) |
 | Make the batch number scannable on my own label design | [§7A.2](user-guide-labels-and-printing.md#7a2-design-your-labels-templates-and-the-sticker-studio) (drag **Batch / Lot** onto a barcode) |
-| Print a shipping label or a sales invoice, or make labels print with no dialog | **[qz-printing-setup.md](qz-printing-setup.md)** — "Day-to-day use" |
+| Print a shipping label or a sales invoice, or make labels print with no dialog | **[Silent Printing Setup](silent-printing-setup.md)** — "Day-to-day use" |
 | Take a return | [USER_SOP §3.3](user-sop.md) |
 | Check how much stock I have | [§5](user-guide-selling-and-stock.md#5-checking-stock) |
 | **Order stock from a supplier** | [§6](user-guide-purchase-orders.md#6-ordering-more-stock-purchase-order) |
@@ -218,6 +218,7 @@ Jump straight to the thing you're trying to do.
       - [7A.4 What was printed, and by whom](user-guide-labels-and-printing.md#7a4-what-was-printed-and-by-whom)
       - [7A.5 Which template each item uses (Template rules)](user-guide-labels-and-printing.md#7a5-which-template-each-item-uses-template-rules)
       - [7A.6 Set a label printer up once (Printer preset)](user-guide-labels-and-printing.md#7a6-set-a-label-printer-up-once-printer-preset)
+      - [7A.7 Fix the print from a photo](user-guide-labels-and-printing.md#7a7-fix-the-print-from-a-photo)
    - [7B. Printing POs, GRNs, Transfers and Notes — and Designing Their Layout](user-guide-labels-and-printing.md#7b-printing-pos-grns-transfers-and-notes--and-designing-their-layout)
       - [7B.1 Printing a document](user-guide-labels-and-printing.md#7b1-printing-a-document)
       - [7B.2 Designing a print template (Setup → Printing → Templates)](user-guide-labels-and-printing.md#7b2-designing-a-print-template-setup--printing--templates)

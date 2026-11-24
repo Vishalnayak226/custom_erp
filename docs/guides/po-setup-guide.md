@@ -200,7 +200,7 @@ Create these in this order. Each one uses the one before it.
 - [ ] **Bank Account Number** and **Bank IFSC**: for paying the vendor.
 - [ ] **TDS** (only if you deduct it): the section is not set on the vendor. Create your sections and rates once under *Setup → TDS Section*; whoever pays picks one with **Withhold TDS** / **Pay w/ TDS**.
 
-**Over-delivery tolerance** (optional): *Setup → Receipt Validation Rule*. A rule with no vendor is the default for everyone; a rule per vendor overrides it. **Over-receipt tolerance %** is how much extra is accepted without asking. **Allow unexpected items** decides whether items not on the PO may be received. Anything beyond it is decided at the GRN's Verify step (keep it, which needs an approval, or return it).
+**Over-delivery tolerance** (optional): *Setup → Receipt Validation Rule*. A rule with no vendor is the default for everyone; a rule per vendor overrides it. **Over-Receipt Tolerance %** is how much extra is accepted without asking. **Allow Items Not On The PO** decides whether items not on the PO may be received. Anything beyond it is decided at the GRN's Verify step (keep it, which needs an approval, or return it).
 
 ---
 
@@ -276,7 +276,7 @@ As shipped, record type **PurchaseOrder**:
 - [ ] **Print templates** (*Setup → Printing → Print Template*, optional): the **Standard layout** works without setup. Design your own only if you want a different look. The **Vendor PO** copy never shows MRP.
 - [ ] **Email**: **Send email** needs the server's mail account (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USER`, `SMTP_PASSWORD`), which the server operator sets, not a screen. Without it, **Send email** downloads the PDF instead and says so.
 - [ ] **Product photos** (optional): **Settings → Configuration → Integrations → Image drive** to keep design and combination photos in your own S3-compatible bucket. Without it they are kept on the ERP server.
-- [ ] **Label printing** (optional): sticker templates and printers if you print barcode stickers at the GRN (*Setup → Printing*; see [Printing setup](qz-printing-setup.md)).
+- [ ] **Label printing** (optional): sticker templates and printers if you print barcode stickers at the GRN (*Setup → Printing*; see [Printing setup](silent-printing-setup.md)).
 
 ---
 
@@ -291,7 +291,7 @@ Raise one PO for a small amount and take it all the way through. If every check 
 | 3 | **Submit for Approval** on its row | PO list | Status moves to **Pending Approval**. |
 | 4 | **Approve**, as the approving user | Approvals | Status **Approved**; **Receive goods** appears on the row. |
 | 5 | **Send to Vendor** → **Download PDF** (or **Send email**) | PO list | The PDF shows your entity, both addresses and GSTINs, HSN, the tax split and the total. Row says *Sent to vendor*. |
-| 6 | **Receive goods**: type the vendor's **Invoice No, Date and Total**, the quantities, any GRN-time fields → **Save receipt** | Goods Receipt | Saved as *Received*. No stock yet. |
+| 6 | **Receive goods**: type the vendor's **Vendor Invoice No**, **Invoice Date** and **Invoice Total (incl. GST)**, the quantities, any GRN-time fields → **Save receipt** | Goods Receipt | Saved as *Received*. No stock yet. |
 | 7 | **Verify** | GRN steps | No *"The bill does not add up"* box (or fix the invoice total). |
 | 8 | **Check prices** → **Save and go to MRP** | GRN steps | Lines split into *New item / Same price / Price changed*. |
 | 9 | Type or **Use suggested** MRP → **Save and post** each child | GRN steps | The suggested MRP names your MRP rule. |
@@ -335,4 +335,4 @@ The full walk of each screen is in the [User Guide](user-guide.md), §6 (PO) and
 - [User Guide](user-guide.md) §13: the full first-sale walkthrough, from an empty system to the till.
 - [Admin Guide](admin-guide.md) §B.3: every setting above in detail (§B.3.2 number series, §B.3.5b–c item master, §B.3.6–B.3.6.1 goods receipt).
 - [Admin SOP](admin-sop.md) §B.9–B.10: approval rules and approving your own documents.
-- [Printing setup](qz-printing-setup.md): sticker and document printers.
+- [Printing setup](silent-printing-setup.md): sticker and document printers.

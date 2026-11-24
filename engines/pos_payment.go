@@ -119,7 +119,7 @@ func AuthorizePOSSale(tenantID, cartNumber string) (*POSAuthorization, error) {
 			// Roll back the holds already taken - an authorization that could
 			// not reserve everything must hold nothing, or a declined card
 			// leaves half a cart's stock stranded until the sweeper runs.
-			releasePOSReservations(schema, auth.ReservationIDs)
+			releasePOSReservations(tenantID, schema, auth.ReservationIDs)
 			return nil, &InsufficientStockError{SKU: item.Sku, Location: cart.Location, Requested: item.Qty}
 		}
 		auth.ReservationIDs = append(auth.ReservationIDs, resID)
@@ -128,7 +128,7 @@ func AuthorizePOSSale(tenantID, cartNumber string) (*POSAuthorization, error) {
 	auth.AmountDue = round2(auth.AmountDue)
 
 	if err := setPaymentState(schema, cartNumber, "", PaymentStateInitiated, "", auth.ReservationIDs); err != nil {
-		releasePOSReservations(schema, auth.ReservationIDs)
+		releasePOSReservations(tenantID, schema, auth.ReservationIDs)
 		return nil, err
 	}
 	return auth, nil
@@ -182,7 +182,7 @@ func ConfirmPOSSale(tenantID, cartNumber, providerReference, correlationID strin
 	// The reservations are released BEFORE the decrement, in the same breath:
 	// finalization decrements availability, and leaving the reservation in
 	// place would double-count the same units as both reserved and sold.
-	releasePOSReservations(schema, reservationIDsForCart(schema, cartNumber))
+	releasePOSReservations(tenantID, schema, reservationIDsForCart(schema, cartNumber))
 
 	outcome, err := finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID, nil, "", nil)
 	if err != nil {
@@ -213,7 +213,7 @@ func VoidPOSSale(tenantID, cartNumber, reason string) error {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "payment_state",
 			Message: fmt.Sprintf("cart %s is %s and cannot be voided%s", cartNumber, displayPaymentState(current), postedVoidHint(current))}
 	}
-	releasePOSReservations(schema, reservationIDsForCart(schema, cartNumber))
+	releasePOSReservations(tenantID, schema, reservationIDsForCart(schema, cartNumber))
 	if err := setPaymentState(schema, cartNumber, current, PaymentStateVoided, "", nil); err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func reservationIDsForCart(schema, cartNumber string) []string {
 	return ids
 }
 
-func releasePOSReservations(schema string, ids []string) {
+func releasePOSReservations(tenantID, schema string, ids []string) {
 	for _, id := range ids {
 		if strings.TrimSpace(id) == "" {
 			continue
@@ -314,9 +314,12 @@ func releasePOSReservations(schema string, ids []string) {
 		// alone left those units counted as reserved for good, so every
 		// authorized sale shrank available-to-sell. One statement, so a row
 		// the sweeper already released is not released twice.
-		_, _ = db.DB.Exec(fmt.Sprintf(`WITH gone AS (DELETE FROM %s.inventory_reservation WHERE id = $1::uuid RETURNING sku, location_code, quantity)
+		if _, err := db.DB.Exec(fmt.Sprintf(`WITH gone AS (DELETE FROM %s.inventory_reservation WHERE id = $1::uuid RETURNING sku, location_code, quantity)
 			UPDATE %s.inventory_availability a SET reserved = GREATEST(a.reserved - gone.quantity, 0), updated_at = CURRENT_TIMESTAMP
-			FROM gone WHERE a.sku = gone.sku AND a.location_code = gone.location_code`, schema, schema), id)
+			FROM gone WHERE a.sku = gone.sku AND a.location_code = gone.location_code`, schema, schema), id); err != nil {
+			// 252.1: the hold stays until the expiry sweeper releases it; say so.
+			LogSystemError(tenantID, "", "WARN", "releasePOSReservations", fmt.Sprintf("reservation %s not released, the expiry sweep will release it: %v", id, err), "")
+		}
 	}
 }
 

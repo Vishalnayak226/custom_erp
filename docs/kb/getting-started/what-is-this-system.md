@@ -4,7 +4,7 @@ section: Getting Started
 order: 1
 summary: One shared record of the business, and the five ideas you need before any screen makes sense.
 audience: everyone
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [reports]
 doc_id: DOC-A2A65014E9
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -80,8 +80,9 @@ and a product rather than selling anything.
 
 It will not let two people quietly disagree. Where a decision needs a second
 pair of eyes - approving spend, changing a price, writing off stock - it is
-routed to someone else on purpose, and the same person cannot both raise and
-approve.
+routed to an approver on purpose. Whether the person who raised it may approve
+it too is your administrator's choice: an owner-run business usually allows it,
+a controlled one does not.
 
 ## Where to go next
 

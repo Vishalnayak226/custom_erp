@@ -7,11 +7,11 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 140 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 148 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
-| JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 6 | 1 | 5 |
+| JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 5 | 1 | 4 |
 | JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 1 | 0 | 1 |
 | JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 0 | 0 | 0 |
 | JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 11 | 0 | 9 |
@@ -25,7 +25,7 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 | JRN-12 India tax | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tax/legal owner; 26.2/26.6/47.16 | 1 | 0 | 1 |
 | JRN-13 manufacturing | deferred - outside both | Factory/cost owner; 26.9/Stage 37 | 0 | 0 | 0 |
 | JRN-14 quality/maintenance | deferred - outside both | Quality/maintenance owner; chosen industry scope | 0 | 0 | 0 |
-| JRN-15 CRM/loyalty | REF-RETAIL-IN | Marketing/privacy/store; 26.7 | 2 | 0 | 2 |
+| JRN-15 CRM/loyalty | REF-RETAIL-IN | Marketing/privacy/store; 26.7 | 1 | 0 | 1 |
 | JRN-16 HR/payroll | deferred - outside both | Qualified HR/payroll owner; 26.8 | 0 | 0 | 0 |
 | JRN-17 assets | deferred - outside both | Fixed-asset accountant; Stage 37 | 0 | 0 | 0 |
 | JRN-18 expenses | deferred - outside both | Finance/employee owner; existing expenses scope | 0 | 0 | 0 |
@@ -33,12 +33,12 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 0 | 0 | 0 |
 | JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 7 | 0 | 0 |
 | JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 37 | 2 | 34 |
-| JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 6 | 0 | 6 |
-| Cross-journey acceptance and audits | - | - | 38 | 2 | 28 |
-| Engineering housekeeping | - | - | 3 | 1 | 1 |
-| Unmapped - place these stages | - | - | 27 | 5 | 13 |
+| JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 5 | 0 | 5 |
+| Cross-journey acceptance and audits | - | - | 39 | 2 | 28 |
+| Engineering housekeeping | - | - | 1 | 0 | 1 |
+| Unmapped - place these stages | - | - | 39 | 4 | 13 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (3), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 232 (1), Stage 234 (2) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (2), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 232 (1), Stage 234 (1), Stage 249 (1), Stage 251 (3), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (4), Stage 265 (3) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -46,7 +46,6 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 - **102.1.2** Camera scanning *(blocked)*
 - **102.1.3** Push alerts *(blocked)*
 - **102.5.2** Real phones *(blocked)*
-- **31.1.8** Live verification against a real QZ Tray and a real printer — partially closed 2026-0... *(blocked)*
 - **31.1.9** Replace QZ Tray with our own lightweight agent (PrintBridge) — Windows deployable; ma... *(decision)*
 
 ## JRN-02 OMS/order-to-cash
@@ -78,7 +77,6 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 ## JRN-15 CRM/loyalty
 
 - **101.3.1** Senders *(blocked)*
-- **131.2** Settings → Platform → Data Console does nothing on live *(blocked)*
 
 ## JRN-21 platform/integrations
 
@@ -133,7 +131,6 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 ## JRN-23 knowledge/implementation
 
 - **91.4** Run it on app.wholeops.in and minn.wholeops.in *(blocked)*
-- **124.1** PO setup guide *(blocked)*
 - **48.6** Security, privacy, compliance and legal document set *(blocked)*
 - **48.6.6** Legal document register *(blocked)*
 - **48.11** Documentation CI, health reporting and completion gate *(blocked)*
@@ -142,6 +139,7 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 ## Cross-journey acceptance and audits
 
 - **55.11** PIM/catalog *(blocked)*
+- **73.B.7** Inventory row → Movements link
 - **73.B.11** Physical RF acceptance *(blocked)*
 - **55.9** OMS/marketplace/delivery *(blocked)*
 - **55.10** Finance/close *(blocked)*
@@ -182,14 +180,13 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 
 ## Engineering housekeeping
 
-- **132.9** Guide learns the whole ERP
-- **132.12** Guide expert in every module's setup and inside each module, and the help manual *(decision)*
 - **132.4** Whole ERP, every screen and form, each role; production read-only pass when the user says *(blocked)*
 
 ## Unmapped
 
 - **146.5.12** Typed product relationships *(blocked)*
 - **146.3.9** Weighing scale at pack *(blocked)*
+- **264.4** Settle / Pay on a foreign-currency invoice cannot say when the money moved or at what rate
 - **176.7** Finite capacity scheduling *(blocked)*
 - **143.6** Barcode print sorted: select the GRN and print *(blocked)*
 - **154.2** Fix: roll held straight, then Printer preset on Jewellery *(blocked)*
@@ -199,6 +196,12 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 - **203.1** Print asks once to install PrintBridge
 - **203.6** Code-signing certificate, so Windows does not warn at the first download
 - **212.1** "Did not print" in seconds when PrintBridge is down
+- **249.1** A print to an unplugged printer says "printed", then comes out later
+- **251.1** Fix alignment from a photo
+- **251.2** The first print on a printer asks how it came out
+- **251.3** Crack the owner's LD0801 with it
+- **255.1** Fix from photo: the photo stays in its box and the result is never off screen
+- **258.5** PrintBridge and QZ Tray on one computer
 - **213.1** Change the print for this one document before it prints
 - **213.5** One switch maps the rest *(decision)*
 - **146.5.1** Shopify gets the approved PIM content *(blocked)*
@@ -207,11 +210,16 @@ BLD-002: the 140 open checklist items reconciled into the business journeys they
 - **185.3** Razorpay payment links *(blocked)*
 - **162.17** MFA tiers: when to require? *(decision)*
 - **162.16** Cross-origin write check: when to enforce? *(decision)*
-- **162.5** Meet the browser and server budgets *(decision)*
-- **234.5** Phone LCP: a smaller first-load app.js
 - **177.3** Deploy waits for the GitHub run *(blocked)*
 - **177.5** The click's own gates must take about a minute *(blocked)*
 - **232.1** ci.yml on main is still red after 177.4
 - **234.6** G4 does not bump `theme-boot.js?v=`
+- **264.3** G7 stops on what ci.yml's `doclint -strict` stops on
+- **265.1** Cold core back under its budget
+- **265.2** G4d accepts an agent bump not committed yet
+- **265.3** Release and deploy everything not held to app and minn
+- **254.1** Guide presses Sign In itself when Edge filled the saved login
 - **214.1** Guide `journey`: the whole store journey, watched and recorded at human speed
 - **143.3** The same file on minn *(decision)*
+- **264.1** Twelve KB pages past their review date turn ci.yml red
+- **264.2** `ai_handover.md` is over its 150-line budget again

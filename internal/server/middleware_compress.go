@@ -171,7 +171,7 @@ func compressResponses(next http.Handler) http.Handler {
 // deploy changes the version, so the browser requests a different URL rather
 // than being stuck with a stale file. Before this, every asset was revalidated
 // on every navigation - a round trip each for app.js, styles.css, db.js,
-// the typeahead component and qz-print.js, just to be told "not modified".
+// the typeahead component and print-agent.js, just to be told "not modified".
 //
 // index.html itself is deliberately excluded: it is the document that carries
 // the version numbers, so it must always be re-fetched or a deploy would never

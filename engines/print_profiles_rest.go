@@ -435,7 +435,7 @@ func printFailures(tenantID string, p map[string]string) ([]map[string]interface
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT printed_at, COALESCE(txn, job_type), COALESCE(doc_number, document_ref, ''), COALESCE(qz_printer_name, printer_code, ''),
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT printed_at, COALESCE(txn, job_type), COALESCE(doc_number, document_ref, ''), COALESCE(os_printer_name, qz_printer_name, printer_code, ''),
 		COALESCE(outcome, status), COALESCE(error_detail, ''), COALESCE(printed_by, '')
 		FROM %s.print_job_log WHERE (status IN ('Failed', 'Error') OR outcome IN ('Unknown', 'Failed') OR COALESCE(error_detail, '') <> '')
 		  AND ($1 = '' OR printed_at >= $1::date) AND ($2 = '' OR printed_at < $2::date + 1)

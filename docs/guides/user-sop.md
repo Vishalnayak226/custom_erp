@@ -280,8 +280,8 @@ Reached via the **Sales & Marketplace** flyout → **Marketplace**. Two independ
 
 ### 13.2 Logistics Bookings
 
-1. Under **Logistics Bookings**, click **+ Book Shipment**. Fill in **Order ID**, **Destination Pincode**, **Carrier** (blank = picked automatically from the pincode), **Tracking Number** (optional), and **Shipping Charge**.
-2. Click **Book**. You're back on the Logistics Bookings list with the booking on it. (**Manifests** works the same way: **+ Generate Manifest**, courier and location, **Generate Manifest**.)
+1. A booking is made on **OMS → Ship**, under **Book the courier**: check the **Pincode**, leave **Courier** blank for the first one that serves it (or type one), and click **Book**. **Pack, bill and label** on **OMS → Pack** books it too, and an order's **Book shipment** opens Ship on that order. The Logistics Booking list has no **New**: a booking typed on a form would skip the pincode check, the AWB and the packed task.
+2. The booking moves to **Booked - make the manifest** with its AWB. **Make manifest** groups the booked parcels by courier and store (user guide §9A.11).
 
 ---
 

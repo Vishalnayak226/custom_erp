@@ -125,7 +125,9 @@ func StoreAppCreateOrder(tenantID, userID, username, store string, in StoreAppOr
 	}
 	if schema, err := db.GetTenantSchema(tenantID); err == nil {
 		patch, _ := json.Marshal(map[string]interface{}{"booked_at_store": store, "booked_by": by, "store_app_note": note})
-		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $2::jsonb WHERE doctype = 'SalesOrder' AND id = $1`, schema), orderID, patch)
+		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $2::jsonb WHERE doctype = 'SalesOrder' AND id = $1`, schema), orderID, patch); err != nil {
+			LogSystemError(tenantID, "", "WARN", "StoreAppCreateOrder", fmt.Sprintf("order %s booked, but its store and note were not kept: %v", orderID, err), "") // 252.1
+		}
 	}
 	LogAuditEvent(tenantID, by, "STORE_APP_ORDER", "CREATED", fmt.Sprintf("Order %s booked at %s for home delivery (%d line(s))", orderID, store, len(lines)))
 	return storeAppOrderResult(tenantID, orderID, false)

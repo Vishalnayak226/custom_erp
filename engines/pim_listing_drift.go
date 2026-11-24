@@ -140,7 +140,7 @@ func init() {
 			{Key: "listing", Label: "Listing"},
 			{Key: "master", Label: "Item master"},
 		},
-		Params: []ReportParam{{Key: "channel", Label: "Channel", Type: "text"}},
+		Params: []ReportParam{{Key: "channel", Label: "Channel", Type: "text", Required: true}}, // 245.2: asked before the run
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			rows, err := ChannelDrift(tenantID, params["channel"])
 			if err != nil {

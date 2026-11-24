@@ -80,8 +80,23 @@ func scopeValueExpr(fields []string) string {
 
 // madeOnOwnScreen names the doctypes handleGenericDoc refuses to write - each
 // is made by its own screen. GET /api/v1/me/permissions sends it so no list or
-// picker offers New for them (132.10 h).
-var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim", "CustomOrderQuote", "CarrierClaim"}
+// picker offers New for them (132.10 h). 245.4: the last three are never
+// made by a person on a form - a user create or move files the first, a
+// removal request the second, and the third is only a permission row - and
+// their generic save always failed (an unknown User link, no form fields).
+// 246.4: a courier booking is made by Book on OMS ▸ Ship, which checks the
+// pincode, takes the AWB and links the packed task; one typed on the form
+// had none of that.
+var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim", "CustomOrderQuote", "CarrierClaim",
+	"AccessChangeRequest", "ClientDataRemoval", engines.DocumentReprintDoctype, "LogisticsBooking"}
+
+// journalVoucherSaveAllowed is 57.26(c)'s rule: a journal voucher is a
+// finance posting, saved only by a full-access role or one holding
+// finance.post. GET /api/v1/me/permissions uses it too, so a role whose seed
+// grant says create is not offered a New it cannot save (245.5).
+func journalVoucherSaveAllowed(role string) bool {
+	return engines.HasFullAccess(role) || engines.RoleHasCapability(role, "finance.post")
+}
 
 func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -1138,7 +1153,7 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 		// 57.26(c): a journal voucher is a finance posting. Its own route
 		// already needs finance.post (140.12.9); the generic save asked only
 		// for the doctype grant, which the shipped seed gives a Store Manager.
-		if doctype == "JournalVoucher" && !engines.HasFullAccess(role) && !engines.RoleHasCapability(role, "finance.post") {
+		if doctype == "JournalVoucher" && !journalVoucherSaveAllowed(role) {
 			writeAPIErrorDetail(w, r, "GLOBAL-0011", "", "Journal vouchers are saved by a finance role.")
 			return
 		}

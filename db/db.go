@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -19,8 +21,11 @@ var DB *sql.DB
 // Sized for this app's current single-process/single-Postgres-instance scale
 // (ai_handover.md §1), not a distributed deployment - revisit if that changes.
 const (
-	dbMaxOpenConns    = 50
-	dbMaxIdleConns    = 10
+	dbMaxOpenConns = 50
+	// 248.4: 25 idle, not 10, so the connections a burst opens (BLD-029
+	// measured all 50 in use) are kept for the next burst instead of closed
+	// and opened again. dbConnMaxIdleTime still closes them after a quiet spell.
+	dbMaxIdleConns    = 25
 	dbConnMaxLifetime = 30 * time.Minute
 	dbConnMaxIdleTime = 5 * time.Minute
 )
@@ -56,6 +61,10 @@ func InitDB(connStr string) {
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
+	// A new pool may point at another database, so its clients are looked up afresh.
+	tenantSchemaMu.Lock()
+	tenantSchemaCache = map[string]tenantSchemaEntry{}
+	tenantSchemaMu.Unlock()
 	DB.SetMaxOpenConns(dbMaxOpenConns)
 	DB.SetMaxIdleConns(dbMaxIdleConns)
 	DB.SetConnMaxLifetime(dbConnMaxLifetime)
@@ -144,6 +153,15 @@ func GetTenantSchema(tenantID string) (string, error) {
 	if tenantID == "" || tenantID == "default" {
 		return "tenant_default", nil
 	}
+	ttl := tenantSchemaCacheTTL()
+	if ttl > 0 {
+		tenantSchemaMu.RLock()
+		e, ok := tenantSchemaCache[tenantID]
+		tenantSchemaMu.RUnlock()
+		if ok && time.Since(e.fetchedAt) < ttl {
+			return e.schema, nil
+		}
+	}
 	var schemaName string
 	err := DB.QueryRow("SELECT schema_name FROM public.tenants WHERE tenant_id = $1", tenantID).Scan(&schemaName)
 	if err == sql.ErrNoRows {
@@ -154,7 +172,64 @@ func GetTenantSchema(tenantID string) (string, error) {
 	if !validSchemaNameRe.MatchString(schemaName) {
 		return "", fmt.Errorf("resolved schema name %q is not a valid identifier", schemaName)
 	}
+	if ttl > 0 {
+		tenantSchemaMu.Lock()
+		if len(tenantSchemaCache) >= tenantSchemaCacheMaxEntries {
+			tenantSchemaCache = map[string]tenantSchemaEntry{}
+		}
+		tenantSchemaCache[tenantID] = tenantSchemaEntry{schema: schemaName, fetchedAt: time.Now()}
+		tenantSchemaMu.Unlock()
+	}
 	return schemaName, nil
+}
+
+// 248.1: GetTenantSchema runs on nearly every request, often several times
+// (the middleware's settings, the module checks, each GetSetting), and each
+// call used to be a query on public.tenants. A client's schema name is set when
+// it is provisioned and does not change while its row exists, so a cached name
+// goes stale only when the client is removed. Every removal path forgets it
+// through ForgetTenantSchema (engines.InvalidateTenantLifecycleCache calls it).
+// An entry also expires after AUTH_STATE_CACHE_SECONDS (default 30; 0 turns
+// the cache off), the window the sign-in live-state cache already uses. An
+// unknown id or a failed lookup is never cached, so a new client resolves at once.
+type tenantSchemaEntry struct {
+	schema    string
+	fetchedAt time.Time
+}
+
+var (
+	tenantSchemaMu    sync.RWMutex
+	tenantSchemaCache = map[string]tenantSchemaEntry{}
+)
+
+// tenantSchemaCacheMaxEntries bounds the map; on overflow it is dropped whole,
+// as the live-state caches do.
+const tenantSchemaCacheMaxEntries = 10000
+
+func tenantSchemaCacheTTL() time.Duration {
+	if v := os.Getenv("AUTH_STATE_CACHE_SECONDS"); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	return 30 * time.Second
+}
+
+// ForgetTenantSchema drops a client's cached schema name, so a purge, delete
+// or re-provision is seen on the very next call.
+func ForgetTenantSchema(tenantID string) {
+	tenantSchemaMu.Lock()
+	delete(tenantSchemaCache, tenantID)
+	tenantSchemaMu.Unlock()
+}
+
+// TenantSchemaCached reports whether this process still holds a schema name
+// for a client. Used by the post-purge residue proof.
+func TenantSchemaCached(tenantID string) bool {
+	tenantSchemaMu.RLock()
+	_, ok := tenantSchemaCache[tenantID]
+	tenantSchemaMu.RUnlock()
+	return ok
 }
 
 // SetSearchPath scopes database queries to the tenant's schema within a transaction

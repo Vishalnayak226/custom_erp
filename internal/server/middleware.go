@@ -832,20 +832,21 @@ func securityHeaders(next http.Handler) http.Handler {
 		// found via a live browser check (CSP was silently blocking every
 		// media thumbnail/preview in the gallery until this was added).
 		"img-src 'self' data: blob:; " +
-		// QZ Tray (Stage 31.1) is a local WebSocket bridge, not a third-party
-		// service - both hosts are loopback (localhost.qz.io is a public DNS
-		// name that resolves to 127.0.0.1, per public/qz-print.js's own
-		// comment; used only so an https:// page gets a certificate QZ Tray
+		// The print agent (PrintBridge, Stage 31.1; it speaks the QZ Tray
+		// protocol) is a local WebSocket bridge, not a third-party service -
+		// both hosts are loopback (localhost.qz.io is the protocol's public DNS
+		// name that resolves to 127.0.0.1, per public/print-agent.js's own
+		// comment; used only so an https:// page gets a certificate the agent
 		// can present for a loopback socket). Found by a live browser check,
 		// the same way as the img-src exception above: without this,
-		// `connect-src 'self'` silently blocked all 8 of QZ Tray's candidate
+		// `connect-src 'self'` silently blocked all 8 of the agent's candidate
 		// ports and one-click printing fell back to the browser dialog on
 		// every single job, with no visible error anywhere. 203.2 made the
 		// plain socket 127.0.0.1 (the agent listens there only), which
 		// `localhost` does not match in CSP, so both names are allowed (193).
 		"connect-src 'self' ws://localhost:* ws://127.0.0.1:* wss://localhost.qz.io:*; " +
 		// Stage 137.5: a hidden frame opens printbridge://wake to start
-		// PrintBridge when it is not answering (public/qz-print.js). Only
+		// PrintBridge when it is not answering (public/print-agent.js). Only
 		// that scheme; a frame of any other site stays refused.
 		"frame-src 'self' printbridge:; " +
 		"object-src 'none'; " +

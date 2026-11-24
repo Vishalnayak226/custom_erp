@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -329,8 +330,24 @@ func TestServiceSLAStampsDueTimesAndEscalatesOnce(t *testing.T) {
 	if _, err := parseServiceSLAHours("Low=0"); err == nil {
 		t.Fatal("zero hours must be refused")
 	}
-	if h := settingChangeHooks[SettingServiceSLAEscalateTo]; h == nil || h("", "", "someone", "") == nil {
-		t.Fatal("a bad escalation target must be refused")
+	// 245.11: the settings screen's whole-batch check (ValidateSetting, run
+	// before anything is written) refuses each bad value as a ValidationError,
+	// which the handler answers with a 422 - not a 500 from mid-save.
+	for _, c := range []struct{ key, value string }{
+		{SettingServiceSLAEscalateTo, "someone"},
+		{SettingServiceSLAResponse, "Low=24,Medium=8,High=4,Critical=1-x"},
+		{SettingServiceSLAResolution, "Low=72;High=8"},
+	} {
+		var ve *ValidationError
+		if err := ValidateSetting(c.key, c.value); !errors.As(err, &ve) {
+			t.Fatalf("%s=%q: want a ValidationError before saving, got %v", c.key, c.value, err)
+		}
+	}
+	if err := ValidateSetting(SettingServiceSLAResponse, "Low=24,Medium=8,High=4,Critical=1"); err != nil {
+		t.Fatalf("a good value is refused: %v", err)
+	}
+	if err := SetSetting(f.tenantID, SettingServiceSLAResponse, "Critical=0", "test"); err == nil {
+		t.Fatal("SetSetting stored zero hours")
 	}
 }
 

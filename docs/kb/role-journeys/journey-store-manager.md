@@ -4,7 +4,7 @@ section: Role Journeys
 order: 3
 summary: Morning queues, approvals, stock that needs ordering, and the four checks worth making before you close.
 audience: store manager
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [reports, oms, approvals, inventory, purchase-orders, grn, pos, transfers]
 doc_id: DOC-7810824C4A
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -32,17 +32,19 @@ manager can decide.
 
 ## Morning: clear what is blocked
 
-Start on **Reports** - it is where you land at sign-in, and its first tab is a
-dashboard of live figures. Then work the queues in this order, because each one
-feeds the next.
+Start on **Home** - it is where you land at sign-in. It says how many documents
+are waiting on you and links to the screens your role uses; **Reports »
+Dashboard** has the live figures. Then work the queues in this order, because
+each one feeds the next.
 
 **1. Approvals.** **Financial Accounting » Approvals** lists everything waiting
 on you: purchase orders, large manual discounts from the till, anything else
 your business has put behind a rule. An approval you leave sitting is a purchase
 that is not happening and a sale that has not been charged.
 
-You cannot approve your own document. If Approve is missing on something you
-raised, that is the rule working.
+Whether you may approve a document you raised yourself is your
+administrator's choice (**Settings » Configuration » Security**). If Approve is
+missing on something you raised, that is the rule working.
 
 **2. Orders on hold.** **OMS » Orders**, filter
 **Status = On Hold**. Every dropdown shows a count, so you can see the size of
@@ -57,23 +59,23 @@ means "you are out of stock and do not know it yet".
 
 ## Keeping stock ahead of demand
 
-**Check what you have.** **Stock » Inventory**, search by name or code. The
+**Check what you have.** **Inventory » Stock on Hand**, search by name or code. The
 figure you care about is what is *free to sell* - it already accounts for stock
 promised to other orders, so it is not a raw warehouse count.
 
-**Order more.** **Procurement » Purchase Order**: pick the vendor, target
-warehouse and location, add lines with quantity and rate, **Create Draft**, then
-**Submit for Approval**. You do not type a PO number; it is issued on save.
+**Order more.** **Procurement » Purchase Order**, then a new one: pick the
+vendor (the order is for the store in the top bar), add lines with quantity and
+rate, **Create Draft**, then **Submit for Approval**. You do not type a PO number; it is issued on save.
 
 Prices, HSN and tax on each line are resolved by the server from the Item
 master, so you cannot accidentally order at a tax classification that disagrees
 with the product. A line that errors usually means the item is missing its HSN
 code.
 
-**Receive it.** **Procurement » Goods Receipt** » **+ New Goods Receipt**, pick
+**Receive it.** **Procurement » Goods Receipt** » **New Goods Receipt**, pick
 the vendor and tick the PO, confirm what actually arrived and the invoice, **Save
 receipt**, then Verify, Check prices and **Save and post** (or **Post all**). Then
-check **Inventory** moved.
+check **Stock on Hand** moved.
 Receiving is the step that turns a purchase into sellable stock, and a receipt
 that was never posted is the most common cause of "we definitely have that in
 the back".
@@ -92,8 +94,8 @@ the back".
 
 ## Taking an order by hand
 
-Phone orders, wholesale walk-ins and replacements go in through **Order
-Management » New manual order**. Shipping address is required; customer name and
+Phone orders, wholesale walk-ins and replacements go in through **OMS »
+Orders » New manual order**. Shipping address is required; customer name and
 phone are optional but are what make the order findable later.
 
 Put your own order number in **Reference**. The same reference twice returns the
@@ -122,7 +124,7 @@ private to you.
 | Sessions closed | **POS » POS / Billing** | No session left open overnight |
 | Today's sales | **Reports » Sales Register** | The day's total matches the till |
 | Nothing stuck | **OMS → Orders**, filter On Hold | Ideally empty |
-| Receipts posted | **Stock » Inventory** | Today's deliveries actually raised stock |
+| Receipts posted | **Inventory » Stock on Hand** | Today's deliveries actually raised stock |
 
 ## Next
 

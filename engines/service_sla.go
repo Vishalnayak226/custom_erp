@@ -56,13 +56,16 @@ func init() {
 		Label: "Escalate late tickets to", Type: SettingTypeString, Default: "",
 		Description: "Ask 170.34: user:<user id> reassigns a late ticket to that user; role:<role name> tells that role. Blank: the ticket is flagged and audited only.",
 	})
+	// 245.11: plain value checks, so the settings screen's whole-batch check
+	// refuses a bad value (422) before anything is written; as change hooks
+	// they ran mid-save and a typo came back as a 500.
 	for _, k := range []string{SettingServiceSLAResponse, SettingServiceSLAResolution} {
-		settingChangeHooks[k] = func(tenantID, from, to, by string) error {
+		settingValidators[k] = func(to string) error {
 			_, err := parseServiceSLAHours(to)
 			return err
 		}
 	}
-	settingChangeHooks[SettingServiceSLAEscalateTo] = func(tenantID, from, to, by string) error {
+	settingValidators[SettingServiceSLAEscalateTo] = func(to string) error {
 		to = strings.TrimSpace(to)
 		if to != "" && !strings.HasPrefix(to, "user:") && !strings.HasPrefix(to, "role:") {
 			return &ValidationError{Code: serviceSLACode, Message: "Write the target as user:<id> or role:<name>."}

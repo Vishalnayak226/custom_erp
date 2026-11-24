@@ -299,11 +299,11 @@ func TestStage4988DNSFailureSendsNothingAndAllowsTheNextTry(t *testing.T) {
 // with its reason.
 func TestStage4988PrinterUnavailableIsNotOfferedAndAFailureIsLogged(t *testing.T) {
 	schema, _, _ := fm4988Setup(t)
-	raw, _ := json.Marshal(map[string]interface{}{"code": "TEST-FM4988-PRN", "name": "Down", "qz_printer_name": "Zebra", "print_role": "Shipping Label", "status": "Inactive"})
+	raw, _ := json.Marshal(map[string]interface{}{"code": "TEST-FM4988-PRN", "name": "Down", "os_printer_name": "Zebra", "print_role": "Shipping Label", "status": "Inactive"})
 	if _, err := db.DB.Exec(`INSERT INTO `+schema+`.documents (id,doctype,data,status,created_by) VALUES ('TEST-FM4988-PRN','Printer',$1,'Inactive','system')`, raw); err != nil {
 		t.Fatal(err)
 	}
-	printers, err := ListQZPrinters("default")
+	printers, err := ListAgentPrinters("default")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -64,7 +64,9 @@ func CreateLoadingTask(tenantID, dockDoor, trailerNo, manifestID string, expecte
 	}
 	LogAuditEvent(tenantID, userID, "WMS_LOADING_TASK_CREATE", "SUCCESS", fmt.Sprintf("Opened loading task %s: door %s, trailer %s", taskID, dockDoor, trailerNo))
 	// Stage 130.13 (80.7 h): the trailer's outbound appointment follows the load.
-	linkOutboundAppointmentToLoad(schema, taskID, trailerNo)
+	if err := linkOutboundAppointmentToLoad(schema, taskID, trailerNo); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "CreateLoadingTask", fmt.Sprintf("load %s opened, but trailer %s's appointment was not linked: %v", taskID, trailerNo, err), "")
+	}
 	return taskID, nil
 }
 

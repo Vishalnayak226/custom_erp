@@ -125,6 +125,7 @@
         "public/shell-steady.*",
         "public/config.css",
         "public/shortcut-codes.json",
+        "public/pin-directory.json",
         "public/theme-boot.js"
       ]
     },
@@ -646,7 +647,7 @@
       "id": "wms",
       "lobe": "business",
       "name": "Warehouse Management (WMS)",
-      "role": "Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity tracking and robotics hooks — the enterprise warehouse tier on top of plain inventory. Stage 42.1 adds the traceability foundation: per-item batch/serial tracking flags and shelf-life rules, the Batch master, a bin_stock_batch sub-ledger that breaks bin stock down by lot the same way bin_stock breaks down inventory_availability, batch capture at receipt, FEFO allocation behind one AllocateFromStock choke point both pick-list generators call, the expiry and hold gates that filter it, and recall traceability as reports read off the batch-stamped stock ledger. 42.1.8 adds the serial half (42.D3: batch and serial, not batch-only) — the SerialNumber register, one document per physical unit rather than a further bin_stock breakdown, capture at receipt/putaway/allocate/ship/return/scrap through one TransitionSerialStatus choke point, a reserved_for check that makes 'verify at pack' a real order-identity check, and the same stock-ledger-as-history pattern for serial-inquiry/serial-movement-history. 42.1.7 adds outbound lottable validation (the LottableConstraint master + ValidateLotForCustomer). 42.1.10 adds UOM conversion (the UOM/UOMConversion masters + the ConvertUOMQty choke point, wired into cartonization/pick-UoM-display/3PL billing units). 42.1.11 adds a hand-rolled Code 128 encoder + SVG renderer, closing the browser-print fallback's plain-text 'barcode' gap (the QZ Tray silent-print path already had a real one via ZPL's native ^BC command). Phase 42.2 (the task spine) adds the WarehouseTask doctype - one object every floor action emits into - with TransitionWarehouseTaskStatus as its lifecycle choke point, and retrofits PutawayToBin/ExecuteBinReplenishment/CrossDockPutaway/PostCycleCountAdjustment/ScanPickItem to additively log a Completed task via LogCompletedWarehouseTask.",
+      "role": "Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity tracking and robotics hooks — the enterprise warehouse tier on top of plain inventory. Stage 42.1 adds the traceability foundation: per-item batch/serial tracking flags and shelf-life rules, the Batch master, a bin_stock_batch sub-ledger that breaks bin stock down by lot the same way bin_stock breaks down inventory_availability, batch capture at receipt, FEFO allocation behind one AllocateFromStock choke point both pick-list generators call, the expiry and hold gates that filter it, and recall traceability as reports read off the batch-stamped stock ledger. 42.1.8 adds the serial half (42.D3: batch and serial, not batch-only) — the SerialNumber register, one document per physical unit rather than a further bin_stock breakdown, capture at receipt/putaway/allocate/ship/return/scrap through one TransitionSerialStatus choke point, a reserved_for check that makes 'verify at pack' a real order-identity check, and the same stock-ledger-as-history pattern for serial-inquiry/serial-movement-history. 42.1.7 adds outbound lottable validation (the LottableConstraint master + ValidateLotForCustomer). 42.1.10 adds UOM conversion (the UOM/UOMConversion masters + the ConvertUOMQty choke point, wired into cartonization/pick-UoM-display/3PL billing units). 42.1.11 adds a hand-rolled Code 128 encoder + SVG renderer, closing the browser-print fallback's plain-text 'barcode' gap (the PrintBridge silent-print path already had a real one via ZPL's native ^BC command). Phase 42.2 (the task spine) adds the WarehouseTask doctype - one object every floor action emits into - with TransitionWarehouseTaskStatus as its lifecycle choke point, and retrofits PutawayToBin/ExecuteBinReplenishment/CrossDockPutaway/PostCycleCountAdjustment/ScanPickItem to additively log a Completed task via LogCompletedWarehouseTask.",
       "match": [
         "engines/wms*.go",
         "engines/bin_generator.go",
@@ -1031,14 +1032,14 @@
     {
       "id": "printing",
       "lobe": "peripheral",
-      "name": "Device Printing (QZ Tray)",
-      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio. Stage 98: every print's lines as CSV / Excel, the print as a PDF made in the browser, the PDF emailed to the other party, and each computer's own printer per kind of print (chosen once, kept on the server). Stage 88.4: one Templates page, module by module. Stage 137: each printer's sticker preset (the roll loaded wins over template rules; shift, darkness, speed; Test alignment, Calibrate roll), and the PrintBridge installer the ERP serves, with the printbridge: wake link.",
+      "name": "Device Printing (PrintBridge)",
+      "role": "Silent one-click printing to named OS printers via PrintBridge, the print agent on each packing PC (it speaks the QZ Tray protocol). RSA request signing (the agent verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio. Stage 98: every print's lines as CSV / Excel, the print as a PDF made in the browser, the PDF emailed to the other party, and each computer's own printer per kind of print (chosen once, kept on the server). Stage 88.4: one Templates page, module by module. Stage 137: each printer's sticker preset (the roll loaded wins over template rules; shift, darkness, speed; Test alignment, Calibrate roll), and the PrintBridge installer the ERP serves, with the printbridge: wake link.",
       "match": [
-        "engines/qz_*.go",
+        "engines/print_agent*.go",
         "engines/sticker_printer_preset.go",
-        "internal/server/handlers_qz_*.go",
-        "public/qz-print.js",
-        "public/qz-print-flow.js",
+        "internal/server/handlers_print_agent.go",
+        "public/print-agent.js",
+        "public/print-agent-flow.js",
         "public/downloads/*",
         "public/sticker-engine.js",
         "public/sticker-studio.js",
@@ -1049,6 +1050,9 @@
         "public/templates-page.js",
         "public/print-pdf.js",
         "public/print-routing.js",
+        "public/print-align.js",
+        "public/print-align.test.mjs",
+        "public/print-check.js",
         "engines/print_documents.go",
         "engines/print_generic.go",
         "engines/print_history.go",
@@ -1060,7 +1064,7 @@
         "engines/printer_choice.go",
         "engines/document_mail.go",
         "engines/xlsx_writer.go",
-        "cmd/qzcert/**",
+        "cmd/printcert/**",
         "engines/print_issue.go",
         "engines/print_profiles_rest.go",
         "engines/print_shapes_more.go"

@@ -2053,7 +2053,7 @@ pre {
 }
 
 /* Invoice print sheet (Stage 31.1.9) - the browser fallback for the Sales
-   Invoice "Print" button when QZ Tray is not available. Laid out for A4
+   Invoice "Print" button when PrintBridge is not available. Laid out for A4
    rather than a receipt roll, which is the one thing that differs from
    .receipt above. */
 .invoice-sheet {
@@ -3272,6 +3272,10 @@ html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar > :n
 @media (min-width: 821px) {
   html[data-boot~="nav-hidden"] #login-screen.hidden ~ #app-root.hidden .sidebar { display: none; }
   html[data-boot~="nav-hidden"] #login-screen.hidden ~ #app-root.hidden .header-brand { display: inline-flex; }
+}
+/* 234.5: phone menu logo waits for the app */
+@media (max-width: 820px) {
+  html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden .sidebar .brand-logo { display: none; }
 }
 
 .nav-scrim {

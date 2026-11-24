@@ -316,7 +316,7 @@
 .s-66c58d.s-66c58d.s-66c58d { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
 .s-674ad6.s-674ad6.s-674ad6 { width: 210mm; max-width: 100%; margin: 0 auto; box-sizing: border-box; padding: 10mm; background: #fff; color: #000; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .s-6750b2.s-6750b2.s-6750b2 { font-size:12.5px; }
-.s-6792e0.s-6792e0.s-6792e0 { padding:0 16px 16px; display:grid; gap:12px; }
+.s-6792e0.s-6792e0.s-6792e0 { padding:0 16px 16px; display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; } /* 245.7: a wide table scrolls in its wrapper, not the page */
 .s-686bb2.s-686bb2.s-686bb2 { margin-bottom: 0; min-width: 260px; }
 .s-6945e1.s-6945e1.s-6945e1 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .s-69ab4f.s-69ab4f.s-69ab4f { width:90px; text-transform:uppercase; }
@@ -1191,6 +1191,11 @@
 .vp-slip hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
 /* 185.1: the till's UPI QR for the bill amount. */
 #pos-upi-qr { max-width: 220px; margin: 0 auto 10px; }
+/* 245.9: fields in these tables keep a usable width; a narrow window scrolls the table instead. */
+#loy-tiers .form-input { min-width: 88px; }
+#loy-tiers .form-input[data-f=benefits] { min-width: 180px; }
+#stockloc-txns select.form-input { min-width: 140px; }
+#stockloc-txns .txn-hint { min-width: 160px; }
 
 /* 49.4.3: classes that replaced run-time inline style attributes. */
 .u-fw5 { font-weight: 500; }
@@ -1216,6 +1221,8 @@
 .u-hint-bad { padding: 10px 12px; border-radius: 6px; background: var(--danger-soft-bg); color: var(--danger-strong); }
 .rc-sm { padding: 2px 8px; font-size: 12px; }
 .hr-bar { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding: 12px 16px; }
+/* 245.12: "Enrol selected (12)" fits from the start, so ticking a row never widens or wraps it (200.2). */
+#hr-trn-bulk { min-width: 160px; justify-content: center; font-variant-numeric: tabular-nums; }
 .hr-muted { color: var(--text-muted); font-size: 13px; }
 .hr-pad { padding: 0 16px 12px; }
 .hr-mt8 { margin-top: 8px; }

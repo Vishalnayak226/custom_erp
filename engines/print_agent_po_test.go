@@ -43,7 +43,7 @@ func samplePOPrint(status string) POPrint {
 }
 
 func TestRenderPurchaseOrderPayloadHTMLMarksDraftAndCarriesTotals(t *testing.T) {
-	draft := renderPurchaseOrderPayload(samplePOPrint("Draft"), QZPrinter{Language: "PDF"})
+	draft := renderPurchaseOrderPayload(samplePOPrint("Draft"), AgentPrinter{Language: "PDF"})
 	if draft.Format != "HTML" || len(draft.Items) != 1 {
 		t.Fatalf("expected a single HTML item, got %+v", draft)
 	}
@@ -56,7 +56,7 @@ func TestRenderPurchaseOrderPayloadHTMLMarksDraftAndCarriesTotals(t *testing.T) 
 		}
 	}
 
-	approved := renderPurchaseOrderPayload(samplePOPrint("Approved"), QZPrinter{Language: "PDF"})
+	approved := renderPurchaseOrderPayload(samplePOPrint("Approved"), AgentPrinter{Language: "PDF"})
 	if strings.Contains(approved.Items[0].Data, "DRAFT") {
 		t.Fatal("an Approved PO was marked DRAFT")
 	}
@@ -65,7 +65,7 @@ func TestRenderPurchaseOrderPayloadHTMLMarksDraftAndCarriesTotals(t *testing.T) 
 func TestRenderPurchaseOrderPayloadHTMLSplitsCGSTSGSTWhenNotInterstate(t *testing.T) {
 	po := samplePOPrint("Approved")
 	po.Breakdown = GSTBreakdown{TaxableAmount: 1000, Interstate: false, CGST: 90, SGST: 90, TotalTax: 180, TotalAmount: 1180}
-	payload := renderPurchaseOrderPayload(po, QZPrinter{Language: "PDF"})
+	payload := renderPurchaseOrderPayload(po, AgentPrinter{Language: "PDF"})
 	data := payload.Items[0].Data
 	if !strings.Contains(data, "CGST") || !strings.Contains(data, "SGST") || strings.Contains(data, ">IGST<") {
 		t.Fatalf("intra-state PO should show CGST/SGST, not IGST:\n%s", data)
@@ -73,7 +73,7 @@ func TestRenderPurchaseOrderPayloadHTMLSplitsCGSTSGSTWhenNotInterstate(t *testin
 }
 
 func TestRenderPurchaseOrderPayloadESCPOSIsARawCutCommandStream(t *testing.T) {
-	payload := renderPurchaseOrderPayload(samplePOPrint("Approved"), QZPrinter{Language: "ESC-POS", WidthMM: "58"})
+	payload := renderPurchaseOrderPayload(samplePOPrint("Approved"), AgentPrinter{Language: "ESC-POS", WidthMM: "58"})
 	if payload.Format != "ESC-POS" || len(payload.Items) != 1 {
 		t.Fatalf("expected a single ESC-POS item, got %+v", payload)
 	}
@@ -89,7 +89,7 @@ func TestRenderPurchaseOrderPayloadESCPOSIsARawCutCommandStream(t *testing.T) {
 func TestRenderPurchaseOrderPayloadOmitsWordsWhenAbsent(t *testing.T) {
 	po := samplePOPrint("Approved")
 	po.AmountInWords = ""
-	payload := renderPurchaseOrderPayload(po, QZPrinter{Language: "PDF"})
+	payload := renderPurchaseOrderPayload(po, AgentPrinter{Language: "PDF"})
 	if strings.Contains(payload.Items[0].Data, `class="words"`) {
 		t.Fatal("empty AmountInWords should not render a words block")
 	}

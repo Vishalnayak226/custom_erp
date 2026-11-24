@@ -97,8 +97,14 @@ func loyaltyOnlineOrderDelivered(tenantID, orderID string) error {
 		until = &t
 	}
 	given := 0
+	// 252.1: the order's earn rows commit together.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	for _, r := range plan.Rows {
-		res, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at, pending_until, location, reason)
+		res, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at, pending_until, location, reason)
 			VALUES ($1, 'Earn', $2, $3, $4, $5, $6, NULLIF($7, ''), NULLIF($8, ''))
 			ON CONFLICT (customer_id, reference_id, (COALESCE(reason, ''))) WHERE reference_doctype = 'SalesOrder' AND transaction_type = 'Earn' DO NOTHING`, schema),
 			customerID, r.Points, loyaltyOnlineDoctype, orderID, expires, until, in.Location, r.Reason)
@@ -108,6 +114,9 @@ func loyaltyOnlineOrderDelivered(tenantID, orderID string) error {
 		if n, _ := res.RowsAffected(); n > 0 {
 			given += r.Points
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	if given > 0 {
 		if err := postLoyaltyValue(tenantID, loyaltyOnlineDoctype, orderID, "SalesOrder:"+orderID+":LOYALTY_ACCRUE",

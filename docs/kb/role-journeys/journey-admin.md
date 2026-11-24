@@ -4,7 +4,7 @@ section: Role Journeys
 order: 7
 summary: Set the system up once so it stops needing you, then watch the four things that actually tell you it is healthy.
 audience: admin
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [users, roles, approval-rules, prefix-configs, dynamic-labels, doctype-builder, configuration, audit-logs, system-status, tenant-entitlements, tenant-usage, extension-hooks, extension-hook-log]
 doc_id: DOC-198370F14A
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -46,8 +46,10 @@ retrospectively.
 
 **3. Roles.** **Settings » Roles** grants read, create, update and delete per
 record type. The system fails closed - a record type with no grant row is denied
-to that role rather than allowed by default. Four roles ship: Cashier, Store
-Manager, Super Admin, Supplier. Create more when a real job does not fit one.
+to that role rather than allowed by default. A business starts with Admin, Store
+Manager, Cashier and Supplier. Create more when a real job does not fit one; a
+role named after a shipped template (Picker, Accountant, Merchandiser and the
+rest) starts with that template's access.
 
 The application also *hides* what a role cannot do: no **New** or **Bulk
 Import** button without create, no row **Edit** or **Delete** icons without
@@ -73,7 +75,9 @@ naming exactly what is missing.
 touching the data underneath. Use it when your business calls something by a
 different name; do not use it to repurpose a field for a different meaning.
 
-**Database Schema Design** adds fields and record types. It supports both create
+**Database Schema Design** adds fields and record types. It is one of the
+developer tools only Super Admin (the platform provider) opens, so ask your
+provider for a new field. It supports both create
 and edit, addressed by row - so a typo'd label or a wrong field type is fixed in
 place rather than by deleting and recreating, which would discard that field's
 stored data on every existing document.
@@ -83,21 +87,23 @@ stored data on every existing document.
 > displayed. It is not deleted, and renaming back restores it - but the screen
 > will look empty in the meantime, so do it deliberately.
 
-**Extension Hooks** run your own logic at defined points. **Extension Hook Log**
-shows what they did, which is where to look when a hook is suspected.
+**Extension Hooks** run your own logic at defined points, and **Extension Hook
+Log** shows what they did. Both are developer tools too: your provider sets them
+up and reads the log when a hook is suspected.
 
 ## The daily four
 
 | Check | Screen | Looking for |
 |---|---|---|
-| Is it up and healthy | **System Status** | Anything not green |
+| Did background work finish | **Async Jobs** | A job that failed or is stuck |
 | What happened | **Activity Log** | Unexpected deletions, permission changes, after-hours activity |
 | Is anyone blocked | **Approvals** | Documents waiting on a person who is away |
-| Are we within our plan | **Tenant Usage** | Approaching an entitlement limit before it refuses someone |
+| Are we within our plan | **Subscription** | Usage nearing what the plan includes, before it refuses someone |
 
-**Tenant Entitlements** is what your business has licensed; a module absent from
-everyone's sidebar is usually an entitlement, not a permission, and the two are
-worth telling apart before you go changing roles.
+What your business has licensed follows its plan. A module absent from
+everyone's sidebar is usually not licensed rather than a permission, and the two
+are worth telling apart before you go changing roles. Whether the system itself
+is up and backed up is your provider's check (**System Status**).
 
 ## The requests you will actually get
 
@@ -123,7 +129,7 @@ in step 5.
 - [ ] Raise and approve one document of each approval-gated type, using two
       accounts.
 - [ ] Confirm numbering looks right on a real document of each type.
-- [ ] Check **System Status** is clean and backups are running.
+- [ ] Ask your provider to confirm backups are running.
 - [ ] Walk [Open a shop and make your first
       sale](open-a-shop-and-make-your-first-sale.md) end to end on real data.
 

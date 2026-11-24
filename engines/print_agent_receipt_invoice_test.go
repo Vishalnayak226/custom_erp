@@ -75,6 +75,17 @@ func TestOnlyESCPOSGetsRawReceiptCommands(t *testing.T) {
 	}
 }
 
+func TestEscposWrapKeepsEveryLineOnTheRoll(t *testing.T) {
+	got := escposWrap("Remarks: call 98765 43210 before https://example.com/a-very-long-tracking-link-nobody-breaks", 32)
+	want := "Remarks: call 98765 43210 before\nhttps://example.com/a-very-long-\ntracking-link-nobody-breaks\n"
+	if got != want {
+		t.Fatalf("escposWrap = %q, want %q", got, want)
+	}
+	if escposWrap("   ", 32) != "" {
+		t.Fatal("blank text printed a line")
+	}
+}
+
 // seedPrintableDoc inserts one document straight into the tenant schema. It
 // deliberately does not go through the doctype engine: these tests are about
 // how a stored document prints, and DocType validation rules changing should
@@ -102,8 +113,8 @@ func TestBuildReceiptPayloadFromTheStoredSale(t *testing.T) {
 		t.Fatalf("schema: %v", err)
 	}
 
-	const paidCart = "TEST-QZ-RECEIPT-PAID"
-	const openCart = "TEST-QZ-RECEIPT-OPEN"
+	const paidCart = "TEST-AGENT-RECEIPT-PAID"
+	const openCart = "TEST-AGENT-RECEIPT-OPEN"
 	cleanup := func() {
 		db.DB.Exec("DELETE FROM "+schema+".documents WHERE id IN ($1, $2)", paidCart, openCart)
 	}
@@ -122,7 +133,7 @@ func TestBuildReceiptPayloadFromTheStoredSale(t *testing.T) {
 	}
 	seedPrintableDoc(t, schema, "POSCart", paidCart, cart, "Paid")
 
-	escpos := QZPrinter{Language: "ESC-POS", WidthMM: "80"}
+	escpos := AgentPrinter{Language: "ESC-POS", WidthMM: "80"}
 
 	t.Run("an unpaid cart cannot produce a receipt", func(t *testing.T) {
 		// A receipt is what a customer walks out with. Printing one for a
@@ -139,7 +150,7 @@ func TestBuildReceiptPayloadFromTheStoredSale(t *testing.T) {
 	})
 
 	t.Run("a missing cart is a coded not-found, not a raw SQL error", func(t *testing.T) {
-		_, err := BuildReceiptPayload(tenantID, "TEST-QZ-NO-SUCH-CART", escpos)
+		_, err := BuildReceiptPayload(tenantID, "TEST-AGENT-NO-SUCH-CART", escpos)
 		var ve *ValidationError
 		if !asValidationError(err, &ve) || ve.Code != "GLOBAL-0004" {
 			t.Fatalf("want a GLOBAL-0004 ValidationError, got %#v", err)
@@ -182,9 +193,50 @@ func TestBuildReceiptPayloadFromTheStoredSale(t *testing.T) {
 		}
 	})
 
+	t.Run("remarks print wrapped to the roll, never as printer commands", func(t *testing.T) {
+		// Ask 260.3. Checkout cleans remarks; the receipt cleans them again, so
+		// a sale stored before that (or by another path) cannot drive the printer.
+		const remarksCart = "TEST-AGENT-RECEIPT-REMARKS"
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", remarksCart)
+		db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", remarksCart)
+		withRemarks := map[string]interface{}{}
+		for k, v := range cart {
+			withRemarks[k] = v
+		}
+		withRemarks["remarks"] = "Gift wrap\x1b@ and deliver on Sunday evening to the back gate of the building"
+		seedPrintableDoc(t, schema, "POSCart", remarksCart, withRemarks, "Paid")
+
+		p, err := BuildReceiptPayload(tenantID, remarksCart, escpos)
+		if err != nil {
+			t.Fatalf("build: %v", err)
+		}
+		body := p.Items[0].Data
+		if !strings.Contains(body, "Remarks: Gift wrap") || !strings.Contains(body, "back gate of the") {
+			t.Fatalf("remarks missing from the receipt:\n%q", body)
+		}
+		if strings.Count(body, escInit) != 1 {
+			t.Fatalf("an ESC @ from the remarks reached the printer:\n%q", body)
+		}
+		for _, line := range strings.Split(strings.TrimSuffix(body, escCut), "\n") {
+			if !strings.Contains(line, "\x1b") && !strings.Contains(line, "\x1d") && len([]rune(line)) > 42 {
+				t.Fatalf("remarks line runs off the 80mm roll: %q", line)
+			}
+		}
+		h, err := BuildReceiptPayload(tenantID, remarksCart, AgentPrinter{Language: "PDF"})
+		if err != nil || !strings.Contains(h.Items[0].Data, "Remarks: Gift wrap") {
+			t.Fatalf("HTML receipt missing the remarks (err %v)", err)
+		}
+
+		// A bill without remarks prints no Remarks line.
+		plain, err := BuildReceiptPayload(tenantID, paidCart, escpos)
+		if err != nil || strings.Contains(plain.Items[0].Data, "Remarks") {
+			t.Fatalf("a bill without remarks printed a Remarks line (err %v)", err)
+		}
+	})
+
 	t.Run("a non-ESC-POS printer gets rasterisable HTML, not commands", func(t *testing.T) {
 		for _, lang := range []string{"PDF", "ZPL", ""} {
-			p, err := BuildReceiptPayload(tenantID, paidCart, QZPrinter{Language: lang})
+			p, err := BuildReceiptPayload(tenantID, paidCart, AgentPrinter{Language: lang})
 			if err != nil {
 				t.Fatalf("build for %q: %v", lang, err)
 			}
@@ -206,8 +258,8 @@ func TestBuildInvoicePayloadMarksAnUnpostedInvoice(t *testing.T) {
 		t.Fatalf("schema: %v", err)
 	}
 
-	const draftID = "TEST-QZ-INV-DRAFT"
-	const paidID = "TEST-QZ-INV-PAID"
+	const draftID = "TEST-AGENT-INV-DRAFT"
+	const paidID = "TEST-AGENT-INV-PAID"
 	cleanup := func() {
 		db.DB.Exec("DELETE FROM "+schema+".documents WHERE id IN ($1, $2)", draftID, paidID)
 	}
@@ -225,7 +277,7 @@ func TestBuildInvoicePayloadMarksAnUnpostedInvoice(t *testing.T) {
 
 	// A Draft invoice is a legitimate proforma to hand a customer, so it
 	// prints - but it must never be mistakable for a posted one.
-	draft, err := BuildInvoicePayload(tenantID, draftID, QZPrinter{Language: "PDF"})
+	draft, err := BuildInvoicePayload(tenantID, draftID, AgentPrinter{Language: "PDF"})
 	if err != nil {
 		t.Fatalf("draft: %v", err)
 	}
@@ -233,7 +285,7 @@ func TestBuildInvoicePayloadMarksAnUnpostedInvoice(t *testing.T) {
 		t.Fatalf("a Draft invoice printed with no DRAFT marking:\n%s", draft.Items[0].Data)
 	}
 
-	paid, err := BuildInvoicePayload(tenantID, paidID, QZPrinter{Language: "PDF"})
+	paid, err := BuildInvoicePayload(tenantID, paidID, AgentPrinter{Language: "PDF"})
 	if err != nil {
 		t.Fatalf("paid: %v", err)
 	}
@@ -247,7 +299,7 @@ func TestBuildInvoicePayloadMarksAnUnpostedInvoice(t *testing.T) {
 	}
 
 	// A till printer is a legitimate invoice printer for a small counter.
-	escpos, err := BuildInvoicePayload(tenantID, paidID, QZPrinter{Language: "ESC-POS", WidthMM: "58"})
+	escpos, err := BuildInvoicePayload(tenantID, paidID, AgentPrinter{Language: "ESC-POS", WidthMM: "58"})
 	if err != nil {
 		t.Fatalf("escpos: %v", err)
 	}

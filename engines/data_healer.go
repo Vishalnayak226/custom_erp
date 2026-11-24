@@ -90,7 +90,7 @@ type healDef struct {
 }
 
 func dataHeals() []healDef {
-	return []healDef{itemAliasHeal()}
+	return []healDef{itemAliasHeal(), printerNameHeal()}
 }
 
 func findHeal(id string) (healDef, bool) {

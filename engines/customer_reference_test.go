@@ -68,11 +68,11 @@ func TestStage73CustomerReference(t *testing.T) {
 		t.Errorf("the invoice carries the order's reference: %q", got)
 	}
 
-	html, err := BuildInvoicePayload(tenantID, invoiceID, QZPrinter{})
+	html, err := BuildInvoicePayload(tenantID, invoiceID, AgentPrinter{})
 	if err != nil || len(html.Items) == 0 || !strings.Contains(html.Items[0].Data, "Customer PO / Ref") || !strings.Contains(html.Items[0].Data, ref) {
 		t.Errorf("the printed invoice shows the reference: %v", err)
 	}
-	escpos, err := BuildInvoicePayload(tenantID, invoiceID, QZPrinter{Language: "ESC-POS", WidthMM: "80"})
+	escpos, err := BuildInvoicePayload(tenantID, invoiceID, AgentPrinter{Language: "ESC-POS", WidthMM: "80"})
 	if err != nil || len(escpos.Items) == 0 || !strings.Contains(escpos.Items[0].Data, ref) {
 		t.Errorf("the receipt-printer invoice shows the reference: %v", err)
 	}

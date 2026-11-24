@@ -2581,10 +2581,31 @@ async function loadMobilePickList() {
 
 const mobilePickLineKey = (l) => `${l.sku}|${l.bin_code}|${l.batch_no || ''}`;
 
-function confirmMobilePickLine() {
+let mobilePickSaving = false;
+
+async function confirmMobilePickLine() {
   // Stage 130.13 (80.7 b): kept on the server, with who picked it.
+  // 250.1: the line is ticked only once the server has it. A refusal shows
+  // the reason and a lost signal shows apiFetch's own alert; either way the
+  // line stays open to confirm again (the server does all of it or none).
   const line = mobilePickLines[mobilePickIndex];
-  if (line) apiFetch('/api/v1/wms/wave/pick-confirm', { method: 'POST', body: JSON.stringify({ wave_id: mobilePickWave, line_key: mobilePickLineKey(line), qty: line.pick_qty }) }).catch(() => {});
+  if (!line || mobilePickSaving) return;
+  if (!mobilePickConfirmed.has(mobilePickIndex)) {
+    const btn = document.getElementById('mobile-pick-next');
+    mobilePickSaving = true;
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    let res = null;
+    try {
+      res = await apiFetch('/api/v1/wms/wave/pick-confirm', { method: 'POST', body: JSON.stringify({ wave_id: mobilePickWave, line_key: mobilePickLineKey(line), qty: line.pick_qty }) });
+    } finally {
+      mobilePickSaving = false;
+    }
+    if (!res || !res.ok) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Next'; }
+      if (res) await showApiError(res, 'This line was not confirmed. Try again.', 'Not Confirmed');
+      return;
+    }
+  }
   mobilePickConfirmed.add(mobilePickIndex);
   if (mobilePickConfirmed.size >= mobilePickLines.length) { renderMobilePickSummary(); return; }
   for (let i = 1; i <= mobilePickLines.length; i++) {

@@ -425,14 +425,18 @@ func (r *Runner) JourneyPeriodClose() JourneyRecord {
 	})
 	j.Step("close the period", "jl-acct", func(s *StepCtx) error {
 		ck := s.SetupCall("jl-acct", "GET", "/api/v1/finance/periods/"+pid+"/close-checklist", nil)
-		// J2 leaves one vendor invoice in mismatch hold on purpose (the wrong-rate invoice), and
-		// the checklist is advisory; any other failing check is a real problem.
+		// J2 leaves one vendor invoice in mismatch hold on purpose (the wrong-rate invoice);
+		// any other failing check is a real problem. Since 162.12 a close that is not
+		// ready needs a typed reason (FIN-0507), so that one expected hold gets one (47.17.2:
+		// release 0.28.0's first GitHub run failed J5 here).
+		body := map[string]interface{}{}
 		if f := failedChecks(ck.JSON); ck.JSON["ready_to_close"] != true && !onlyMismatchHold(f) {
 			s.Check(false, "checklist not ready to close: %s", f)
 		} else if ck.JSON["ready_to_close"] != true {
-			j.Rec.Evidence = append(j.Rec.Evidence, "close checklist advisory, as expected from J2: "+f)
+			body["reason"] = "journeylab J5: J2's wrong-rate vendor invoice stays in mismatch hold on purpose"
+			j.Rec.Evidence = append(j.Rec.Evidence, "closed with a reason, as expected from J2: "+f)
 		}
-		c := s.Call("jl-acct", "POST", "/api/v1/finance/periods/"+pid+"/close", map[string]interface{}{})
+		c := s.Call("jl-acct", "POST", "/api/v1/finance/periods/"+pid+"/close", body)
 		s.Check(c.Status < 300, "close: %d %s", c.Status, trunc(string(c.Body), 200))
 		return nil
 	})

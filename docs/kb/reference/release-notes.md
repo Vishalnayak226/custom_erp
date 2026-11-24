@@ -19,18 +19,60 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **290** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **307** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-08-22 to 2026-10-18
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-08-24
+- [Part 2](release-notes-2.md) - 2026-09-01 to 2026-10-19
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-01
+
+## 2026-11-24
+
+**"Why it is printing so much when i connected printer" - PrintBridge refuses a print to a printer that is off or unplugged instead of letting Windows hold it** *(PrintBridge agent 0.3.3 + public/downloads + guides, ask 249; not committed, held from release)*
+
+**"Make it more smarter, not working" - Fix from photo reads a Line up, the alignment test or the label's own print, not only the check label** *(print-align.js + print-check.js + sticker-engine.js + tests + user and admin guides, ask 257; not committed)*
+
+**"finish it" - the rest of 232.1: twelve KB pages reviewed against the app, the handover back under budget, and release G7 stops on what CI's doclint stops on** *(12 KB pages + handover + developer-setup + doclint message + release G7, ask 264; not committed)*
+
+**"Rename all thos QZ as well" - no "qz" names left in the code; old names keep working where an install depends on them** *(renamed Go/JS files + routes + settings + one migration + one heal + guides + release gate + Guide tool, ask 263; not committed)*
+
+**"Need multi tender & need Tender master to add" / "Need remarks" - split payment and Add tender in the till's Payment Mode box, and remarks on a bill** *(one handler + two engine files + three JS files + tests + user and admin guides, ask 260; not committed)*
+
+**"Show only in one not non inv one" / "Show qty avl as well in the selctn" / "throw error if inv not avl" / "after loading/scanning" - the till sells only what is in stock here** *(engines + one handler + two JS files + test + user guide, ask 262; not committed)*
+
+**"I need city Master after State selctuon. Else cane typed also. Samefor pincode after state can be typed also. Size not required. ..." - City and PIN lists on the customer form; a shorter till form** *(one JS file + shipped PIN directory + generator + guides, ask 261; not committed)*
+
+## 2026-11-23
+
+**"Alredy number typed don't ask number agin. Prepolulate nmber" - the till's New customer form starts with the number already typed** *(one JS file + user guide, ask 259; not committed)*
+
+**"Why QZ is mentioned in checklist. No where QZ should be there as in code as we eliminated aqz from erp. if marketplce rqd then fine keep it" - QZ Tray taken out of everything a user reads** *(two JS files + one Go string + guides + KB + trackers, ask 258; not committed)*
+
+**"so many are crossed in checklist and why present. Move to archive which is done" - every Done item moved out of the live tracker** *(trackers only, ask 256; not committed)*
+
+**"Build all of above" - then "Add in above, Report and all transaction also should sync seemlessly. Means each table should be updated properly.": the lag and code-quality fixes built, and every multi-table write swept so stock, money and logs save together** *(engines + db + one migration + phone pick + guides, asks 252 and 253; not committed)*
+
+**"Read through erp each code and see what can be lagging erp. I need code expert." - then "issue 1st, lighter weight ... proper error displayed in all error, module interconnection, never failing inventory management, smooth UI": a code review for lag and code quality, 8 findings filed, nothing changed** *(review only, asks 248 and 250; tracker only)*
+
+**"Build next 20 items" - a second Guide bug hunt on the working tree: 4 real defects found and fixed** *(navigation + stickers + expense claims + OMS Ship + guides, ask 246; not committed)*
+
+## 2026-11-22
+
+**"Build next 20 items" - a Guide bug hunt on the working tree: 14 real defects found and fixed** *(reports + settings + WMS waves + CRM/HR/stock screens + list sweeps + guides, ask 245; not committed)*
+
+**"Build next 20 items approved all and recommened all" - the phone view switch meets its budget, and the whole browser and server gate is met on the release evidence** *(Home screen + budgets file + trackers, ask 244; not committed)*
+
+**"build next 20 open items", then "approved all" - Guide's write runs on app, PrintBridge down timed on the real agent and fixed to 9.5 s, a real Line up strip printed** *(qz-print.js + two printing guides + Guide suites, ask 243; not committed)*
+
+## 2026-11-20
+
+**"Start building next 20 items. all approved and all recommened" - phone first paint meets its budget, two reports and a screen verified on app, the PO setup guide checked, Guide's PIM run cleans up after itself** *(app shell + PO guide + Guide suites, ask 242; not committed)*
 
 ## 2026-11-19
 
 **"Once all build done push and deploy" - 0.28.0 released and deployed** *(release fixes + guard list + tracker, ask 240; d6c4fa9 live on app + minn)*
 
-**"Build next 10 item all appproved recomeded. Dont ask anything just build" - Trusted Types trial behind a flag, browser budgets and journeys made on GitHub for every candidate** *(server header + release gate + release.yml, ask 241; not committed)*
+**"Build next 10 item all appproved recomeded. Dont ask anything just build" - Trusted Types trial behind a flag, browser budgets and journeys made on GitHub for every candidate** *(server header + release gate + release.yml, ask 241; shipped in 0.28.0, the J5 fix not committed)*
 
 **"fast it fast on processing all approved and all recommnded" - lists draw 20 rows first, a lighter phone boot, a faster first search key, G4 bumps every shell script** *(app shell + 3 screens + release script, ask 238; not committed)*
 
@@ -503,30 +545,4 @@ User: *"Fix all"* on the build run's leftovers. 75.2.8a (credit-note QR), 76.6 (
 **"Build all", steps 1-4 and the start of 5: Stage 94 goods receipt in steps, small fixes, clean-slate reset, media store, Stage 74 Wave 1** *(code + docs, NOT COMMITTED)*
 
 User: *"build all"* - everything open that is decided and not blocked on the user, leaving out work already in flight in other sessions; order recorded at the top of the checklist. **Stage 94** (D1-D10 approved 2026-10-18): a goods receipt is now saved in steps - Receive (vendor first, open-PO tick-list, received and invoice qty, invoice no / date / total required, duplicate invoice refused, scan-to-count) → Verify (GRN qty and price, rejected / damaged, Keep beyond the PO through a new `GRNExcessApproval` approval record or Return, invoice total must match its lines within ₹1) → Price check (previous purchase price → child GRNs /A New, /B Same, /C Changed) → MRP and post per child (stock at the GRN price, MRP on the batch, stickers per child) → Pay (part, mode, UTR, TDS) with Correct after posting (only the difference posts) and Post all when everything matches. The note is invoice total − what was received and verified: a debit note is applied to the auto-made vendor bill as a settlement line, a credit note posts its GST leg, so paying the bill clears 2100 / 1500 exactly (tested to the paisa). The till sells at the batch MRP on the shelf and asks when there are two (94.6, first-in-first-out from the store's receipts). PO design reuse is limited to the PO's vendor (94.13). New `grn_line` / `grn_line_change` tables and eight reports. Browser-walked on :8194 (price changed + debit note + part payment; correction; Keep held for approval; scan-to-count). **Step 2:** schedule workers claim a due run atomically (73.D.18); production's database time zone checked - UTC, so 73.D.19 needs no code; the 73.D.21 tests all pass, the schedule test no longer touches other rows, CI / promote get a test timeout; Inventory rows link to their stock ledger (73.B.7). **Step 3:** `tenantctl reset-data` (91.1-91.2) - a clean slate in one transaction: suspended client and a 24-hour backup required, every table classified (a test fails on an unclassified one), logins and evidence kept, numbering from 1; not run on app / minn (91.4 is the user's). **Step 4:** `MediaStore` (75.4.1) - product media, thumbnails, transform cache and attachments through one interface, local disk as before. Full `go test -p 1` of `./engines` (497 s) and `./internal/server` green. **Step 5 begun (Stage 74 Wave 1):** the number-series first-allocation race is one atomic upsert in `GenerateSequence` and the POS bill number (74.1.2); attachments turned on for GRN and Purchase Return with a shared panel (74.1.6); reason codes governed - nine new categories with dates, evidence and loss class, 30 starter codes, one check for every caller, a code beside every typed reason (GRN lines, purchase return, price override, reprint), a client setting to make codes mandatory, pickers and the R-TX-12 report; the master moved to Master Data (74.1.1). Paused there at the user's request, about 9% of the run's scope done; the next thread starts with 74.1.3. Details: checklist Stage 94, 73.B/73.D, 91, 75.4, 74.1.
-
-**Stage 104 — The Control Panel's "36 errors": read, explained, fixed** *(code + docs, NOT COMMITTED)*
-
-From the user's Control Panel screenshot (Default ERP Client, Errors (24h) = 36). The rows were read from production by the user (agent prod reads are blocked). None was a server fault: 24 were reports with no rows, the rest catalog messages users were shown. Fixed at the shared choke points: an empty report is no longer logged (104.1); the Control Panel's Errors (24h) and the error-rate alert count faults only, not codes the catalog answers with 2xx/4xx (104.2, re-reads old rows, so prod's 36 read 0 after the release); each logged message names its request (104.3). One real bug behind six rows, still live on 840909b: a PO edit from the PO screen is refused "PO Number (Internal) is required" - fixed by 73.D.8's merge in the committed, undeployed `57d3d04`, now with a PO regression test. Details: checklist Stage 104.
-
-**Stage 105 — Spend fewer tokens per session** *(docs + settings, NOT COMMITTED)*
-
-17 closed checklist sections archived, CLAUDE.md's file sizes corrected (the live tracker is ~220k tokens, not ~43k) with tighter tracker and subagent rules, the memory index halved and the global effort default set to high. Details: checklist Stage 105.
-
-**Stage 98 — Print, PDF, send and export for every transaction; each computer's own printer** *(code + docs, NOT COMMITTED)*
-
-From the user's Send to Vendor screenshot and two messages. Every print window (PO, GRN, transfer, returns, notes, and now the **Sales Invoice**) gained **CSV** and **Excel** line exports built from the print data itself (design, combination, barcode, every attribute under its renamable label, brand, quantities, MRP; cost only on PO / GRN, the selling price on a sales bill), a **PDF** made in the browser from the previewed pages with a hand-written PDF writer (no library), and **Send**: the PDF emailed through the server's SMTP account with the store's email as Reply-To, or downloaded to send yourself; Send to Vendor uses it and still records the PO as sent. With QZ Tray, **Print** goes straight to the computer's own printer for that kind of document, chosen once (by itself when clear) and kept on the server per computer (`PrinterAssignment`); `resolveQZPrinter` now prefers the job's own store, so one store never prints on another's printer. Also Setup ▸ Printing (88.1.14) and lists with their own menu entry left out of Setup (88.1.15). Found and fixed: a package bill's e-invoice read the whole order's lines. Detail, decisions D1-D7 and verification: `micro_checklist.md` Stage 98.
-
-**Stage 97 — The docs folder made simple: one front door, one archive** *(docs + doc tooling)*
-
-At the user's request, `docs/` was reorganised in one pass. 48 files moved: dated audits and evidence from `docs/`, `audits/`, `assurance/` and `qa/` went to `archive/audits/`; superseded specs, plans, the blueprint and the old BRD/PRD went to `archive/legacy/`; old handovers went to `archive/handovers/`; loose checklists, API docs, research notes and the contract template got proper homes. Three sets of small pages were merged (data handbook, *Running the service*, SSDF section). Four approved files were deleted: the duplicate OpenAPI copy, the never-run Stage 48 migration preview (2) and a stale local PDF. A script rewrote 262 links and 73 path mentions. `docs/README.md` is now a plain "I want to…" front door with a folder map, and `docs/archive/readme.md` maps every old path to its new one, replacing redirect stubs. `cmd/gendocs` no longer writes the OpenAPI copy, and its permission snapshots now land under `archive/audits/permissions/`. The top of `docs/` went from 14 files and 23 folders to 6 files and 20 folders. doclint: 0 broken links and 0 unregistered or missing files. Detail and verification: `micro_checklist.md` Stage 97.
-
-## 2026-10-18
-
-**Stage 96 — No Windows Firewall dialog for a dev erp-server** *(code + docs, NOT COMMITTED)*
-
-On Windows, an unset `HOST` now binds `127.0.0.1` (`internal/server/routes.go`), so a new `erp-server.exe` build no longer triggers Windows Firewall's "allow public and private networks?" dialog. Linux (production, Docker) is unchanged, and `HOST=0.0.0.0` opts back in for LAN access. ADMIN_GUIDE §B.1. Detail and verification: `micro_checklist.md` Stage 96.
-
-**Build run, steps 2 and 6-9: numbering, Inventory / WMS, small fixes, e-invoice, reports** *(code + docs, NOT COMMITTED)*
-
-From the user: *"Build 2 to 9 all"* (the module order recorded at the top of `micro_checklist.md`), then *"All approved which are recommended for me"* - recorded on 94.0, 95.0, 88 D12-D14, 73.0.1 and 74.0.1 (BRD defaults; CA sign-off still owed on the tax ones), 34.5 (not built). Full detail per item in `micro_checklist.md`.
 

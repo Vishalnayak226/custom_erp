@@ -25,7 +25,7 @@ export async function renderCalibrationTab(container) {
   if (!cycles.some(c => c.id === calCycleId)) calCycleId = (cycles.find(c => c.status === 'Active') || cycles[0] || {}).id || '';
   const panel = document.createElement('div');
   panel.className = 'table-panel';
-  panel.innerHTML = `<div class="toolbar"><select id="cal-cycle">${cycles.map(c => `<option value="${esc(c.id)}"${c.id === calCycleId ? ' selected' : ''}>${esc(c.code || c.id)}${c.status ? ' · ' + esc(c.status) : ''}</option>`).join('')}</select></div><div id="cal-body"></div>`;
+  panel.innerHTML = `<div class="toolbar"><select id="cal-cycle" class="form-select s-0fff9b">${cycles.map(c => `<option value="${esc(c.id)}"${c.id === calCycleId ? ' selected' : ''}>${esc(c.code || c.id)}${c.status ? ' · ' + esc(c.status) : ''}</option>`).join('')}</select></div><div id="cal-body"></div>`;
   container.appendChild(panel);
   panel.querySelector('#cal-cycle').addEventListener('change', e => { calCycleId = e.target.value; load(); });
   const body = panel.querySelector('#cal-body');
@@ -82,13 +82,13 @@ export async function renderTaxBenefitsTab(container) {
     <div class="toolbar">
       ${['TaxSlab', 'TaxRegimeRule', 'LWFRate', 'BenefitPlan', 'BenefitEnrolment', 'SalaryRevision'].map(d => `<button class="btn" data-open="${d}">${esc(d.replace(/([a-z])([A-Z])/g, '$1 $2'))}</button>`).join(' ')}
     </div>
-    <div class="toolbar"><strong>PF ECR</strong> <input id="tb-ecr-month" type="month" value="${now.toISOString().slice(0, 7)}"> <button class="btn btn-primary" id="tb-ecr">Download</button></div>
+    <div class="toolbar"><strong>PF ECR</strong> <input id="tb-ecr-month" class="form-input s-0fff9b" type="month" value="${now.toISOString().slice(0, 7)}"> <button class="btn btn-primary" id="tb-ecr">Download</button></div>
     <div class="toolbar"><strong>Form 24Q</strong>
-      <input id="tb-fy" type="text" value="${fy}" size="8">
-      <select id="tb-q"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
-      <select id="tb-ann"><option value="I">Annexure I</option><option value="II">Annexure II (Q4)</option></select>
+      <input id="tb-fy" class="form-input s-da190a" type="text" value="${fy}" aria-label="Financial year">
+      <select id="tb-q" class="form-select s-34deaa" aria-label="Quarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
+      <select id="tb-ann" class="form-select s-0fff9b" aria-label="Annexure"><option value="I">Annexure I</option><option value="II">Annexure II (Q4)</option></select>
       <button class="btn btn-primary" id="tb-24q">Download</button></div>
-    <div class="toolbar"><strong>Arrears</strong> <input id="tb-rev" type="text" placeholder="Revision id"> <button class="btn" id="tb-arrears">List</button></div>
+    <div class="toolbar"><strong>Arrears</strong> <input id="tb-rev" class="form-input s-0fff9b" type="text" placeholder="Revision id"> <button class="btn" id="tb-arrears">List</button></div>
     <div id="tb-out"></div>`;
   container.appendChild(panel);
   panel.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => window.openSetupDoctype(b.dataset.open)));

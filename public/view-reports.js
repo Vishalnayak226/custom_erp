@@ -1584,7 +1584,7 @@ async function downloadReportExportCSV(jobId, reportId = '') {
 
 // RFQ / Vendor Quotes moved to its own lazy module, view-rfq.js (Stage 73.2.1-73.2.3).
 
-// QZ Tray silent printing (Stage 31.1).
+// Silent printing through PrintBridge (Stage 31.1).
 //
 // Every print path in this app used to be window.print() into a hidden
 // @media print area, which pops the browser dialog and cannot choose a
@@ -1592,8 +1592,8 @@ async function downloadReportExportCSV(jobId, reportId = '') {
 // packing bench with a thermal label printer and an A4 invoice printer sends
 // each document to the right one with a single click.
 //
-// Degrades rather than breaks: if QZ Tray is not installed or not running,
-// qzTryPrint returns false and the caller falls back to the existing print
+// Degrades rather than breaks: if PrintBridge is not installed or not running,
+// agentTryPrint returns false and the caller falls back to the existing print
 // sheet. Nobody is blocked from printing because the bridge is down.
 
 

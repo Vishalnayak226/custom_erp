@@ -1,6 +1,6 @@
 ---
 doc_id: DOC-C42FE7B40B
-title: Silent Printing Setup (QZ Tray)
+title: Silent Printing Setup (PrintBridge)
 type: procedure
 status: draft
 owner: documentation-maintainer
@@ -16,20 +16,20 @@ superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
 ---
 
-# Silent Printing Setup (QZ Tray)
+# Silent Printing Setup (PrintBridge)
 
 One-click printing of shipping labels, invoices and stickers straight to a
 named printer — no browser print dialog, no choosing the printer each time.
 
-This is the same mechanism marketplace seller panels (Myntra Mdirect and
-others) use for their "Print Shipping Label" buttons. Setting it up once for
-the ERP also fixes those panels, because they share the QZ Tray install and
-the same Chrome permissions — see [Making the marketplace panels work
+The ERP prints through **PrintBridge**, its own print agent. Marketplace seller
+panels (Myntra Mdirect and others) print through a different program, QZ Tray,
+which PrintBridge does not serve. Only a computer that also prints from such a
+panel needs QZ Tray — see [Making the marketplace panels work
 too](#making-the-marketplace-panels-work-too).
 
 ---
 
-## The easy way: PrintBridge (Stage 137)
+## Install PrintBridge (each computer that prints)
 
 PrintBridge is the ERP's own print agent. It speaks the same protocol as QZ
 Tray, needs no Java, and one installer serves every Wholeops address. Each
@@ -44,26 +44,30 @@ that prints:
    protected your PC*, click **More info → Run anyway**.
 3. A printer icon appears near the clock and the waiting print goes out. PrintBridge starts with Windows; if
    it was closed from the tray, the ERP starts it again at your next click (the
-   browser may ask once *Open PrintBridge?* - tick **Always allow**).
+   browser may ask once whether to open *printbridge-agent* - tick **Always allow** and click **Open**; the
+   page takes no clicks until that question is answered).
 
 Then do Part 2 (the Printer records) and set each label printer's preset -
 roll, alignment, darkness (User Guide §7A.6). Part 1 below is only for a
-computer that keeps QZ Tray, for example for the marketplace panels.
+computer that also prints from a marketplace panel.
 
 ---
 
 ## What you need to know first
 
-QZ Tray is a small program that runs on the **packing PC** (not the server).
-The browser talks to it over a local connection, and it talks to the printer.
-So it must be installed on every PC that prints, and it must be running.
+PrintBridge is a small program that runs on each **computer that prints** (not
+the server). The browser talks to it over a local connection, and it talks to
+the printer. So it must be installed on every computer that prints.
 
-If QZ Tray is not running, nothing breaks — the ERP silently falls back to the
-normal browser print dialog. You just lose the one-click part.
+If PrintBridge is not running, nothing breaks — the ERP starts it again at your
+next click (step 3 above).
 
 ---
 
-## Part 1 — On each packing PC (once per PC)
+## Part 1 — QZ Tray, only for marketplace panels (once per PC)
+
+Skip this part unless the computer also prints from a marketplace seller panel
+(Myntra Mdirect and others). Those panels need QZ Tray; the ERP does not.
 
 ### 1. Install Java
 
@@ -92,7 +96,7 @@ each PC needs to trust this server's print certificate.
 On the server, export the certificate once:
 
 ```
-go run ./cmd/qzcert -o override.crt
+go run ./cmd/printcert -o override.crt
 ```
 
 Then on each packing PC, copy that file into QZ Tray's install folder as
@@ -145,7 +149,7 @@ stickers and labels), otherwise by asking once. The choice is kept on the
 server under the PC's name, so it is never asked again and survives a browser
 reset; **Setup → Printing → Printer Assignment** lists every PC's choices, and
 the print window's **Change** changes one (USER_GUIDE §7B.3). Rolling out to
-many stores is therefore just Part 1 on each PC.
+many stores is therefore just installing PrintBridge on each PC.
 
 Do Part 2 when you want a **store-wide default** — a Printer record with a
 **Location** and a **Default For**, used by any PC at that store that has not
@@ -153,10 +157,11 @@ chosen its own yet — or to set label sizes and DPI for a sticker printer.
 
 ### 1. Find out what your printers are really called
 
-Go to **Sticker Printing**. At the top is a **Print Setup (QZ Tray)** panel.
+Go to **Sticker Printing → + Print Stickers** and open **Printer setup on this
+computer (PrintBridge)** at the bottom.
 
-- It should say *"Connected to QZ Tray — printing is silent on this PC."*
-  If it doesn't, QZ Tray isn't running — go back to Part 1.
+- It should say *"PrintBridge … is running - printing is silent on this
+  computer."* If it doesn't, install PrintBridge (top of this guide).
 - Click **Detect Printers**. You get the exact names this PC knows, e.g.
 
   ```
@@ -235,7 +240,7 @@ An ERP shipping label sent to a `ZPL`/`TSPL` printer carries a **real scannable
 Code 128 barcode** of the AWB, not just the digits. On a `PDF` printer the same
 label is laid out as a page and printed through the Windows driver.
 
-**Nothing here stops working if QZ Tray is not running.** Each of these falls
+**Nothing here stops working if PrintBridge is not running.** Each of these falls
 back to what it did before: the shipping label opens on screen, the receipt and
 the invoice go to the normal browser print dialog. You lose the one-click part,
 not the ability to print.
@@ -322,16 +327,19 @@ category so it can be torn into separate stacks.
 ## Making the marketplace panels work too
 
 Parts 1.1, 1.2, 1.3 and 1.4 above are exactly what Myntra's support steps ask
-for, so once a PC is set up for the ERP it is also set up for Mdirect and
-similar panels. The only per-panel step left is entering the printer names in
+for. After them, the only per-panel step left is entering the printer names in
 that panel's own "Configure Printer" screen — use the same names you copied
 from **Detect Printers**.
 
-Two things worth knowing:
+Things worth knowing:
 
-- The `override.crt` in Part 1.3 only makes **this ERP's** prints silent.
-  Marketplace panels use their own certificates and will keep prompting unless
-  they ship one; that is normal and not something we control.
+- PrintBridge prints only for the ERP. A marketplace panel needs QZ Tray.
+- On one computer both want the same local ports; whichever starts second
+  takes the next one (8282 instead of 8181). Running both on one computer has
+  not been tried with a real marketplace panel yet.
+- The `override.crt` in Part 1.3 only stops QZ Tray prompting for **this
+  ERP's** prints. Marketplace panels use their own certificates and will keep
+  prompting unless they ship one; that is normal and not something we control.
 - If a panel's print button does nothing, its Chrome permission is almost
   always the cause — repeat Part 1.4 for that panel's address (for QZ's own
   loopback the address to allow is `https://localhost:8181`).
@@ -340,11 +348,28 @@ Two things worth knowing:
 
 ## Troubleshooting
 
-**"QZ Tray is not running or not reachable"**
-QZ Tray isn't started, or Chrome is blocking the local connection. Check the
-tray icon first, then Part 1.4.
+**"PrintBridge is not running or not reachable on this computer"**
+PrintBridge isn't installed or started, or the browser is blocking the local
+connection. Check for the printer icon near the clock first, then the browser
+permission in Part 1.4.
 
-**Printing still shows an "Allow" prompt every time**
+**"The printer "…" is off or unplugged"**
+From PrintBridge 0.3.3, each print first checks with Windows that the printer
+is there. Before that, Windows took the job for a printer that was off or
+unplugged, held it, and printed it the next time the printer was plugged in.
+Switch the printer on or plug in its USB cable, then click **Retry**. Nothing
+waits in the Windows queue.
+
+**"… is set to Use Printer Offline in Windows"** or **"… is paused in Windows"**
+Open Windows **Settings → Bluetooth & devices → Printers & scanners**, pick
+the printer, **Open print queue**, and untick **Use Printer Offline** or
+**Pause Printing** in its **Printer** menu. Then click **Retry**.
+
+A printer that is out of paper or jammed still takes the job: Windows clears
+that state only when a job goes through, and the label prints once the roll is
+loaded.
+
+**A marketplace panel shows an "Allow" prompt every time (QZ Tray)**
 `override.crt` is missing, in the wrong folder, or QZ Tray wasn't restarted
 after it was added.
 
@@ -369,8 +394,8 @@ languages: set it to `PDF`. Also check Label Width/Height are set for 4x6
 labels.
 
 **It works on one PC but not another**
-Setup is per-PC. Walk through Part 1 again on the failing machine — usually
-QZ Tray isn't installed, isn't running, or is missing `override.crt`.
+Setup is per-PC. On the failing machine, open **Printer setup on this computer**
+— usually PrintBridge isn't installed or isn't running there.
 
 ---
 
@@ -378,8 +403,15 @@ QZ Tray isn't installed, isn't running, or is missing `override.crt`.
 
 - **Where the key lives.** By default the server generates an RSA-2048 keypair
   on first use and stores it outside the repo, under the OS per-user config
-  directory (`%APPDATA%\custom_erp\` on Windows). To manage it yourself, set
-  `QZ_PRIVATE_KEY_PATH` and `QZ_CERTIFICATE_PATH` to your own PEM files.
+  directory (`%APPDATA%\custom_erp\` on Windows), as
+  `print_agent_private_key.pem` and `print_agent_certificate.pem`. A key made
+  before ask 263 (`qz_private_key.pem`) is still used. To manage it yourself,
+  set `PRINT_AGENT_PRIVATE_KEY_PATH` and `PRINT_AGENT_CERTIFICATE_PATH` to your
+  own PEM files; the names used before ask 263, `QZ_PRIVATE_KEY_PATH` and
+  `QZ_CERTIFICATE_PATH`, are still read.
+- **Printers saved before ask 263** keep their OS printer name in an old field
+  until an admin runs the **Printer names** heal (Settings → Data Healer).
+  Printing works meanwhile; only the Printer form waits for the heal.
 - **Rotating the certificate** invalidates every PC's `override.crt`. Re-export
   and redistribute, or prints start prompting again.
 - **The signing endpoint** only ever signs a single SHA-256 digest, and only

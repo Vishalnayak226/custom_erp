@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-08-22 to 2026-10-18, continued from the release notes.
+summary: Earlier releases, 2026-09-01 to 2026-10-19, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,11 +19,37 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **96** earlier entries, 2026-08-22 to 2026-10-18.
+This page continues the [release notes](release-notes.md) with **92** earlier entries, 2026-09-01 to 2026-10-19.
 
 Older still: [part 3](release-notes-3.md).
 
+## 2026-10-19
+
+**Stage 104 — The Control Panel's "36 errors": read, explained, fixed** *(code + docs, NOT COMMITTED)*
+
+From the user's Control Panel screenshot (Default ERP Client, Errors (24h) = 36). The rows were read from production by the user (agent prod reads are blocked). None was a server fault: 24 were reports with no rows, the rest catalog messages users were shown. Fixed at the shared choke points: an empty report is no longer logged (104.1); the Control Panel's Errors (24h) and the error-rate alert count faults only, not codes the catalog answers with 2xx/4xx (104.2, re-reads old rows, so prod's 36 read 0 after the release); each logged message names its request (104.3). One real bug behind six rows, still live on 840909b: a PO edit from the PO screen is refused "PO Number (Internal) is required" - fixed by 73.D.8's merge in the committed, undeployed `57d3d04`, now with a PO regression test. Details: checklist Stage 104.
+
+**Stage 105 — Spend fewer tokens per session** *(docs + settings, NOT COMMITTED)*
+
+17 closed checklist sections archived, CLAUDE.md's file sizes corrected (the live tracker is ~220k tokens, not ~43k) with tighter tracker and subagent rules, the memory index halved and the global effort default set to high. Details: checklist Stage 105.
+
+**Stage 98 — Print, PDF, send and export for every transaction; each computer's own printer** *(code + docs, NOT COMMITTED)*
+
+From the user's Send to Vendor screenshot and two messages. Every print window (PO, GRN, transfer, returns, notes, and now the **Sales Invoice**) gained **CSV** and **Excel** line exports built from the print data itself (design, combination, barcode, every attribute under its renamable label, brand, quantities, MRP; cost only on PO / GRN, the selling price on a sales bill), a **PDF** made in the browser from the previewed pages with a hand-written PDF writer (no library), and **Send**: the PDF emailed through the server's SMTP account with the store's email as Reply-To, or downloaded to send yourself; Send to Vendor uses it and still records the PO as sent. With QZ Tray, **Print** goes straight to the computer's own printer for that kind of document, chosen once (by itself when clear) and kept on the server per computer (`PrinterAssignment`); `resolveQZPrinter` now prefers the job's own store, so one store never prints on another's printer. Also Setup ▸ Printing (88.1.14) and lists with their own menu entry left out of Setup (88.1.15). Found and fixed: a package bill's e-invoice read the whole order's lines. Detail, decisions D1-D7 and verification: `micro_checklist.md` Stage 98.
+
+**Stage 97 — The docs folder made simple: one front door, one archive** *(docs + doc tooling)*
+
+At the user's request, `docs/` was reorganised in one pass. 48 files moved: dated audits and evidence from `docs/`, `audits/`, `assurance/` and `qa/` went to `archive/audits/`; superseded specs, plans, the blueprint and the old BRD/PRD went to `archive/legacy/`; old handovers went to `archive/handovers/`; loose checklists, API docs, research notes and the contract template got proper homes. Three sets of small pages were merged (data handbook, *Running the service*, SSDF section). Four approved files were deleted: the duplicate OpenAPI copy, the never-run Stage 48 migration preview (2) and a stale local PDF. A script rewrote 262 links and 73 path mentions. `docs/README.md` is now a plain "I want to…" front door with a folder map, and `docs/archive/readme.md` maps every old path to its new one, replacing redirect stubs. `cmd/gendocs` no longer writes the OpenAPI copy, and its permission snapshots now land under `archive/audits/permissions/`. The top of `docs/` went from 14 files and 23 folders to 6 files and 20 folders. doclint: 0 broken links and 0 unregistered or missing files. Detail and verification: `micro_checklist.md` Stage 97.
+
 ## 2026-10-18
+
+**Stage 96 — No Windows Firewall dialog for a dev erp-server** *(code + docs, NOT COMMITTED)*
+
+On Windows, an unset `HOST` now binds `127.0.0.1` (`internal/server/routes.go`), so a new `erp-server.exe` build no longer triggers Windows Firewall's "allow public and private networks?" dialog. Linux (production, Docker) is unchanged, and `HOST=0.0.0.0` opts back in for LAN access. ADMIN_GUIDE §B.1. Detail and verification: `micro_checklist.md` Stage 96.
+
+**Build run, steps 2 and 6-9: numbering, Inventory / WMS, small fixes, e-invoice, reports** *(code + docs, NOT COMMITTED)*
+
+From the user: *"Build 2 to 9 all"* (the module order recorded at the top of `micro_checklist.md`), then *"All approved which are recommended for me"* - recorded on 94.0, 95.0, 88 D12-D14, 73.0.1 and 74.0.1 (BRD defaults; CA sign-off still owed on the tax ones), 34.5 (not built). Full detail per item in `micro_checklist.md`.
 
 **Stage 95 — Images for each Design and Combination ID after the PO, stored on each client's own drive** *(code + docs, NOT COMMITTED)*
 
@@ -426,54 +452,4 @@ Pre-build audit found no Project concept anywhere, and confirmed the codebase's 
 **Stage 37.6 — Deferred revenue, prepaid amortisation, recurring billing, price-list versioning** *(code + schema)*
 
 Pre-build audit found all four completely absent, plus a structural finding: `SalesInvoice` is lump-sum only (no `lines` field) - deferred revenue is recognised at the whole-invoice level, not per line.
-
-**Stage 37.5 — Financial statement builder with dimensions and drill-down** *(code only)*
-
-Pre-build audit found the codebase's own `ReportDefinition` framework explicitly rejects user-authored query/layout flexibility as an injection-risk feature outside its stated scope - so "builder" here is scoped to extending the existing hardcoded Trial Balance/P&L/Balance Sheet with dimension filters and drill-down, not a new statement-layout doctype (which would be the first violation of that stated principle). `gl_accounts` is also confirmed flat (5 basic types, never altered since Stage 1) - a full multi-section layout is a separate, larger undertaking not attempted here.
-
-**Stage 37.4 — Budgeting, cash-flow forecast, credit limits, dunning** *(code + schema)*
-
-Pre-build audit found all four completely absent, and one structural finding shaped the whole design: neither `SalesOrder` nor `SalesInvoice` carries a real `Customer` Link - customer identity flows as a free-text name throughout, the same convention `GetCustomerLedgerReport` already relies on. Credit-limit matching (37.4.2) inherits that name-based convention rather than adding a second, inconsistent identity model - a real Link-based rework of customer identity across these doctypes is a materially larger, separate undertaking.
-
-**Stage 37.3 — Costing & valuation, incl. landed cost allocation** *(code + schema)*
-
-Pre-build audit found this codebase had NO costing method anywhere - `StockLedgerEntry`/`bin_stock`/`inventory_availability` track quantity only. Two real, previously-undiscovered gaps fell out of that audit and are closed by this stage, not just the checklist's own "5 sub-items":
-
-**Stage 37.2 — Multi-entity & intercompany: entity-scoped posting, mirrored entries, reconciliation, consolidation** *(code + schema)*
-
-User asked to build the remaining open Stage 37/38 backlog, starting with 37.2 (the largest ERP-core item still open after 37.1's multi-currency work closed). `LegalEntity` (Stage 17.9) already existed as a Master, linked from `Location.legal_entity`, but nothing transacted across entities — this closes that gap entirely inside one tenant's schema (confirmed via `engines/saas.go` that one schema = one tenant = one consolidation group; there is no cross-tenant consolidation model in this codebase and this stage does not invent one).
-
-## 2026-08-31
-
-**Documentation sync pass — archived Stages 41/42/43/46, corrected a stale cross-reference, rebuilt the executive blueprint** *(docs only)*
-
-User asked for a full docs sync: which checklist stages are ready to archive, and which docs need building so the project is legible "at a glance" to an engineering head, a product head, a developer, and the CEO.
-
-## 2026-08-30
-
-**Stage 36.4/36.6/36.7 — export & syndication, DAM depth, enrichment & quality — Stage 36 closes** *(code + schema)*
-
-Closes the rest of Stage 36 (PIM parity, Unbxd level): export & syndication depth (36.4), DAM depth (36.6), and enrichment & quality (36.7, its last five sub-items — 36.7.2 had shipped earlier). With 36.1-36.7 all now built and verified, Stage 36 is **complete** and has been moved out of `micro_checklist.md` into `docs/archive/micro_checklist_closed_stages.md`. Full item-by-item detail lived there before the move and now lives in that archive entry; this section is the index.
-
-## 2026-08-28
-
-**Stage 36.5 + 36.3 — declarative transform rules, and PIM import depth** *(code + schema)*
-
-Opens Stage 36's remaining five top-level items (36.3-36.7 — import, export/syndication, transform rules, DAM depth, enrichment) with the two built in dependency order: 36.5 first (a shared value-transform seam), then 36.3 (import depth), which consumes it. Full item-by-item detail, including the scope calls made explicit before building, is in `micro_checklist.md` Stage 36.
-
-## 2026-08-25
-
-**Stage 35.8/35.9 — Settlement reconciliation ("UniReco") and returns depth** *(code + schema + UI)*
-
-Closes the last two open items of Stage 35's OMS parity plan: 35.8 (5 sub-items) and 35.9 (3 sub-items). Full item detail in `micro_checklist.md` Stage 35.
-
-## 2026-08-22
-
-**Stage 35.7 — commercial bundles and physically stocked kits** *(code + schema + UI)*
-
-All four Stage 35.7 items are complete. `ProductBundle` is intentionally not another manufacturing BOM: it describes a sellable commercial composition, with Virtual/Stocked fulfillment and Parent/Fixed/Component pricing. Validation pins every SKU to an active Item, forbids duplicate/self/nested components and keeps one active definition per bundle SKU.
-
-**Stage 35.6 — channel breadth becomes an operational SDK** *(code + schema + UI)*
-
-All seven Stage 35.6 items are code-complete. The new connector contract declares auth validation, order pull, inventory push, catalogue publish, status push, error mapping and capabilities; the scheduler and UI consume capabilities instead of platform-name conditionals. Amazon and Flipkart implement their public seller contracts, WooCommerce implements REST v3, and Myntra/Meesho/Ajio/Nykaa/Blinkit/Zepto/Swiggy Instamart use a fail-closed negotiated-path adapter because their seller contracts are private. Quick-commerce descriptors bind orders to a store location and forbid split allocation.
 

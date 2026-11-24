@@ -393,7 +393,7 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 			}
 		}
 		if path == "docs/ai_handover.md" && strings.Count(text, "\n") > 150 {
-			add(path, "handover-budget", "exceeds 150 lines; split pending Stage 48.8")
+			add(path, "handover-budget", "exceeds 150 lines; move released §6 entries to a dated file under docs/archive/handovers/")
 		}
 		reg.Documents = append(reg.Documents, d)
 		report.Bytes += d.Bytes

@@ -123,13 +123,15 @@ func PackTransferOrder(tenantID, transferOrderID, userID string, boxes []map[str
 		updatedBytes, transferOrderID); err != nil {
 		return err
 	}
+	fromWarehouse, _ := data["from_warehouse"].(string)
+	if err := logTaskCompletionTx(tx, tenantID, schema, "Pack", userID, fromWarehouse, transferOrderID, float64(len(boxes))); err != nil {
+		return err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "PACK_TRANSFER_ORDER", "SUCCESS", fmt.Sprintf("Packed transfer order %s into %d box(es)", transferOrderID, len(boxes)))
-	fromWarehouse, _ := data["from_warehouse"].(string)
-	logTaskCompletion(tenantID, "Pack", userID, fromWarehouse, transferOrderID, float64(len(boxes)))
 	return nil
 }
 

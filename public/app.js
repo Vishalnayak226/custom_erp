@@ -178,18 +178,9 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required', 
 }
 
 
-// Error-reporting helpers - every save/load failure must reach the user
-// through the same centered custom dialog used everywhere else, never a
-// silent no-op and never a native browser dialog.
-// getErrorDetails (Stage 23) - the backend now returns a standardized
-// {error, code, correlation_id, retryable} body on every error response
-// (internal/server/apierror.go), so this also surfaces the catalog `code`
-// for console traceability. getErrorMessage/showApiError keep their
-// original signatures for their ~20 existing callers.
-// Stage 30.2.4 adds `detail` (the engine's own specific reason - which item,
-// which field) and `user_action` (the catalog's "what do I do now", populated
-// on all 302 rows and never previously sent). Both are optional; a response
-// without them behaves exactly as before.
+// Error helpers: every failure reaches the user in the shared dialog, never silently or natively.
+// Bodies are {error, code, correlation_id, retryable} (apierror.go, Stage 23), plus optional
+// detail and user_action (30.2.4).
 async function getErrorDetails(res, fallback) {
   try {
     const data = await res.clone().json();
@@ -411,20 +402,9 @@ function adoptCss(id, css, doc = document) {
 // unique retry URL on the next attempt, preserving the existing retry panel.
 const loadedViewModules = new Map();
 const viewModuleLoadAttempts = new Map();
-// Stage 53.17. Two additions to the URL, both for the same reason: a view
-// module was the one piece of this app's code with NO cache story at all.
-//
-// VIEW_MODULE_VERSION - `import('view-pos.js')` is an ordinary HTTP GET, so a
-// browser holding yesterday's copy keeps running yesterday's screen after a
-// deploy. index.html busts app.js with ?v=N; the lazy modules had no such
-// thing, which meant the shell could update while the screens did not. Keep
-// this in step with index.html's app.js?v= on every release.
-//
-// viewModuleCacheBust - set by Reset, so "clear everything and reload" also
-// means the screen code itself. Without it Reset cleared every app-level cache
-// and then re-imported the same stale module from the HTTP cache, which is
-// precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '91';
+// 53.17: VIEW_MODULE_VERSION busts lazy view modules' cache after a deploy (the release bumps it
+// with index.html's app.js?v=); viewModuleCacheBust is set by Reset so it re-fetches them too.
+const VIEW_MODULE_VERSION = '92';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -1329,19 +1309,8 @@ function autoNumberField(label, seriesKey, width = '180px') {
   `;
 }
 
-// employeePickerField / attachEmployeePicker live here, beside
-// autoNumberField and attachLinkTypeahead, because two lazy view modules use
-// them: view-hr.js (attendance, leave, payroll) and view-expenses.js (claim
-// entry).
-//
-// They used to be declared inside view-hr.js. As ES modules the view chunks
-// have their own top-level scope, so Expenses threw
-// `ReferenceError: employeePickerField is not defined` on render unless HR
-// happened to have been opened first - the same cross-module breakage the
-// BLD-041 split caused for Finance/Fulfillment/OMS/Reports, found on a fifth
-// screen by the 47.8.2 browser verification sweep. Promoted to the shared
-// core rather than duplicated or imported across chunks, which is the rule
-// the other four fixes followed.
+// employeePickerField / attachEmployeePicker are shared core: view-hr.js and view-expenses.js
+// both use them, and ES-module chunks cannot see each other's top level (47.8.2).
 function employeePickerField(id, width = '200px') {
   return `
       <div class="form-group s-50435f">
@@ -1679,20 +1648,8 @@ function groupItemsBy(docs, field) {
   return named.concat(unnamed).reduce((acc, k) => acc.concat(buckets.get(k)), []);
 }
 
-// Per-doctype picker defaults (Stage 30.5.8).
-//
-// Location is this app's most-reused master - 15 screens pick one - and
-// Employee is picked by six. Before this, "how a location is chosen" was
-// decided 15 times over, once per call site, which is exactly how the
-// inconsistencies this sweep is closing got in. The defaults live here once;
-// attachLinkTypeahead() is the single door every screen goes through, so the
-// generic record form's Link field and a JSONTable's link column get the same
-// picker as a bespoke screen's hand-built input, for free and forever.
-//
-// Deliberately only presentation. Nothing here declares schema - the field
-// list, the link targets and the validation all stay server-side, which is
-// why a doctype missing from this table is not a bug: it just takes the
-// unadorned default.
+// 30.5.8: per-doctype picker defaults, applied by attachLinkTypeahead() on every screen.
+// Presentation only; a doctype missing here takes the plain default.
 const TYPEAHEAD_DOCTYPE_OPTS = {
   // 103 records across Store / Warehouse / HO. A flat list of eight codes
   // gave no way to tell a shop from a warehouse.
@@ -2000,7 +1957,9 @@ async function sweepLinkNames(root, now) {
   });
   if (!targets.length) return;
   const byDoctype = {};
-  targets.forEach(t => { if (t.doctype && t.ref) (byDoctype[t.doctype] = byDoctype[t.doctype] || []).push(t); });
+  // 245.6: a type the role may not read keeps its codes - asking for its
+  // records only drew a 403 per cell (a Cashier's rule list naming a Vendor).
+  targets.forEach(t => { if (t.doctype && t.ref && canReadDoctype(t.doctype)) (byDoctype[t.doctype] = byDoctype[t.doctype] || []).push(t); });
   for (const [doctype, list] of Object.entries(byDoctype)) {
     const map = now ? (linkNameMap(doctype), linkNameReady.get(doctype)) : await linkNameMap(doctype);
     for (const t of list) {
@@ -2120,35 +2079,8 @@ function attachHSNPicker(hsnInput, gstInput) {
   if (hsnInput) loadPickers().then(m => m.attachSmartHSNPicker(hsnInput, gstInput));
 }
 
-// ---------------------------------------------------------------------------
-// Empty-state guidance (Stage 30.5.1 / 30.5.2)
-//
-// The 2026-07-30 layman audit found 61 empty-state messages of which only two
-// told the user what to do next, and 10 of 18 core master pickers rendering as
-// a dropdown containing nothing but "Select employee". A screen that says
-// "No employees yet" and stops is a dead end: the user has no way to know that
-// the fix is a Setup list two flyouts away.
-//
-// These three helpers are the whole vocabulary. They are string-returning
-// rather than node-returning on purpose - almost every existing empty state is
-// built inside a template literal for a <td>, so a string drops straight in
-// with no restructuring of the call site.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// JSON line editor (Stage 30.5.3)
-//
-// Renders a JSONTable (array of row objects) or JSONMap (key/value object)
-// field as an add-line table instead of a text box demanding hand-typed JSON.
-// The whole thing is driven by the column spec the server puts in the field's
-// `options`, so adding a line editor to a new field is one migration row and
-// no JavaScript - the same reasoning as 30.6.4's auto_generated flag and
-// 30.5.4's setup_advanced.
-//
-// Deliberately kept as a UI layer over a hidden input rather than a new save
-// path: the form's submit handler reads `[name=<fieldname>]`.value, so
-// keeping the serialised JSON there means nothing downstream changes.
-// ---------------------------------------------------------------------------
+// JSON line editor (30.5.3): a JSONTable / JSONMap field as an add-line table, driven by the
+// column spec in the field's `options`. It keeps the JSON in the hidden input the form saves.
 function renderJSONLineEditor(fg, f, existingVal) {
   const isMap = f.fieldtype === 'JSONMap';
   let cols = [];
@@ -2898,17 +2830,8 @@ async function navigateToDeepLink(link) {
   if (link.kind === 'setup') {
     const known = state.activeDoctypes.some(d => d.name === link.doctype);
     if (!known || !canReadDoctype(link.doctype)) return false;
-    // BLD-037: plain navigation, not openSetupDoctype() - that function is
-    // the "create the missing master" shortcut, and unconditionally sets
-    // quickCreateReturn for its own "Back to X" button. A deep link arriving
-    // cold (a refresh, a bookmark, a shared/new-tab URL - restoreLastView's
-    // own comment above) has no real prior screen to go back to in this tab;
-    // routing it through openSetupDoctype anyway picked up currentView's
-    // still-default 'home' as a bogus origin, showing a nonsensical,
-    // untranslated "Back to home" link on every refreshed doctype-table
-    // screen. restoreActiveMenuState is the same sidebar-highlight logic
-    // openSetupDoctype's active-class toggling duplicated, already built for
-    // exactly this "arrived cold" case.
+    // BLD-037: plain navigation, not openSetupDoctype(), whose quickCreateReturn showed a bogus
+    // "Back to home" on a cold deep link; restoreActiveMenuState lights the menu instead.
     currentDoctype = link.doctype;
     // BLD-034: an actual same-tab refresh's self-written link (see
     // saveNavState) carries the page/search it left off at; a hint's or a
@@ -3773,9 +3696,14 @@ function bootstrap() {
   }
   if (localStorage.getItem('erp_token')) {
     loadViewModule('/shell-identity.js').catch(() => {}); // 141.3: brand at once
+    loadViewModule('/print-agent.js').catch(() => {}); // 234.5
     showApp();
     paintLastShell();
-    init();
+    // 234.5: header paints before init; the timer is for a background tab
+    let started = 0;
+    const start = () => started++ || init();
+    requestAnimationFrame(() => setTimeout(start, 0));
+    setTimeout(start, 1000);
   } else {
     showLoginScreen();
   }
@@ -3812,6 +3740,7 @@ async function init() {
     loadFieldFormats(),
     fetchSetupStatus(),
     fetchLocalization(),
+    loadViewModule('/print-agent.js').catch(() => {}), // 234.5: window.PrintAgent before any view
     Promise.race([healerReady, new Promise(resolve => setTimeout(resolve, 1000))])
   ]);
   applyProductPathRouting();
@@ -4109,19 +4038,9 @@ const MENU_PERMISSION_MAP = {
   'menu-control-panel': { opOnly: true }
 };
 
-// Module navigation registry: sidebar entries and direct screen entry share
-// one module declaration. @ entries are programmatic views without a menu.
-// Generic record views resolve their module from server DocType metadata.
-// BLD-021 source checks compare every dispatched screen with this registry.
-// BLD-021: this object literal is machine-parsed as strict JSON by
-// internal/server/module_manifest_test.go (TestModuleManifestCatalog) to
-// cross-check the navigation registry against the real module manifest -
-// no comments, trailing commas or other JS-only syntax inside it.
-//
-// menu-home's "core" module_key (is_core = TRUE, see
-// migrations_stage39_9_help_feedback.sql's comment) is never disableable,
-// same as "reports" below - Home must never go dark just because some
-// unrelated module toggle is off.
+// Module navigation registry (BLD-021); @ entries are views without a menu. module_manifest_test.go
+// parses this literal as strict JSON: no comments or trailing commas inside. "core" (Home) and
+// "reports" can never be switched off.
 const MENU_MODULE_MAP = {
   "menu-home": {
     "module": "core",
@@ -6077,9 +5996,29 @@ function restoreActiveMenuState(view, doctype) {
   // Stage 151: a bare "hr" link names no tab; the screen sets the one it opened.
   if (!doctype && !view.includes(':') && view === currentView && currentViewTab) view = `${view}:${currentViewTab}`;
   const own = document.querySelector(doctype ? `.sidebar-menu [data-doctype="${doctype}"]` : `.sidebar-menu [data-go="${view}"]`);
-  setActiveMenu(own ? own.id : STATIC_VIEW_MENU_IDS[view.split(':')[0]]);
+  setActiveMenu(own ? own.id : doctype && view === 'doctype-table' ? listMenuEntryId(doctype) : STATIC_VIEW_MENU_IDS[view.split(':')[0]]);
   scrollActiveMenuIntoViewAfterPaint();
   syncDocumentTitle();
+}
+
+// 246.1: a report cell or document link opens #/setup/<Type>?q=<id>, a list most types have no entry of their own
+// for. Light the entry whose menu rule names that type alone (one in the type's own module first), else the module.
+const MODULE_MENU_GROUP = { POS: 'module-pos', Sales: 'module-pos', Finance: 'module-finance', OMS: 'module-fulfillment', CRM: 'module-crm',
+  Service: 'module-crm', Reports: 'module-reports', Procurement: 'module-procurement', Inbound: 'module-procurement', Inventory: 'module-inventory',
+  HR: 'module-hr', Manufacturing: 'module-manufacturing', Quality: 'module-manufacturing', PIM: 'module-pim', Core: 'module-admin' };
+function listMenuEntryId(doctype) {
+  const meta = state.activeDoctypes.find(d => d.name === doctype);
+  const group = meta && MODULE_MENU_GROUP[meta.module];
+  const named = Object.keys(MENU_PERMISSION_MAP).filter(id => {
+    const types = MENU_PERMISSION_MAP[id].doctypes;
+    return types && types.length === 1 && types[0] === doctype && document.getElementById(id);
+  });
+  const inModule = id => {
+    const row = document.getElementById(id).closest('.has-flyout');
+    const trigger = row && row.querySelector('.menu-item-group');
+    return trigger && trigger.id === group;
+  };
+  return named.find(inModule) || named[0] || group;
 }
 
 // Restores whatever view/doctype/search/page the user was last on instead of
@@ -6421,6 +6360,9 @@ function navigateHomeAction(action) {
   renderView(action.view);
 }
 
+// 244.1: Home's last approvals count, valid only for the same token and write sequence.
+let homePendingLast = null;
+
 async function renderHomeView(container) {
   const visible = HOME_QUICK_ACTIONS.filter(isHomeActionVisible);
 
@@ -6459,25 +6401,46 @@ async function renderHomeView(container) {
   statsRow.className = 'dashboard-stats-row home-stats-row';
   container.appendChild(statsRow);
   if (isHomeActionVisible({ menuId: 'menu-approvals' })) {
-    try {
-      const res = await apiFetch('/api/v1/approval/pending');
-      if (res && res.ok) {
-        const pending = await res.json();
-        const card = document.createElement('div');
+    let card = null;
+    const drawCount = n => {
+      if (!card) {
+        card = document.createElement('div');
         card.className = 'stat-card';
         card.style.cursor = 'pointer';
-        card.innerHTML = `
-          <div class="stat-info">
-            <span class="stat-val">${pending.length}</span>
-            <span class="stat-label">Approval${pending.length === 1 ? '' : 's'} waiting on you</span>
-          </div>
-        `;
         makeClickable(card, () => navigateHomeAction({ view: 'approvals', menuId: 'menu-approvals' }));
-        statsRow.appendChild(card);
+        statsRow.prepend(card);
       }
-    } catch (e) {
-      // Best-effort, same as every other dashboard tile - a failed count
-      // must never block the rest of Home from rendering.
+      card.innerHTML = `
+        <div class="stat-info">
+          <span class="stat-val">${n}</span>
+          <span class="stat-label">Approval${n === 1 ? '' : 's'} waiting on you</span>
+        </div>
+      `;
+    };
+    const fetchCount = async () => {
+      const seq = apiWriteSeq;
+      const tok = localStorage.getItem('erp_token');
+      const res = await apiFetch('/api/v1/approval/pending');
+      if (!res || !res.ok) return null;
+      const n = (await res.json()).length;
+      if (seq === apiWriteSeq) homePendingLast = { n, seq, tok };
+      return n;
+    };
+    // 244.1: a revisit draws the last count at once and refreshes it behind,
+    // so the phone switch to Home no longer waits on a round trip (234.1's pattern).
+    const last = homePendingLast && homePendingLast.seq === apiWriteSeq
+      && homePendingLast.tok === localStorage.getItem('erp_token') ? homePendingLast : null;
+    if (last) {
+      drawCount(last.n);
+      fetchCount().then(n => { if (n != null && n !== last.n && statsRow.isConnected) drawCount(n); }).catch(() => {});
+    } else {
+      try {
+        const n = await fetchCount();
+        if (n != null) drawCount(n);
+      } catch (e) {
+        // Best-effort, same as every other dashboard tile - a failed count
+        // must never block the rest of Home from rendering.
+      }
     }
   }
 
@@ -6597,18 +6560,9 @@ function queueOfflinePOSCart(payload) {
   saveOfflineQueue(queue);
 }
 
-// 24.36: best-effort beacon of the currently-queued offline cart_numbers
-// against the cashier's open session, so a gap between what was queued and
-// what actually synced (e.g. a cashier clears browser storage before
-// reconnecting) leaves a server-side trace instead of vanishing without
-// one - see engines.RecordOfflineHeartbeat/detectOfflineQueueGap. Can't use
-// navigator.sendBeacon (no way to attach the Authorization/X-Tenant-ID
-// headers this endpoint requires); fetch's keepalive flag is the
-// equivalent that still works during page unload for a payload this small.
-// A network failure here is expected and silent - it just means this
-// particular checkpoint never reaches the server, same as if a heartbeat
-// had never fired at all; it does not affect the cashier's ability to keep
-// selling or syncing.
+// 24.36: best-effort beacon of the queued offline cart_numbers, so a queue lost before sync leaves
+// a server trace (engines.detectOfflineQueueGap). fetch keepalive, not sendBeacon, as it needs auth
+// headers; a failure is silent and never blocks selling.
 function sendOfflineQueueHeartbeat() {
   if (!posOpenSessionId || !posLocation) return;
   const token = localStorage.getItem('erp_token');
@@ -6828,14 +6782,14 @@ function formatDateTime(v, dateOnly) {
 }
 
 
-let qzLastError = '';
+let agentLastError = '';
 
-// 164.4: PrintBridge flow is qz-print-flow.js, loaded on the first print; it replaces these stubs.
-const lazyQZ = name => (...args) => loadViewModule('./qz-print-flow.js').then(m => m[name](...args));
-function qzTryConnect(...a) { return lazyQZ('qzTryConnect')(...a); }
-function qzLogJob(...a) { return lazyQZ('qzLogJob')(...a); }
-function qzTryPrint(...a) { return lazyQZ('qzTryPrint')(...a); }
-function qzPrintMarketplaceDocument(...a) { return lazyQZ('qzPrintMarketplaceDocument')(...a); }
+// 164.4: PrintBridge flow is print-agent-flow.js, loaded on the first print; it replaces these stubs.
+const lazyAgent = name => (...args) => loadViewModule('./print-agent-flow.js').then(m => m[name](...args));
+function agentTryConnect(...a) { return lazyAgent('agentTryConnect')(...a); }
+function agentLogJob(...a) { return lazyAgent('agentLogJob')(...a); }
+function agentTryPrint(...a) { return lazyAgent('agentTryPrint')(...a); }
+function agentPrintMarketplaceDocument(...a) { return lazyAgent('agentPrintMarketplaceDocument')(...a); }
 
 // Stage 58: the sticker template designer is public/sticker-studio.js (its
 // state lives there); stickerFieldText/renderStickerElementHTML used by

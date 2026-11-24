@@ -4,7 +4,7 @@ section: Role Journeys
 order: 6
 summary: Payables in, receivables out, the bank reconciled, and a trial ledger that balances before you go home.
 audience: finance
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [finance, vendor-invoices, sales-invoices, payment-proposals, bank-reconciliation, finance-notes, approvals, reports]
 doc_id: DOC-186524B8BA
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -41,6 +41,8 @@ and whether the books agree with the bank.
 | **Debit Notes**, **Vendor Credit Notes**, **Customer Credit Notes** | Corrections in either direction |
 | **Bank Reconciliation** | Making the statement and the ledger agree |
 | **Trial Balance**, **Chart of Accounts**, **Accounting Periods**, **Journal Vouchers** | The ledger itself, and the trial balance |
+| **E-Invoice (IRN)** | Registering invoices with the e-invoice portal |
+| **Work to review** | A start page: each of these, plus who posted what and the general journal |
 | **Approvals** | Anything routed to you for a decision |
 
 All of them are under **Financial Accounting**.
@@ -79,14 +81,11 @@ contract fixes one; what you type wins.
 The invoice keeps the amount agreed in the customer's currency; the accounts
 record what that is worth in yours. Both numbers matter.
 
-**On settlement.** Two optional fields are worth supplying, because the rate has
-almost certainly moved since:
-
-- **Settlement date** - the day the money actually reached you, so the rate used
-  is the one that applied then rather than today's.
-- **Exchange rate** - the rate your bank actually gave you, from the remittance
-  advice. This beats any stored rate. Without it the difference does not vanish;
-  it just hides somewhere less obvious.
+**On settlement.** **Settle** on a sales invoice, or **Pay** on a vendor
+invoice, asks only for the amount and converts it at today's rate. So enter a
+receipt on the day the money arrives. If your bank gave a different rate, the
+difference shows in the **FX Gain/Loss Register** rather than vanishing; a bank
+integration can send the actual date and rate with the receipt instead.
 
 The gain or loss is recorded automatically. A $1,000 invoice raised at 83 and
 collected at 85 brings in ₹85,000 against ₹83,000 booked; that ₹2,000 is a

@@ -129,4 +129,4 @@ Besides **Print** it has:
 
 ## The right printer on every computer
 
-With QZ Tray on a computer, **Print** goes straight to that computer's printer for the kind of document - no dialog. The first time a kind prints there, the printer is chosen for you when it is clear (the default printer for A4 / A5, the receipt printer for bills, the label printer for stickers and labels), or you are asked once. It is never asked again; **Change** in the print window changes it, and **Setup → Printing → Printer Assignment** lists every computer's choices.
+With PrintBridge on a computer, **Print** goes straight to that computer's printer for the kind of document - no dialog. The first time a kind prints there, the printer is chosen for you when it is clear (the default printer for A4 / A5, the receipt printer for bills, the label printer for stickers and labels), or you are asked once. It is never asked again; **Change** in the print window changes it, and **Setup → Printing → Printer Assignment** lists every computer's choices.

@@ -1710,7 +1710,7 @@ HRMS to PIM / PIMS.
 
 **Parameters:**
 
-- **Channel** (`channel`) - text, optional
+- **Channel** (`channel`) - text, **required**
 
 **Columns:** Channel · Item · Name · Differs · Listing · Item master
 

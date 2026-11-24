@@ -60,7 +60,7 @@ func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
 }
 
 // stickerSelections resolves a bulk-print request's line selection, shared by
-// both print paths (browser-fallback and QZ silent) so they can never disagree
+// both print paths (browser-fallback and PrintBridge silent) so they can never disagree
 // about what a request selected.
 //
 // Stage 52.8 added the per-line `lines` shape (SKU + batch + copies) because a
@@ -115,8 +115,8 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SourceDoctype != "" && req.SourceDocID != "" {
 		// Stage 52: the browser-print-fallback path for bulk printing from a
-		// GRN/Transfer Order - mirrors the QZ silent-print branch in
-		// handleQZPrintPayload so both paths accept the same request shape.
+		// GRN/Transfer Order - mirrors the silent-print branch in
+		// handleAgentPrintPayload so both paths accept the same request shape.
 		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, stickerSelections(req.Lines, req.Skus, req.CopiesOverride), engines.StickerPrintOptions{RequestKey: req.RequestKey, Preview: req.Preview})
 	} else {
 		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies, engines.StickerPrintOptions{RequestKey: req.RequestKey, Preview: req.Preview})

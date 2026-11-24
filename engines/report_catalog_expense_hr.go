@@ -118,7 +118,9 @@ func claimExceptions(r *catRow) []string {
 	}
 	if d := catDay(r.hv("expense_date")); d != "" {
 		if t, err := time.Parse("2006-01-02", d); err == nil {
-			if t.After(time.Now()) {
+			// 246.3: today in the business's days - midnight UTC is after the
+			// clock's instant until 05:30 IST, so today's claim read as future.
+			if d > BusinessToday() {
 				out = append(out, "Expense dated in the future")
 			} else if gap := r.Created.Sub(t).Hours() / 24; gap > 30 {
 				out = append(out, fmt.Sprintf("Claimed %d days after the expense", int(gap)))

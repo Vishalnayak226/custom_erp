@@ -409,8 +409,27 @@ func MarkASNReceivedIfComplete(tenantID, grnID string) {
 			return
 		}
 	}
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Received', data = data || jsonb_build_object('status', 'Received', 'received_by_grn', $2::text),
-		updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ASN' AND id = $1 AND status = 'Expected'`, schema), asnID, grnID)
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Completed', data = data || jsonb_build_object('status', 'Completed'),
-		updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Appointment' AND data->>'asn_id' = $1 AND status IN ('Scheduled', 'CheckedIn', 'InProgress')`, schema), asnID)
+	// 250.3: the ASN and its dock appointment close together, and a failure is
+	// logged instead of dropped. The GRN and its stock posted in their own
+	// transaction before this runs, so they are not affected either way.
+	if err := closeASNWithAppointment(schema, asnID, grnID); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "MarkASNReceivedIfComplete", fmt.Sprintf("GRN %s posted, but ASN %s and its appointment were not closed: %v", grnID, asnID, err), "")
+	}
+}
+
+func closeASNWithAppointment(schema, asnID, grnID string) error {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Received', data = data || jsonb_build_object('status', 'Received', 'received_by_grn', $2::text),
+		updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ASN' AND id = $1 AND status = 'Expected'`, schema), asnID, grnID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Completed', data = data || jsonb_build_object('status', 'Completed'),
+		updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Appointment' AND data->>'asn_id' = $1 AND status IN ('Scheduled', 'CheckedIn', 'InProgress')`, schema), asnID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

@@ -143,12 +143,16 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 	createable := []string{}
 	updatable := []string{}
 	deletable := []string{}
+	jvSave := journalVoucherSaveAllowed(role)
 	for rows.Next() {
 		var d string
 		var canRead, canCreate, canUpdate, canDelete bool
 		if err := rows.Scan(&d, &canRead, &canCreate, &canUpdate, &canDelete); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
+		}
+		if d == "JournalVoucher" && !jvSave {
+			canCreate, canUpdate = false, false // 245.5: the save would be refused
 		}
 		if canRead {
 			doctypes = append(doctypes, d)

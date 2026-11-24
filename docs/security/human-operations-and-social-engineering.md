@@ -192,7 +192,7 @@ would be speculative.
 ## 49.14.6 — Secure device/browser baseline
 
 **Partially documented, not formalized.**
-[`docs/guides/qz-printing-setup.md`](../guides/qz-printing-setup.md) is the
+[`docs/guides/silent-printing-setup.md`](../guides/silent-printing-setup.md) is the
 one existing "declared POS/RF endpoint" document — QZ Tray install,
 version, and the CSP exception Stage 40.8 found and fixed
 (`connect-src` needed `ws://localhost:*`/`wss://localhost.qz.io:*` for any

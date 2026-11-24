@@ -445,6 +445,12 @@ func BinStockReconciliation(tenantID, sku, locationCode string, mismatchesOnly b
 	if err != nil {
 		return nil, err
 	}
+	return binStockReconciliation(schema, sku, locationCode, mismatchesOnly)
+}
+
+// binStockReconciliation is BinStockReconciliation for a resolved schema; the
+// daily reconciliation run calls it too (250.2, checkBinStock).
+func binStockReconciliation(schema, sku, locationCode string, mismatchesOnly bool) ([]BinStockReconciliationRow, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		WITH binned AS (
 			SELECT sku, location_code, SUM(qty) AS qty FROM %s.bin_stock GROUP BY sku, location_code

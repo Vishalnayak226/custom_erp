@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.28.0",
+  "release": "0.29.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "internal/kb/content/articles/abbreviations.html",
-      "sha256": "5ad2dd675a5ce8f364de4883aebef731c195846604eab4d1bc2fbc92589309b1",
+      "sha256": "f6346a89f9975698206a199ef8b221063162a89fcacaa092d1cadd3fe91d07c1",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -64,7 +64,7 @@
     },
     {
       "path": "internal/kb/content/articles/courier-integrations.html",
-      "sha256": "c81a694972b8a6f57fdc09a02efb5153c4c4e1abb946969939354b4071d3b0ba",
+      "sha256": "861c1784640e2130abb72eba01b6529b0ecd2ead00b0f93ada033ba86c2bdf71",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -154,7 +154,7 @@
     },
     {
       "path": "internal/kb/content/articles/faq.html",
-      "sha256": "760c08d11510bfd4b3a1939658a1a81c28f016bdb23e196ac5c372d86ffe215c",
+      "sha256": "be685f7279a770184478d33c3d85527142e8692ae52bc790a57a6c2291c743da",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -199,7 +199,7 @@
     },
     {
       "path": "internal/kb/content/articles/glossary.html",
-      "sha256": "75bd2580dc70161a229a683bc02ecdaa95097d34424c0c498ec01ed41ad2e821",
+      "sha256": "9946d2487e339b0e309f25beaef0bb774369e7a5929475c738a8d2b0812fc587",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -235,7 +235,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-admin.html",
-      "sha256": "ed904132aba0caed420296a84bbdaf44dd9d0fb4b3789cca45dbd958770435a8",
+      "sha256": "fb2cc81c6a3cd31db7308a0667c9ccbb442214767c865814d1a246651b8d47f8",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -244,7 +244,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-cashier.html",
-      "sha256": "92c62dbd96eef77f37c2391a7e9534b2342a94f252bfaf44692ca3192f72efc7",
+      "sha256": "a85de6df0d610486af548ee8014331aa16a3d4eda98696a2d5047e44d9c30617",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -253,7 +253,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-category-manager.html",
-      "sha256": "d633ab4686c3f40820577d215b0cd64de3c87f42f3bac339bd08986de60db188",
+      "sha256": "61f1de2cd7b342c9f209d39a5a1a7187ae06a12402c9e13d51b1d00bfda42a60",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -262,7 +262,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-finance.html",
-      "sha256": "c0808d5787401a1a96c994581e9bda69e2ed7b82593d1a9e73cf0293baf0218b",
+      "sha256": "b0f40dab1cac190feeb6aa525b59fe3cf374c364d1325f7dd520f4ab6fd30f4d",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -271,7 +271,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-store-manager.html",
-      "sha256": "aa86b2170e86feba380837cab6949d49ddad4a5d1f9260abcb19b29ef46738d0",
+      "sha256": "2d3ac7ddc79f6e853190083cc97f56791c7e13f019a490a7b81c96f0b9a0b0da",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -280,7 +280,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-warehouse-operator.html",
-      "sha256": "7680c481131191cf301993c7e71f747b1e36b5687955e82f8363c1fa01492827",
+      "sha256": "d225868f3c34a7535131d9b16563e1028ac7a8aa9766b456cbbd4a13caa0ab71",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -370,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/pos-operations.html",
-      "sha256": "c9b2a76e7dc9ad525de88546c6c65b1e89e437e89feda7c5ddbfc896c21ca9bd",
+      "sha256": "0b28c910c031352c242f574d2f5d79cfc6d06ef7c7a012973adbda00a8cbabe9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -379,7 +379,7 @@
     },
     {
       "path": "internal/kb/content/articles/printing-stickers-and-documents.html",
-      "sha256": "637d5a4b50b53e7130233fe6e82024c055cc7af735b7fd8645a4c7e57128f319",
+      "sha256": "50715ac1de268b2e9a261e917e04f6282b6264205a022503ea3217d162f56dc5",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -397,7 +397,7 @@
     },
     {
       "path": "internal/kb/content/articles/procurement.html",
-      "sha256": "2eacf87ce0ec32f9e197616ba50fc6673981dfda55fea2def02526424b05bf49",
+      "sha256": "04d8a0de97abb972eacf8544304cc4a53f62b2e1cf20f1d987963c4852bb4ef3",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -451,7 +451,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "9c1dca6cffc289707af4621496cd63b07f05461920bcdecf74ae8710a43e59e8",
+      "sha256": "1710869ef3bf26f4b5e0cfe6114b23dfef39ccc30f7673bcfb641798dfc4aba7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -460,7 +460,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-3.html",
-      "sha256": "a573f0d71014c2e400b576e20e07b414e26b74ce0cc9aa4c428247ee0849d382",
+      "sha256": "4e98afe32999459b6d11d8803d707c7bb1fd434ddd87ef5b9df783e090067b3e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -469,7 +469,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "58394c99f98d3142c9487aa49bd6096a0aaacba62ba573024b716db884e788e6",
+      "sha256": "c4c1c7220024b48fe68508b365a5948be0fac952c7e13c8f04e2f566b9ac7945",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -478,7 +478,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-2.html",
-      "sha256": "6458679d04f3d7beca4426439bbea9d3f82fecd0451fdcfc9f165fcb7c67eef9",
+      "sha256": "a1523bcd9b0f6adcda8074cf1bbaa2a0664f42984ace2863d35516daeeca8bc7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -532,7 +532,7 @@
     },
     {
       "path": "internal/kb/content/articles/role-journeys-overview.html",
-      "sha256": "b4e9d4075c72cf3267eee993663810e102dd63142f0122824a48e33379b9198a",
+      "sha256": "6dba237d95b7c97baf1b9f44e4f3d368dd2314bfad6419d78c549a4eb6937b05",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -604,7 +604,7 @@
     },
     {
       "path": "internal/kb/content/articles/troubleshooting-index.html",
-      "sha256": "aee91dc799f7494afe20e2d5ab2e84f8ffbde015a7138cb0627359bf3238b41b",
+      "sha256": "bb6ff285bc3917e1200f39eb9117d5bcc8e85de5bf54e3cfe01321e2b85574ae",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -622,7 +622,7 @@
     },
     {
       "path": "internal/kb/content/articles/what-is-this-system.html",
-      "sha256": "179abf524a5f44f79c2beaf7dfcc3795b76bdcfbf3e5c8f276b103e910b67976",
+      "sha256": "708cb87178af5435e43fd8a8e6fd36dd0dcfe137d5b51a4f627442ba3fb1aee0",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -820,7 +820,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "612615ab4e993a4afe684905567583eff86d59d0089cfacff4f9d5ed830e57b9",
+      "sha256": "404abffa9d96b10bc05c2a1c01b3a2da7ee529ecb9511f754fd769c7a704bd42",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -829,7 +829,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "0c98ef78a40c764685cd6c541c41bfcfccf1e17417d991adf134686672084295",
+      "sha256": "d94afbfa642b4b7d6bec5396b4e4c31a3d629450a5c73de861c0a80eb2d0ea35",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

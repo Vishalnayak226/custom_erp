@@ -4,7 +4,7 @@ section: Reference
 order: 3
 summary: The questions people actually ask in the first month, answered without a tour of the menus.
 audience: everyone
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 doc_id: DOC-34166B7C9D
 type: procedure
 status: draft
@@ -13,7 +13,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -38,8 +38,8 @@ yourself access, which is deliberate. Ask an administrator.
 **Is a whole missing module also a permission?**
 Not always. A module missing from *everyone's* sidebar is usually an entitlement -
 something your business has not licensed. One missing from only your sidebar
-is a permission. An administrator can tell the two apart under **Settings »
-Tenant Entitlements**.
+is a permission. Your administrator can check the role; what is licensed
+follows your plan, shown under **Subscription**.
 
 **I typed my password wrong a few times and now nothing works.**
 Five failed sign-ins in a minute are refused for a short cooling-off period.
@@ -179,8 +179,9 @@ read it under **Settings » Activity Log**. This is what makes it safe to give
 people real access rather than routing everything through one person.
 
 **Can we add our own fields?**
-Yes. An administrator adds fields and record types under **Settings » Database
-Schema Design**, and can rename any field's label without touching data using
+Yes. Fields and record types are added under **Settings » Database Schema
+Design**, a developer tool your platform provider holds, so ask them. Your
+administrator can rename any field's label without touching data using
 **Dynamic Labels**.
 
 **Can another business on this system see our data?**

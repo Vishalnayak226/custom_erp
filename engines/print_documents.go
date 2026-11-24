@@ -809,6 +809,7 @@ func BuildPrintDocumentAs(tenantID, user, txn, id, store string, withImages bool
 		}
 		d.Fields["tenders"] = firstNonEmpty(strings.Join(tenderText, " · "), strField(data, "payment_mode"))
 		d.Fields["return_policy"] = strings.TrimSpace(GetSettingString(tenantID, SettingReceiptReturnPolicy))
+		d.Fields["remarks"] = strField(data, "remarks") // ask 260.3: the cashier's remarks on the bill
 		if _, _, at, errT := fetchPrintableDocument(tenantID, "POSCart", id); errT == nil && !at.IsZero() {
 			d.Fields["bill_datetime"] = at.Format(ClientDateLayout(tenantID) + " 15:04") // 47.14.2a: the client's date order
 		}

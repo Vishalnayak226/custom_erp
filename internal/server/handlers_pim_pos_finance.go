@@ -339,6 +339,29 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 	sku := r.URL.Query().Get("sku")
 	location := r.URL.Query().Get("location")
 
+	// Ask 262.1: skus=A,B,C (with a location) is each one's sellable quantity
+	// there, for the till's search list.
+	if list := r.URL.Query().Get("skus"); list != "" {
+		var skus []string
+		for _, s := range strings.Split(list, ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				skus = append(skus, s)
+			}
+		}
+		if location == "" || len(skus) > engines.MaxATSBatch {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity,
+				fmt.Sprintf("'skus' needs a 'location' and takes at most %d SKUs", engines.MaxATSBatch))
+			return
+		}
+		ats, err := engines.AvailableToSellMany(tenantID, skus, location)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"location_code": location, "ats": ats})
+		return
+	}
+
 	if sku == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'sku' is required")
 		return
@@ -356,6 +379,15 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Ask 262.2: whether the item keeps stock, so the till refuses only what
+	// needs stock. A Virtual bundle counts its components' stock.
+	tracked := true
+	if _, derived := res["derived_from_components"]; !derived {
+		if policy, _, ok := engines.ItemPolicyForSKU(tenantID, sku); ok {
+			tracked = policy.Tracked()
+		}
+	}
+	res["tracked"] = tracked
 
 	_ = json.NewEncoder(w).Encode(res)
 }
@@ -400,6 +432,20 @@ func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 		"status":         "reserved",
 		"reservation_id": resID,
 	})
+}
+
+// billRemarksMax is the longest remark a bill takes (ask 260.3); the till's
+// box stops there too.
+const billRemarksMax = 200
+
+// cleanBillRemarks puts a bill's remarks on one line with single spaces and no
+// control characters: they print on an ESC-POS receipt, where a control byte
+// is a printer command. ok is false when the result is over billRemarksMax.
+func cleanBillRemarks(s string) (string, bool) {
+	out := strings.Join(strings.FieldsFunc(s, func(c rune) bool {
+		return c <= ' ' || c == 0x7f || (c >= 0x80 && c <= 0x9f)
+	}), " ")
+	return out, len([]rune(out)) <= billRemarksMax
 }
 
 func handleCheckout(w http.ResponseWriter, r *http.Request) {
@@ -468,6 +514,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// earlier one on purpose. omitempty keeps an ordinary bill's digest as it was.
 		SecondPayment bool   `json:"second_payment,omitempty"`
 		SalesmanID    string `json:"salesman_id"`
+		// Remarks (ask 260.3): the cashier's note on the bill ("gift wrap",
+		// "deliver Sunday"), kept on the cart and printed on the bill.
+		// omitempty keeps a bill without one exactly as it was.
+		Remarks string `json:"remarks,omitempty"`
 		// CouponCodes (Stage 30.7): coupon-gated offers the cashier keyed in.
 		// A code that matches no live offer is reported back rather than
 		// silently ignored, so the cashier learns it didn't apply.
@@ -540,6 +590,12 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	if req.CartNumber == "" || req.Location == "" || len(req.Items) == 0 {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'cart_number', 'location', and 'items' are required")
+		return
+	}
+	// Ask 260.3: cleaned before anything stores or holds the sale.
+	var remarksOK bool
+	if req.Remarks, remarksOK = cleanBillRemarks(req.Remarks); !remarksOK {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Remarks can be at most %d characters.", billRemarksMax))
 		return
 	}
 

@@ -1,32 +1,32 @@
-// PrintBridge (QZ) connect, print and job log, and the browser print sheet (164.4):
-// moved out of app.js; app.js keeps lazy stubs with the same names. qzLastError stays
+// PrintBridge connect, print and job log, and the browser print sheet (164.4):
+// moved out of app.js; app.js keeps lazy stubs with the same names. agentLastError stays
 // in app.js (view-printing.js reads it). Loaded on the first print.
-export async function qzTryConnect(silent = true) {
-  if (!window.QZPrint) return false;
+export async function agentTryConnect(silent = true) {
+  if (!window.PrintAgent) return false;
   try {
-    await window.QZPrint.connect();
-    qzLastError = '';
+    await window.PrintAgent.connect();
+    agentLastError = '';
     return true;
   } catch (err) {
-    qzLastError = err.message || String(err);
-    if (!silent) await showCustomAlert(qzLastError, 'QZ Tray Not Available');
+    agentLastError = err.message || String(err);
+    if (!silent) await showCustomAlert(agentLastError, 'PrintBridge Not Available');
     return false;
   }
 }
 
 // Records what actually reached the printer. Best-effort: a failed log write
 // must never surface as a failed print, because the label is already out.
-export async function qzLogJob(entry) {
+export async function agentLogJob(entry) {
   try {
-    await apiFetch('/api/v1/print/qz/log', { method: 'POST', body: JSON.stringify(entry) });
+    await apiFetch('/api/v1/print/agent/log', { method: 'POST', body: JSON.stringify(entry) });
   } catch (err) {
-    console.debug('[QZ] print log write failed', err);
+    console.debug('[PrintBridge] print log write failed', err);
   }
 }
 
 /**
  * One-click print. Asks the server what to print (and on which printer),
- * hands it to QZ Tray, and records the outcome.
+ * hands it to PrintBridge, and records the outcome.
  *
  * @param jobType 'Shipping Label' | 'Sticker' | 'Receipt' | 'Invoice' | 'Purchase Order' | 'Document'
  * @param opts    { documentRef, printerCode, copies, skus, reprintReason,
@@ -35,21 +35,21 @@ export async function qzLogJob(entry) {
  * `quiet` (31.1.9) suppresses the dialog when the server cannot prepare the
  * job, for the call sites that resolve a printer by *role* rather than by an
  * explicit pick. "No Printer record is Default For Receipt" is the normal
- * state of a tenant that has not set QZ up at all - it must fall through to
+ * state of a tenant that has not set PrintBridge up at all - it must fall through to
  * the browser print sheet silently, not put an error in front of the cashier
  * on every sale. A failure at the tray itself is still shown either way:
  * that one means printing was really attempted and really failed.
  *
  * @returns true if it printed, false if the caller should fall back.
  */
-export async function qzTryPrint(jobType, opts = {}) {
+export async function agentTryPrint(jobType, opts = {}) {
   // Stage 127.2: opts.why, when given, is told why nothing printed.
   const fail = (reason, setup) => { if (opts.why) Object.assign(opts.why, { reason, setup }); return false; };
-  if (!await qzTryConnect()) return fail(qzLastError ? `PrintBridge is not reachable (${qzLastError}).` : 'PrintBridge is not reachable.');
+  if (!await agentTryConnect()) return fail(agentLastError ? `PrintBridge is not reachable (${agentLastError}).` : 'PrintBridge is not reachable.');
   // Stage 98.4: this computer's own printer per kind of print (print-routing.js).
   const routing = await loadViewModule('./print-routing.js');
 
-  const res = await apiFetch('/api/v1/print/qz/payload', {
+  const res = await apiFetch('/api/v1/print/agent/payload', {
     method: 'POST',
     body: JSON.stringify({
       job_type: jobType,
@@ -92,7 +92,7 @@ export async function qzTryPrint(jobType, opts = {}) {
     return true;
   }
 
-  const printerName = (payload.printer && payload.printer.qz_printer_name) || '';
+  const printerName = (payload.printer && payload.printer.os_printer_name) || '';
   if (!printerName) {
     const why = routing.notMapped((payload.printer && payload.printer.name) || opts.printerCode);
     if (opts.quiet) return fail(why + ' Then Retry.', 1);
@@ -101,11 +101,11 @@ export async function qzTryPrint(jobType, opts = {}) {
   }
 
   try {
-    await window.QZPrint.printItems(printerName, payload.items, payload.copies);
+    await window.PrintAgent.printItems(printerName, payload.items, payload.copies);
   } catch (err) {
-    await qzLogJob({
+    await agentLogJob({
       job_type: jobType, document_ref: opts.documentRef || '', printer_code: payload.printer.code,
-      qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
+      os_printer_name: printerName, print_format: payload.format, copies: payload.copies,
       status: 'Failed', error_detail: err.message || String(err)
     });
     if (opts.quiet) return fail(`The printer refused the job: ${err.message || String(err)}.`);
@@ -113,9 +113,9 @@ export async function qzTryPrint(jobType, opts = {}) {
     return false;
   }
 
-  await qzLogJob({
+  await agentLogJob({
     job_type: jobType, document_ref: opts.documentRef || '', printer_code: payload.printer.code,
-    qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
+    os_printer_name: printerName, print_format: payload.format, copies: payload.copies,
     status: 'Submitted', error_detail: ''
   });
   showToast(`Sent to ${printerName}.`, { variant: 'success' });
@@ -128,7 +128,7 @@ export async function qzTryPrint(jobType, opts = {}) {
  * PDF, goes through here - the file is passed to the printer untouched,
  * because re-rendering a courier's label risks altering a barcode they scan.
  */
-export async function qzPrintMarketplaceDocument(file, opts = {}) {
+export async function agentPrintMarketplaceDocument(file, opts = {}) {
   if (!file) return false;
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -137,7 +137,7 @@ export async function qzPrintMarketplaceDocument(file, opts = {}) {
     reader.readAsDataURL(file);
   });
   const isPDF = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-  return qzTryPrint('Document', {
+  return agentTryPrint('Document', {
     documentRef: opts.documentRef || file.name,
     printerCode: opts.printerCode || '',
     copies: opts.copies || 1,

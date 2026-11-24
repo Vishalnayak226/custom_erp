@@ -98,7 +98,7 @@ var reviewedOverrides = func() map[string]overrideEntry {
 		"internal/server/handlers_core_doc_engine.go|json|store_overrides":  {NotAControl: "a number series' per-store prefix (configuration), not a control"},
 		"internal/server/handlers_procurement_pim2.go|json|copies_override": {NotAControl: "how many copies to print"},
 		"engines/charge_codes.go|key|skip_reason":                           {NotAControl: "the text on a charge entry saying why it charged nothing (148.8); it skips no check"},
-		"internal/server/handlers_qz_print.go|json|copies_override":         {NotAControl: "how many copies to print"},
+		"internal/server/handlers_print_agent.go|json|copies_override":         {NotAControl: "how many copies to print"},
 		"engines/shopify_sync.go|bool|force":                                {NotAControl: "send every price instead of only the changed ones"},
 		"engines/transaction_controls.go|bool|force":                        {NotAControl: "run the reconciliation checks now instead of at most once a day"},
 		// 170.41: Ignored takes a data-quality finding off the open queue; it lifts no business rule.

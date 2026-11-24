@@ -24319,7 +24319,7 @@
           "key": "channel",
           "label": "Channel",
           "type": "text",
-          "required": false
+          "required": true
         }
       ],
       "has_drill_down": false,

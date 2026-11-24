@@ -6,13 +6,13 @@
 //
 // Each computer keeps its own printer for each kind of print, on the server
 // (decision D3; engines/printer_choice.go). The computer is known by the name
-// QZ Tray reports, so a browser reset does not lose its choices. The first
+// PrintBridge reports, so a browser reset does not lose its choices. The first
 // print of a kind with no printer picks one by itself when the choice is
 // clear - A4 / A5 documents the computer's default printer, bills the one
 // receipt printer, stickers and labels the one label printer - and asks once
 // only when two could fit (decision D4). Change is always one click away.
 //
-// Loaded on demand by qzTryPrint (app.js) and the print dialog; kept out of
+// Loaded on demand by agentTryPrint (app.js) and the print dialog; kept out of
 // the cold core.
 
 const COMPUTER_KEY = 'erp_print_computer';
@@ -26,7 +26,7 @@ const KIND_OF = {
   PickList: 'Pick List', // Stage 88.2.3
   DebitNote: 'Returns and Notes', VendorCreditNote: 'Returns and Notes', PurchaseReturn: 'Returns and Notes',
   CreditNote: 'Returns and Notes', SalesReturn: 'Returns and Notes',
-  // QZ job types
+  // print agent job types
   Receipt: 'Receipt', Sticker: 'Sticker', 'Shipping Label': 'Shipping Label', Invoice: 'Sales Invoice',
   'Purchase Order': 'Purchase Order', Document: 'Shipping Label'
 };
@@ -44,7 +44,7 @@ const VIRTUAL_RE = /(pdf|xps|onenote|fax|send to|microsoft print)/i;
 const THERMAL_RE = /(tvs|gprinter|\bgp-|tspl|zpl|\by\d{3})/i;
 
 let computerName = null;
-// printComputer is this computer's name: QZ Tray's, else one remembered in
+// printComputer is this computer's name: PrintBridge's, else one remembered in
 // this browser (an old tray that cannot tell its name).
 export async function printComputer() {
   if (computerName) return computerName;
@@ -54,8 +54,8 @@ export async function printComputer() {
   try { name = localStorage.getItem(COMPUTER_KEY) || ''; } catch (_) { /* storage blocked */ }
   // Stage 127.2: only a connected tray is asked, so a computer whose tray is
   // down still knows its name (and its printers) without waiting on it.
-  if (!name && window.QZPrint?.isConnected?.()) {
-    try { name = String(await window.QZPrint.hostname() || '').trim(); } catch (_) { /* old tray */ }
+  if (!name && window.PrintAgent?.isConnected?.()) {
+    try { name = String(await window.PrintAgent.hostname() || '').trim(); } catch (_) { /* old tray */ }
   }
   if (!name) name = 'PC-' + Math.random().toString(36).slice(2, 8).toUpperCase();
   try { localStorage.setItem(COMPUTER_KEY, name); } catch (_) { /* storage blocked */ }
@@ -69,7 +69,7 @@ const storeCode = (location) => location || (window.erpWorkingStore || {}).code 
 // choice, else the store's default), or null.
 export async function chosenPrinter(kind, location) {
   const qs = new URLSearchParams({ computer: await printComputer(), kind, location: storeCode(location) });
-  const res = await window.apiFetch(`/api/v1/print/qz/assignments?${qs}`);
+  const res = await window.apiFetch(`/api/v1/print/agent/assignments?${qs}`);
   if (!res || !res.ok) return null;
   return (await res.json()).printer || null;
 }
@@ -77,7 +77,7 @@ export async function chosenPrinter(kind, location) {
 // computerPrinters (213.1) is every printer this computer has chosen for any
 // kind, once each - the print dialog's list for one print.
 export async function computerPrinters() {
-  const res = await window.apiFetch(`/api/v1/print/qz/assignments?${new URLSearchParams({ computer: await printComputer() })}`);
+  const res = await window.apiFetch(`/api/v1/print/agent/assignments?${new URLSearchParams({ computer: await printComputer() })}`);
   if (!res || !res.ok) return [];
   const seen = new Set();
   return ((await res.json()).choices || []).map(c => c.printer).filter(p => p && p.code && !seen.has(p.code) && seen.add(p.code));
@@ -107,7 +107,7 @@ function languageFor(kind, name) {
 }
 
 // notMapped (Stage 133.5) is what to do about a Printer record with no OS
-// printer name - for qzTryPrint's alert and its silent-print failure alike.
+// printer name - for agentTryPrint's alert and its silent-print failure alike.
 export const notMapped = (name) => `Printer "${name}" has no OS Printer Name. Open Setup → Printing → Printer, ` +
   `open "${name}" and enter the exact Windows printer name (Detect Printers, under Printer setup on the Sticker Printing page, lists them).`;
 
@@ -149,16 +149,16 @@ function askPrinter(kind, printers, preselect, computer) {
 export async function choosePrinter(kind, location, { ask = false } = {}) {
   const computer = await printComputer();
   let printers = [], def = '';
-  try { printers = (await window.QZPrint.listOSPrinters()) || []; } catch (_) { return null; }
-  try { def = (await window.QZPrint.getDefaultPrinter()) || ''; } catch (_) { /* no default */ }
+  try { printers = (await window.PrintAgent.listOSPrinters()) || []; } catch (_) { return null; }
+  try { def = (await window.PrintAgent.getDefaultPrinter()) || ''; } catch (_) { /* no default */ }
   if (!printers.length) return null;
   let pick = ask ? '' : autoPick(kind, printers, def);
   const automatic = !!pick;
   if (!pick) pick = await askPrinter(kind, printers, autoPick(kind, printers, '') || def, computer);
   if (!pick) return null;
-  const res = await window.apiFetch('/api/v1/print/qz/assignments', {
+  const res = await window.apiFetch('/api/v1/print/agent/assignments', {
     method: 'POST',
-    body: JSON.stringify({ computer, location: storeCode(location), print_kind: kind, qz_printer_name: pick, printer_language: languageFor(kind, pick) })
+    body: JSON.stringify({ computer, location: storeCode(location), print_kind: kind, os_printer_name: pick, printer_language: languageFor(kind, pick) })
   });
   if (!res) return null;
   if (!res.ok) { await window.showApiError(res, 'Could not remember the printer.'); return null; }
@@ -166,12 +166,12 @@ export async function choosePrinter(kind, location, { ask = false } = {}) {
   return (await res.json()).printer || null;
 }
 
-// needsChoice says whether a refused QZ payload means "no printer chosen yet".
+// needsChoice says whether a refused print-agent payload means "no printer chosen yet".
 export async function needsChoice(res) {
   try { return (await res.clone().json()).code === 'DEVICE-0298'; } catch (_) { return false; }
 }
 
-// chooseAndPrint is qzTryPrint's second try: choose this computer's printer
+// chooseAndPrint is agentTryPrint's second try: choose this computer's printer
 // for the job's kind, then print on it.
 export async function chooseAndPrint(jobType, opts) {
   const printer = await choosePrinter(printKindFor(opts.printKind || jobType), opts.location);
@@ -180,7 +180,7 @@ export async function chooseAndPrint(jobType, opts) {
       reason: 'No printer is chosen for this print on this computer. Retry to choose one; if the list is empty, install the printer in Windows first.' });
     return false;
   }
-  return window.qzTryPrint(jobType, { ...opts, printerCode: printer.code, chosen: true });
+  return window.agentTryPrint(jobType, { ...opts, printerCode: printer.code, chosen: true });
 }
 
 // --- Stage 127.2: no browser print dialog once PrintBridge is set up ---------
@@ -245,10 +245,10 @@ const OFFERED_KEY = 'erp_printbridge_offered';
 const SETUP_URL = '/downloads/printbridge-setup.exe';
 let offeredNow = false;
 
-// neverReached: this browser has never had PrintBridge answer (qz-print.js
+// neverReached: this browser has never had PrintBridge answer (print-agent.js
 // sets erp_printbridge_seen on every connect) and it does not answer now.
 function neverReached() {
-  if (!window.QZPrint || window.QZPrint.isConnected?.()) return false;
+  if (!window.PrintAgent || window.PrintAgent.isConnected?.()) return false;
   try { return !localStorage.getItem('erp_printbridge_seen'); } catch (_) { return false; }
 }
 
@@ -299,12 +299,12 @@ function offerInstall() {
     const poll = async () => {
       if (finished) return;
       let up = false;
-      // One socket a round (QZPrint.listening) - every fifth the secure one,
+      // One socket a round (PrintAgent.listening) - every fifth the secure one,
       // for a browser that refuses the plain one - and a full connect only
       // once it answers.
-      const QZ = window.QZPrint;
+      const agent = window.PrintAgent;
       try {
-        if (!QZ.listening || await QZ.listening(++rounds % 5 === 0)) up = await QZ.connect();
+        if (!agent.listening || await agent.listening(++rounds % 5 === 0)) up = await agent.connect();
       } catch (_) { /* not yet */ }
       if (up) { done(true); return; }
       if (Date.now() - started > 10 * 60 * 1000) { done(false); return; }
@@ -337,10 +337,10 @@ export async function printNoDialog(kind, location, trySilent, browserPrint) {
     const why = {};
     let printed = false;
     try { printed = await trySilent(why); } catch (e) { why.reason = why.reason || (e && e.message) || String(e); }
-    if (printed) { lastPrint.channel = 'qz'; return true; }
+    if (printed) { lastPrint.channel = 'agent'; return true; }
     // 203.1: a computer that never reached PrintBridge is offered it once and
     // otherwise prints through the browser. A store default printer
-    // (resolveQZPrinter falls back to one) does not mean this computer can
+    // (resolveAgentPrinter falls back to one) does not mean this computer can
     // print to it; "did not print" is for a computer that has had PrintBridge.
     if (neverReached()) {
       if (shouldOffer() && await offerInstall()) continue; // installed - print silently now
@@ -356,7 +356,7 @@ export async function printNoDialog(kind, location, trySilent, browserPrint) {
   }
 }
 
-// lastPrint (Stage 130.16, 74.1.4) is how the last print went out - 'qz'
+// lastPrint (Stage 130.16, 74.1.4) is how the last print went out - 'agent'
 // (submitted to PrintBridge) or 'browser' (handed to the browser) - for the
 // print log; neither is proof of paper.
 export const lastPrint = { channel: '' };

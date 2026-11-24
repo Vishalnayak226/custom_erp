@@ -378,7 +378,7 @@ Each HR page is its own entry in the **HRM** menu, grouped by who does the work:
 
 **Expense claims** (HRM → Expenses → **+ New Expense Claim**):
 
-1. The claim starts filled in with you as the employee, the store you are signed in at, and today's date.
+1. The claim starts filled in with you as the employee, the store you are signed in at, and today's date. The date can be today or up to 90 days back.
 2. Enter the **Amount (before GST)**, the **GST on the bill**, any **Advance already received** for this expense, the **Bill / receipt no.** and the **Purpose**. The line under the form shows what will be reimbursed: amount + GST − advance. GST cannot be more than the amount and the advance cannot be more than the bill. The same employee, category, date and amount twice is refused as a likely duplicate bill. Attach the receipt itself under **Receipt photo / PDF**: a photo or scan as JPEG, PNG or WebP, or a PDF, up to 5 MB each and 5 per claim. The claim saves first and the files upload straight after, so if one is refused, what you typed is kept; attach it again from **History**.
 3. **Create Draft**, then **Submit for Approval**. The list's cards show how many claims, and how much, wait for approval, for finance verification, for payment and for correction.
 4. **History** on a claim shows the steps it has passed (Draft → Pending Approval → Approved → Verified → Paid) and every approver comment — a rejection always carries its reason.

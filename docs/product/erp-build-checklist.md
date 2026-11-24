@@ -1372,7 +1372,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   **Done:** three idle/active/disabled scenarios demonstrate no unnecessary module DB/provider
   work, no lost due work and bounded connection/CPU use. Sources: PERF-04, MC-069/071/080/105.
   - *2026-10-26 (next 20, second run): `TestBLD044WorkerInventoryMatchesTheCode` holds the inventory of all 41 workers routes.go starts to the code - module-owned workers must ask for their module (a client without it costs them nothing), every tenant-visiting worker must be leader-gated (only the job runner is exempt: it claims with SKIP LOCKED leases). Measured idle cost (one client, 5 min each): 180 transactions/min with all modules, 122 with the worker modules off (-32%), 11 pooled connections both. Left: disable/re-enable behaviour (BLD-025) and a per-worker breakdown on the production host. Status: Built (local slice)*
-- [ ] **BLD-045 — browser interaction performance. DEPENDS on BLD-034/041;
+- [x] **BLD-045 — browser interaction performance. DEPENDS on BLD-034/041;
   frontend/QA.** Measure cold boot, warm navigation, dense-table interaction and long sessions
   on constrained supported devices/networks; use actual LCP/INP and main-thread observations,
   not script sleep duration. **Done:** three context runs against documented budgets, no
@@ -1395,6 +1395,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
     coverage but is not a long-session performance soak. BLD-045 remains open on the LCP and
     navigation misses, CLS/layout and main-thread outliers, and the dedicated long-session measure.*
   - *2026-10-26 (next 20, second run): re-measured with a durable harness (`docs/qa/bld045-interaction-perf.cjs`; same profile, 3 contexts, 1,000 Items; before = a scratch copy with only these hunks reverted). Fixed: a POS screen leak (every visit left a listener holding the whole screen - DOM 2,310 to 7,312 nodes over 48 switches, now flat at ~2,900), paging re-rendered all 50 rows just to show 'loading' (paging INP ~1.9 s to ~230 ms, page settle ~4 s to ~2.2 s), the Setup menu rebuilt labels on every sort comparison, and `translateDOM` walked the page after every render with no custom labels; the off-production environment banner starts before the first view. After: LCP p75 2.25 s without the dev banner (3.1 s with it, off production only; was 5.6 s), INP p75 224 ms excluding the top search box (1.2 s with it), cached switch p95 1.2 s (Item list 1.26 s; home / POs / reports 0.27-0.44 s), CLS 0.022, long session flat. Budgets G4c within (cold core 182,956 / 184,320 B). Still over budget: LCP, INP with the top search box, cached switch. [needs design decision: (1) drop 'Segoe UI Variable Text' from the font stack - 5 interleaved pairs: FCP 2.4 to 1.4 s; (2) the top search box on an open record list - leave the list alone or send it to the list's debounced server search (it rebuilds the table per key and mislabels the page); (3) a column subset for list screens instead of all 44 Item fields]. Status: Built, needs decisions*
+  - *2026-11-22 (ask 244, items 162.5 / 50.14): the three decisions were taken and built in 50.20. The 47.9.4 gate (`docs/qa/perf-budget.cjs`: three runs each on desktop, 4x laptop and a low-end phone profile, real LCP / Event Timing / long tasks, keyboard and typing interactions, CLS) met every budget in the 0.28.0 evidence job on GitHub (run 44550943600), no known miss: phone LCP 1300, INP 56, switch p95 192, CLS 0.039; 4x LCP 336, INP 48, switch p95 70. Local whole gate the same day: every budget met but phone LCP 2196 on this laptop's slower CPU (reported outlier, ceiling 2600). Long sessions: the 10-26 harness showed DOM flat over 48 switches. Done.*
 - [x] **BLD-046 — bounded imports, reports, exports and jobs. DEPENDS on BLD-043;
   engineering/operations.** Stream where appropriate, cap buffers/rows/time/concurrency, cancel
   abandoned requests and apply tenant-fair admission. **Done:** normal, oversized and interrupted
@@ -1791,13 +1792,13 @@ Where only a subset is approved, record that scope before executing; do not sile
 
 ## 2026-10-04 ordered five-item verification batch
 
-- [ ] **1 — BLD-045 browser interaction performance.** Final three-context rerun: LCP
+- [x] **1 — BLD-045 browser interaction performance.** Final three-context rerun: LCP
   1.732/1.808/1.712 s (p75 1.808 s vs 1.5 s), candidate INP 120 ms (within 200 ms),
   cached-navigation p95 270.5 ms (vs 250 ms), max CLS 0.08346, longest task 567 ms, and seeded
   1,000-Item table search 1.347–1.421 s. Keyboard/input and visible focus passed; zero browser
   errors (the four prior POS errors did not reproduce). The paced 53-view audit is not a dedicated
   performance soak. Keep open for LCP/navigation misses, layout/main-thread outliers and long-session
-  performance coverage.
+  performance coverage. *2026-11-22 (ask 244): met - every budget in the 0.28.0 evidence job; detail on BLD-045.*
 - [x] **2 — BLD-036 closeout.** Gap (a) is closed; gap (b), the named WMS/Finance section-refresh
   stale-while-revalidate retrofit, is explicitly accepted as residual. Retry callbacks resolve
   the connected live parent at click time, not the render scratch buffer. This closes BLD-036

@@ -94,7 +94,7 @@ func CreateWarehouseTask(tenantID string, in NewWarehouseTask, userID string) (s
 // this rather than CreateWarehouseTask + a chain of
 // TransitionWarehouseTaskStatus calls to walk a task through a lifecycle
 // that, for these five, already happened. Fire-and-forget by design, the
-// same contract logTaskCompletion (26.5.13) already has for its own,
+// contract logTaskCompletion (26.5.13) had for its own (until 252.1 moved it into the action transaction),
 // separate productivity log: a warehouse task record is retroactive history
 // for 42.2.3's dispatch queue and 42.2.10's cockpit, never a gate on the
 // real action, so a logging failure is reported (LogSystemError) and

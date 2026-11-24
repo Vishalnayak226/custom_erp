@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,6 +48,29 @@ func TestExpensePaymentPostsAdvanceAgainstStaffAdvances(t *testing.T) {
 		"expense_date": time.Now().Format("2006-01-02"), "employee_id": "T5515-E", "category": "Food",
 		"amount": 100.0, "gst_amount": 0.0, "advance_adjusted": 500.0}); err == nil {
 		t.Fatalf("an advance bigger than the bill was accepted")
+	}
+}
+
+// 246.3: a claim's date window is counted in the business's days, so today's
+// date - the one the claim form fills in - is never "in the future", whatever
+// hour of the night it is saved.
+func TestExpenseDateWindowCountsBusinessDays(t *testing.T) {
+	for _, c := range []struct {
+		date, want string
+	}{
+		{"2026-11-23", ""},
+		{"2026-11-24", "in the future"},
+		{"2026-08-25", ""},
+		{"2026-08-24", "more than 90 days"},
+		{"23-11-2026", "valid YYYY-MM-DD"},
+	} {
+		err := expenseDateWindowErr(c.date, "2026-11-23")
+		if c.want == "" && err != nil || c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)) {
+			t.Errorf("claim dated %s, today 2026-11-23: got %v, want %q", c.date, err, c.want)
+		}
+	}
+	if err := expenseDateWindowErr(BusinessToday(), BusinessToday()); err != nil {
+		t.Fatalf("a claim dated today was refused: %v", err)
 	}
 }
 

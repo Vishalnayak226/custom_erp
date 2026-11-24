@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-08-24, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-01, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,59 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **51** earlier entries, 2026-07-27 to 2026-08-24.
+This page continues the [release notes](release-notes.md) with **61** earlier entries, 2026-07-27 to 2026-09-01.
+
+## 2026-09-01
+
+**Stage 37.5 — Financial statement builder with dimensions and drill-down** *(code only)*
+
+Pre-build audit found the codebase's own `ReportDefinition` framework explicitly rejects user-authored query/layout flexibility as an injection-risk feature outside its stated scope - so "builder" here is scoped to extending the existing hardcoded Trial Balance/P&L/Balance Sheet with dimension filters and drill-down, not a new statement-layout doctype (which would be the first violation of that stated principle). `gl_accounts` is also confirmed flat (5 basic types, never altered since Stage 1) - a full multi-section layout is a separate, larger undertaking not attempted here.
+
+**Stage 37.4 — Budgeting, cash-flow forecast, credit limits, dunning** *(code + schema)*
+
+Pre-build audit found all four completely absent, and one structural finding shaped the whole design: neither `SalesOrder` nor `SalesInvoice` carries a real `Customer` Link - customer identity flows as a free-text name throughout, the same convention `GetCustomerLedgerReport` already relies on. Credit-limit matching (37.4.2) inherits that name-based convention rather than adding a second, inconsistent identity model - a real Link-based rework of customer identity across these doctypes is a materially larger, separate undertaking.
+
+**Stage 37.3 — Costing & valuation, incl. landed cost allocation** *(code + schema)*
+
+Pre-build audit found this codebase had NO costing method anywhere - `StockLedgerEntry`/`bin_stock`/`inventory_availability` track quantity only. Two real, previously-undiscovered gaps fell out of that audit and are closed by this stage, not just the checklist's own "5 sub-items":
+
+**Stage 37.2 — Multi-entity & intercompany: entity-scoped posting, mirrored entries, reconciliation, consolidation** *(code + schema)*
+
+User asked to build the remaining open Stage 37/38 backlog, starting with 37.2 (the largest ERP-core item still open after 37.1's multi-currency work closed). `LegalEntity` (Stage 17.9) already existed as a Master, linked from `Location.legal_entity`, but nothing transacted across entities — this closes that gap entirely inside one tenant's schema (confirmed via `engines/saas.go` that one schema = one tenant = one consolidation group; there is no cross-tenant consolidation model in this codebase and this stage does not invent one).
+
+## 2026-08-31
+
+**Documentation sync pass — archived Stages 41/42/43/46, corrected a stale cross-reference, rebuilt the executive blueprint** *(docs only)*
+
+User asked for a full docs sync: which checklist stages are ready to archive, and which docs need building so the project is legible "at a glance" to an engineering head, a product head, a developer, and the CEO.
+
+## 2026-08-30
+
+**Stage 36.4/36.6/36.7 — export & syndication, DAM depth, enrichment & quality — Stage 36 closes** *(code + schema)*
+
+Closes the rest of Stage 36 (PIM parity, Unbxd level): export & syndication depth (36.4), DAM depth (36.6), and enrichment & quality (36.7, its last five sub-items — 36.7.2 had shipped earlier). With 36.1-36.7 all now built and verified, Stage 36 is **complete** and has been moved out of `micro_checklist.md` into `docs/archive/micro_checklist_closed_stages.md`. Full item-by-item detail lived there before the move and now lives in that archive entry; this section is the index.
+
+## 2026-08-28
+
+**Stage 36.5 + 36.3 — declarative transform rules, and PIM import depth** *(code + schema)*
+
+Opens Stage 36's remaining five top-level items (36.3-36.7 — import, export/syndication, transform rules, DAM depth, enrichment) with the two built in dependency order: 36.5 first (a shared value-transform seam), then 36.3 (import depth), which consumes it. Full item-by-item detail, including the scope calls made explicit before building, is in `micro_checklist.md` Stage 36.
+
+## 2026-08-25
+
+**Stage 35.8/35.9 — Settlement reconciliation ("UniReco") and returns depth** *(code + schema + UI)*
+
+Closes the last two open items of Stage 35's OMS parity plan: 35.8 (5 sub-items) and 35.9 (3 sub-items). Full item detail in `micro_checklist.md` Stage 35.
+
+## 2026-08-22
+
+**Stage 35.7 — commercial bundles and physically stocked kits** *(code + schema + UI)*
+
+All four Stage 35.7 items are complete. `ProductBundle` is intentionally not another manufacturing BOM: it describes a sellable commercial composition, with Virtual/Stocked fulfillment and Parent/Fixed/Component pricing. Validation pins every SKU to an active Item, forbids duplicate/self/nested components and keeps one active definition per bundle SKU.
+
+**Stage 35.6 — channel breadth becomes an operational SDK** *(code + schema + UI)*
+
+All seven Stage 35.6 items are code-complete. The new connector contract declares auth validation, order pull, inventory push, catalogue publish, status push, error mapping and capabilities; the scheduler and UI consume capabilities instead of platform-name conditionals. Amazon and Flipkart implement their public seller contracts, WooCommerce implements REST v3, and Myntra/Meesho/Ajio/Nykaa/Blinkit/Zepto/Swiggy Instamart use a fail-closed negotiated-path adapter because their seller contracts are private. Quick-commerce descriptors bind orders to a store location and forbid split allocation.
 
 ## 2026-08-24
 

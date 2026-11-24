@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.28.0",
+  "release": "0.29.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "docs/user/tenant-admin-manual.html",
-      "sha256": "9fe5e654f268210c3ee044e7ce1172ebff353f21c403c593fc68469c13b33437",
+      "sha256": "b68ee69e789ada9b556031ae2ebb8fb4ad07ef8acd4c71784b5d211495331603",
       "sources": [
         "docs/governance/manual-selection.json",
         "docs/kb/**/*.md",
@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/user/user-manual.html",
-      "sha256": "8e07a58d0926ff391a2f4c15ac9a07025f2c53ae12b52e252446bc038dedd895",
+      "sha256": "c536e6641d1f1d4613f0e4eec5fa033f61c31564c68b9af67cf3984581cc6e9f",
       "sources": [
         "docs/governance/manual-selection.json",
         "docs/kb/**/*.md",

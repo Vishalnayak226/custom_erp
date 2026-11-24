@@ -180,8 +180,8 @@ actually uses today:
    parcel's ERP bill, closes the gate pass and flips an order to Shipped once
    all its tasks have shipped.
 3. Per booking: **Print label** (auto-picks the printer whose Default For is
-   Shipping Label via QZ Tray, falling back to the on-screen label view
-   if QZ Tray isn't running), **In transit** / **Delivered** under **On the way**
+   Shipping Label via PrintBridge, falling back to the on-screen label view
+   if PrintBridge isn't running), **In transit** / **Delivered** under **On the way**
    (`RecordDeliveryEvent`, `WMSLOG-0139` on failure), and **RTO**
    (`RecordRTO`) once a booking is Handed Over.
 
@@ -271,11 +271,11 @@ provider's `webhook_secret` credential field. Either the secret configured
 here doesn't match what's registered on the courier's side, or no
 `webhook_secret` was ever set for that provider.
 
-**Print Label does nothing visible.** It's trying QZ Tray first (a
-thermal-printer bridge) and falling back to the on-screen **Label** view
+**Print Label does nothing visible.** It's trying PrintBridge first (the
+ERP's print agent) and falling back to the on-screen **Label** view
 only if that's not running — if neither shows anything, use the **Label**
 button directly to confirm the label itself renders before troubleshooting
-QZ Tray.
+PrintBridge.
 
 ## What is not here yet
 

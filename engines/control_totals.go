@@ -299,7 +299,7 @@ func receivablesAgeingControlTotals(tenantID string, _ map[string]string, rows [
 	if err := tx.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(%s), 0)::float8,
 		       COUNT(*) FILTER (WHERE COALESCE(data->>'currency', '') NOT IN ('', 'INR'))
-		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND created_at <= $1`, salesInvoiceOutstandingSQL, schema), cut).Scan(&summary, &foreign); err != nil {
+		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND deleted_at IS NULL AND created_at <= $1`, salesInvoiceOutstandingSQL, schema), cut).Scan(&summary, &foreign); err != nil { // 245.3: as the report (239.1)
 		return nil, err
 	}
 	ledger, err := glDebitBalanceAt(tx, schema, ControlAccounts(tx, schema, "1300"), cut)
@@ -390,7 +390,7 @@ func poCommitmentsControlTotals(tenantID string, _ map[string]string, rows []map
 	var summary float64
 	if err := tx.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(COALESCE((data->>'total_amount')::numeric, 0)), 0)::float8
-		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND status = 'Approved' AND created_at <= $1`, schema), cut).Scan(&summary); err != nil {
+		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND status = 'Approved' AND deleted_at IS NULL AND created_at <= $1`, schema), cut).Scan(&summary); err != nil { // 245.3: as the report (239.1)
 		return nil, err
 	}
 	grnSuspense, err := glDebitBalanceAt(tx, schema, ControlAccounts(tx, schema, "2100"), cut)

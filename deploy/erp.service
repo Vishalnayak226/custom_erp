@@ -73,7 +73,7 @@ TimeoutStartSec=30
 #                             thumbnail store, path is relative to
 #                             WorkingDirectory)
 #   - /opt/erp/.config     - the generated-secret fallback path (engines/
-#                             auth.go, channel_credentials.go, qz_print.go)
+#                             auth.go, channel_credentials.go, print_agent.go)
 #                             used only when JWT_SECRET/CHANNEL_CREDENTIAL_KEY
 #                             are unset; production should set both explicitly
 #                             (49.1.3 SB-002/SB-007), which makes this
@@ -108,7 +108,7 @@ AmbientCapabilities=
 
 # Device, kernel, namespace and clock isolation. None of this process's
 # documented behaviour (HTTP server, PostgreSQL client, SMTP client, outbound
-# webhook/connector calls, QZ Tray talks to the *browser*, never this
+# webhook/connector calls; the print agent talks to the *browser*, never this
 # process) touches a device node, kernel tunable, kernel module, cgroup
 # hierarchy, Linux namespace, the system clock or the hostname.
 PrivateDevices=true
@@ -150,7 +150,7 @@ TasksMax=512
 #   first, with SystemCallErrorNumber=EPERM (below) so a filtered call fails
 #   with an ordinary error instead of killing the process outright, watch
 #   `journalctl -u erp` for "Operation not permitted"/seccomp denials across a
-#   full smoke test (login, checkout, PIM image upload, report export, QZ
+#   full smoke test (login, checkout, PIM image upload, report export, silent
 #   print, backup, tenant provisioning), then remove SystemCallErrorNumber=
 #   and switch to the harder default once nothing is denied.
 #SystemCallFilter=@system-service

@@ -45,7 +45,7 @@ type DocumentPrint struct {
 	ApprovedBy string `json:"approved_by,omitempty"`
 	Checksum   string `json:"checksum,omitempty"`
 	Outcome    string `json:"outcome,omitempty"`
-	Channel    string `json:"-"` // qz or browser, as the page printed it
+	Channel    string `json:"-"` // agent or browser, as the page printed it ("qz" from a page loaded before ask 263)
 	MayReprint bool   `json:"-"` // the handler's DocumentReprint permission
 	CheckOnly  bool   `json:"-"` // check reprint control only: nothing is frozen or logged
 }
@@ -80,7 +80,7 @@ func RecordDocumentPrint(tenantID, printedBy string, p DocumentPrint) error {
 	}
 	_, err = db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.print_job_log
-		  (job_type, document_ref, qz_printer_name, copies, printed_by, status, txn, doctype, doc_id, doc_number, doc_title, store, print_action, reprint_reason,
+		  (job_type, document_ref, os_printer_name, copies, printed_by, status, txn, doctype, doc_id, doc_number, doc_title, store, print_action, reprint_reason,
 		   doc_revision, is_reprint, template_id, copy_labels, reason_code, approval_id, approved_by, payload_checksum, requested_count, outcome)
 		VALUES ('Document', $1, NULLIF($2, ''), $12, $3, 'Submitted', $4, $5, $6, $7, $8, NULLIF($9, ''), $10, NULLIF($11, ''),
 		   NULLIF($13, 0), $14, NULLIF($15, ''), NULLIF($16, ''), NULLIF($17, ''), NULLIF($18, ''), NULLIF($19, ''), NULLIF($20, ''), $12, $21)`, schema),
@@ -110,7 +110,7 @@ func ListDocumentPrints(tenantID string, f DocumentPrintFilter) ([]DocumentPrint
 	q := "%" + strings.ToLower(strings.TrimSpace(f.Query)) + "%"
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(txn, ''), doctype, COALESCE(doc_id, ''), COALESCE(doc_number, ''), COALESCE(doc_title, ''),
-		       COALESCE(store, ''), COALESCE(print_action, ''), COALESCE(reprint_reason, ''), COALESCE(qz_printer_name, ''),
+		       COALESCE(store, ''), COALESCE(print_action, ''), COALESCE(reprint_reason, ''), COALESCE(os_printer_name, qz_printer_name, ''),
 		       COALESCE(printed_by, ''), printed_at, COALESCE(doc_revision, 0), is_reprint, copies, COALESCE(copy_labels, ''),
 		       COALESCE(approved_by, ''), COALESCE(payload_checksum, ''), COALESCE(outcome, '')
 		  FROM %s.print_job_log

@@ -67,8 +67,14 @@ func TestOutboundLabourBillingStage558(t *testing.T) {
 	if _, err := CreateWaveFromSelection(tenantID, "ELSEWHERE", wave, []string{"T3"}, "planner"); code(err) != "INVENT-0499" {
 		t.Fatalf("wave of another location: %v", err)
 	}
-	if _, err := CreateWaveFromSelection(tenantID, loc, "", []string{"T4"}, "planner"); code(err) != "INVENT-0499" {
+	if _, err := CreateWaveFromSelection(tenantID, loc, "", []string{"T4"}, "planner"); code(err) != "INVENT-0499" || !strings.Contains(err.Error(), "T4 already Packed") {
 		t.Fatalf("nothing waveable: %v", err)
+	}
+	// 245.14: every task refused - each is named with its reason, the first five.
+	many := []string{"T3", "T4", "T3", "N1", "N2", "N3", "N4"}
+	if _, err := CreateWaveFromSelection(tenantID, loc, "", many, "planner"); code(err) != "INVENT-0499" ||
+		!strings.Contains(err.Error(), "T3 at ELSEWHERE; T4 already Packed; N1 not found") || !strings.Contains(err.Error(), "; and 1 more") {
+		t.Fatalf("all refused, reasons: %v", err)
 	}
 	work, _ = OutboundWork(tenantID, loc)
 	var found *OutboundWave

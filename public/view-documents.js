@@ -160,7 +160,9 @@ async function renderDocTableView(container) {
   if (['ServiceTicket', 'ServiceContract', 'Project'].includes(currentDoctype)) {
     const deskHost = document.createElement('div');
     container.appendChild(deskHost);
-    loadViewModule('/view-service-desk.js' + new URL(import.meta.url).search)
+    // 245.13: the desk is in before the screen shows, so the list below it
+    // never jumps down when it fills (200.2).
+    await loadViewModule('/view-service-desk.js' + new URL(import.meta.url).search)
       .then(m => m.renderServiceDeskPanel(deskHost, currentDoctype))
       .catch(error => console.error('[55.18] service desk panel failed to load', error));
   }

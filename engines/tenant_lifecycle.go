@@ -399,6 +399,7 @@ func InvalidateTenantLifecycleCache(tenantID string) {
 	tenantGateMu.Lock()
 	delete(tenantGateCache, tenantID)
 	tenantGateMu.Unlock()
+	db.ForgetTenantSchema(tenantID) // 248.1
 }
 
 // tenantHasCachedGate reports whether this process still holds a gate decision
@@ -786,7 +787,7 @@ func VerifyTenantResidue(tenantID, schemaName string) (TenantResidueReport, erro
 		}
 	}
 
-	rep.CachedState = tenantHasCachedGate(tenantID) || tenantHasCachedUserState(tenantID)
+	rep.CachedState = tenantHasCachedGate(tenantID) || tenantHasCachedUserState(tenantID) || db.TenantSchemaCached(tenantID)
 	rep.Clean = !rep.RegistryRow && !rep.SchemaExists && rep.HostSlug == "" && len(rep.PublicRows) == 0 && !rep.CachedState
 	return rep, nil
 }

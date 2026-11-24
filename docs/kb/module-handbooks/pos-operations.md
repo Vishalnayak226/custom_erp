@@ -494,7 +494,7 @@ outright rejects (not a connectivity problem) is dropped with an alert
 naming the cart number, not retried forever. Once synced, a sale waits on
 **POS → Offline Sales** until a manager validates it; stock moves only then.
 
-**"Print receipt?" doesn't go straight to the printer.** QZ Tray isn't
+**"Print receipt?" doesn't go straight to the printer.** PrintBridge isn't
 installed/running on this PC, or no Active Printer has **Default For** set
 to `Receipt`. Ask your administrator to check the workstation printer setup.
 Nothing is broken either way; the browser's own print dialog opens instead.

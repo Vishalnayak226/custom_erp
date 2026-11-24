@@ -210,4 +210,16 @@ func TestDeletedDocumentsStopCounting(t *testing.T) {
 	if n := commitments(); n != 0 {
 		t.Fatalf("PO Commitments counts a deleted PO: %d", n)
 	}
+	// 245.3: the control totals drop it too, so detail and summary tie.
+	if c, err := poCommitmentsControlTotals(tenantID, nil, nil); err != nil || c.SummaryTotal != 0 {
+		t.Fatalf("PO Commitments control total counts a deleted PO: %+v (%v)", c, err)
+	}
+	insert("DD-SI-1", "SalesInvoice", "Approved", map[string]interface{}{"code": "DD-SI-1", "total_amount": 500.0})
+	if c, err := receivablesAgeingControlTotals(tenantID, nil, nil); err != nil || c.SummaryTotal != 500 {
+		t.Fatalf("Receivables control total before the delete: %+v (%v)", c, err)
+	}
+	softDelete("DD-SI-1")
+	if c, err := receivablesAgeingControlTotals(tenantID, nil, nil); err != nil || c.SummaryTotal != 0 {
+		t.Fatalf("Receivables control total counts a deleted invoice: %+v (%v)", c, err)
+	}
 }

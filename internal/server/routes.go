@@ -1118,18 +1118,28 @@ func registerRoutes() {
 	// 134.1b: the Document list for roles that print stickers but cannot read receipts.
 	http.HandleFunc("GET /api/v1/stickers/documents", apiMiddleware(moduleGate("stickers", handleStickerSourceDocs)))
 
-	// QZ Tray silent printing (Stage 31.1). Shares the "stickers" module key
+	// Silent printing through the local print agent (Stage 31.1). Shares the "stickers" module key
 	// with the routes above because the Printer Master these all resolve
 	// against is already mapped to it - a new key would 403 every existing
 	// tenant until their plan was edited.
-	http.HandleFunc("GET /api/v1/print/qz/certificate", apiMiddleware(moduleGate("stickers", handleQZCertificate)))
-	http.HandleFunc("POST /api/v1/print/qz/sign", apiMiddleware(moduleGate("stickers", handleQZSign)))
-	http.HandleFunc("GET /api/v1/print/qz/printers", apiMiddleware(moduleGate("stickers", handleQZPrinters)))
-	http.HandleFunc("GET /api/v1/print/qz/assignments", apiMiddleware(moduleGate("stickers", handleQZPrinterChoices)))
-	http.HandleFunc("POST /api/v1/print/qz/assignments", apiMiddleware(moduleGate("stickers", handleQZPrinterChoices)))
-	http.HandleFunc("POST /api/v1/print/qz/payload", apiMiddleware(moduleGate("stickers", handleQZPrintPayload)))
-	http.HandleFunc("GET /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleQZPrintLog)))
-	http.HandleFunc("POST /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleQZPrintLog)))
+	http.HandleFunc("GET /api/v1/print/agent/certificate", apiMiddleware(moduleGate("stickers", handleAgentCertificate)))
+	http.HandleFunc("POST /api/v1/print/agent/sign", apiMiddleware(moduleGate("stickers", handleAgentSign)))
+	http.HandleFunc("GET /api/v1/print/agent/printers", apiMiddleware(moduleGate("stickers", handleAgentPrinters)))
+	http.HandleFunc("GET /api/v1/print/agent/assignments", apiMiddleware(moduleGate("stickers", handleAgentPrinterChoices)))
+	http.HandleFunc("POST /api/v1/print/agent/assignments", apiMiddleware(moduleGate("stickers", handleAgentPrinterChoices)))
+	http.HandleFunc("POST /api/v1/print/agent/payload", apiMiddleware(moduleGate("stickers", handleAgentPrintPayload)))
+	http.HandleFunc("GET /api/v1/print/agent/log", apiMiddleware(moduleGate("stickers", handleAgentPrintLog)))
+	http.HandleFunc("POST /api/v1/print/agent/log", apiMiddleware(moduleGate("stickers", handleAgentPrintLog)))
+	// The same handlers under the path used before ask 263: a page loaded before
+	// a deploy calls these until it is reloaded.
+	http.HandleFunc("GET /api/v1/print/qz/certificate", apiMiddleware(moduleGate("stickers", handleAgentCertificate)))
+	http.HandleFunc("POST /api/v1/print/qz/sign", apiMiddleware(moduleGate("stickers", handleAgentSign)))
+	http.HandleFunc("GET /api/v1/print/qz/printers", apiMiddleware(moduleGate("stickers", handleAgentPrinters)))
+	http.HandleFunc("GET /api/v1/print/qz/assignments", apiMiddleware(moduleGate("stickers", handleAgentPrinterChoices)))
+	http.HandleFunc("POST /api/v1/print/qz/assignments", apiMiddleware(moduleGate("stickers", handleAgentPrinterChoices)))
+	http.HandleFunc("POST /api/v1/print/qz/payload", apiMiddleware(moduleGate("stickers", handleAgentPrintPayload)))
+	http.HandleFunc("GET /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleAgentPrintLog)))
+	http.HandleFunc("POST /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleAgentPrintLog)))
 
 	// HR Foundation (Stage 14.1: module-gated - "hr")
 	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(moduleGate("hr", handlePayrollExport)))

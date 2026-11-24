@@ -19,7 +19,8 @@ import (
 //   - Control totals for the advance and store-credit liabilities (2640,
 //     2650), beside 73.2.19's.
 //   - The reconciliation run (§11.1): every report with control totals, plus
-//     the custody, stock-pool and print-evidence checks, run once a day by
+//     the custody, stock-pool and print-evidence checks and (250.2) stock
+//     against its ledger and bins against their store, run once a day by
 //     the day-limits job; each result is kept, and a mismatch is an exception
 //     in the task inbox (R-TX-16's Global Transaction Exception Worklist,
 //     with tax failures, open balances and stale provider jobs).
@@ -208,6 +209,8 @@ var reconciliationChecks = []struct {
 	{"custody-with-party", "Goods with parties = open challan balances", checkCustody},
 	{"stock-pools", "Every store's on-hand covers its stock pools", checkStockPools},
 	{"print-evidence", "Every reprint has its issued copy", checkPrintEvidence},
+	{"stock-ledger", "Every store's on-hand matches its stock ledger", checkStockLedger},
+	{"bin-stock", "No store's bins hold more than its on-hand", checkBinStock},
 }
 
 // RunReconciliationChecks runs every check once and keeps the results; it
@@ -379,6 +382,40 @@ func checkStockPools(schema string) (bool, float64, string, error) {
 		return true, 0, "", nil
 	}
 	return false, float64(n), fmt.Sprintf("%d stock row(s) where on-hand is less than its pools, e.g. %s", n, sample), nil
+}
+
+// checkStockLedger (250.2): the Stock Book vs Ledger report's mismatches, so a
+// store whose on-hand stops matching its ledger is flagged the next morning
+// instead of waiting for someone to open the report.
+func checkStockLedger(schema string) (bool, float64, string, error) {
+	rows, err := stockBookVsLedger(schema, "", "", true)
+	if err != nil {
+		return false, 0, "", err
+	}
+	if len(rows) == 0 {
+		return true, 0, "", nil
+	}
+	return false, float64(len(rows)), fmt.Sprintf("%d stock row(s) differ from the ledger, e.g. %s@%s - see Stock Book vs Ledger", len(rows), rows[0].Sku, rows[0].Location), nil
+}
+
+// checkBinStock (250.2): bins that claim more than their store holds, the
+// Bin Stock Reconciliation report's "Bins over-state stock" rows. Stock not in
+// any bin yet (goods waiting for putaway) is normal and is not flagged.
+func checkBinStock(schema string) (bool, float64, string, error) {
+	rows, err := binStockReconciliation(schema, "", "", true)
+	if err != nil {
+		return false, 0, "", err
+	}
+	var over []BinStockReconciliationRow
+	for _, r := range rows {
+		if r.Unbinned < 0 {
+			over = append(over, r)
+		}
+	}
+	if len(over) == 0 {
+		return true, 0, "", nil
+	}
+	return false, float64(len(over)), fmt.Sprintf("%d item(s) where the bins hold more than the store's on-hand, e.g. %s@%s - see Bin Stock Reconciliation", len(over), over[0].SKU, over[0].LocationCode), nil
 }
 
 // checkPrintEvidence: a reprint of an issued document has the copy it

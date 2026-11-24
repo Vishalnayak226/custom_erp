@@ -316,17 +316,21 @@ if ($publicChanged.Count) {
         $c1 = [int]([regex]::Match($html, $cssRe).Groups[1].Value); $c0 = [int]([regex]::Match($headHtml, $cssRe).Groups[1].Value)
         if ($c1 -eq $c0) { Write-Text $htmlPath ([regex]::Replace($html, $cssRe, "styles.css?v=$($c1 + 1)")); Note "styles.css ?v=$c1 -> $($c1 + 1)" }
     }
-    # Stage 137: qz-print.js is a shell script of its own (qz-print.js?v=N);
-    # it changed in 06547bb with no new N, so browsers could keep the old one.
+    # Stage 137: the print agent script (qz-print.js, print-agent.js since ask 263)
+    # is a shell script of its own (?v=N); it changed in 06547bb with no new N,
+    # so browsers could keep the old one.
     # 234.6: theme-boot.js and components/erp-typeahead.js are shell scripts too (?v=N).
     # Each is its path under public/, which is also how index.html names it.
-    foreach ($shellJs in @('qz-print.js', 'theme-boot.js', 'components/erp-typeahead.js')) {
+    # 234.5 loads print-agent.js through loadViewModule (VIEW_MODULE_VERSION),
+    # so index.html may not name it: a script index.html does not name is skipped.
+    foreach ($shellJs in @('print-agent.js', 'theme-boot.js', 'components/erp-typeahead.js')) {
         if (-not ($ship | Where-Object { $_.Path -eq "public/$shellJs" })) { continue }
         $html = Read-Text $htmlPath
+        if (-not [regex]::IsMatch($html, [regex]::Escape($shellJs) + '\?v=\d+')) { continue }
         $headHtml = (& git -C $wt show 'HEAD:public/index.html') -join "`n"
-        $qzRe = [regex]::Escape($shellJs) + '\?v=(\d+)'
-        $q1 = [int]([regex]::Match($html, $qzRe).Groups[1].Value); $q0 = [int]([regex]::Match($headHtml, $qzRe).Groups[1].Value)
-        if ($q1 -eq $q0) { Write-Text $htmlPath ([regex]::Replace($html, $qzRe, "$shellJs`?v=$($q1 + 1)")); Note "$shellJs ?v=$q1 -> $($q1 + 1)" }
+        $verRe = [regex]::Escape($shellJs) + '\?v=(\d+)'
+        $q1 = [int]([regex]::Match($html, $verRe).Groups[1].Value); $q0 = [int]([regex]::Match($headHtml, $verRe).Groups[1].Value)
+        if ($q1 -eq $q0) { Write-Text $htmlPath ([regex]::Replace($html, $verRe, "$shellJs`?v=$($q1 + 1)")); Note "$shellJs ?v=$q1 -> $($q1 + 1)" }
     }
 } else { Note 'no public/ change' }
 
@@ -341,8 +345,12 @@ $pbServed = (Read-Text $pbVerFile).Trim()
 $pbSrc = Join-Path (Split-Path $repo -Parent) 'PrintBridge/agent/internal/agent/handlers.go'
 if (Test-Path $pbSrc) {
     $pbAgent = [regex]::Match((Read-Text $pbSrc), 'BuildVersion\s*=\s*"([^"]+)"').Groups[1].Value
-    if ($pbAgent -and $pbAgent -ne $pbServed) { Stop-Release "PrintBridge is $pbAgent but the ERP serves $pbServed - run ..\PrintBridge\installer\build.ps1 -Universal -OutDir <a temp folder> and copy its three files (printbridge-setup.exe, printbridge-update.json, printbridge-version.txt) into public\downloads" }
-    Note "PrintBridge download $pbServed (agent source $pbAgent)"
+    # 249.1 (2026-11-24): an agent bump not yet committed in ..\PrintBridge is unreleased work,
+    # held with its downloads in hold.txt, so the served version may also equal the committed one.
+    $pbCommitted = [regex]::Match(((& git -C (Split-Path $repo -Parent | Join-Path -ChildPath 'PrintBridge') show 'HEAD:agent/internal/agent/handlers.go' 2>$null) -join "`n"), 'BuildVersion\s*=\s*"([^"]+)"').Groups[1].Value
+    if ($pbAgent -and $pbAgent -ne $pbServed -and $pbCommitted -ne $pbServed) { Stop-Release "PrintBridge is $pbAgent but the ERP serves $pbServed - run ..\PrintBridge\installer\build.ps1 -Universal -OutDir <a temp folder> and copy its three files (printbridge-setup.exe, printbridge-update.json, printbridge-version.txt) into public\downloads" }
+    if ($pbAgent -ne $pbServed) { Note "PrintBridge download $pbServed = the committed agent; $pbAgent in ..\PrintBridge is not committed yet" }
+    else { Note "PrintBridge download $pbServed (agent source $pbAgent)" }
 } else { Note "PrintBridge download $pbServed (no ..\PrintBridge on this machine to compare)" }
 # 203.3: from 0.3.0 installed agents replace themselves from
 # printbridge-update.json. It must describe the served installer exactly
@@ -629,10 +637,12 @@ if (-not (Test-Path $regTmp)) { Stop-Release 'doclint could not write the docume
 Copy-Item $regTmp (Join-Path $wt 'docs/governance/document-register.json') -Force
 Remove-Item $regTmp -ErrorAction SilentlyContinue
 # One doclint run: the register it just wrote is the inventory, so nothing is
-# unregistered or missing any more; its broken-link findings stand as they are.
-$lintBad = @($lint | Where-Object { $_ -match 'broken' })
-if ($lintBad.Count) { Stop-Release "doclint: $($lintBad.Count) broken link / register problem(s):`n$(($lintBad | Select-Object -First 10) -join "`n")" }
-Note 'document register rewritten; no broken links'
+# unregistered or missing any more. Every other finding stands: ci.yml runs
+# doclint -strict on main and fails on any finding (264.3 - 0.28.0 stopped only
+# on broken links and shipped 12 KB reviews past due and an over-budget handover).
+$lintBad = @($lint | Where-Object { $_ -match '^\[warn\] ' -and $_ -notmatch ': (unregistered|missing-registered-file): ' })
+if ($lintBad.Count) { Stop-Release "doclint: $($lintBad.Count) finding(s) that fail ci.yml's doclint -strict (a review past due: review the page and set last_verified; handover-budget: move released handover entries to docs/archive/handovers/):`n$(($lintBad | Select-Object -First 15) -join "`n")" }
+Note 'document register rewritten; doclint clean (as ci.yml runs it, -strict)'
 
 # ---------------------------------------------------------------- G8 static
 Write-Gate 'G8 Build, vet, JS'
@@ -662,6 +672,13 @@ if (-not $onGitHub) {
 $jsFiles = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.js' } | ForEach-Object Path) + @('public/app.js') | Select-Object -Unique
 foreach ($js in $jsFiles) { Invoke-Native -Exe 'node' -Arguments @('--check', (Join-Path $wt $js)) | Out-Null }
 Note "node --check: $($jsFiles.Count) file(s)"
+# 251.1: a browser module with its own node tests (public/*.test.mjs, e.g. the
+# photo alignment reader in print-align.js) runs them here; go test never sees them.
+$jsTests = @(Get-ChildItem -LiteralPath (Join-Path $wt 'public') -Filter '*.test.mjs' -File | ForEach-Object FullName)
+if ($jsTests.Count) {
+    Invoke-Native -Exe 'node' -Arguments (@('--test') + $jsTests) | Out-Null
+    Note "node --test: $($jsTests.Count) file(s)"
+}
 # 221.1: a page drawn as an SVG image takes its CSS through svgStyle() in print-pdf.js,
 # which escapes it for XML. 0.25.0 shipped a "<style>" inside a CSS comment, the raw
 # copy made the image undecodable, and every silent bill print failed. The browser
@@ -1108,7 +1125,7 @@ $cacheLines = @(
     @{ File = 'public/app.js'; Re = "const VIEW_MODULE_VERSION = '(\d+)';"; Fmt = "const VIEW_MODULE_VERSION = '{0}';" },
     @{ File = 'public/index.html'; Re = 'app\.js\?v=(\d+)'; Fmt = 'app.js?v={0}' },
     @{ File = 'public/index.html'; Re = 'styles\.css\?v=(\d+)'; Fmt = 'styles.css?v={0}' },
-    @{ File = 'public/index.html'; Re = 'qz-print\.js\?v=(\d+)'; Fmt = 'qz-print.js?v={0}' },
+    @{ File = 'public/index.html'; Re = 'print-agent\.js\?v=(\d+)'; Fmt = 'print-agent.js?v={0}' },
     @{ File = 'public/index.html'; Re = 'theme-boot\.js\?v=(\d+)'; Fmt = 'theme-boot.js?v={0}' },
     @{ File = 'public/index.html'; Re = 'erp-typeahead\.js\?v=(\d+)'; Fmt = 'erp-typeahead.js?v={0}' }
 )

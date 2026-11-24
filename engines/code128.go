@@ -16,11 +16,11 @@ import (
 // plan's own framing ("Code 128 (GS1-128/SSCC where a partner requires it)")
 // - a future addition to this same table, not a guess made here.
 //
-// This is the browser-print fallback path ONLY. The QZ Tray silent-print path
-// (engines/qz_payload.go's BuildStickerPayload) already emits a real,
+// This is the browser-print fallback path ONLY. The PrintBridge silent-print path
+// (engines/print_agent_payload.go's BuildStickerPayload) already emits a real,
 // scanner-correct Code 128 barcode via the label printer's own native ^BC ZPL
 // command and needs nothing from this file. What this closes is the OTHER
-// path: the @media print sticker sheet a browser without QZ configured falls
+// path: the @media print sticker sheet a browser without PrintBridge falls
 // back to (public/app.js's renderPrintSheet), which rendered the barcode
 // value as plain monospace text with no actual bars at all.
 //

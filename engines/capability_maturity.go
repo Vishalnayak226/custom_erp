@@ -182,7 +182,7 @@ var capabilityMaturity = []CapabilityMaturity{
 		Limits:   "no live run on a client recorded"},
 	{Key: "stickers.labels", Module: "stickers", Title: "Stickers · barcode and label printing", Level: MaturityPreview,
 		Evidence: []string{"engines/print_documents.go", "PrintBridge (docs/guides/admin-guide.md Printing)"},
-		Limits:   "PrintBridge trusts one address; an agent built for another URL reports QZ not reachable"},
+		Limits:   "PrintBridge trusts one address; an agent built for another URL reports PrintBridge not reachable"},
 	{Key: "crm_loyalty.campaign_send", Module: "crm_loyalty", Title: "CRM · WhatsApp / SMS campaign send", Level: MaturityPreview,
 		Evidence:   []string{orgCycle + " §6 (sent locally with a test sender: matched 1, sent 1, delivered 1)"},
 		Limits:     "no WhatsApp, SMS or email sender on app (140.12.26); WhatsApp needs a Meta-approved template name",

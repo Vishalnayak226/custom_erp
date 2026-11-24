@@ -12,12 +12,12 @@ import (
 
 // Print payload construction (Stage 31.1).
 //
-// QZ Tray takes an array of "data items", each declaring how its payload
+// PrintBridge (speaking the QZ Tray protocol) takes an array of "data items", each declaring how its payload
 // should be interpreted. Two shapes matter here:
 //
 //	raw    - a byte stream handed straight to the printer, for thermal units
 //	         that speak their own command language (ZPL/TSPL/ESC-POS).
-//	pixel  - a PDF/HTML/image QZ rasterises through the OS driver.
+//	pixel  - a PDF/HTML/image the agent rasterises through the OS driver.
 //
 // Which one a given printer needs is recorded on its Printer Master row
 // (printer_language, added in db/migrations/migrations_stage31_1_qz_print.sql), so the
@@ -27,12 +27,12 @@ import (
 // Marketplace labels (Myntra, and any other channel that hands back a ready
 // shipping label) do not come through here at all - they arrive as a finished
 // PDF and are passed through untouched by the pass-through branch in
-// handleQZPrintPayload. Re-rendering a courier's label would risk changing a
+// handleAgentPrintPayload. Re-rendering a courier's label would risk changing a
 // barcode the carrier has to scan.
 
-// QZDataItem is one entry in a QZ print request's `data` array. Field names
+// AgentDataItem is one entry in a QZ print request's `data` array. Field names
 // and values match what qz-tray.js sends, so the tray parses it identically.
-type QZDataItem struct {
+type AgentDataItem struct {
 	Type   string            `json:"type"`   // "raw" | "pixel"
 	Format string            `json:"format"` // "command" | "pdf" | "html" | "image"
 	Flavor string            `json:"flavor"` // "plain" | "base64" | "file"
@@ -40,10 +40,10 @@ type QZDataItem struct {
 	Opts   map[string]string `json:"options,omitempty"`
 }
 
-// QZPrintPayload is what the browser receives and forwards to the tray.
-type QZPrintPayload struct {
-	Format string       `json:"format"` // echoed back for the print log
-	Items  []QZDataItem `json:"items"`
+// AgentPrintPayload is what the browser receives and forwards to the tray.
+type AgentPrintPayload struct {
+	Format string          `json:"format"` // echoed back for the print log
+	Items  []AgentDataItem `json:"items"`
 }
 
 // isRawLanguage reports whether a configured printer language is a command
@@ -79,7 +79,7 @@ func zplEscape(s string) string { return zplEscaper.Replace(s) }
 // (it returns a plain text block, and says so in its own comment): on a
 // thermal printer the AWB now goes out as a real scannable Code 128 symbol
 // rather than as digits a courier would have to key in by hand.
-func BuildShippingLabelPayload(tenantID, bookingID, printerLanguage string) (*QZPrintPayload, error) {
+func BuildShippingLabelPayload(tenantID, bookingID, printerLanguage string) (*AgentPrintPayload, error) {
 	_, data, _, err := fetchLogisticsBooking(tenantID, bookingID)
 	if err != nil {
 		return nil, err
@@ -92,9 +92,9 @@ func BuildShippingLabelPayload(tenantID, bookingID, printerLanguage string) (*QZ
 	pincode, _ := data["destination_pincode"].(string)
 
 	if isRawLanguage(printerLanguage) {
-		return &QZPrintPayload{
+		return &AgentPrintPayload{
 			Format: strings.ToUpper(printerLanguage),
-			Items: []QZDataItem{{
+			Items: []AgentDataItem{{
 				Type:   "raw",
 				Format: "command",
 				Flavor: "plain",
@@ -103,9 +103,9 @@ func BuildShippingLabelPayload(tenantID, bookingID, printerLanguage string) (*QZ
 		}, nil
 	}
 
-	return &QZPrintPayload{
+	return &AgentPrintPayload{
 		Format: "HTML",
-		Items: []QZDataItem{{
+		Items: []AgentDataItem{{
 			Type:   "pixel",
 			Format: "html",
 			Flavor: "plain",
@@ -286,7 +286,7 @@ func zplStickerElement(el StickerElement, label StickerLabel, dpi float64) strin
 // document line's accepted/transfer quantity, or a caller override), which
 // takes precedence per-label so a GRN with different accepted quantities per
 // SKU prints the right count for each rather than one flat number for all.
-func BuildStickerPayload(labels []StickerLabel, copies int, printer QZPrinter) *QZPrintPayload {
+func BuildStickerPayload(labels []StickerLabel, copies int, printer AgentPrinter) *AgentPrintPayload {
 	if copies < 1 {
 		copies = 1
 	}
@@ -317,9 +317,9 @@ func BuildStickerPayload(labels []StickerLabel, copies int, printer QZPrinter) *
 			b.WriteString("^XZ\n")
 		}
 	}
-	return &QZPrintPayload{
+	return &AgentPrintPayload{
 		Format: strings.ToUpper(printer.Language),
-		Items: []QZDataItem{{
+		Items: []AgentDataItem{{
 			Type:   "raw",
 			Format: "command",
 			Flavor: "plain",
@@ -334,8 +334,8 @@ func BuildStickerPayload(labels []StickerLabel, copies int, printer QZPrinter) *
 // This is the path that carries Myntra/other-channel labels: the courier's
 // own PDF is printed exactly as issued, because re-rendering it could alter
 // a barcode the carrier scans. base64Data must be raw base64 with no data:
-// URI prefix, which is the flavor QZ expects.
-func BuildPassThroughPayload(base64Data, docFormat string, printer QZPrinter) *QZPrintPayload {
+// URI prefix, which is the flavor the print agent expects.
+func BuildPassThroughPayload(base64Data, docFormat string, printer AgentPrinter) *AgentPrintPayload {
 	format := strings.ToLower(strings.TrimSpace(docFormat))
 	if format == "" {
 		format = "pdf"
@@ -344,9 +344,9 @@ func BuildPassThroughPayload(base64Data, docFormat string, printer QZPrinter) *Q
 	// A raw command stream for a thermal printer is passed through as-is;
 	// the tray decodes the base64 and streams the bytes.
 	if format == "command" || isRawLanguage(docFormat) {
-		return &QZPrintPayload{
+		return &AgentPrintPayload{
 			Format: strings.ToUpper(docFormat),
-			Items: []QZDataItem{{
+			Items: []AgentDataItem{{
 				Type:   "raw",
 				Format: "command",
 				Flavor: "base64",
@@ -355,7 +355,7 @@ func BuildPassThroughPayload(base64Data, docFormat string, printer QZPrinter) *Q
 		}
 	}
 
-	item := QZDataItem{
+	item := AgentDataItem{
 		Type:   "pixel",
 		Format: format,
 		Flavor: "base64",
@@ -373,7 +373,7 @@ func BuildPassThroughPayload(base64Data, docFormat string, printer QZPrinter) *Q
 		}
 	}
 
-	return &QZPrintPayload{Format: strings.ToUpper(format), Items: []QZDataItem{item}}
+	return &AgentPrintPayload{Format: strings.ToUpper(format), Items: []AgentDataItem{item}}
 }
 
 func parseMM(v string) float64 {
@@ -404,7 +404,7 @@ func truncateRunes(s string, max int) string {
 // browser. That is what makes a reprint honest: a receipt printed an hour
 // later shows exactly what was rung up, and a tampered client cannot print a
 // receipt for a bill that never existed. It is also why these take the whole
-// QZPrinter - a receipt needs the roll width to lay its columns out, which a
+// AgentPrinter - a receipt needs the roll width to lay its columns out, which a
 // language string alone does not carry.
 // ---------------------------------------------------------------------------
 
@@ -501,6 +501,39 @@ func escposCentered(s string, cols int) string {
 	return strings.Repeat(" ", pad) + s + "\n"
 }
 
+// escposWrap breaks free text (a bill's remarks, ask 260.3) into lines of at
+// most cols characters, at spaces where it can, so nothing runs off the roll.
+func escposWrap(s string, cols int) string {
+	if cols < 8 {
+		cols = 32
+	}
+	var b strings.Builder
+	line := []rune{}
+	flush := func() {
+		if len(line) > 0 {
+			b.WriteString(string(line) + "\n")
+			line = line[:0]
+		}
+	}
+	for _, word := range strings.Fields(s) {
+		w := []rune(word)
+		for len(w) > cols { // a word longer than the roll
+			flush()
+			b.WriteString(string(w[:cols]) + "\n")
+			w = w[cols:]
+		}
+		if len(line) > 0 && len(line)+1+len(w) > cols {
+			flush()
+		}
+		if len(line) > 0 {
+			line = append(line, ' ')
+		}
+		line = append(line, w...)
+	}
+	flush()
+	return b.String()
+}
+
 func money(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) }
 
 // receiptTotals is what a completed POSCart adds up to, recomputed from the
@@ -525,7 +558,7 @@ type receiptTotals struct {
 // either would be a receipt for nothing - it is refused with GLOBAL-0019
 // rather than printed with a caveat, because a printed receipt is what a
 // customer walks out with.
-func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPrintPayload, error) {
+func BuildReceiptPayload(tenantID, cartNumber string, printer AgentPrinter) (*AgentPrintPayload, error) {
 	data, status, createdAt, err := fetchPrintableDocument(tenantID, "POSCart", cartNumber)
 	if err != nil {
 		return nil, err
@@ -556,6 +589,14 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	// incompletely configured store still prints a receipt.
 	store := ReceiptStoreHeader(tenantID, location)
 	cashier, _ := data["cashier"].(string)
+	// Ask 260.3: the cashier's remarks. Checkout cleans them; cleaned again
+	// here so no stored cart can put a control byte on the printer.
+	remarks := strings.TrimSpace(strings.Map(func(c rune) rune {
+		if c < ' ' || c == 0x7f {
+			return ' '
+		}
+		return c
+	}, pimString(data["remarks"])))
 
 	var totals receiptTotals
 	type receiptLine struct {
@@ -722,15 +763,18 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		for _, s := range splitLines {
 			b.WriteString(escposRow("  Paid by "+s.sku, money(s.amount), cols))
 		}
+		if remarks != "" {
+			b.WriteString(escposWrap("Remarks: "+remarks, cols))
+		}
 		b.WriteString(strings.Repeat("-", cols) + "\n")
 		b.WriteString(escAlignCenter)
 		b.WriteString(escposCentered("Thank you", cols))
 		b.WriteString("\n\n\n")
 		b.WriteString(escCut)
 
-		return &QZPrintPayload{
+		return &AgentPrintPayload{
 			Format: "ESC-POS",
-			Items: []QZDataItem{{
+			Items: []AgentDataItem{{
 				Type:   "raw",
 				Format: "command",
 				Flavor: "plain",
@@ -789,9 +833,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	if cashier != "" {
 		cashierLine = "<div>Cashier: " + html.EscapeString(cashier) + "</div>"
 	}
-	return &QZPrintPayload{
+	return &AgentPrintPayload{
 		Format: "HTML",
-		Items: []QZDataItem{{
+		Items: []AgentDataItem{{
 			Type:   "pixel",
 			Format: "html",
 			Flavor: "plain",
@@ -812,7 +856,12 @@ table{width:100%;border-collapse:collapse;} td{padding:1px 0;} td.r{text-align:r
 					out += `<tr><td>&nbsp; Paid by ` + html.EscapeString(s.sku) + `</td><td class="r">` + money(s.amount) + `</td></tr>`
 				}
 				return out
-			}() + `</table><hr>
+			}() + `</table>` + func() string {
+				if remarks == "" {
+					return ""
+				}
+				return `<div>Remarks: ` + html.EscapeString(remarks) + `</div>`
+			}() + `<hr>
 <div class="c">Thank you</div>
 </body></html>`,
 		}},
@@ -825,7 +874,7 @@ table{width:100%;border-collapse:collapse;} td{padding:1px 0;} td.r{text-align:r
 // to hand a customer as a proforma. What it must not do is look like a
 // posted one, so the status is stamped on the document itself rather than
 // being checked away - a Draft prints saying "DRAFT".
-func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrintPayload, error) {
+func BuildInvoicePayload(tenantID, invoiceID string, printer AgentPrinter) (*AgentPrintPayload, error) {
 	data, status, createdAt, err := fetchPrintableDocument(tenantID, "SalesInvoice", invoiceID)
 	if err != nil {
 		return nil, err
@@ -900,9 +949,9 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 		b.WriteString("\n\n\n")
 		b.WriteString(escCut)
 
-		return &QZPrintPayload{
+		return &AgentPrintPayload{
 			Format: "ESC-POS",
-			Items: []QZDataItem{{
+			Items: []AgentDataItem{{
 				Type:   "raw",
 				Format: "command",
 				Flavor: "plain",
@@ -924,9 +973,9 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 		}
 		return "<tr><td class=\"k\">" + html.EscapeString(label) + "</td><td>" + html.EscapeString(value) + "</td></tr>"
 	}
-	return &QZPrintPayload{
+	return &AgentPrintPayload{
 		Format: "HTML",
-		Items: []QZDataItem{{
+		Items: []AgentDataItem{{
 			Type:   "pixel",
 			Format: "html",
 			Flavor: "plain",
@@ -947,13 +996,13 @@ table{border-collapse:collapse;} td{padding:4px 0;} td.k{font-weight:700;padding
 	}, nil
 }
 
-// BuildPurchaseOrderQZPayload renders a Purchase Order for silent printing
+// BuildPurchaseOrderAgentPayload renders a Purchase Order for silent printing
 // (Stage 40.10). It reuses BuildPurchaseOrderPrint (Stage 40.1.5) unchanged -
 // the same party resolution and re-priced-from-lines totals the browser
 // fallback sheet (public/app.js renderPOPrintSheet) already uses - so the
 // silent copy and the browser copy can never disagree on what a vendor is
 // held to. Only the rendering is new.
-func BuildPurchaseOrderQZPayload(tenantID, poID string, printer QZPrinter) (*QZPrintPayload, error) {
+func BuildPurchaseOrderAgentPayload(tenantID, poID string, printer AgentPrinter) (*AgentPrintPayload, error) {
 	po, err := BuildPurchaseOrderPrint(tenantID, poID)
 	if err != nil {
 		return nil, err
@@ -961,7 +1010,7 @@ func BuildPurchaseOrderQZPayload(tenantID, poID string, printer QZPrinter) (*QZP
 	return renderPurchaseOrderPayload(po, printer), nil
 }
 
-func renderPurchaseOrderPayload(po POPrint, printer QZPrinter) *QZPrintPayload {
+func renderPurchaseOrderPayload(po POPrint, printer AgentPrinter) *AgentPrintPayload {
 	// Same rule as BuildInvoicePayload: a Draft PO is a legitimate document to
 	// print (e.g. for internal sign-off before sending), so it prints - but
 	// stamped, never mistaken for an issued one. Matches the ==
@@ -1013,9 +1062,9 @@ func renderPurchaseOrderPayload(po POPrint, printer QZPrinter) *QZPrintPayload {
 		b.WriteString("\n\n\n")
 		b.WriteString(escCut)
 
-		return &QZPrintPayload{
+		return &AgentPrintPayload{
 			Format: "ESC-POS",
-			Items: []QZDataItem{{
+			Items: []AgentDataItem{{
 				Type:   "raw",
 				Format: "command",
 				Flavor: "plain",
@@ -1082,9 +1131,9 @@ func renderPurchaseOrderPayload(po POPrint, printer QZPrinter) *QZPrintPayload {
 		words = `<div class="words">` + html.EscapeString(po.AmountInWords) + `</div>`
 	}
 
-	return &QZPrintPayload{
+	return &AgentPrintPayload{
 		Format: "HTML",
-		Items: []QZDataItem{{
+		Items: []AgentDataItem{{
 			Type:   "pixel",
 			Format: "html",
 			Flavor: "plain",

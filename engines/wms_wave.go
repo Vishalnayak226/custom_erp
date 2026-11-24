@@ -80,8 +80,13 @@ func CreateWave(tenantID, locationCode, waveTemplateID string, taskIDs []string,
 
 func getWave(schema, waveID string) (*WaveInfo, error) {
 	var dataStr, status string
+	var taskCount int
+	// 252.2: the task count is counted live, not read from the copy stored when
+	// the wave was made, so tasks added or taken off later show.
 	err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data, COALESCE(status, '') FROM %s.documents WHERE doctype = 'Wave' AND id = $1`, schema), waveID).Scan(&dataStr, &status)
+		`SELECT w.data, COALESCE(w.status, ''),
+		        (SELECT COUNT(*) FROM %s.documents ft WHERE ft.doctype = 'FulfillmentTask' AND ft.data->>'wave_id' = w.id)
+		 FROM %s.documents w WHERE w.doctype = 'Wave' AND w.id = $1`, schema, schema), waveID).Scan(&dataStr, &status, &taskCount)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -93,7 +98,7 @@ func getWave(schema, waveID string) (*WaveInfo, error) {
 	info.WaveTemplate, _ = data["wave_template"].(string)
 	info.LocationCode, _ = data["location_code"].(string)
 	info.CreatedVia, _ = data["created_via"].(string)
-	info.TaskCount = int(numFromInterface(data["task_count"]))
+	info.TaskCount = taskCount
 	info.Notes, _ = data["notes"].(string)
 	return info, nil
 }
@@ -198,10 +203,13 @@ func GetWaveMonitor(tenantID, locationCode string) ([]WaveMonitorRow, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT w.id, w.status, COALESCE(w.data->>'created_via', ''), COALESCE((w.data->>'task_count')::int, 0),
-		       COALESCE((SELECT COUNT(*) FROM %s.documents ft WHERE ft.doctype = 'FulfillmentTask' AND ft.data->>'wave_id' = w.id AND ft.status NOT IN ('Packed', 'Dispatched', 'Rejected')), 0),
+		SELECT w.id, w.status, COALESCE(w.data->>'created_via', ''), t.total, t.open,
 		       COALESCE(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - w.created_at)) / 60, 0)
 		FROM %s.documents w
+		-- 252.2: total and open both counted live, in one pass over the wave's tasks.
+		CROSS JOIN LATERAL (SELECT COUNT(*) AS total,
+		       COUNT(*) FILTER (WHERE ft.status NOT IN ('Packed', 'Dispatched', 'Rejected')) AS open
+		       FROM %s.documents ft WHERE ft.doctype = 'FulfillmentTask' AND ft.data->>'wave_id' = w.id) t
 		WHERE w.doctype = 'Wave' AND w.data->>'location_code' = $1 AND w.status != 'Closed'
 		ORDER BY w.created_at DESC`, schema, schema), locationCode)
 	if err != nil {

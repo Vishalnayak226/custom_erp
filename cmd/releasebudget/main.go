@@ -53,9 +53,9 @@ const (
 //	              two different numbers - and doing so is what made that gate
 //	              read as breached while the shell itself was inside it.
 var (
-	coreFiles              = []string{"public/index.html", "public/styles.css", "public/theme-boot.js", "public/db.js", "public/components/erp-typeahead.js", "public/app.js", "public/qz-print.js", "public/view-pos.js"}
-	jsFiles                = []string{"public/theme-boot.js", "public/db.js", "public/components/erp-typeahead.js", "public/app.js", "public/qz-print.js"}
-	jsPlusFirstScreenFiles = []string{"public/theme-boot.js", "public/db.js", "public/components/erp-typeahead.js", "public/app.js", "public/qz-print.js", "public/view-pos.js"}
+	coreFiles              = []string{"public/index.html", "public/styles.css", "public/theme-boot.js", "public/db.js", "public/components/erp-typeahead.js", "public/app.js", "public/print-agent.js", "public/view-pos.js"}
+	jsFiles                = []string{"public/theme-boot.js", "public/db.js", "public/components/erp-typeahead.js", "public/app.js", "public/print-agent.js"}
+	jsPlusFirstScreenFiles = []string{"public/theme-boot.js", "public/db.js", "public/components/erp-typeahead.js", "public/app.js", "public/print-agent.js", "public/view-pos.js"}
 )
 
 type Metric struct {

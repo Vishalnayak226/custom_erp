@@ -1417,7 +1417,7 @@ async function postSalesInvoiceAction(id) {
 // do is look like a posted one, so both this sheet and the server-built
 // payload stamp the status on the page; a Draft comes out marked DRAFT.
 // Stage 98.1: the template print dialog (PDF, CSV / Excel, Send, and Print
-// straight to this computer's invoice printer when QZ Tray runs - 98.4). A
+// straight to this computer's invoice printer when PrintBridge runs - 98.4). A
 // Draft is titled "Proforma Invoice (Draft ...)" by the print data; an
 // e-invoice's IRN and signed QR print as before.
 window.printSalesInvoice = async function(id) {

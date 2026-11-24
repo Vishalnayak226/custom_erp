@@ -276,7 +276,7 @@ func RequestReprint(tenantID, txn, docID, reason, userName, userID, role string)
 // fills the log row's revision, checksum and outcome.
 func recordIssuedPrint(tenantID, printedBy string, p *DocumentPrint) error {
 	switch p.Channel {
-	case "qz":
+	case "agent", "qz": // "qz": a page loaded before ask 263
 		p.Outcome = PrintOutcomeSubmitted
 	case "browser":
 		p.Outcome = PrintOutcomeSentToBrowser

@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -11,22 +12,24 @@ import (
 // standards/productivity dashboard. Go-ahead given 2026-07-27 for all five
 // P2 bundles previously deferred pending a real warehouse-scale pilot.
 //
-// logTaskCompletion is called from PutawayToBin (wms.go), PackTransferOrder
+// logTaskCompletionTx is called from PutawayToBin (wms.go), PackTransferOrder
 // (transfer_orders.go), and PostCycleCountAdjustment (wms.go) - the three
 // existing WMS actions that already carry a userID. Picking is a
 // documented, deliberate gap: engines/fulfillment_pickpack.go's
 // ScanPickItem has no per-user tracking today, and adding it would mean
-// changing that function's signature across every caller. Errors are
-// swallowed the same way WriteStockLedgerEntry's own callers already treat
-// it - this is instrumentation, never a reason to fail the real action.
+// changing that function's signature across every caller.
+//
+// 252.1: the row is written in the action's own transaction. It began as
+// instrumentation whose errors were swallowed, but the 3PL handling charge
+// (wms_3pl_billing.go) and the labour reports count these rows, so a dropped
+// one under-billed with no trace; now the action and its row commit together.
+// The row's created_by must be a real user (FK to users). An ID with no user
+// row (a service caller, an import) cannot be stored: a savepoint drops only
+// the row, the action still commits, and System Errors records the miss.
 
-func logTaskCompletion(tenantID, taskType, userID, locationCode, referenceID string, qty float64) {
+func logTaskCompletionTx(tx *sql.Tx, tenantID, schema, taskType, userID, locationCode, referenceID string, qty float64) error {
 	if userID == "" {
-		return
-	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return
+		return nil
 	}
 	id := NewDocIDCompact("TCL")
 	docData := map[string]interface{}{
@@ -41,11 +44,26 @@ func logTaskCompletion(tenantID, taskType, userID, locationCode, referenceID str
 	}
 	marshaled, err := json.Marshal(docData)
 	if err != nil {
-		return
+		return err
 	}
-	_, _ = db.DB.Exec(fmt.Sprintf(
+	if _, err := tx.Exec("SAVEPOINT task_completion_log"); err != nil {
+		return fmt.Errorf("task completion log: %w", err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
 		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'TaskCompletionLog', $2, 'Active', $3)`, schema),
-		id, marshaled, userID)
+		id, marshaled, userID); err != nil {
+		if _, rbErr := tx.Exec("ROLLBACK TO SAVEPOINT task_completion_log"); rbErr != nil {
+			return fmt.Errorf("task completion log: %w", err)
+		}
+		LogSystemError(tenantID, "", "WARN", "TaskCompletionLog", fmt.Sprintf(
+			"%s %s by %s: no task completion row (labour and 3PL handling counts miss it): %v",
+			taskType, referenceID, userID, err), "")
+		return nil
+	}
+	if _, err := tx.Exec("RELEASE SAVEPOINT task_completion_log"); err != nil {
+		return fmt.Errorf("task completion log: %w", err)
+	}
+	return nil
 }
 
 // LaborProductivity (26.5.13) aggregates TaskCompletionLog per user per

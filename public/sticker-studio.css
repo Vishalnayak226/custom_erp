@@ -698,3 +698,64 @@ body.stk-studio-open .typeahead-menu { z-index: 2100; }
 .stk-rule-table td { padding: 4px 8px 4px 0; vertical-align: middle; }
 .stk-rule-table td:first-child { width: 45%; }
 .stk-rule-default { max-width: 360px; }
+
+/* 251.1 / 251.2: the smart print check (print-check.js) - the ask after a
+   print, three faces, and the Fix from photo dialog. */
+.pc-ask {
+  position: fixed; right: 16px; bottom: 16px; z-index: 1200;
+  width: min(330px, calc(100vw - 32px));
+  background: var(--panel-bg); color: var(--text-main);
+  border: 1px solid var(--border-color); border-radius: 16px;
+  box-shadow: var(--shadow-lg); padding: 10px 12px 12px;
+  transform: translateY(16px) scale(.96); opacity: 0;
+  transition: transform .28s cubic-bezier(.34, 1.56, .64, 1), opacity .2s ease;
+}
+.pc-ask.open { transform: none; opacity: 1; }
+body.pc-asking #toast-container { bottom: calc(var(--pc-ask-h, 150px) + 28px); }
+.pc-ask-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pc-ask-title, .pc-again-title { font-weight: 700; font-size: 15px; }
+.pc-faces { display: flex; justify-content: space-around; gap: 6px; margin-top: 6px; }
+.pc-face {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: 2px solid transparent; border-radius: 14px; padding: 6px 4px 4px;
+  color: var(--text-main); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), background-color .15s, border-color .15s;
+}
+.pc-face svg { width: 52px; height: 52px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .15)); }
+.pc-face:hover, .pc-face:focus-visible { transform: translateY(-3px) scale(1.1); outline: none; }
+.pc-face:active { transform: scale(.94); }
+.pc-good:hover, .pc-good:focus-visible { background: var(--success-soft-bg); border-color: var(--success-color); }
+.pc-ok:hover, .pc-ok:focus-visible { background: var(--warning-soft-bg); border-color: var(--warning-color); }
+.pc-bad:hover, .pc-bad:focus-visible { background: var(--danger-soft-bg); border-color: var(--danger-color); }
+.pc-good:hover svg { animation: pc-wiggle .5s ease; }
+@keyframes pc-wiggle { 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pc-ask, .pc-face { transition: none; }
+  .pc-face:hover, .pc-face:focus-visible { transform: none; }
+  .pc-good:hover svg { animation: none; }
+}
+.pc-dialog { max-width: min(600px, 100%); }
+.pc-steps { margin: 0 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.pc-steps li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pc-file { cursor: pointer; }
+.pc-drop {
+  border: 2px dashed var(--border-hover); border-radius: 10px; padding: 14px; min-height: 64px;
+  display: flex; align-items: center; justify-content: center; color: var(--text-muted);
+  cursor: pointer; text-align: center;
+}
+.pc-drop.over { border-color: var(--primary-color); background: var(--primary-light); }
+.pc-drop.has-shot { padding: 4px; border-style: solid; }
+.pc-drop.has-shot > span { display: none; }
+/* 255.1: each part keeps its own height (the body scrolls instead), so the
+   photo stays inside its box, not over the buttons; at 30% of the window the
+   result and the faces show under it without zooming out. */
+.pc-dialog .modal-body > * { flex-shrink: 0; }
+.pc-shot { display: block; max-width: 100%; max-height: min(30vh, 280px); height: auto; border-radius: 6px; }
+.pc-result { margin-top: 10px; }
+.pc-advice { font-size: 18px; font-weight: 700; color: var(--warning-strong); }
+.pc-advice.ok { color: var(--success-color); }
+.pc-values { font-size: 13px; color: var(--text-muted); font-family: var(--font-numeric); }
+.pc-note { font-size: 13px; color: var(--text-muted); }
+.pc-reading { color: var(--text-muted); }
+.pc-again { margin-top: 12px; padding: 10px; border-radius: 12px; background: var(--surface-subtle); }
+.pc-lineup { margin-top: 10px; }

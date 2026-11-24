@@ -16,15 +16,8 @@ import (
 // an approver or AP can ask for one, rather than payment being blocked.
 func ValidateExpenseClaimControls(tenantID string, payload map[string]interface{}) error {
 	expenseDateStr, _ := payload["expense_date"].(string)
-	expenseDate, err := time.Parse("2006-01-02", expenseDateStr)
-	if err != nil {
-		return fmt.Errorf("expense_date must be a valid YYYY-MM-DD date")
-	}
-	if expenseDate.After(time.Now()) {
-		return fmt.Errorf("expense date cannot be in the future")
-	}
-	if time.Since(expenseDate) > 90*24*time.Hour {
-		return fmt.Errorf("expense date is more than 90 days old - outside the claim window")
+	if err := expenseDateWindowErr(expenseDateStr, BusinessToday()); err != nil {
+		return err
 	}
 
 	employeeID, _ := payload["employee_id"].(string)
@@ -59,6 +52,29 @@ func ValidateExpenseClaimControls(tenantID string, payload map[string]interface{
 	}
 	if count > 0 {
 		return fmt.Errorf("a claim for this employee/category/date/amount already exists - possible duplicate bill")
+	}
+	return nil
+}
+
+// expenseDateWindowErr is the claim's date window, counted in the business's
+// days (246.3): a claim may be dated today or up to 90 days back. The date was
+// once read as midnight UTC and compared with the clock's instant, so from
+// 00:00 to 05:30 IST today's date - the one the claim form fills in - was
+// refused as "in the future".
+func expenseDateWindowErr(date, today string) error {
+	d, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return fmt.Errorf("expense_date must be a valid YYYY-MM-DD date")
+	}
+	t, err := time.Parse("2006-01-02", today)
+	if err != nil {
+		return fmt.Errorf("today's date is not a day: %q", today)
+	}
+	if d.After(t) {
+		return fmt.Errorf("expense date cannot be in the future")
+	}
+	if t.Sub(d) > 90*24*time.Hour {
+		return fmt.Errorf("expense date is more than 90 days old - outside the claim window")
 	}
 	return nil
 }

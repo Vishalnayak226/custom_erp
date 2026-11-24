@@ -576,8 +576,12 @@ func vlApply(tenantID, schema, actor, role string, p vlProposal, auto, rememberU
 	if p.unit != "" && rememberUnit {
 		vlRememberUnit(schema, actor, vlVendorID(po), p.unit, vlLineUnit(tenantID, ln))
 	}
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.vendor_po_proposals SET status = 'Applied', auto_applied = $2, decided_by = $3, decided_at = now()
-		WHERE id = $1`, schema), p.id, auto, actor)
+	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.vendor_po_proposals SET status = 'Applied', auto_applied = $2, decided_by = $3, decided_at = now()
+		WHERE id = $1`, schema), p.id, auto, actor); err != nil {
+		// 252.1: the order already carries the change; a proposal left at
+		// Applying would otherwise sit unexplained.
+		LogSystemError(tenantID, "", "ERROR", "vlApply", fmt.Sprintf("purchase order %s line %d changed, but vendor proposal %d still shows Applying: %v", p.poID, p.lineNo, p.id, err), "")
+	}
 	LogAuditEvent(tenantID, actor, "VENDOR_LINK_APPLIED", "SUCCESS",
 		fmt.Sprintf("Applied the vendor's change to line %d of purchase order %s", p.lineNo, firstNonEmpty(strField(po, "code"), p.poID)))
 	return nil

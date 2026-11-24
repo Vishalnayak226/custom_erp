@@ -4,7 +4,7 @@ section: Role Journeys
 order: 4
 summary: Receive, put away, pick, pack, dispatch - and the counting work that keeps the numbers honest.
 audience: warehouse operator
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [grn, asn, putaway, oms, wave-picking, mobile-picking, cycle-count, lpn, bin-replenishment, bin-conditions, transfers, stickers]
 doc_id: DOC-4F17D60B48
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -32,7 +32,7 @@ than in the order the paperwork arrives.
 
 ## Inbound
 
-**Know what is coming.** **Procurement » ASN** holds advance shipment notices -
+**Know what is coming.** **Procurement » ASN (Advance Shipment)** holds advance shipment notices -
 what a supplier says they have dispatched. An ASN is not stock; it is a promise
 you can plan a dock around.
 
@@ -46,21 +46,21 @@ quantities to what physically arrived. **Save receipt**, then Verify and post
 > no posted GRN does not exist as far as every other screen is concerned - and
 > that is the single most common cause of "the system says we have none".
 
-**Put it away.** **Stock » Putaway** turns received stock into stock in a
+**Put it away.** **WMS » Putaway** turns received stock into stock in a
 specific bin. Until then it is in the system but not in a place, and picking
 cannot route anyone to it.
 
 ## Where things live
 
-**Stock » Bin** is the map. **Stock » Bin Conditions** records the state a bin
+**WMS » Bin** is the map. **WMS » Bin Conditions** records the state a bin
 is in - damaged, quarantined, blocked - so that stock which exists but must not
 be sold is visibly separated rather than quietly wrong.
 
-**Stock » LPN / Cartons / Pallets** tracks handling units: a carton or pallet
+**WMS » LPN / Cartons / Pallets** tracks handling units: a carton or pallet
 identified as one thing, so a whole unit can be moved, received or shipped
 without scanning every item inside it.
 
-**Stock » Bin Replenishment** moves stock from bulk storage into pick faces
+**WMS » Bin Replenishment** moves stock from bulk storage into pick faces
 before a picker finds the face empty. Working the replenishment list first thing
 is what stops the pick queue stalling mid-morning.
 
@@ -72,17 +72,17 @@ that is honoured by the queue itself.
 
 Two alternatives for higher volume:
 
-- **Stock » Wave / Batch Picking** groups many orders into one pass through the
+- **WMS » Wave / Batch Picking** groups many orders into one pass through the
   warehouse, so a picker walks the route once rather than once per order.
-- **Stock » Mobile Picking** is the handheld view of the same work, for scanning
+- **WMS » Mobile Picking** is the handheld view of the same work, for scanning
   as you go rather than working from a printed list.
 
-**Stock » Sticker Printing** produces the labels - shelf, item or shipping - and
+**Inventory » Sticker Printing** produces the labels - shelf, item or shipping - and
 is worth doing in a batch rather than one at a time.
 
 ## Counting
 
-**Stock » Cycle Count** is a rolling count of part of the warehouse rather than
+**WMS » Cycle Count** is a rolling count of part of the warehouse rather than
 a full annual stop. Count what the screen asks for, enter what you actually
 found, and let the variance be what it is.
 
@@ -106,7 +106,7 @@ In order of likelihood:
 2. **It was received but never put away**, so it has no bin to be picked from.
 3. **The bin is in a condition that blocks it** - check **Bin Conditions**.
 4. **It is reserved for another order.** The available-to-sell figure in
-   **Inventory** already accounts for this; a raw count will not.
+   **Inventory » Stock on Hand** already accounts for this; a raw count will not.
 5. **It genuinely is not there**, which a cycle count will confirm.
 
 ## Next

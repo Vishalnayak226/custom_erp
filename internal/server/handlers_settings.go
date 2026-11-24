@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -75,10 +76,12 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	// Validate the whole batch before writing anything, so one invalid value
 	// never leaves a half-applied set. The message is a specific, user-safe
 	// string ("Point expiry must be at least 1"), preserved verbatim by
-	// writeAPIErrorGeneric (a 422 keeps the caller's own message).
+	// writeAPIErrorGeneric (a 422 keeps the caller's own message); a coded
+	// refusal (FIN-1725 for a Service SLA value, 245.11) keeps its own code
+	// through writeEngineError.
 	for key, value := range updates {
 		if err := engines.ValidateSetting(key, value); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
 	}
@@ -87,7 +90,15 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var changed []string
 	for key, value := range updates {
 		if err := engines.SetSetting(tenantID, key, value, actorUsername); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			// 245.11: a change hook's refusal (a role that does not exist
+			// here, APPROV-0157) is the caller's 4xx with its own code and
+			// message, not a 500.
+			status := http.StatusInternalServerError
+			var ve *engines.ValidationError
+			if errors.As(err, &ve) {
+				status = http.StatusUnprocessableEntity
+			}
+			writeEngineError(w, r, err, status)
 			return
 		}
 		applied++

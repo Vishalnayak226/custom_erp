@@ -1,7 +1,7 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
-function renderQZSetupPanel(container) {
+function renderAgentSetupPanel(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '20px';
@@ -10,20 +10,20 @@ function renderQZSetupPanel(container) {
     <div class="s-d1fbbb">
       <div>
         <h2 class="s-d5d9be">Print Setup (PrintBridge)</h2>
-        <p id="qz-status" class="page-subtitle s-2a0ca8">Checking for PrintBridge on this computer&hellip;</p>
+        <p id="agent-status" class="page-subtitle s-2a0ca8">Checking for PrintBridge on this computer&hellip;</p>
       </div>
       <div class="s-aea80b">
         <a class="btn btn-outline" href="/downloads/printbridge-setup.exe" download title="Windows: run it once on each computer that prints">Download PrintBridge</a>
-        <button class="btn btn-outline" ${actionAttrs('qzDetectPrinters')}>Detect Printers</button>
-        <button class="btn btn-outline" ${actionAttrs('qzTestPrint')}>Test Print</button>
+        <button class="btn btn-outline" ${actionAttrs('agentDetectPrinters')}>Detect Printers</button>
+        <button class="btn btn-outline" ${actionAttrs('agentTestPrint')}>Test Print</button>
       </div>
     </div>
-    <div id="qz-detected" class="s-4bb900"></div>
+    <div id="agent-detected" class="s-4bb900"></div>
     <div class="s-e81bf2">
-      <label class="form-label" for="qz-doc-file">Print a marketplace label or invoice (PDF from Myntra, or any channel)</label>
+      <label class="form-label" for="agent-doc-file">Print a marketplace label or invoice (PDF from Myntra, or any channel)</label>
       <div class="s-ccacbc">
-        <input type="file" id="qz-doc-file" class="form-input s-c3f3cb" accept=".pdf,.zpl,.txt,.prn">
-        <button class="btn btn-primary" id="qz-doc-preview-btn" type="button">Print</button>
+        <input type="file" id="agent-doc-file" class="form-input s-c3f3cb" accept=".pdf,.zpl,.txt,.prn">
+        <button class="btn btn-primary" id="agent-doc-preview-btn" type="button">Print</button>
       </div>
       <p class="page-subtitle s-0f6f74">
         Prints to the <strong>Shipping Label</strong> default printer.
@@ -31,17 +31,17 @@ function renderQZSetupPanel(container) {
     </div>
   `;
   container.appendChild(panel);
-  panel.querySelector('#qz-doc-preview-btn').addEventListener('click', qzPreviewPickedDocument);
-  qzRefreshStatus();
+  panel.querySelector('#agent-doc-preview-btn').addEventListener('click', agentPreviewPickedDocument);
+  agentRefreshStatus();
 }
 
-// qzPreviewPickedDocument (Stage 133.3) shows the picked file as the channel
+// agentPreviewPickedDocument (Stage 133.3) shows the picked file as the channel
 // issued it before it prints: a PDF through a link to the browser's own viewer
 // in a new tab (the page's security policy keeps PDFs out of its own frames),
 // a ZPL or text file as its text - the printer's commands, which the printer
 // draws from. Stage 143.4: it is what Print does; its Print prints.
-async function qzPreviewPickedDocument() {
-  const input = document.getElementById('qz-doc-file');
+async function agentPreviewPickedDocument() {
+  const input = document.getElementById('agent-doc-file');
   if (!input || !input.files || input.files.length === 0) {
     await showCustomAlert('Choose a label or invoice file first.', 'Nothing Selected');
     return;
@@ -55,34 +55,34 @@ async function qzPreviewPickedDocument() {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal-container s-c06a24" role="dialog" aria-modal="true" aria-labelledby="qz-doc-preview-title">
-      <div class="modal-header"><h3 class="modal-title" id="qz-doc-preview-title">${escapeHTMLText(file.name)}</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" data-qz-preview="close">×</button></div>
+    <div class="modal-container s-c06a24" role="dialog" aria-modal="true" aria-labelledby="agent-doc-preview-title">
+      <div class="modal-header"><h3 class="modal-title" id="agent-doc-preview-title">${escapeHTMLText(file.name)}</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-agent-preview="close">×</button></div>
       <div class="modal-body">
         ${body}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline" data-qz-preview="close">Close</button>
-        <button type="button" class="btn btn-primary" data-qz-preview="print">Print</button>
+        <button type="button" class="btn btn-outline" data-agent-preview="close">Close</button>
+        <button type="button" class="btn btn-primary" data-agent-preview="print">Print</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
   const close = () => { overlay.remove(); if (url) URL.revokeObjectURL(url); };
-  overlay.querySelectorAll('[data-qz-preview="close"]').forEach(b => b.addEventListener('click', close));
+  overlay.querySelectorAll('[data-agent-preview="close"]').forEach(b => b.addEventListener('click', close));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-qz-preview="print"]').addEventListener('click', () => { close(); qzPrintPickedDocument(); });
+  overlay.querySelector('[data-agent-preview="print"]').addEventListener('click', () => { close(); agentPrintPickedDocument(); });
 }
 
-async function qzRefreshStatus() {
-  const el = document.getElementById('qz-status');
+async function agentRefreshStatus() {
+  const el = document.getElementById('agent-status');
   if (!el) return;
-  const ok = await qzTryConnect();
+  const ok = await agentTryConnect();
   if (ok) {
     // Stage 137.4: PrintBridge's own release; one older than the download
     // (or one before 0.2.0, which cannot say) is offered the update.
     const [have, latest] = await Promise.all([
-      window.QZPrint.agentVersion ? window.QZPrint.agentVersion().catch(() => '') : '',
+      window.PrintAgent.agentVersion ? window.PrintAgent.agentVersion().catch(() => '') : '',
       fetch('/downloads/printbridge-version.txt').then(r => (r.ok ? r.text() : '')).catch(() => '')
     ]);
     const older = latest && versionBelow(have || '0.1.0', latest.trim());
@@ -90,7 +90,7 @@ async function qzRefreshStatus() {
     // the download, once.
     // A failed update (bad download, or the same installer already run three
     // times) is shown, with the agent's reason on hover, not "updating".
-    const upd = window.QZPrint.updateStatus ? window.QZPrint.updateStatus() : null;
+    const upd = window.PrintAgent.updateStatus ? window.PrintAgent.updateStatus() : null;
     const stuck = older && upd && upd.status === 'failed';
     const selfUpdating = older && have && !versionBelow(have, '0.3.0') && !stuck;
     el.title = stuck ? String(upd.error || '') : '';
@@ -103,7 +103,7 @@ async function qzRefreshStatus() {
           : `${have ? `PrintBridge ${have}` : 'An older PrintBridge'} is running. ${latest.trim()} is out: Download PrintBridge and run it once - it updates itself after that.`;
     el.style.color = older && !selfUpdating ? 'var(--color-warning, #b45309)' : 'var(--color-success, #15803d)';
   } else {
-    el.textContent = qzLastError + ' Download PrintBridge and run it once; until then prints open the browser dialog.';
+    el.textContent = agentLastError + ' Download PrintBridge and run it once; until then prints open the browser dialog.';
     el.style.color = 'var(--color-warning, #b45309)';
   }
 }
@@ -114,22 +114,22 @@ const versionBelow = (a, b) => {
   return false;
 };
 
-// Lists the OS printer names QZ can see. This is the value the operator
+// Lists the OS printer names PrintBridge can see. This is the value the operator
 // copies into a Printer record's "OS Printer Name" field.
-async function qzDetectPrinters() {
-  const out = document.getElementById('qz-detected');
+async function agentDetectPrinters() {
+  const out = document.getElementById('agent-detected');
   if (!out) return;
-  if (!await qzTryConnect(false)) return;
+  if (!await agentTryConnect(false)) return;
   out.textContent = 'Detecting...';
   try {
-    const names = await window.QZPrint.listOSPrinters();
+    const names = await window.PrintAgent.listOSPrinters();
     const list = Array.isArray(names) ? names : [names];
     if (list.length === 0) {
       out.textContent = 'PrintBridge reports no printers installed on this computer.';
       return;
     }
     let def = '';
-    try { def = await window.QZPrint.getDefaultPrinter(); } catch (e) { /* optional */ }
+    try { def = await window.PrintAgent.getDefaultPrinter(); } catch (e) { /* optional */ }
     out.innerHTML = `
       <p class="page-subtitle s-2c0002">Detected printers:</p>
       <ul class="s-0e0f8e">
@@ -142,15 +142,15 @@ async function qzDetectPrinters() {
 
 // Proves the whole chain - certificate, signature, socket, driver - before an
 // operator depends on it during a packing run.
-async function qzTestPrint() {
-  if (!await qzTryConnect(false)) return;
-  const printers = await apiFetch('/api/v1/print/qz/printers');
+async function agentTestPrint() {
+  if (!await agentTryConnect(false)) return;
+  const printers = await apiFetch('/api/v1/print/agent/printers');
   if (!printers || !printers.ok) {
     await showApiError(printers, 'Could not load configured printers.', 'Test Print');
     return;
   }
   const list = await printers.json();
-  const target = list.find(p => p.qz_printer_name);
+  const target = list.find(p => p.os_printer_name);
   if (!target) {
     await showCustomAlert(
       'No Printer record has an OS Printer Name yet. Click "Detect Printers", then edit a Printer ' +
@@ -160,38 +160,38 @@ async function qzTestPrint() {
   const raw = ['ZPL', 'TSPL', 'ESC-POS'].includes((target.printer_language || '').toUpperCase());
   const stamp = formatDateTime(new Date());
   // Stage 143.4: the test page shows first; Print there sends it.
-  if (!await qzPreviewTestPage(target, raw ? 'ERP test label' : 'ERP test print', stamp)) return;
+  if (!await agentPreviewTestPage(target, raw ? 'ERP test label' : 'ERP test print', stamp)) return;
   const items = raw
     ? [{ type: 'raw', format: 'command', flavor: 'plain',
          data: '^XA^CI28^FO30,30^A0N,40,40^FDERP test label^FS^FO30,90^A0N,28,28^FD' + stamp + '^FS^XZ' }]
     : [{ type: 'pixel', format: 'html', flavor: 'plain',
          data: '<h2>ERP test print</h2><p>' + escapeHTMLText(stamp) + '</p>' }];
   try {
-    await window.QZPrint.printItems(target.qz_printer_name, items, 1);
-    showToast(`Test page sent to ${target.qz_printer_name}.`, { variant: 'success' });
+    await window.PrintAgent.printItems(target.os_printer_name, items, 1);
+    showToast(`Test page sent to ${target.os_printer_name}.`, { variant: 'success' });
   } catch (err) {
     await showCustomAlert(err.message || String(err), 'Test Print Failed');
   }
 }
 
-// qzPreviewTestPage (Stage 143.4) shows the test page and the printer it goes
+// agentPreviewTestPage (Stage 143.4) shows the test page and the printer it goes
 // to, with Close and Print; resolves true on Print.
-function qzPreviewTestPage(target, heading, stamp) {
+function agentPreviewTestPage(target, heading, stamp) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay open';
     overlay.innerHTML = `
-      <div class="modal-container s-c31abe" role="dialog" aria-modal="true" aria-labelledby="qz-test-preview-title">
-        <div class="modal-header"><h3 class="modal-title" id="qz-test-preview-title">Test print</h3>
-          <button type="button" class="modal-close" aria-label="Close dialog" data-qz-test="close">×</button></div>
+      <div class="modal-container s-c31abe" role="dialog" aria-modal="true" aria-labelledby="agent-test-preview-title">
+        <div class="modal-header"><h3 class="modal-title" id="agent-test-preview-title">Test print</h3>
+          <button type="button" class="modal-close" aria-label="Close dialog" data-agent-test="close">×</button></div>
         <div class="modal-body">
-          <p class="s-f041c9">On ${escapeHTMLText(target.name || target.qz_printer_name)}</p>
+          <p class="s-f041c9">On ${escapeHTMLText(target.name || target.os_printer_name)}</p>
           <div class="s-91d664">
             <div class="s-59f9d7">${escapeHTMLText(heading)}</div><div>${escapeHTMLText(stamp)}</div></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" data-qz-test="close">Close</button>
-          <button type="button" class="btn btn-primary" data-qz-test="print">Print</button>
+          <button type="button" class="btn btn-outline" data-agent-test="close">Close</button>
+          <button type="button" class="btn btn-primary" data-agent-test="print">Print</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -199,20 +199,20 @@ function qzPreviewTestPage(target, heading, stamp) {
     const onKey = (e) => { if (e.key === 'Escape') done(false); };
     document.addEventListener('keydown', onKey);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
-    overlay.querySelectorAll('[data-qz-test="close"]').forEach(b => b.addEventListener('click', () => done(false)));
-    const print = overlay.querySelector('[data-qz-test="print"]');
+    overlay.querySelectorAll('[data-agent-test="close"]').forEach(b => b.addEventListener('click', () => done(false)));
+    const print = overlay.querySelector('[data-agent-test="print"]');
     print.addEventListener('click', () => done(true));
     print.focus();
   });
 }
 
-async function qzPrintPickedDocument() {
-  const input = document.getElementById('qz-doc-file');
+async function agentPrintPickedDocument() {
+  const input = document.getElementById('agent-doc-file');
   if (!input || !input.files || input.files.length === 0) {
     await showCustomAlert('Choose a label or invoice file first.', 'Nothing Selected');
     return;
   }
-  const printed = await qzPrintMarketplaceDocument(input.files[0]);
+  const printed = await agentPrintMarketplaceDocument(input.files[0]);
   if (printed) input.value = '';
 }
 
@@ -252,6 +252,7 @@ function stickerSourceDoctypes() {
 let stickerSourceDoctype = BULK_STICKER_SOURCE_DOCTYPES[0].doctype;
 let stickerSourceDocId = '';
 let stickerSourceChosen = '';   // 143.6: the document whose preview choosing it opened
+let stickerSourceOpening = '';  // 246.2: the document being loaded or previewed now
 let stickerSourceAwaiting = null; // 143.6: lines whose preview waits for a printer
 let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
 let stickerSourceSelected = {}; // line index -> bool, defaults to all-selected on load
@@ -295,7 +296,7 @@ async function renderStickerPrintTab(container) {
   const history = historyRes.ok ? await historyRes.json() : [];
 
   // Stage 69: the print history is the page; + Print Stickers opens the print
-  // station (QZ status, Print from Transaction, scan) as a page of its own
+  // station (PrintBridge status, Print from Transaction, scan) as a page of its own
   // (txn-screen.js, the standard ERP shape). Attached first: the panels look
   // their own elements up as they are built.
   const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
@@ -363,13 +364,13 @@ async function renderStickerPrintTab(container) {
   stickerReprintCodeWanted = '';
   fillStickerReprintCodes();
 
-  // Stage 55.19: printer setup (QZ Tray detect/test, channel label PDFs) is a
+  // Stage 55.19: printer setup (PrintBridge detect/test, channel label PDFs) is a
   // one-time path per computer, so it sits collapsed below the daily flow.
   const setup = document.createElement('details');
   setup.className = 'sticker-printer-setup';
   setup.innerHTML = '<summary class="s-a2b6bc">Printer setup on this computer (PrintBridge) and channel label PDFs</summary>';
   printPage.appendChild(setup);
-  renderQZSetupPanel(setup);
+  renderAgentSetupPanel(setup);
 
   let historyHtml = `
     <table>
@@ -608,8 +609,16 @@ function renderStickerSourcePanel(container, printers) {
 async function chooseStickerSourceDoc(force = false) {
   const value = document.getElementById('sticker-source-doc').value.trim();
   if (!value || (!force && value === stickerSourceChosen)) return;
+  // 246.2: typing a number then clicking Load fires the box's change and Load's
+  // click together; one preview, not two stacked.
+  if (value === stickerSourceOpening) return;
   stickerSourceChosen = value;
-  if (await loadStickerSourcePreview()) previewSourceThenPrint(stickerSourceLines.map((l, i) => i));
+  stickerSourceOpening = value;
+  try {
+    if (await loadStickerSourcePreview()) await previewSourceThenPrint(stickerSourceLines.map((l, i) => i));
+  } finally {
+    stickerSourceOpening = '';
+  }
 }
 
 // previewSourceThenPrint: Stage 143.4 - every Print shows the preview first;
@@ -750,6 +759,7 @@ async function openPrinterPreset() {
         <div id="stk-preset-error" class="login-error hidden s-4bb900"></div>
       </div>
       <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-p="photo">Fix from photo</button>
         <button type="button" class="btn btn-outline" data-p="lineup">Line up</button>
         <button type="button" class="btn btn-outline" data-p="test">Test alignment</button>
         <button type="button" class="btn btn-outline" data-p="calibrate">Calibrate roll</button>
@@ -811,7 +821,15 @@ async function openPrinterPreset() {
     const btn = e.target.closest('button');
     btn.disabled = true;
     try {
-      if (act === 'lineup') {
+      if (act === 'photo') {
+        // 251.1: the ERP reads the shift off a photo of a check label and
+        // saves it on the printer; this dialog's fields would be stale.
+        const roll = await rollTemplate(p.sticker_template);
+        if (roll && roll.settings.sheet.mode === 'a4') { say('Fix from photo is for label rolls.'); return; }
+        close();
+        const { openFixFromPhoto } = await import('./print-check.js' + PRINTING_MODULE_QUERY);
+        await openFixFromPhoto(printer, roll, { onSaved: () => { renderStickerPresetButton(); renderStickerSourceLines(); } });
+      } else if (act === 'lineup') {
         const roll = await rollTemplate(p.sticker_template);
         if (roll && roll.settings.sheet.mode === 'a4') { say('Line up is for label rolls.'); return; }
         lineRows = await E.printLineUp(roll, Object.assign({}, printer, p));
@@ -1275,7 +1293,7 @@ function renderStickerElementHTML(el, label) {
 // SKU-scan flow (a flat `copies` applies to every label) and the Stage 52
 // document-driven flow (each label carries its own resolved `qty`, which
 // wins when present - mirrors BuildStickerPayload's identical precedence in
-// engines/qz_payload.go). A label with no resolved template (template
+// engines/print_agent_payload.go). A label with no resolved template (template
 // unconfigured for its category, or none at all) still gets the original
 // fixed 3-line layout untouched. Labels arrive pre-sorted by category
 // (PrintStickersForDocument), so marking the last copy of each category run
@@ -1329,7 +1347,7 @@ async function printStickerRun(labels, { printerCode, copies = 1, jobRef = '' } 
 // aren't master data and need their own UI.
 
 
-export { renderQZSetupPanel, qzRefreshStatus, qzDetectPrinters, qzTestPrint, qzPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, printStickerRun };
+export { renderAgentSetupPanel, agentRefreshStatus, agentDetectPrinters, agentTestPrint, agentPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, printStickerRun };
 
 // Stage 55.19: a print request carries a key that survives a failed or
 // timed-out attempt at the same selection, so pressing Print again re-sends

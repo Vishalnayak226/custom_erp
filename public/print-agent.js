@@ -1,5 +1,6 @@
 /*
- * QZ Tray client (Stage 31.1) - silent, one-click printing to a named OS printer.
+ * Print agent client (Stage 31.1) - silent, one-click printing to a named OS printer
+ * through PrintBridge, which speaks the QZ Tray protocol.
  *
  * Why this file exists rather than the vendored qz-tray.js: that library is
  * ~150KB and carries its own promise shim, its own SHA-256, and remote-host
@@ -21,7 +22,7 @@
  * So the signed bytes are the UTF-8 bytes of the LOWERCASE HEX SHA-256 of the
  * JSON {"call":..,"params":..,"timestamp":..} - in that key order. We build
  * that string byte-for-byte the way the official client does, hash it here,
- * and the server signs the hex digest (engines/qz_print.go). Reordering those
+ * and the server signs the hex digest (engines/print_agent.go). Reordering those
  * three keys, or signing the raw digest bytes instead of the hex string,
  * produces a signature the tray rejects with no useful error - it just falls
  * back to prompting the operator on every single label.
@@ -233,7 +234,7 @@
       if (lastUpdate && lastUpdate.status === 'updating') updating(true);
       Object.keys(pending).forEach(function (uid) {
         clearTimeout(pending[uid].timer);
-        pending[uid].reject(new Error('QZ Tray connection closed'));
+        pending[uid].reject(new Error('PrintBridge connection closed.'));
         delete pending[uid];
       });
     };
@@ -255,7 +256,7 @@
       // Only the 64-char digest leaves the browser - never the payload. A
       // 5MB marketplace label PDF is hashed locally and never re-uploaded
       // just to be signed.
-      return apiFetch('/api/v1/print/qz/sign', {
+      return apiFetch('/api/v1/print/agent/sign', {
         method: 'POST',
         body: JSON.stringify({ request: hashHex })
       });
@@ -267,7 +268,7 @@
 
   function send(call, params) {
     if (!socket || socket.readyState !== 1) {
-      return Promise.reject(new Error('QZ Tray is not connected'));
+      return Promise.reject(new Error('PrintBridge is not connected.'));
     }
 
     var msg = {
@@ -309,7 +310,7 @@
         reject: reject,
         timer: setTimeout(function () {
           delete pending[msg.uid];
-          reject(new Error('QZ Tray did not respond in time'));
+          reject(new Error('PrintBridge did not respond in time.'));
         }, CALL_TIMEOUT_MS)
       };
       try {
@@ -342,7 +343,7 @@
 
   function loadCertificate() {
     if (certificatePEM) return Promise.resolve(certificatePEM);
-    return apiFetch('/api/v1/print/qz/certificate').then(function (res) {
+    return apiFetch('/api/v1/print/agent/certificate').then(function (res) {
       if (!res || !res.ok) throw new Error('Could not load the print certificate.');
       return res.json();
     }).then(function (data) {
@@ -461,12 +462,13 @@
         ? openSocket(last, FIRST_TRY_TIMEOUT_MS)
         : openAny(Date.now() + FIRST_TRY_TIMEOUT_MS);
       return first.catch(function (err) {
-        // Reinstalling: up to 25 s. Woken now: up to 10 s. Woken a moment ago
-        // (another print, the first click): what is left of 15 s from then.
-        // Otherwise PrintBridge is not coming - say so now.
+        // Reinstalling: up to 25 s. Woken now or a moment ago: until 10 s
+        // after that wake - the first click after a Quit from the tray wakes
+        // it (above), so a Print that click makes lands here; a started
+        // PrintBridge answers in about a second. Otherwise PrintBridge is not
+        // coming - say so now.
         if (updating()) return waitUp(Date.now() + 25000);
-        if (wake()) return waitUp(Date.now() + 10000);
-        if (Date.now() - wokeAt < 15000) return waitUp(wokeAt + 15000);
+        if (wake() || Date.now() - wokeAt < 10000) return waitUp(wokeAt + 10000);
         throw err;
       });
     }).then(function (ws) {
@@ -512,7 +514,7 @@
   /**
    * Sends an already-built data array to a named OS printer.
    * @param printerName exact OS name, as printers.find reports it
-   * @param items       QZ data items (see engines/qz_payload.go)
+   * @param items       print agent data items (see engines/print_agent_payload.go)
    * @param copies      passed through as the driver's copy count
    */
   function printItems(printerName, items, copies) {
@@ -527,7 +529,7 @@
     });
   }
 
-  global.QZPrint = {
+  global.PrintAgent = {
     connect: connect,
     disconnect: disconnect,
     isConnected: function () { return !!socket && socket.readyState === 1; },

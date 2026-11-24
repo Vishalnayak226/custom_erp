@@ -31,8 +31,8 @@ import (
 //     own lines, which the desktop reconciles and closes as before;
 //   - labels become a StoreLabelRequest, a transaction with item lines, which
 //     the store's computer loads in Sticker Printing > Print from Transaction
-//     and prints through its own printer routing (98.4) - a phone has no QZ
-//     Tray / PrintBridge of its own, and this keeps one print path.
+//     and prints through its own printer routing (98.4) - a phone has no
+//     PrintBridge of its own, and this keeps one print path.
 
 // storeAppScan is what one scanned code is.
 type storeAppScan struct {

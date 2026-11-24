@@ -203,7 +203,7 @@ Four tabs across the top: **Current Stock**, **Sales Register**, **Vendor Ledger
 - [ ] Entering a valid SKU and clicking "Add" adds it to the print queue list below the form.
 - [ ] "Reprint Reason" field accepts free text (this one is intentionally not a picker — it's a note field).
 - [ ] Generating/printing the sheet produces a print-history entry visible further down the page.
-- [ ] On **+ Print Stickers**, Print from Transaction comes first and **Printer setup on this computer (QZ Tray) and channel label PDFs** is collapsed at the bottom; opening it shows the QZ status, Detect Printers and Test Print.
+- [ ] On **+ Print Stickers**, Print from Transaction comes first and **Printer setup on this computer (PrintBridge) and channel label PDFs** is collapsed at the bottom; opening it shows the PrintBridge status, Detect Printers and Test Print.
 
 ### 10A. Service desk, contracts and projects (Stage 55.18)
 

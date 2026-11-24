@@ -25,6 +25,14 @@ func WavePickLineKey(sku, bin, batch string) string {
 
 // ConfirmWavePickLine records that user picked a wave line. Repeating it
 // keeps the first confirmation.
+//
+// 250.1: the confirmation row and every order's pick are one transaction. The
+// row used to commit first and each order in its own transaction after it, so
+// an order that failed left the row behind: every later confirm of the line
+// saw the row, returned OK and picked nothing, and Pack refused the order.
+// Now a failure leaves no row and nothing picked, and the next confirm does it
+// all. A second device confirming the same line waits on the row's unique key
+// and then finds it there.
 func ConfirmWavePickLine(tenantID, waveID, lineKey string, qty int, user string) error {
 	waveID, lineKey = strings.TrimSpace(waveID), strings.TrimSpace(lineKey)
 	if waveID == "" || lineKey == "" {
@@ -34,7 +42,12 @@ func ConfirmWavePickLine(tenantID, waveID, lineKey string, qty int, user string)
 	if err != nil {
 		return err
 	}
-	res, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.wave_pick_confirmations (wave_id, line_key, qty, confirmed_by) VALUES ($1, $2, $3, $4)
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.wave_pick_confirmations (wave_id, line_key, qty, confirmed_by) VALUES ($1, $2, $3, $4)
 		ON CONFLICT (wave_id, line_key) DO NOTHING`, schema), waveID, lineKey, qty, user)
 	if err != nil {
 		return err
@@ -43,19 +56,23 @@ func ConfirmWavePickLine(tenantID, waveID, lineKey string, qty int, user string)
 		return nil
 	}
 	sku := strings.SplitN(lineKey, "|", 2)[0]
-	return applyWavePickToTasks(tenantID, schema, waveID, sku, qty)
+	if err := applyWavePickToTasksTx(tx, tenantID, schema, waveID, sku, qty); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// applyWavePickToTasks (140.12.15) counts a confirmed wave line as picked on
+// applyWavePickToTasksTx (140.12.15) counts a confirmed wave line as picked on
 // the wave's own orders: the quantity is spread over the open tasks needing
 // that item, oldest first, each through the bin consume a scan pick uses, so
 // Pack and the bill see the units as picked. A wave confirm used to record
-// only its own row, so a waved order could never be packed.
-func applyWavePickToTasks(tenantID, schema, waveID, sku string, qty int) error {
+// only its own row, so a waved order could never be packed. It runs in the
+// confirmation's transaction (250.1).
+func applyWavePickToTasksTx(tx *sql.Tx, tenantID, schema, waveID, sku string, qty int) error {
 	if sku == "" || qty <= 0 {
 		return nil
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'FulfillmentTask' AND deleted_at IS NULL
+	rows, err := tx.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'FulfillmentTask' AND deleted_at IS NULL
 		AND data->>'wave_id' = $1 AND status IN ('Pending', 'Picking') ORDER BY created_at, id`, schema), waveID)
 	if err != nil {
 		return err
@@ -63,16 +80,21 @@ func applyWavePickToTasks(tenantID, schema, waveID, sku string, qty int) error {
 	var tasks []string
 	for rows.Next() {
 		var id string
-		if rows.Scan(&id) == nil {
-			tasks = append(tasks, id)
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
 		}
+		tasks = append(tasks, id)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	for _, taskID := range tasks {
 		if qty <= 0 {
 			break
 		}
-		took, err := pickTaskSKUQty(tenantID, schema, taskID, sku, qty)
+		took, err := pickTaskSKUQtyTx(tx, tenantID, schema, taskID, sku, qty)
 		if err != nil {
 			return err
 		}
@@ -81,13 +103,9 @@ func applyWavePickToTasks(tenantID, schema, waveID, sku string, qty int) error {
 	return nil
 }
 
-// pickTaskSKUQty picks up to qty units of sku on one task, under its lock.
-func pickTaskSKUQty(tenantID, schema, taskID, sku string, qty int) (int, error) {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
+// pickTaskSKUQtyTx picks up to qty units of sku on one task, under its lock,
+// in the caller's transaction.
+func pickTaskSKUQtyTx(tx *sql.Tx, tenantID, schema, taskID, sku string, qty int) (int, error) {
 	lockedStatus, lockedData, err := lockFulfillmentTaskTx(tx, schema, taskID)
 	if err != nil {
 		return 0, err
@@ -125,7 +143,7 @@ func pickTaskSKUQty(tenantID, schema, taskID, sku string, qty int) (int, error) 
 	if err := task.saveWith(tx, schema); err != nil {
 		return 0, err
 	}
-	return took, tx.Commit()
+	return took, nil
 }
 
 // WavePickConfirmations are a wave's confirmed lines, by line key.
@@ -308,7 +326,10 @@ func MatchCrossDockPlansForGRN(tenantID, grnID string) {
 		return
 	}
 	b, _ := json.Marshal(map[string]interface{}{"cross_dock_matches": matches})
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $2::jsonb WHERE doctype = 'GRN' AND id = $1`, schema), grnID, string(b))
+	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $2::jsonb WHERE doctype = 'GRN' AND id = $1`, schema), grnID, string(b)); err != nil {
+		// 250.3: logged, not dropped; the notifications below still go out.
+		LogSystemError(tenantID, "", "ERROR", "MatchCrossDockPlansForGRN", fmt.Sprintf("GRN %s: cross-dock matches not kept on the receipt: %v", grnID, err), "")
+	}
 	for _, m := range matches {
 		DispatchNotification(tenantID, "Cross-Dock Goods Arrived", m.PlanID, map[string]string{"grn_id": grnID, "sku": m.SKU, "destination": m.Destination})
 	}
@@ -317,21 +338,35 @@ func MatchCrossDockPlansForGRN(tenantID, grnID string) {
 // --- (h) the yard follows the load ----------------------------------------
 
 // linkOutboundAppointmentToLoad marks the trailer's open Outbound appointment
-// In Progress and names it on the load, when loading starts.
-func linkOutboundAppointmentToLoad(schema, loadID, trailer string) {
+// In Progress and names it on the load, when loading starts. 252.1: both rows
+// change in one transaction, and the caller logs a failure.
+func linkOutboundAppointmentToLoad(schema, loadID, trailer string) error {
 	trailer = strings.TrimSpace(trailer)
 	if trailer == "" {
-		return
+		return nil
 	}
 	var apptID string
-	if db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'Appointment' AND deleted_at IS NULL
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'Appointment' AND deleted_at IS NULL
 		AND data->>'appointment_type' = 'Outbound' AND data->>'trailer_no' = $1 AND status IN ('Scheduled', 'CheckedIn')
-		ORDER BY created_at DESC LIMIT 1`, schema), trailer).Scan(&apptID) != nil {
-		return
+		ORDER BY created_at DESC LIMIT 1`, schema), trailer).Scan(&apptID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return err
 	}
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'InProgress', data = data || '{"status":"InProgress"}'::jsonb || jsonb_build_object('loading_task_id', $2::text),
-		updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Appointment' AND id = $1`, schema), apptID, loadID)
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('appointment_id', $2::text) WHERE doctype = 'LoadingTask' AND id = $1`, schema), loadID, apptID)
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'InProgress', data = data || '{"status":"InProgress"}'::jsonb || jsonb_build_object('loading_task_id', $2::text),
+		updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Appointment' AND id = $1`, schema), apptID, loadID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('appointment_id', $2::text) WHERE doctype = 'LoadingTask' AND id = $1`, schema), loadID, apptID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // checkOutYardForLoad, when a load departs, checks its trailer out of the
@@ -343,13 +378,21 @@ func checkOutYardForLoad(schema, loadID, trailer string) error {
 		return nil
 	}
 	now := time.Now().Format(time.RFC3339)
-	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Departed',
+	// 252.1: the yard row and the appointment change together.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Departed',
 		data = data || jsonb_build_object('status', 'Departed', 'checked_out_at', $2::text, 'checked_out_with_load', $3::text), updated_at = CURRENT_TIMESTAMP
 		WHERE doctype = 'YardCheckIn' AND deleted_at IS NULL AND status IN ('InYard', 'AtDoor') AND data->>'trailer_no' = $1`, schema), trailer, now, loadID); err != nil {
 		return err
 	}
-	_, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Completed', data = data || '{"status":"Completed"}'::jsonb, updated_at = CURRENT_TIMESTAMP
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Completed', data = data || '{"status":"Completed"}'::jsonb, updated_at = CURRENT_TIMESTAMP
 		WHERE doctype = 'Appointment' AND deleted_at IS NULL AND data->>'appointment_type' = 'Outbound' AND data->>'trailer_no' = $1
-		AND status IN ('Scheduled', 'CheckedIn', 'InProgress')`, schema), trailer)
-	return err
+		AND status IN ('Scheduled', 'CheckedIn', 'InProgress')`, schema), trailer); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

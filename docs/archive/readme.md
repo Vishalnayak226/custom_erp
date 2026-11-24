@@ -106,7 +106,8 @@ On 2026-10-19 (checklist Stage 97) the docs folder was reorganised. Paths below 
 | `guides/ADMIN_GUIDE.md` | renamed to [`guides/admin-guide.md`](../guides/admin-guide.md) (2026-11-11, item 160.1) |
 | `guides/ADMIN_SOP.md` | renamed to [`guides/admin-sop.md`](../guides/admin-sop.md) (2026-11-11, item 160.1) |
 | `guides/ERROR_CODES.md` | renamed to [`guides/error-codes.md`](../guides/error-codes.md) (2026-11-11, item 160.1) |
-| `guides/QZ_PRINTING_SETUP.md` | renamed to [`guides/qz-printing-setup.md`](../guides/qz-printing-setup.md) (2026-11-11, item 160.1) |
+| `guides/QZ_PRINTING_SETUP.md` | renamed to `guides/qz-printing-setup.md` (2026-11-11, item 160.1), then to [`guides/silent-printing-setup.md`](../guides/silent-printing-setup.md) |
+| `guides/qz-printing-setup.md` | renamed to [`guides/silent-printing-setup.md`](../guides/silent-printing-setup.md) (2026-11-24, item 263.5) |
 | `guides/REPORT_CATALOG.md` | renamed to [`guides/report-catalog.md`](../guides/report-catalog.md) (2026-11-11, item 160.1) |
 | `guides/UAT_CHECKLIST.md` | renamed to [`guides/uat-checklist.md`](../guides/uat-checklist.md) (2026-11-11, item 160.1) |
 | `guides/USER_GUIDE.md` | renamed to [`guides/user-guide.md`](../guides/user-guide.md) (2026-11-11, item 160.1) |

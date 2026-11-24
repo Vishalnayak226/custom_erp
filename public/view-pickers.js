@@ -602,9 +602,12 @@ async function openCustomerForm({ id = '', phone = '', name = '', title = '', ne
   const editing = !isNew && !walkIn;
   const series = isNew ? await loadMasterCodeSeries('Customer') : null;
   const planned = new Set(CUSTOMER_FORM_SECTIONS.flatMap(([, n]) => n));
-  const plan = CUSTOMER_FORM_SECTIONS.filter(([t]) => !(till && t === 'Account')).map(([t, n]) => [t, n.slice()]);
+  // 261.3/261.4: the till leaves out Sizes and More details - a new customer
+  // takes the standard values; a manager changes them on the Customer screen.
+  const plan = CUSTOMER_FORM_SECTIONS.filter(([t]) => !(till && t === 'Account'))
+    .map(([t, n]) => [t, till ? n.filter(f => f !== 'sizes') : n.slice()]);
   if (series && series.typed) plan[0][1].unshift('code');
-  plan.push(['More details', meta.map(f => f.fieldname).filter(n => !planned.has(n) && !CUSTOMER_FORM_SKIP.has(n) &&
+  if (!till) plan.push(['More details', meta.map(f => f.fieldname).filter(n => !planned.has(n) && !CUSTOMER_FORM_SKIP.has(n) &&
     !isDerivedCompanionField(n) && !isStateCodeFieldName(n) && !byName.get(n).mirrored && !byName.get(n).auto_generated &&
     !['JSONTable', 'JSONMap'].includes(byName.get(n).fieldtype))]);
   const sections = plan.map(([t, n]) => [t, n.filter(f => byName.has(f) && !(f === 'pan' && country !== 'IN'))]).filter(([, n]) => n.length);
@@ -673,6 +676,7 @@ async function openCustomerForm({ id = '', phone = '', name = '', title = '', ne
     shown.forEach(n => { const f = byName.get(n); if (f.fieldtype === 'Link' && f.options) attachLinkTypeahead(form.elements[n], f.options); });
     const gst = form.elements.gstin;
     if (gst) gst.addEventListener('input', () => fillStateFromTaxId(gst));
+    if (country === 'IN') attachCityPinLists(form);
 
     const close = (result) => {
       overlay.remove();
@@ -948,6 +952,51 @@ function fillStateFromTaxId(input) {
     sel.value = region.name;
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
+}
+
+// 261.1/261.2: India's cities (districts) and PIN codes, from India Post's
+// directory (public/pin-directory.json, made by scripts/gen_pin_directory.py).
+// Fetched once, the first time a customer form opens; a failed fetch is tried
+// again next time.
+let pinDirectory = null;
+function loadPinDirectory() {
+  if (!pinDirectory) {
+    pinDirectory = fetch(`/pin-directory.json${new URL(import.meta.url).search}`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(j => (j && j.states) || {})
+      .catch(() => { pinDirectory = null; return {}; });
+  }
+  return pinDirectory;
+}
+
+// attachCityPinLists: once a State is chosen, City offers that state's cities
+// and PIN Code the chosen city's PINs (or the whole state's). A list only
+// suggests - anything else can still be typed.
+function attachCityPinLists(form) {
+  const st = form.elements.state, city = form.elements.city, pin = form.elements.pincode;
+  if (!st || st.tagName !== 'SELECT' || (!city && !pin)) return;
+  const listFor = (input) => {
+    if (!input) return null;
+    const dl = document.createElement('datalist');
+    dl.id = `${input.id || input.name}-list`;
+    input.setAttribute('list', dl.id);
+    input.after(dl);
+    return dl;
+  };
+  const cityList = listFor(city), pinList = listFor(pin);
+  const fill = (dl, values) => { if (dl) dl.innerHTML = values.map(v => `<option value="${escapeHTMLText(v)}">`).join(''); };
+  let dir = {};
+  const fillPins = () => {
+    const cities = dir[st.value] || {};
+    const typed = String((city && city.value) || '').trim().toLowerCase();
+    const match = Object.keys(cities).find(c => c.toLowerCase() === typed);
+    fill(pinList, match ? cities[match].split(' ')
+      : [...new Set(Object.values(cities).flatMap(p => p.split(' ')))].sort());
+  };
+  const fillAll = () => { fill(cityList, Object.keys(dir[st.value] || {})); fillPins(); };
+  st.addEventListener('change', fillAll);
+  if (city) city.addEventListener('input', fillPins);
+  loadPinDirectory().then(d => { dir = d; fillAll(); });
 }
 
 // taxIdLabel: the field the product calls "gstin" is a TRN in the UAE, a VAT

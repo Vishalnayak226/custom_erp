@@ -138,10 +138,22 @@ export async function posAttachWalkIn() {
 // asked, the mobile required. Resolves true when saved (and attached).
 let lastSaved = null; // the customer the form saved last ({id, name, phone})
 
-// name: what was typed in the customer box (85.C6) - the mobile is still asked.
+// typedInBoxes (259.1): what the Mobile and Name boxes hold that is not yet a
+// customer. A number in the Name box is the mobile.
+function typedInBoxes() {
+  const ph = phoneEl(), nm = displayEl();
+  const phone = ph && ph.dataset.resolved !== '1' ? digits(ph.value) : '';
+  const name = nm && nm.dataset.resolved !== '1' ? nm.value.trim() : '';
+  if (/^\+?[\d\s-]{6,}$/.test(name)) return { phone: phone || digits(name), name: '' };
+  return { phone, name };
+}
+
+// name: what was typed in the customer box (85.C6). 259.1: a new customer on
+// the bill starts with the number and name already typed at the till.
 export async function openPOSCustomerForm({ id = '', phone = '', name = '', title = '', need = '', attach = true } = {}) {
   const p = await pickers();
   const fresh = !id || !!(attached && attached.id === id && attached.walk_in); // the walk-in becomes a new customer
+  if (fresh && attach) { const t = typedInBoxes(); phone = phone || t.phone; name = name || t.name; }
   // 215.2: the B2B buyer's GSTIN and address fill what the record leaves blank.
   const seed = attach && b2b ? { gstin: b2b.gstin, address: b2b.address, city: b2b.city, pincode: b2b.pincode, state: b2b.state, email: b2b.email } : {};
   const r = await p.openCustomerForm({ id, phone, name: name || (fresh && b2b ? b2b.legal_name : ''), title, need, seed, till: true, saveLabel: fresh && attach ? 'Add to bill' : '' });

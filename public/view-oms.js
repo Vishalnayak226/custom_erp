@@ -1853,7 +1853,7 @@ async function submitMarketplaceReconcile() {
 // through the browser and a thermal printer gets ZPL with a scannable AWB.
 //
 // Falls back to the on-screen label rather than to window.print(): the
-// plain-text label is not a printable sheet, and someone whose QZ Tray is
+// plain-text label is not a printable sheet, and someone whose PrintBridge is
 // down still needs to read the AWB off the screen to write the docket.
 //
 // Stage 143.4: Print label shows the label first (viewShippingLabel); its
@@ -1890,7 +1890,7 @@ window.viewShippingLabel = async function(bookingId) {
   const send = overlay.querySelector('[data-label-send]');
   send.addEventListener('click', async () => {
     send.disabled = true;
-    if (await qzTryPrint('Shipping Label', { documentRef: bookingId, quiet: true })) { close(); showToast(`Label ${bookingId} sent to the printer.`, { variant: 'success' }); return; }
+    if (await agentTryPrint('Shipping Label', { documentRef: bookingId, quiet: true })) { close(); showToast(`Label ${bookingId} sent to the printer.`, { variant: 'success' }); return; }
     send.disabled = false;
     showToast('The label printer is not reachable - read the AWB off this label.', { variant: 'warning' });
   });

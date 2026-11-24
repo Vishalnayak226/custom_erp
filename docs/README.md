@@ -30,7 +30,7 @@ The [folder map](#folder-map) at the end explains what every folder holds.
 | Follow a step-by-step procedure | [User SOP](guides/user-sop.md), [video SOPs](sop-video/readme.md) |
 | Understand an error message | [Reading an error code](kb/troubleshooting/error-codes.md), [all error codes](guides/error-codes.md), [troubleshooting](kb/troubleshooting/troubleshooting-index.md) |
 | Find the right report | [Report catalog](guides/report-catalog.md) |
-| Print stickers, labels and documents | [Printing setup](guides/qz-printing-setup.md) |
+| Print stickers, labels and documents | [Printing setup](guides/silent-printing-setup.md) |
 | Look up a term or abbreviation | [Glossary](kb/reference/glossary.md), [abbreviations](kb/reference/abbreviations.md), [FAQ](kb/reference/faq.md) |
 | Print or read the whole manual offline | [User manual](user/user-manual.html) |
 

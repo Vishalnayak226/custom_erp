@@ -332,6 +332,8 @@ func noteCentralisedTransfer(schema, returnID string, failed error) {
 		log.Printf("return %s: centralised transfer not finished: %v", returnID, failed)
 	}
 	patch, _ := json.Marshal(map[string]interface{}{"transfer_state": state})
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP
-		WHERE doctype = 'ReturnRequest' AND id = $2 AND data->>'collected_at' IS NOT NULL`, schema), patch, returnID)
+	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP
+		WHERE doctype = 'ReturnRequest' AND id = $2 AND data->>'collected_at' IS NOT NULL`, schema), patch, returnID); err != nil {
+		log.Printf("return %s: transfer state %q not recorded: %v", returnID, state, err) // 252.1
+	}
 }

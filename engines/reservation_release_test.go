@@ -77,11 +77,11 @@ func TestStage135ReservationReleasedExactlyOnce(t *testing.T) {
 	if got := reserved(); got != 5 {
 		t.Fatalf("with the POS hold reserved = %d, want 5", got)
 	}
-	releasePOSReservations(schema, []string{hold})
+	releasePOSReservations(tenantID, schema, []string{hold})
 	if got := reserved(); got != 3 {
 		t.Fatalf("after the POS release reserved = %d, want 3 - the units stayed reserved", got)
 	}
-	releasePOSReservations(schema, []string{hold})
+	releasePOSReservations(tenantID, schema, []string{hold})
 	if got := reserved(); got != 3 {
 		t.Fatalf("releasing a released hold again changed reserved to %d", got)
 	}

@@ -205,7 +205,8 @@ const TXN_INFO = {
   DebitNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Against GRN: {fields.grn_id}', 0, 1], ['PO: {fields.po_numbers}', 1, 1], ['Document direction: {fields.document_direction}', 0, 2], ['Place of supply: {fields.place_of_supply}', 1, 2], ['Reason: {fields.reason}', 2, 3]],
   CreditNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Reason: {fields.reason}', 2, 1]],
   POSTaxInvoice: [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Place of supply: {fields.place_of_supply}', 1, 0], ['Supply: {fields.supply_type} · Reverse charge: {fields.reverse_charge}', 0, 1], ['Payment: {fields.payment_mode}', 1, 1],
-    ['Buyer PO: {fields.po_number}', 0, 2], ['PO date: {fields.po_date|date}', 1, 2], ['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city} {ship_to.pincode} {ship_to.state}', 2, 3]],
+    ['Buyer PO: {fields.po_number}', 0, 2], ['PO date: {fields.po_date|date}', 1, 2], ['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city} {ship_to.pincode} {ship_to.state}', 2, 3],
+    ['Remarks: {fields.remarks}', 2, 4]], // ask 260.3
   SalesReturn: [['Original bill no.: {fields.original_order}', 0, 0], ['Original bill date: {fields.original_invoice_date|date}', 1, 0], ['Refund method: {fields.refund_method}', 0, 1], ['Refund no.: {fields.refund_no}', 1, 1], ['Return type: {fields.return_type}', 0, 2]]
 };
 TXN_INFO.VendorPO = TXN_INFO.PurchaseOrder;
@@ -396,7 +397,9 @@ export function rollBillLayout(txn, paper = '') {
       E({ type: 'text', text: 'GSTIN: {store.gstin}', x: X, y: 144, w: W, h: 4.5, fontSize: 8, bold: true, pages: 'last' }),
       E({ type: 'text', text: '{amount_in_words}', x: X, y: 149, w: W, h: 7, fontSize: 7, italic: true, pages: 'last' }),
       E({ type: 'text', text: '{fields.return_policy}', x: X, y: 156.5, w: W, h: 8, fontSize: 6.5, italic: true, align: 'center', pages: 'last' }),
-      E({ type: 'text', text: 'Thank you for shopping with us', x: X, y: 165, w: W, h: 5, fontSize: 8, bold: true, align: 'center', pages: 'last' })
+      E({ type: 'text', text: 'Thank you for shopping with us', x: X, y: 165, w: W, h: 5, fontSize: 8, bold: true, align: 'center', pages: 'last' }),
+      // Ask 260.3: last, so a bill without remarks prints no longer than before.
+      E({ type: 'text', text: 'Remarks: {fields.remarks}', x: X, y: 170.5, w: W, h: 8, pages: 'last' })
     ]
   };
 }
@@ -1100,7 +1103,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   // only, and Change sets the computer's choice.
   let shownKind = '', shown = 0;
   const showPrinter = async () => {
-    if (!S.data || !window.QZPrint || !window.qzTryConnect || !await window.qzTryConnect()) return;
+    if (!S.data || !window.PrintAgent || !window.agentTryConnect || !await window.agentTryConnect()) return;
     const r = await window.loadViewModule('./print-routing.js');
     const kind = isRollPage({ size: S.paper }) ? 'Receipt' : r.printKindFor(S.txn), store = S.data.document.store?.code || '';
     if (kind !== shownKind) { S.printer = null; shownKind = kind; }
@@ -1108,7 +1111,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     const [def, list] = await Promise.all([r.chosenPrinter(kind, store), r.computerPrinters()]);
     const el = q('printer');
     if (!el || mine !== shown) return;
-    const name = (p) => p.qz_printer_name || p.name || p.code;
+    const name = (p) => p.os_printer_name || p.name || p.code;
     const others = list.filter(p => !def || p.code !== def.code);
     el.classList.remove('hidden');
     el.innerHTML = `<label class="form-label">${esc(kind)} printer<select class="form-input" data-td="printer-pick">
@@ -1230,23 +1233,23 @@ async function pdfOrExplain(make) {
   }
 }
 
-// printSilently (Stage 98.4): with QZ Tray running, the print goes straight to
+// printSilently (Stage 98.4): with PrintBridge running, the print goes straight to
 // this computer's printer for its kind - chosen once (print-routing.js) - as
 // the PDF of these pages. false: no tray, or no printer was chosen; the
 // caller opens the browser's print dialog as before. printer: this print's
 // own Printer record (213.1), else the kind's.
 async function printSilently(txn, doc, make, why = {}, printer = null) {
-  if (!window.QZPrint || !window.qzTryPrint || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
+  if (!window.PrintAgent || !window.agentTryPrint || !await window.agentTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
   const out = await pdfOrExplain(make);
   if (!out) { why.reason = 'The PDF could not be made.'; return false; }
   const r = await window.loadViewModule('./print-routing.js');
-  return window.qzTryPrint('Document', {
+  return window.agentTryPrint('Document', {
     documentRef: doc.number || out.name, dataBase64: await (await pdfModule()).blobToBase64(out.blob), docFormat: 'pdf',
     printKind: r.printKindFor(txn), printerCode: printer?.code, location: doc.store?.code || '', quiet: true, why
   });
 }
 
-// printRollBill prints a roll layout (Stage 106.3). With QZ Tray running it
+// printRollBill prints a roll layout (Stage 106.3). With PrintBridge running it
 // goes to this computer's Receipt printer: an ESC-POS printer gets the page
 // drawn as a raster image - the same picture the preview shows, logo and all -
 // and a printer driven by its Windows driver gets it as a PDF. Otherwise, or
@@ -1269,7 +1272,7 @@ export async function printRollBill(layout, doc, opts = {}) {
 async function rollToReceipt(pages, w, h, ref, store, browserPrint, override = null) {
   const r = await window.loadViewModule('./print-routing.js');
   const trySilent = async (why) => {
-    if (!window.QZPrint || !window.qzTryPrint || !window.qzTryConnect || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
+    if (!window.PrintAgent || !window.agentTryPrint || !window.agentTryConnect || !await window.agentTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
     // Stage 127.2: the first bill on a new computer picks (or asks once
     // for) its receipt printer, as every other print does.
     const printer = override || await r.chosenPrinter('Receipt', store) || await r.choosePrinter('Receipt', store);
@@ -1279,7 +1282,7 @@ async function rollToReceipt(pages, w, h, ref, store, browserPrint, override = n
     const dataBase64 = escpos
       ? await pdf.pageToESCPOS(pages[0], w, h, { paperMM: parseFloat(printer.label_width_mm) || w, dpi: parseFloat(printer.dpi) || 203 })
       : await pdf.blobToBase64(await pdf.pagesToPDF(pages, w, h));
-    return window.qzTryPrint('Document', { documentRef: ref, dataBase64, docFormat: escpos ? 'ESC-POS' : 'pdf',
+    return window.agentTryPrint('Document', { documentRef: ref, dataBase64, docFormat: escpos ? 'ESC-POS' : 'pdf',
       printKind: 'Receipt', printerCode: printer.code, location: store, quiet: true, why });
   };
   return r.printNoDialog('Receipt', store, trySilent, browserPrint);

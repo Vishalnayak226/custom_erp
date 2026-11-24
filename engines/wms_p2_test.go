@@ -98,8 +98,21 @@ func TestWMSP2(t *testing.T) {
 		userID := "manager1"
 		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'TaskCompletionLog' AND data->>'user_id' = $1", userID)
 
-		logTaskCompletion(tenantID, "Putaway", userID, "WH-PROD-TEST", "BIN-X", 5)
-		logTaskCompletion(tenantID, "Putaway", userID, "WH-PROD-TEST", "BIN-Y", 3)
+		tx, err := db.DB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range []struct {
+			bin string
+			qty float64
+		}{{"BIN-X", 5}, {"BIN-Y", 3}} {
+			if err := logTaskCompletionTx(tx, tenantID, schema, "Putaway", userID, "WH-PROD-TEST", l.bin, l.qty); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
 
 		var count int
 		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".documents WHERE doctype = 'TaskCompletionLog' AND data->>'user_id' = $1", userID).Scan(&count); err != nil {
@@ -124,6 +137,33 @@ func TestWMSP2(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("expected a productivity row for %s/Putaway, got %+v", userID, productivity)
+		}
+
+		// A caller ID with no user row cannot be stored (created_by FK): only
+		// the log row is dropped, the action's transaction still commits, and
+		// System Errors records the miss.
+		ghost := NewDocIDCompact("NOUSER")
+		ref := NewDocIDCompact("TCLREF")
+		tx, err = db.DB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := logTaskCompletionTx(tx, tenantID, schema, "CycleCount", ghost, "WH-PROD-TEST", ref, 1); err != nil {
+			t.Fatalf("unknown user must not fail the action: %v", err)
+		}
+		var alive int
+		if err := tx.QueryRow("SELECT 1").Scan(&alive); err != nil {
+			t.Fatalf("transaction unusable after the dropped row: %v", err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		var logged int
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".system_error_logs WHERE module_source = 'TaskCompletionLog' AND error_message LIKE '%'||$1||'%'", ref).Scan(&logged); err != nil {
+			t.Fatal(err)
+		}
+		if logged != 1 {
+			t.Errorf("expected 1 System Errors row for the dropped log, got %d", logged)
 		}
 	})
 

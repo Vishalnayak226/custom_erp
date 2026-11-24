@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // StockLedgerEntry is one append-only inventory-movement record (26.10.1).
@@ -546,6 +548,75 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 
 	err = tx.Commit()
 	return resID, err
+}
+
+// MaxATSBatch is how many SKUs one AvailableToSellMany call takes.
+const MaxATSBatch = 100
+
+// AvailableToSellMany is GetAvailableToSell's ats for many SKUs at one
+// location, in one read (ask 262.1: the till's search list shows each match's
+// sellable quantity). A SKU with no stock row is 0; a Virtual bundle is
+// counted from its components, as GetAvailableToSell does.
+func AvailableToSellMany(tenantID string, skus []string, locationCode string) (map[string]int, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(skus))
+	for _, s := range skus {
+		out[s] = 0
+	}
+	if len(skus) == 0 {
+		return out, nil
+	}
+	policy := atsPolicyFor(schema)
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT sku, available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty
+		  FROM %s.inventory_availability
+		 WHERE sku = ANY($1) AND location_code = $2`, schema), pq.Array(skus), locationCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sku string
+		var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
+		if err := rows.Scan(&sku, &available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held); err != nil {
+			return nil, err
+		}
+		out[sku] = computeATS(policy, available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	bundles, err := db.DB.Query(fmt.Sprintf(`
+		SELECT DISTINCT data->>'bundle_sku' FROM %s.documents
+		 WHERE doctype = 'ProductBundle' AND status = 'Active' AND deleted_at IS NULL
+		   AND data->>'fulfillment_mode' = 'Virtual' AND data->>'bundle_sku' = ANY($1)`, schema), pq.Array(skus))
+	if err != nil {
+		return nil, err
+	}
+	var virtual []string
+	for bundles.Next() {
+		var sku string
+		if err := bundles.Scan(&sku); err != nil {
+			bundles.Close()
+			return nil, err
+		}
+		virtual = append(virtual, sku)
+	}
+	bundles.Close()
+	if err := bundles.Err(); err != nil {
+		return nil, err
+	}
+	for _, sku := range virtual {
+		ats, err := ComputeSellableSKUATS(tenantID, sku, locationCode)
+		if err != nil {
+			return nil, err
+		}
+		out[sku] = ats
+	}
+	return out, nil
 }
 
 // GetAvailableToSell computes ATS (Available-to-Sell) per the 7-term ATP

@@ -265,6 +265,7 @@ func DeleteSandboxTenant(tenantID string) error {
 		return err
 	}
 	_, err = db.DB.Exec(`DELETE FROM public.tenants WHERE tenant_id = $1`, tenantID)
+	InvalidateTenantLifecycleCache(tenantID) // 248.1: also forgets the cached schema
 	return err
 }
 

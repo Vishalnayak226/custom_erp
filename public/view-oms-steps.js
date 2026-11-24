@@ -719,7 +719,7 @@ async function finishPack(task, orders, opts, out, say) {
     <button type="button" class="btn btn-outline btn-sm" data-pack-more>Pack the next one</button></div>${bookingNote}`);
   out.querySelector('[data-print-bill]').addEventListener('click', () => printBill(bill));
   // Stage 143.4: Print label shows the label first; Print there prints it.
-  out.querySelector('[data-print-label]')?.addEventListener('click', () => window.printShippingLabel(booking.code || booking.id));
+  out.querySelector('[data-print-label]')?.addEventListener('click', () => window.printShippingLabel(bookingID(booking)));
   out.querySelector('[data-to-ship]').addEventListener('click', () => goStep('ship'));
   out.querySelector('[data-pack-more]').addEventListener('click', () => again('pack'));
 }
@@ -729,6 +729,11 @@ async function finishPack(task, orders, opts, out, say) {
 // ---------------------------------------------------------------------------
 
 const liveBooking = (b) => !['Cancelled', 'RTO'].includes(b.status);
+// 246.4: every booking route finds the booking by its record id. Book makes
+// the code the id, but a booking saved on its record form has its own code,
+// so sending the code made Print label, Pickup, Cancel, Resolve, tracking and
+// RTO answer "not found". The code is still what the screen shows.
+const bookingID = (b) => b.id || b.code;
 
 // 47.11.8a: the courier did not answer after the booking was sent, so it may
 // have it. Resolve records the AWB its portal shows, or Not booked so the next
@@ -737,8 +742,8 @@ const courierUnconfirmed = (b) => b.awb_booking_state === 'uncertain' && !b.prov
 
 export async function resolveCourierBooking(b) {
   const { posFormDialog } = await import('./view-pos-extras.js' + Q);
-  const id = b.code || b.id, courier = b.awb_booking_provider || b.carrier || '';
-  const picked = await posFormDialog('Unconfirmed booking', `Find ${b.courier_reference || id} on the ${courier} portal.`,
+  const id = bookingID(b), courier = b.awb_booking_provider || b.carrier || '';
+  const picked = await posFormDialog('Unconfirmed booking', `Find ${b.courier_reference || b.code || id} on the ${courier} portal.`,
     '<div class="form-group"><label class="form-label" for="cr-awb">AWB found</label><input id="cr-awb" class="form-input" autocomplete="off"></div>'
     + '<label class="form-label"><input type="checkbox" id="cr-none"> Not booked there</label>',
     (el) => ({ awb: el.querySelector('#cr-awb').value.trim(), none: el.querySelector('#cr-none').checked }));
@@ -765,7 +770,7 @@ export async function courierPickupBooking(b) {
     (el) => ({ name: el.querySelector('#cp-name').value.trim(), at: el.querySelector('#cp-at').value }));
   if (!picked) return false;
   if (!picked.at) { await showCustomAlert('Pick the date and time.', 'Pickup'); return false; }
-  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/pickup', { booking_id: b.code || b.id, pickup_name: picked.name, pickup_at: new Date(picked.at).toISOString() });
+  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/pickup', { booking_id: bookingID(b), pickup_name: picked.name, pickup_at: new Date(picked.at).toISOString() });
   if (r.error) { await showCustomAlert(r.error, 'Pickup'); return false; }
   showToast('Pickup scheduled.', { variant: 'success' });
   return true;
@@ -773,7 +778,7 @@ export async function courierPickupBooking(b) {
 
 export async function courierCancelBooking(b) {
   if (!await showCustomConfirm('Cancel this booking at the courier?', 'Cancel booking')) return false;
-  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/cancel', { booking_id: b.code || b.id });
+  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/cancel', { booking_id: bookingID(b) });
   if (r.error) { await showCustomAlert(r.error, 'Cancel booking'); return false; }
   showToast('Cancelled at the courier.', { variant: 'success' });
   return true;
@@ -789,14 +794,14 @@ export async function resolveCourierStep(b, step) {
   if (!picked) return false;
   if (isPickup && !picked.none && !picked.ref) { await showCustomAlert('Enter the reference, or tick Not scheduled there.', title); return false; }
   const outcome = isPickup ? (picked.none ? 'not_scheduled' : 'scheduled') : (picked.none ? 'not_cancelled' : 'cancelled');
-  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/resolve', { booking_id: b.code || b.id, step, outcome, awb: picked.ref });
+  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/resolve', { booking_id: bookingID(b), step, outcome, awb: picked.ref });
   if (r.error) { await showCustomAlert(r.error, title); return false; }
   showToast('Saved.', { variant: 'success' });
   return true;
 }
 
 function courierStepCells(b) {
-  const id = esc(b.code || b.id);
+  const id = esc(bookingID(b));
   const badges = (b.pickup_reference ? ' <span class="badge badge-success">Pickup ' + esc(b.pickup_reference) + '</span>' : '')
     + (b.courier_cancelled_at ? ' <span class="badge badge-danger">Cancelled at courier</span>' : '')
     + (pickupHeld(b) ? ' <span class="badge badge-warning">Unconfirmed pickup</span>' : '')
@@ -882,14 +887,14 @@ async function renderShip(container) {
         <div class="table-wrapper"><table><thead><tr><th>Booking</th><th>Order</th><th>AWB</th><th>Label</th><th></th></tr></thead>
         <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}${courierStepCells(b).badges}</td>
           <td>${b.label_generated_at ? '<span class="badge badge-success">Printed</span>' : '<span class="badge badge-warning">Not printed</span>'}</td>
-          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(b.code || b.id)}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(b.code || b.id)}">Resolve</button>` : ''}${courierStepCells(b).buttons}</td></tr>`).join('')}</tbody></table></div>
+          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(bookingID(b))}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(bookingID(b))}">Resolve</button>` : ''}${courierStepCells(b).buttons}</td></tr>`).join('')}</tbody></table></div>
       </div>`).join('')}`);
   manifestable.querySelectorAll('[data-label-print]').forEach(btn => btn.addEventListener('click', async () => { await window.printShippingLabel(btn.dataset.labelPrint); }));
   manifestable.querySelectorAll('[data-courier-resolve]').forEach(btn => btn.addEventListener('click', async () => {
-    const b = awaiting.find(x => (x.code || x.id) === btn.dataset.courierResolve);
+    const b = awaiting.find(x => bookingID(x) === btn.dataset.courierResolve);
     if (b && await resolveCourierBooking(b)) again('ship');
   }));
-  const stepBooking = (id) => awaiting.find(x => (x.code || x.id) === id);
+  const stepBooking = (id) => awaiting.find(x => bookingID(x) === id);
   manifestable.querySelectorAll('[data-courier-pickup]').forEach(btn => btn.addEventListener('click', async () => {
     const b = stepBooking(btn.dataset.courierPickup);
     if (b && await courierPickupBooking(b)) again('ship');
@@ -944,9 +949,9 @@ async function renderShip(container) {
   const thead = '<thead><tr><th>Booking</th><th>Order</th><th>Courier</th><th>AWB</th><th>Status</th><th></th></tr></thead>';
   const track = panel(container, `<h2 class="oms-step-heading">On the way <span class="text-muted">(${moving.length})</span></h2>
     <div class="table-wrapper"><table>${thead}<tbody>${moving.length === 0 ? emptyRow(6, 'Nothing is with a courier right now.') : moving.map(b => trackRow(b,
-      `${b.status === 'Handed Over' ? `<button type="button" class="action-btn" data-track="In-Transit" data-id="${esc(b.code || b.id)}">In transit</button>` : ''}
-       <button type="button" class="action-btn" data-track="Delivered" data-id="${esc(b.code || b.id)}">Delivered</button>
-       <button type="button" class="action-btn action-btn-danger" data-rto="${esc(b.code || b.id)}">RTO</button>`)).join('')}</tbody></table></div>
+      `${b.status === 'Handed Over' ? `<button type="button" class="action-btn" data-track="In-Transit" data-id="${esc(bookingID(b))}">In transit</button>` : ''}
+       <button type="button" class="action-btn" data-track="Delivered" data-id="${esc(bookingID(b))}">Delivered</button>
+       <button type="button" class="action-btn action-btn-danger" data-rto="${esc(bookingID(b))}" data-ref="${esc(b.code || b.id)}">RTO</button>`)).join('')}</tbody></table></div>
     ${closed.length ? `<details class="oms-related-docs"><summary>Delivered and returned (last ${closed.length})</summary><div class="table-wrapper"><table>${thead}<tbody>${closed.map(b => trackRow(b, '')).join('')}</tbody></table></div></details>` : ''}`);
   track.querySelectorAll('[data-track]').forEach(btn => btn.addEventListener('click', async () => {
     const r = await post('/api/v1/marketplace/logistics/tracking', { booking_id: btn.dataset.id, status: btn.dataset.track });
@@ -954,7 +959,7 @@ async function renderShip(container) {
     again('ship');
   }));
   track.querySelectorAll('[data-rto]').forEach(btn => btn.addEventListener('click', async () => {
-    const reason = await showCustomPrompt(`Why is the courier returning ${btn.dataset.rto} undelivered?`, '', 'Return to origin (RTO)');
+    const reason = await showCustomPrompt(`Why is the courier returning ${btn.dataset.ref} undelivered?`, '', 'Return to origin (RTO)');
     if (!reason || !reason.trim()) return;
     const r = await post('/api/v1/marketplace/logistics/rto', { booking_id: btn.dataset.rto, reason: reason.trim() });
     if (r.error) { await showCustomAlert(r.error, 'RTO'); return; }

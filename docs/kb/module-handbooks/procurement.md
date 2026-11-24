@@ -368,7 +368,7 @@ price is not the vendor's business, and leaving it in the payload would put
 it one "view source" away from the vendor on any forwarded copy.
 
 **Print** opens the print window (User Guide §7B.1). Silent printing
-through QZ Tray covers a Purchase Order too: each computer keeps its own
+through PrintBridge covers a Purchase Order too: each computer keeps its own
 printer for the **Purchase Order** kind of print (User Guide §7B.3).
 
 **Send to Vendor** (`POST /api/v1/procurement/purchase-order/{id}/send`,

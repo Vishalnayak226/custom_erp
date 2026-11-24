@@ -428,6 +428,11 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 		// is the caller's input, not the report failing - 422, not 503.
 		return nil, nil, false, stopped
 	}
+	if errors.As(err, &stopped) && stopped.SubFor != "" {
+		// 245.2: a refusal that names a field (Listing drift's "choose a
+		// channel") is the caller's input too; it keeps its own code.
+		return nil, nil, false, stopped
+	}
 	if err != nil {
 		// REPORT-0162 (Stage 25.5): "Report generation failed" - distinct
 		// from the unknown-report-id/missing-param checks above (those are

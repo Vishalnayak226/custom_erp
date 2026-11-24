@@ -4,7 +4,7 @@ section: Reference
 order: 2
 summary: Every short form used in the application and its screens, expanded.
 audience: everyone
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 doc_id: DOC-4E8DD89FC0
 type: procedure
 status: draft
@@ -13,7 +13,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -37,6 +37,7 @@ For concepts rather than initials, see the [Glossary](glossary.md).
 | **ASN** | Advance Shipment Notice | A supplier's notice of what they have dispatched. Not stock - a promise you can plan a dock around |
 | **AWB** | Air Waybill | The courier's tracking number for a shipment |
 | **BOM** | Bill of Materials | What a manufactured item is made of |
+| **EAN-13** | European Article Number | The 13-digit retail barcode. A sticker whose code is not a valid EAN-13 prints as Code 128 instead |
 | **GRN** | Goods Receipt Note | Proof that ordered stock actually arrived. Posting it is what creates stock |
 | **LPN** | Licence Plate Number | The id of a handling unit - a carton or pallet treated as one thing |
 | **PO** | Purchase Order | What you have ordered from a supplier |
@@ -51,6 +52,9 @@ For concepts rather than initials, see the [Glossary](glossary.md).
 | Short form | Stands for | What it is |
 |---|---|---|
 | **GST** | Goods and Services Tax | The sales tax, calculated automatically |
+| **CGST / SGST / IGST** | Central / State / Integrated GST | The parts GST is split into. A sale inside your state carries CGST plus SGST; a sale to another state carries IGST |
+| **E-way bill** | Electronic way bill | The permit that has to travel with goods moved above the value limit |
+| **IRN** | Invoice Reference Number | The 64-character number the e-invoice portal gives an invoice once it is registered |
 | **GSTIN** | GST Identification Number | A business's tax registration. Its first two digits are the state code, which is how intra-state versus inter-state is decided |
 | **HSN** | Harmonised System of Nomenclature | The tariff code classifying a product for tax. Required on every item, whatever its rate |
 | **GSTR-1** | GST Return, form 1 | The outward-supplies return. Nil and exempt supplies are reported HSN-wise, which is why HSN is required even at 0% |
@@ -67,6 +71,7 @@ For concepts rather than initials, see the [Glossary](glossary.md).
 | **AP** | Accounts Payable | What you owe suppliers |
 | **AR** | Accounts Receivable | What customers owe you |
 | **COD** | Cash on Delivery | Paid when the goods arrive |
+| **CWIP** | Capital Work in Progress | An asset still being built or installed. Bills are charged to it until it is put to use |
 | **FX** | Foreign Exchange | Anything involving a currency other than your own |
 | **GL** | General Ledger | The accounting record itself |
 | **MRP** | Maximum Retail Price | The printed ceiling price |

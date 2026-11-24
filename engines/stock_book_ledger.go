@@ -46,6 +46,12 @@ func StockBookVsLedger(tenantID, sku, location string, mismatchesOnly bool) ([]S
 	if err != nil {
 		return nil, err
 	}
+	return stockBookVsLedger(schema, sku, location, mismatchesOnly)
+}
+
+// stockBookVsLedger is StockBookVsLedger for a resolved schema; the daily
+// reconciliation run calls it too (250.2, checkStockLedger).
+func stockBookVsLedger(schema, sku, location string, mismatchesOnly bool) ([]StockBookLedgerRow, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		WITH ledger AS (
 			SELECT data->>'item_id' AS sku, data->>'warehouse_id' AS loc,

@@ -4,7 +4,7 @@ section: Role Journeys
 order: 5
 summary: Own the product record, get it complete enough to publish, and keep it that way as the range changes.
 audience: category manager
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [pim, reports, stickers]
 doc_id: DOC-2D597A7FCF
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -94,7 +94,7 @@ dynamic group's health rather than a number someone has to go and look up.
 
 ## Publishing outward
 
-**Channel publishing** (PIM catalogs and channel maps) is where the range meets the channels. What you can list is
+**Channel Publishing** (PIM catalogs and channel maps) is where the range meets the channels. What you can list is
 bounded by what is complete, which is why the two previous sections come first.
 
 Suppliers can propose content themselves: a supplier account reaches only

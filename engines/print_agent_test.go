@@ -13,9 +13,10 @@ import (
 	"testing"
 )
 
-// The whole QZ feature rests on producing a signature QZ Tray accepts, and a
+// Silent printing rests on producing a signature the agent accepts (PrintBridge
+// checks it the way QZ Tray does), and a
 // rejected signature fails silently - the tray just falls back to prompting
-// the operator on every label, which looks like "QZ is being flaky" rather
+// the operator on every label, which looks like "the printer is being flaky" rather
 // than like a bug here. These tests pin the contract to QZ's own source so a
 // future edit cannot quietly break it.
 //
@@ -29,7 +30,7 @@ import (
 // and qz/ws/PrintSocketClient.java, which builds `data` as:
 //
 //	new JSONObject(message, new String[] {"call", "params", "timestamp"}).toString()
-func verifyLikeQZTray(t *testing.T, certPEM, toSign, signatureB64 string) error {
+func verifyLikePrintBridge(t *testing.T, certPEM, toSign, signatureB64 string) error {
 	t.Helper()
 
 	block, _ := pem.Decode([]byte(certPEM))
@@ -60,14 +61,14 @@ func verifyLikeQZTray(t *testing.T, certPEM, toSign, signatureB64 string) error 
 	return rsa.VerifyPKCS1v15(pub, crypto.SHA512, digest[:], sig)
 }
 
-func TestQZSignatureVerifiesTheWayQZTrayVerifies(t *testing.T) {
-	certPEM, err := QZCertificatePEM()
+func TestAgentSignatureVerifiesTheWayAgentTrayVerifies(t *testing.T) {
+	certPEM, err := AgentCertificatePEM()
 	if err != nil {
-		t.Fatalf("QZCertificatePEM: %v", err)
+		t.Fatalf("AgentCertificatePEM: %v", err)
 	}
 
 	// A realistic signed payload: exactly the three keys, in the order
-	// public/qz-print.js emits them.
+	// public/print-agent.js emits them.
 	toSign := `{"call":"print","params":{"printer":{"name":"ZDesigner ZD220-203dpi ZPL"},` +
 		`"options":{"copies":1,"units":"in"},"data":[{"type":"raw","format":"command",` +
 		`"flavor":"plain","data":"^XA^FO30,30^A0N,40,40^FDtest^FS^XZ"}]},"timestamp":1754200000000}`
@@ -75,11 +76,11 @@ func TestQZSignatureVerifiesTheWayQZTrayVerifies(t *testing.T) {
 	sum := sha256.Sum256([]byte(toSign))
 	hashHex := hex.EncodeToString(sum[:])
 
-	sig, err := QZSignRequest(hashHex)
+	sig, err := AgentSignRequest(hashHex)
 	if err != nil {
-		t.Fatalf("QZSignRequest: %v", err)
+		t.Fatalf("AgentSignRequest: %v", err)
 	}
-	if err := verifyLikeQZTray(t, certPEM, toSign, sig); err != nil {
+	if err := verifyLikePrintBridge(t, certPEM, toSign, sig); err != nil {
 		t.Fatalf("signature would be REJECTED by QZ Tray: %v", err)
 	}
 }
@@ -87,18 +88,18 @@ func TestQZSignatureVerifiesTheWayQZTrayVerifies(t *testing.T) {
 // Guards the single most likely regression: signing the raw 32 digest bytes
 // instead of the UTF-8 bytes of the hex string. Both "look right" in code
 // review; only one validates.
-func TestQZSignatureIsOverHexStringNotRawDigest(t *testing.T) {
-	certPEM, err := QZCertificatePEM()
+func TestAgentSignatureIsOverHexStringNotRawDigest(t *testing.T) {
+	certPEM, err := AgentCertificatePEM()
 	if err != nil {
-		t.Fatalf("QZCertificatePEM: %v", err)
+		t.Fatalf("AgentCertificatePEM: %v", err)
 	}
 	toSign := `{"call":"printers.find","params":{},"timestamp":1754200000000}`
 	sum := sha256.Sum256([]byte(toSign))
 	hashHex := hex.EncodeToString(sum[:])
 
-	sig, err := QZSignRequest(hashHex)
+	sig, err := AgentSignRequest(hashHex)
 	if err != nil {
-		t.Fatalf("QZSignRequest: %v", err)
+		t.Fatalf("AgentSignRequest: %v", err)
 	}
 
 	block, _ := pem.Decode([]byte(certPEM))
@@ -114,7 +115,7 @@ func TestQZSignatureIsOverHexStringNotRawDigest(t *testing.T) {
 	}
 }
 
-func TestQZSignRequestRejectsAnythingButAHash(t *testing.T) {
+func TestAgentSignRequestRejectsAnythingButAHash(t *testing.T) {
 	// The endpoint is a signing oracle; it must only ever emit signatures
 	// over hash-shaped input, never over an attacker-chosen document.
 	for _, bad := range []string{
@@ -126,30 +127,30 @@ func TestQZSignRequestRejectsAnythingButAHash(t *testing.T) {
 		strings.Repeat("A", 64) + "extra",
 		strings.Repeat("g", 64), // right length, not hex
 	} {
-		if _, err := QZSignRequest(bad); err == nil {
-			t.Fatalf("QZSignRequest accepted non-hash input %q", bad)
+		if _, err := AgentSignRequest(bad); err == nil {
+			t.Fatalf("AgentSignRequest accepted non-hash input %q", bad)
 		}
 	}
 
 	// Uppercase hex is normalised rather than rejected, since it is the same
 	// digest and a caller has no reason to fail over letter case.
-	if _, err := QZSignRequest(strings.Repeat("AB", 32)); err != nil {
-		t.Fatalf("QZSignRequest rejected valid uppercase hex: %v", err)
+	if _, err := AgentSignRequest(strings.Repeat("AB", 32)); err != nil {
+		t.Fatalf("AgentSignRequest rejected valid uppercase hex: %v", err)
 	}
 }
 
-func TestQZSignatureIsStableAcrossCalls(t *testing.T) {
+func TestAgentSignatureIsStableAcrossCalls(t *testing.T) {
 	// PKCS#1 v1.5 is deterministic, so the same request must sign identically.
 	// A change here means the key is being regenerated per call, which would
 	// invalidate every packing PC's override.crt.
 	hashHex := strings.Repeat("ab", 32)
-	first, err := QZSignRequest(hashHex)
+	first, err := AgentSignRequest(hashHex)
 	if err != nil {
-		t.Fatalf("QZSignRequest: %v", err)
+		t.Fatalf("AgentSignRequest: %v", err)
 	}
-	second, err := QZSignRequest(hashHex)
+	second, err := AgentSignRequest(hashHex)
 	if err != nil {
-		t.Fatalf("QZSignRequest: %v", err)
+		t.Fatalf("AgentSignRequest: %v", err)
 	}
 	if first != second {
 		t.Fatal("signing key is not stable across calls")
@@ -170,7 +171,7 @@ func TestZPLEscapingNeutralisesControlCharacters(t *testing.T) {
 func TestBuildStickerPayloadRawVersusFallback(t *testing.T) {
 	labels := []StickerLabel{{SKU: "SKU-1", Name: "Test Item", Barcode: "8901234567890"}}
 
-	zpl := BuildStickerPayload(labels, 2, QZPrinter{Language: "ZPL"})
+	zpl := BuildStickerPayload(labels, 2, AgentPrinter{Language: "ZPL"})
 	if zpl == nil {
 		t.Fatal("ZPL printer should get a raw payload")
 	}
@@ -186,7 +187,7 @@ func TestBuildStickerPayloadRawVersusFallback(t *testing.T) {
 
 	// A PDF/driver printer has no raw form; nil tells the caller to fall back
 	// to the existing browser print sheet rather than printing nothing.
-	if BuildStickerPayload(labels, 1, QZPrinter{Language: "PDF"}) != nil {
+	if BuildStickerPayload(labels, 1, AgentPrinter{Language: "PDF"}) != nil {
 		t.Fatal("non-raw printer should return nil so the caller falls back")
 	}
 }
@@ -204,7 +205,7 @@ func TestBuildStickerPayloadTemplateDrivenLayout(t *testing.T) {
 			TemplateID: "TMPL-1", TemplateElements: []byte(elements), Qty: 3},
 	}
 
-	payload := BuildStickerPayload(labels, 1, QZPrinter{Language: "ZPL"})
+	payload := BuildStickerPayload(labels, 1, AgentPrinter{Language: "ZPL"})
 	if payload == nil {
 		t.Fatal("ZPL printer should get a raw payload")
 	}
@@ -225,7 +226,7 @@ func TestBuildStickerPayloadTemplateDrivenLayout(t *testing.T) {
 
 	// No template resolved at all -> exactly the pre-Stage-52 hardcoded layout.
 	plain := []StickerLabel{{SKU: "SKU-T2", Name: "Plain Item", Barcode: "999"}}
-	fallback := BuildStickerPayload(plain, 1, QZPrinter{Language: "ZPL"})
+	fallback := BuildStickerPayload(plain, 1, AgentPrinter{Language: "ZPL"})
 	if fallback == nil || !strings.Contains(fallback.Items[0].Data, "^FO20,20^A0N,32,32^FDPlain Item^FS") {
 		t.Fatalf("expected the untouched hardcoded fallback layout, got:\n%v", fallback)
 	}
@@ -233,7 +234,7 @@ func TestBuildStickerPayloadTemplateDrivenLayout(t *testing.T) {
 
 func TestBuildPassThroughPayloadSizesLabelsAndKeepsPDFIntact(t *testing.T) {
 	const data = "JVBERi0xLjQK" // arbitrary base64
-	p := BuildPassThroughPayload(data, "pdf", QZPrinter{WidthMM: "101.6", HeightMM: "152.4"})
+	p := BuildPassThroughPayload(data, "pdf", AgentPrinter{WidthMM: "101.6", HeightMM: "152.4"})
 	if len(p.Items) != 1 {
 		t.Fatalf("expected one item, got %d", len(p.Items))
 	}
@@ -250,7 +251,7 @@ func TestBuildPassThroughPayloadSizesLabelsAndKeepsPDFIntact(t *testing.T) {
 	}
 
 	// With no dimensions configured, no sizing is forced on the driver.
-	if p2 := BuildPassThroughPayload(data, "pdf", QZPrinter{}); p2.Items[0].Opts != nil {
+	if p2 := BuildPassThroughPayload(data, "pdf", AgentPrinter{}); p2.Items[0].Opts != nil {
 		t.Fatalf("expected no page sizing when the printer has no dimensions, got %+v", p2.Items[0].Opts)
 	}
 }

@@ -55,7 +55,7 @@ func TestStage137PrinterRollWins(t *testing.T) {
 			"label_width_mm": 46.9, "label_height_mm": 14.3, "elements": "[]", "design": vertical3}},
 		{"TPL-OLD", "StickerTemplate", map[string]interface{}{"code": "TPL-OLD", "name": "Retired roll", "status": "Inactive",
 			"label_width_mm": 46.9, "label_height_mm": 14.3, "elements": "[]", "design": vertical3}},
-		{"PRN-ROLL", "Printer", map[string]interface{}{"code": "PRN-ROLL", "name": "Jewellery", "status": "Active", "sticker_template": "TPL-V3"}},
+		{"PRN-ROLL", "Printer", map[string]interface{}{"code": "PRN-ROLL", "name": "Jewellery", "status": "Active", "sticker_template": "TPL-V3", "align_confirmed": "46.9x14.3x3v"}},
 		{"PRN-PLAIN", "Printer", map[string]interface{}{"code": "PRN-PLAIN", "name": "Plain", "status": "Active"}},
 		{"PRN-OLD", "Printer", map[string]interface{}{"code": "PRN-OLD", "name": "Old roll", "status": "Active", "sticker_template": "TPL-OLD"}},
 		{"ITEM-137-1", "Item", map[string]interface{}{"code": "S137-1", "name": "No rule"}},
@@ -95,13 +95,20 @@ func TestStage137PrinterRollWins(t *testing.T) {
 	if label, err := resolveStickerLabel(tenantID, schema, "S137-1", "PRN-ROLL", "", "", "", "", StickerTemplateStandard); err != nil || label.TemplateID != "TPL-V3" {
 		t.Fatalf("the built-in 50 x 25 label does not fit the roll either: %q %v", label.TemplateID, err)
 	}
-	printers, err := ListQZPrinters(tenantID)
+	printers, err := ListAgentPrinters(tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range printers {
 		if p.Code == "PRN-ROLL" && p.StickerTemplate != "TPL-V3" {
 			t.Fatalf("print routing carries the preset to the browser, got %+v", p)
+		}
+		// 251.2: the rolls a user called perfect, so the browser asks once.
+		if p.Code == "PRN-ROLL" && p.AlignConfirmed != "46.9x14.3x3v" {
+			t.Fatalf("print routing carries align_confirmed to the browser, got %q", p.AlignConfirmed)
+		}
+		if p.Code == "PRN-PLAIN" && p.AlignConfirmed != "" {
+			t.Fatalf("a printer never confirmed is blank, got %q", p.AlignConfirmed)
 		}
 	}
 }

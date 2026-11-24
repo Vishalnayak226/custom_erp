@@ -2,9 +2,11 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // Stage 42.4.11 - VAS / kitting / production staging as a WarehouseTask
@@ -119,25 +121,8 @@ func CompleteVASTask(tenantID, taskID, outputLPN, userID string) error {
 		}
 	}
 
-	consumeItems := make([]interface{}, len(components))
-	for i, c := range components {
-		consumeItems[i] = map[string]interface{}{"sku": c.Sku, "qty": -c.Qty}
-	}
-	if _, err := PostInventoryLedgerWithVoucher(tenantID, task.LocationCode, consumeItems, false, "VAS", taskID, userID); err != nil {
-		return fmt.Errorf("VAS component consumption failed: %v", err)
-	}
-	produceItems := []interface{}{map[string]interface{}{"sku": task.Item, "qty": outputQty}}
-	if _, err := PostInventoryLedgerWithVoucher(tenantID, task.LocationCode, produceItems, false, "VAS", taskID, userID); err != nil {
-		return fmt.Errorf("VAS output production failed: %v", err)
-	}
-
-	if _, err := db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.bin_stock (bin_code, sku, location_code, condition, qty)
-		VALUES ($1, $2, $3, 'Good', $4)
-		ON CONFLICT (bin_code, sku, condition) DO UPDATE SET
-			qty = %s.bin_stock.qty + EXCLUDED.qty, updated_at = CURRENT_TIMESTAMP`, schema, schema),
-		task.ToBin, task.Item, task.LocationCode, int(outputQty)); err != nil {
-		LogSystemError(tenantID, "", "WARN", "CompleteVASTask", fmt.Sprintf("failed to bin-stock VAS output for task %s: %v", taskID, err), "")
+	if err := postVASStock(schema, taskID, userID, task.LocationCode, task.ToBin, task.Item, outputQty, components); err != nil {
+		return err
 	}
 	if outputLPN != "" {
 		if err := AssignToLPN(tenantID, outputLPN, task.ToBin, task.Item, "Good", int(outputQty), userID); err != nil {
@@ -152,4 +137,56 @@ func CompleteVASTask(tenantID, taskID, outputLPN, userID string) error {
 	LogAuditEvent(tenantID, userID, "WMS_VAS_COMPLETE", "SUCCESS",
 		fmt.Sprintf("VAS task %s produced %v x %s into %s, consuming %d BOM %s component line(s)", taskID, outputQty, task.Item, task.ToBin, len(components), bomID))
 	return TransitionWarehouseTaskStatus(tenantID, taskID, WTStatusCompleted, "", "", userID)
+}
+
+// postVASStock (252.1) consumes a VAS task's components, produces its output,
+// bins the output and marks the task's stock posted, all in one transaction:
+// a failure leaves no components consumed without their output. The task row
+// is locked first, so two presses at once post once; a retry after the status
+// change failed finds the mark and posts nothing again.
+func postVASStock(schema, taskID, userID, loc, toBin, item string, outputQty float64, components []bomComponent) error {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var postedAt sql.NullString
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data->>'vas_stock_posted_at' FROM %s.documents WHERE doctype = 'WarehouseTask' AND id = $1 FOR UPDATE`, schema), taskID).Scan(&postedAt); err != nil {
+		return err
+	}
+	if postedAt.Valid && postedAt.String != "" {
+		return nil
+	}
+	consumeItems := make([]interface{}, len(components))
+	for i, c := range components {
+		consumeItems[i] = map[string]interface{}{"sku": c.Sku, "qty": -c.Qty}
+	}
+	for _, step := range []struct {
+		what  string
+		items []interface{}
+	}{
+		{"component consumption", consumeItems},
+		{"output production", []interface{}{map[string]interface{}{"sku": item, "qty": outputQty}}},
+	} {
+		_, lines, err := PostInventoryLedgerWithVoucherTx(tx, schema, loc, step.items, false)
+		if err != nil {
+			return fmt.Errorf("VAS %s failed: %v", step.what, err)
+		}
+		if err := writeStockLedgerLinesInTx(tx, schema, loc, "VAS", taskID, userID, lines); err != nil {
+			return fmt.Errorf("VAS %s failed: %v", step.what, err)
+		}
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`
+		INSERT INTO %s.bin_stock (bin_code, sku, location_code, condition, qty)
+		VALUES ($1, $2, $3, 'Good', $4)
+		ON CONFLICT (bin_code, sku, condition) DO UPDATE SET
+			qty = %s.bin_stock.qty + EXCLUDED.qty, updated_at = CURRENT_TIMESTAMP`, schema, schema),
+		toBin, item, loc, int(outputQty)); err != nil {
+		return fmt.Errorf("VAS output not binned in %s: %v", toBin, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('vas_stock_posted_at', $2::text)
+		WHERE doctype = 'WarehouseTask' AND id = $1`, schema), taskID, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

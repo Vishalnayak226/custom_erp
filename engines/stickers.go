@@ -24,9 +24,9 @@ type StickerLabel struct {
 	Barcode string `json:"barcode"`
 	HSNCode string `json:"hsn_code"`
 	// Stage 42.1.11: a real, scannable Code 128 rendering of Barcode, for the
-	// browser @media print fallback sheet (the QZ Tray silent-print path
+	// browser @media print fallback sheet (the PrintBridge silent-print path
 	// already gets a real barcode from the label printer's own native ZPL
-	// ^BC command, engines/qz_payload.go, and needs nothing here). Blank
+	// ^BC command, engines/print_agent_payload.go, and needs nothing here). Blank
 	// whenever Barcode contains a character Code Set B can't encode (rare -
 	// SKU/barcode values are ordinarily plain ASCII) rather than failing the
 	// whole print run over one unrenderable label; the plain-text fallback
@@ -257,7 +257,7 @@ func activeStickerTemplates(tenantID string) ([]StickerTemplate, error) {
 
 // StickerElement is one positioned field on a StickerTemplate's label,
 // authored by the drag-and-drop designer (public/app.js) and consumed by
-// both BuildStickerPayload's ZPL renderer (engines/qz_payload.go) and the
+// both BuildStickerPayload's ZPL renderer (engines/print_agent_payload.go) and the
 // browser @media print fallback - one JSON shape, two renderers, so moving
 // a box in the designer changes what both actually print.
 //

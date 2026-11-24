@@ -4,7 +4,7 @@ section: Reference
 order: 1
 summary: Every term the application uses that is not self-explanatory, in plain language.
 audience: everyone
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 doc_id: DOC-1E419F843C
 type: procedure
 status: draft
@@ -13,7 +13,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -53,7 +53,7 @@ touching the data.
 
 ## Who can do what
 
-**Role.** What kind of user you are - Cashier, Store Manager, Super Admin,
+**Role.** What kind of user you are - Admin, Store Manager, Cashier,
 Supplier, or one your administrator created. It decides what you can see and do.
 
 **RBAC.** Role-Based Access Control: permission follows the role, not the
@@ -75,8 +75,10 @@ is usually a permission.
 ## Approvals and control
 
 **Maker-checker.** The rule that an important action needs a second person to
-agree. The person who raises a document can never approve it, and that is not
-configurable.
+agree. Whether the person who raised a document may also approve it is set under
+**Settings → Configuration → Security → Who can approve their own documents**:
+anyone who can approve it (the default, for an owner-run business), admins only,
+or nobody.
 
 **Approval rule.** Which document types need approval, above what threshold, and
 from whom.

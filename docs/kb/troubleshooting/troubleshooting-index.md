@@ -4,7 +4,7 @@ section: Troubleshooting
 order: 2
 summary: Start from what you saw, not from a code - each symptom below names the codes it produces and what actually fixes it.
 audience: everyone
-last_verified: 2026-08-17
+last_verified: 2026-11-24
 screens: [pos, oms, inventory, purchase-orders, grn, sales-invoices, transfers]
 doc_id: DOC-9A83B74029
 type: procedure
@@ -14,7 +14,7 @@ approvers: [documentation-maintainer, documentation-maintainer]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-review_by: 2026-10-09
+review_by: 2027-02-22
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -59,7 +59,7 @@ below.
 | "The same user cannot create and approve" / "you cannot approve or reject a document you submitted" | Self-approval, which **Who can approve their own documents** (Configuration → Security) does not allow for your role | `USERAC-0029` / `APPROV-0840` | A second person approves it, or an admin changes the setting |
 | "Someone else must decide this document" | The document always needs a second person (a Super Admin's password reset, a treatment correction, a client reset or purge) | `APPROV-0841` | Another admin, or another approver with the role, decides it. No setting lifts it |
 | "This action is not allowed for the current document status" | The document has moved past that action | `GLOBAL-0019` | Check the status. Shipped, Delivered, Closed and Cancelled close most actions |
-| Approve button missing | You raised the document, or it is not in an approvable state | - | Both are the rules working |
+| Approve button missing | You raised it and **Who can approve their own documents** does not allow that, or it is not in an approvable state | - | Both are the rules working |
 | "This approval action is already completed" | Someone decided it while your screen was open | `APPROV-0158` | Refresh |
 | "No approver is configured" | An approval rule points at nobody | `APPROV-0157` | Administrator fixes the rule |
 
@@ -104,13 +104,14 @@ below.
 
 | What you saw | Usually | Codes | Do this |
 |---|---|---|---|
-| "Cash opening is required before billing" | No open session at this location | `POSOFF-0238` | Open a session, entering the cash physically present |
+| "Cash opening is required before billing" | No open session at this store | `POSOFF-0238` | Open a session, entering the cash physically present |
 | "POS profile is not configured" | This register was never set up | `POSOFF-0237` | Administrator creates the POS profile |
 | "Cash closing is pending for this shift" | A previous shift was never closed | `POSOFF-0239` | Close it, entering the counted cash |
 | "Cash variance exceeds allowed tolerance" | The count is too far from expected | `POSOFF-0240` | Enter a reason; a manager approves it |
 | "Payment terminal is not mapped" | Card machine not linked to this register | `POSOFF-0243` | Administrator maps it |
 | Offline sale did not appear | It synced with a conflict, or was a duplicate | `POSOFF-0241`, `POSOFF-0242` | Review **POS » Offline Sync Review** |
 | Sale sits as Pending Approval | A large manual discount | - | A manager decides it. Nothing is charged, and no receipt prints, until then |
+| "Not in stock here. Not added." | The store has none it can sell, or the cart already holds all of it | - | Tell your manager. Damaged or held stock is listed as not sellable here |
 
 ## Stock
 

@@ -11,7 +11,7 @@ import (
 // purchase order number (customer_reference) is entered on a sales order or a
 // sales invoice, carried from the order onto the invoice raised from it
 // (order_invoice.go, pack_invoice.go), and printed on the invoice
-// (qz_payload.go BuildInvoicePayload, the browser print sheet). This report
+// (print_agent_payload.go BuildInvoicePayload, the browser print sheet). This report
 // finds the orders and invoices by it - the question a B2B customer asks is
 // "what happened to our PO 4500123?".
 

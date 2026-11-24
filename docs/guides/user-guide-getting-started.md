@@ -82,7 +82,7 @@ Once you're in, you'll see a **sidebar** on the left. **It only shows what your 
 
 ## 3. Finding Your Way Around
 
-The sidebar has **fifteen top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Some groups inside a module (WMS's **Inbound**, each **Setup** module, each **Reports** area, each **Settings** group) open a second menu beside them the same way. Two entries — **Home** and **Knowledge Center** — have no flyout and open straight away.
+The sidebar has **fifteen top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Some groups inside a module (WMS's **Inbound**, each **Setup** module, each **Reports** area, each **Settings** group) open a second menu beside them the same way. Two entries — **Home** and **Knowledge Center** — have no flyout and open straight away. The entry for the screen you are on stays highlighted, also when a link in a report or document opened it; a list with no entry of its own highlights its module.
 
 **Where you land, and the labels (Stage 47.14.5).** After you sign in the ERP opens on the screen your administrator chose for your role (a cashier on POS, say), and on Home if you cannot open it. A sidebar entry marked **Preview** or **Experimental** is not finished yet; your administrator may hide those. In every list, an empty list is a dashed box, a screen you may not open is amber, and a failure is red with **Retry**. A very long table shows the first rows and adds more as you scroll; **Ctrl+F**, printing or a column sort shows them all.
 

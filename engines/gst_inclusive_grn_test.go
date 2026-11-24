@@ -1022,7 +1022,7 @@ func TestStage130PrintIssue(t *testing.T) {
 	if gap := now.Sub(first); gap < 0 || gap > 5*time.Minute {
 		t.Errorf("first printed %s, now %s - the clocks disagree", d.Issue.FirstPrintedAt, d.Issue.PrintedAt)
 	}
-	if err := print(DocumentPrint{Channel: "qz"}); err != nil {
+	if err := print(DocumentPrint{Channel: "agent"}); err != nil {
 		t.Fatalf("an uncontrolled reprint was refused: %v", err)
 	}
 	_ = db.DB.QueryRow(`SELECT outcome, is_reprint FROM `+schema+`.print_job_log WHERE doc_id = $1 ORDER BY id DESC LIMIT 1`, id).Scan(&outcome, &reprinted)

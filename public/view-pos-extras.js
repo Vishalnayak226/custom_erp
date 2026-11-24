@@ -906,13 +906,19 @@ export function startPOSIdleLock() {
 async function uploadPOSLines() {
   const pickers = await loadViewModule('/view-pickers.js?v=1');
   pickers.openLineUpload({ title: 'Upload bill lines', template: 'pos-bill', onRows: async (rows) => {
+    const short = []; // 262.2: lines the store has too little of
     for (const r of rows) {
       const before = (posCart.find(l => l.sku === r.sku) || {}).qty || 0;
       await window.addResolvedItemToPOSCart(r.sku, r.name);
       const line = posCart.find(l => l.sku === r.sku);
-      if (line) line.qty = before + r.qty;
+      if (!line || line.qty === before) { short.push(`${r.name || r.sku}: none`); continue; }
+      // An add taken with 0 available is an item that keeps no stock.
+      const want = before + r.qty;
+      line.qty = line.available > 0 ? Math.min(want, line.available) : want;
+      if (line.qty < want) short.push(`${r.name || r.sku}: ${line.qty - before} of ${r.qty}`);
     }
     window.renderPOSCartTable();
+    if (short.length) await showCustomAlert(`Not in stock here:\n${short.join('\n')}`, 'Upload bill lines');
   } });
 }
 
@@ -1115,7 +1121,8 @@ async function openPOSSplitPayment() {
     return;
   }
   const due = parseFloat(document.getElementById('pos-cart-total').textContent) || 0;
-  const rest = document.getElementById('pos-payment-mode').value;
+  const modeSel = document.getElementById('pos-payment-mode');
+  const rest = (modeSel.selectedOptions[0] || {}).textContent || modeSel.value; // the tender's own name (ask 260.1)
   // Stage 85.E2: the store's own tenders (each posts by its kind).
   const custMod = await import('./view-pos-customer.js' + new URL(import.meta.url).search).catch(() => null);
   const tenders = (custMod && custMod.posStoreTenders().length) ? custMod.posStoreTenders() : ['Cash', 'Card', 'UPI'].map(k => ({ name: k, kind: k }));
@@ -1135,6 +1142,50 @@ async function openPOSSplitPayment() {
   }
   till.split = picked;
   renderPOSSplitRow(picked);
+}
+
+// Ask 260.1/260.2: Split payment... and Add tender... at the end of the
+// Payment Mode box. Each is an action, never a tender: picking one puts the
+// box back on the tender it showed and opens its dialog. The store's tender
+// list (view-pos-customer.js) refills the box and fires change, which adds
+// them back.
+const PAY_SPLIT = '__split';
+const PAY_ADD = '__addtender';
+
+export function wirePOSPayModeActions(t) {
+  till = t;
+  const sel = document.getElementById('pos-payment-mode');
+  if (!sel || sel.dataset.actions) return;
+  sel.dataset.actions = '1';
+  let last = sel.selectedIndex;
+  const addActions = () => {
+    if (sel.querySelector(`option[value="${PAY_SPLIT}"]`)) return;
+    sel.insertAdjacentHTML('beforeend', '<option disabled>──────</option>'
+      + `<option value="${PAY_SPLIT}">Split payment…</option>`
+      + (canCreateDoctype('POSTender') ? `<option value="${PAY_ADD}">Add tender…</option>` : ''));
+  };
+  addActions();
+  // Capture, so the till never sees an action as the Payment Mode.
+  sel.addEventListener('change', (e) => {
+    const v = sel.value;
+    if (v !== PAY_SPLIT && v !== PAY_ADD) { last = sel.selectedIndex; addActions(); return; }
+    e.stopImmediatePropagation();
+    sel.selectedIndex = last;
+    if (v === PAY_SPLIT) { till = t; openPOSSplitPayment(); } else addPOSTenderFromTill(sel);
+  }, true);
+}
+
+// addPOSTenderFromTill opens the POS Tender form (85.E2) and, after a save,
+// lists the new tender on the till and selects it.
+async function addPOSTenderFromTill(sel) {
+  const doc = await openQuickCreate('POSTender');
+  if (!doc) return;
+  const custMod = await import('./view-pos-customer.js' + new URL(import.meta.url).search).catch(() => null);
+  if (!custMod || !sel.isConnected) return;
+  await custMod.posLoadTillOptions(posLocation);
+  const added = [...sel.options].find(o => o.dataset.tender === String(doc.name || '').trim());
+  if (added && !added.selected) { added.selected = true; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  if (!added) await showCustomAlert(`${doc.name || 'The tender'} is saved but not taken at this store, or not Active. Check it under Setup › Masters › POS Tender.`, 'Add tender');
 }
 
 function renderPOSSplitRow(parts) {
@@ -1331,7 +1382,7 @@ async function posRegisterGiftCards(p) {
 
 // Stage 20.14: reuses the sticker-print-area's hidden-until-printing @media
 // print pattern (styles.css) rather than a new PDF/print dependency. This is
-// the fallback behind the 31.1.9 QZ path - what prints when QZ Tray is not
+// the fallback behind the 31.1.9 PrintBridge path - what prints when PrintBridge is not
 // running, or when no printer is set as Default For Receipt.
 //
 // 31.1.9 fix: offerDiscount was missing here. Checkout returns amount_due as
@@ -1339,7 +1390,7 @@ async function posRegisterGiftCards(p) {
 // offer applied printed a receipt whose total was higher than the cash
 // actually collected. Kept as a defaulted parameter so the shape of the call
 // is unchanged for anything that does not pass it.
-export function printPOSReceipt(t, cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0, offerDiscount = 0) {
+export function printPOSReceipt(t, cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0, offerDiscount = 0, remarks = '') {
   till = t;
   const posStoreProfile = till.storeProfile;
   const area = document.getElementById('receipt-print-area');
@@ -1364,7 +1415,7 @@ export function printPOSReceipt(t, cartNumber, location, paymentMode, items, sal
   const amountDue = Number(saleTotal) - Number(loyaltyDiscount) - Number(offerDiscount);
   // Stage 53.12: the header says WHICH SHOP and WHICH COMPANY, not just a
   // location code. Kept deliberately in step with BuildReceiptPayload's
-  // ESC-POS header (engines/qz_payload.go) - a receipt that reads differently
+  // ESC-POS header (engines/print_agent_payload.go) - a receipt that reads differently
   // depending on which printer it reached is the same class of defect as
   // 31.1.9's missing offer line.
   const p = posStoreProfile && posStoreProfile.code === location ? posStoreProfile : null;
@@ -1390,6 +1441,7 @@ export function printPOSReceipt(t, cartNumber, location, paymentMode, items, sal
       ${offerLine}
       ${loyaltyLine}
       <div class="receipt-line receipt-total"><span>Total (${cfgEsc(paymentMode)})</span><span>${amountDue.toFixed(2)}</span></div>
+      ${remarks ? `<div>Remarks: ${cfgEsc(remarks)}</div>` : ''}
     </div>
   `;
   applyDataCss(area); // 49.4.3: before print(), which runs in this task
@@ -1543,7 +1595,7 @@ export async function printCompletedPOSSale(t) {
   // Stage 127.2: set up for silent print, a failure explains itself instead.
   const routing = await loadViewModule('./print-routing.js');
   await routing.printNoDialog('Receipt', posLocation,
-    (why) => qzTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true, why }),
+    (why) => agentTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true, why }),
     () => printPOSReceipt(t, sale.billNumber || sale.cartNumber, posLocation, sale.paymentMode, sale.items,
-      sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0));
+      sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0, sale.remarks || ''));
 }

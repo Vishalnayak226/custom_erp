@@ -417,7 +417,9 @@ async function crmMessageNew(host, p) {
 async function crmSettings(host, st) {
   if (st.page === 'sender') return crmSenderEdit(host, st.params.id);
   const body = crmFrame(host, { title: 'Settings' });
-  const [senders, life, ready] = await Promise.all([crmApi('senders', { quiet: true }), crmApi('lifecycle'), crmApi('readiness', { quiet: true })]);
+  // 245.1: senders are admin-only; asking anyway logged a refusal per visit.
+  const admin = typeof isAdminRoleName === 'function' && isAdminRoleName(localStorage.getItem('erp_role'));
+  const [senders, life, ready] = await Promise.all([admin ? crmApi('senders', { quiet: true }) : null, crmApi('lifecycle'), crmApi('readiness', { quiet: true })]);
   const store = (typeof currentUserLocation === 'string' && currentUserLocation) || localStorage.getItem('erp_location') || '';
   body.innerHTML = `
     ${ready ? `<h3 class="crm-section">Ready to send</h3>${crmTable([{ label: 'Channel', key: 'channel' }, { label: 'Ready', html: r => r.ready ? crmChip('Yes', 'ok') : crmChip('Not yet', 'warn') },

@@ -1384,11 +1384,11 @@ async function loadTemplates(labels, apiFetch) {
   return map;
 }
 
-// Builds the QZ Tray data items for a thermal printer. Exposed separately so
+// Builds the print agent data items for a thermal printer. Exposed separately so
 // the studio's Test Print can send one design without a print-log row.
 // Rows are packed THERMAL_ROWS_PER_ITEM to an item, and each item is sent as
-// its own print call: the print agent (QZ Tray or our PrintBridge, which
-// speaks the same protocol) caps one WebSocket message at 32MB, and a GRN
+// its own print call: the print agent (PrintBridge, which speaks the QZ
+// Tray protocol) caps one WebSocket message at 32MB, and a GRN
 // with a thousand distinct SKUs at 300 dpi would otherwise approach it.
 const THERMAL_ROWS_PER_ITEM = 50;
 export function buildThermalItems(segments, language, dpi) {
@@ -1456,7 +1456,13 @@ export const fitsRoll = (a, b) => Math.abs(a.w - b.w) < 0.05 && Math.abs(a.h - b
   a.across === b.across && a.down === b.down && a.vertical === b.vertical && a.sheet === b.sheet;
 export const builtInShape = () => rollShape(defaultTemplate());
 
-// Silent thermal print through QZ Tray. Returns true when sent (or handled),
+// osPrinterName is the name the operating system gives a Printer record's
+// printer. One saved before ask 263 holds it as qz_printer_name until the
+// Printer names heal (Settings > Data Healer) moves it; the sticker screens
+// read raw Printer records, so they take either.
+export const osPrinterName = (p) => (p && (p.os_printer_name || p.qz_printer_name)) || '';
+
+// Silent thermal print through PrintBridge. Returns true when sent (or handled),
 // false when the caller should fall back to the browser sheet. A failed send
 // (printer off, out of labels) asks Retry / browser print (134.1a) - Retry
 // resumes at the item that failed, so the labels already out are not repeated;
@@ -1464,20 +1470,20 @@ export const builtInShape = () => rollShape(defaultTemplate());
 async function printThermal(segments, printer, jobRef, { ask = true } = {}) {
   const lang = String((printer && printer.printer_language) || '').toUpperCase();
   if (lang !== 'ZPL' && lang !== 'TSPL') return false;
-  if (!printer.qz_printer_name || typeof window.qzTryConnect !== 'function' || !window.QZPrint) return false;
-  if (!await window.qzTryConnect()) return false;
+  if (!osPrinterName(printer) || typeof window.agentTryConnect !== 'function' || !window.PrintAgent) return false;
+  if (!await window.agentTryConnect()) return false;
   segments = tuned(segments, printer);
   const dpi = printerDPI(printer, segments[0].t);
   const items = buildThermalItems(segments, lang, dpi);
   const entry = {
     job_type: 'Sticker', document_ref: jobRef || '', printer_code: printer.code || printer.id || '',
-    qz_printer_name: printer.qz_printer_name, print_format: lang, copies: 1
+    os_printer_name: osPrinterName(printer), print_format: lang, copies: 1
   };
   for (let next = 0; next < items.length;) {
     try {
-      for (; next < items.length; next++) await window.QZPrint.printItems(printer.qz_printer_name, [items[next]], 1);
+      for (; next < items.length; next++) await window.PrintAgent.printItems(osPrinterName(printer), [items[next]], 1);
     } catch (err) {
-      if (window.qzLogJob) await window.qzLogJob(Object.assign({ status: 'Failed', error_detail: err.message || String(err) }, entry));
+      if (window.agentLogJob) await window.agentLogJob(Object.assign({ status: 'Failed', error_detail: err.message || String(err) }, entry));
       if (!ask || !window.loadViewModule) throw err;
       const r = await window.loadViewModule('./print-routing.js');
       const choice = await r.explainFailure('Sticker', err.message || String(err));
@@ -1486,10 +1492,13 @@ async function printThermal(segments, printer, jobRef, { ask = true } = {}) {
       return true;
     }
   }
-  if (window.qzLogJob) await window.qzLogJob(Object.assign({ status: 'Submitted', error_detail: '' }, entry));
-  if (window.showToast) window.showToast(`Sent to ${printer.qz_printer_name}.`, { variant: 'success' });
+  if (window.agentLogJob) await window.agentLogJob(Object.assign({ status: 'Submitted', error_detail: '' }, entry));
+  if (window.showToast) window.showToast(`Sent to ${osPrinterName(printer)}.`, { variant: 'success' });
+  sentTo = printer;
   return true;
 }
+// 251.2: the printer the last print reached, for the ask after it.
+let sentTo = null;
 
 // Browser print: every label is rendered by the same drawLabel to a PNG and
 // laid out either as roll pages (one print per page, page sized to the roll -
@@ -1703,7 +1712,7 @@ async function previewSegments(segments, printer, title) {
 // Sticker printer through PrintBridge: raw commands when it speaks ZPL or
 // TSPL, else the PDF. false with why.reason when it cannot.
 async function printStickersSilently(segments, formPrinter, jobRef, why) {
-  if (!window.QZPrint || !window.qzTryPrint || !window.qzTryConnect || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
+  if (!window.PrintAgent || !window.agentTryPrint || !window.agentTryConnect || !await window.agentTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
   const r = await window.loadViewModule('./print-routing.js');
   const location = (window.erpWorkingStore || {}).code || '';
   const printer = await r.chosenPrinter('Sticker', location) || await r.choosePrinter('Sticker', location);
@@ -1711,9 +1720,10 @@ async function printStickersSilently(segments, formPrinter, jobRef, why) {
   if (await printThermal(segments, printer, jobRef, { ask: false })) return true;
   const dpi = Number(printer.dpi) || Number(formPrinter && formPrinter.dpi) || 0;
   for (const dataBase64 of await stickerPDFs(tuned(segments, printer), dpi)) {
-    if (!await window.qzTryPrint('Document', { documentRef: jobRef || 'Stickers', dataBase64, docFormat: 'pdf',
+    if (!await window.agentTryPrint('Document', { documentRef: jobRef || 'Stickers', dataBase64, docFormat: 'pdf',
       printKind: 'Sticker', printerCode: printer.code, location, quiet: true, why })) return false;
   }
+  sentTo = printer;
   return true;
 }
 
@@ -1766,6 +1776,18 @@ async function printSheet(segments, dpi) {
 // this computer's Sticker printer; the browser sheet only when this computer
 // is not set up for silent stickers, or when the user picks it after a failure.
 async function printStickersNoDialog(segments, printer, jobRef) {
+  sentTo = null;
+  await sendStickers(segments, printer, jobRef);
+  // 251.2: the first real print on a printer and roll asks how it came out.
+  // Test, line-up and check prints are not asked about; nor is the browser
+  // sheet, whose printer the ERP does not know.
+  const t = segments[0] && segments[0].t;
+  if (sentTo && jobRef !== 'Test print' && t && t.settings.sheet.mode !== 'a4') {
+    const p = sentTo;
+    import('./print-check.js' + new URL(import.meta.url).search).then(m => m.askAfterPrint(p, t)).catch(() => {});
+  }
+}
+async function sendStickers(segments, printer, jobRef) {
   if (await printThermal(segments, printer, jobRef)) return;
   const dpi = Number(printer && printer.dpi) || 0;
   const r = window.loadViewModule ? await window.loadViewModule('./print-routing.js') : null;
@@ -1816,16 +1838,20 @@ export async function printLabelsWithTemplate(t, labels, printer, { title = 'Pri
 // all round mean the printer is aligned; otherwise the gap says which way to
 // shift. Printed like a sticker, with the printer's preset; nothing logged.
 // preset is the printer record with the values being tried, saved or not.
-export async function printAlignmentTest(roll, preset) {
-  const t = Object.assign({}, roll || defaultTemplate(), { assets: {} });
-  const { w, h } = t;
+// Fix from photo (257.1) matches a photo of the test against the same
+// elements.
+export function alignmentTestElements(w, h, preset) {
   const shift = `R ${Number(preset.shift_right_mm) || 0}  D ${Number(preset.shift_down_mm) || 0} mm${Number(preset.skew_deg) ? `  S ${Number(preset.skew_deg)}°` : ''}`;
-  t.elements = [
+  return [
     { kind: 'box', x_mm: 0.5, y_mm: 0.5, w_mm: w - 1, h_mm: h - 1, thickness_mm: 0.3 },
     { kind: 'line', x_mm: 0, y_mm: h / 2 - 0.15, w_mm: w, h_mm: 0.3, thickness_mm: 0.3 },
     { kind: 'line', x_mm: w / 2 - 0.15, y_mm: 0, w_mm: 0.3, h_mm: h, thickness_mm: 0.3 },
     { kind: 'text', field: 'custom', text: shift, x_mm: 1.2, y_mm: 1.2, w_mm: w / 2 - 2, h_mm: Math.min(4, h / 2 - 2), font_size_mm: 2.2, fit: 'shrink' }
   ].map(normaliseElement);
+}
+export async function printAlignmentTest(roll, preset) {
+  const t = Object.assign({}, roll || defaultTemplate(), { assets: {} });
+  t.elements = alignmentTestElements(t.w, t.h, preset);
   return printTestLabel(t, { sku: '', name: '' }, preset, 'Alignment test');
 }
 
@@ -1838,19 +1864,27 @@ export async function printAlignmentTest(roll, preset) {
 // to the rows [{ letter, shift_right_mm }] once printed, else null; an A4
 // sheet has no rows to line up and resolves null at once.
 export const LINE_UP_STEPS_MM = [-1, -0.5, 0, 0.5, 1];
+export function lineUpRows(preset) {
+  const cur = Number(preset && preset.shift_right_mm) || 0;
+  return LINE_UP_STEPS_MM.map((step, i) => ({ letter: String.fromCharCode(65 + i), shift_right_mm: Math.round((cur + step) * 10) / 10 }));
+}
+// What one Line up row prints on each tag; Fix from photo (257.1) matches a
+// photo of a Line up against the same elements.
+export function lineUpElements(w, h, row) {
+  return [
+    { kind: 'box', x_mm: 0.5, y_mm: 0.5, w_mm: w - 1, h_mm: h - 1, thickness_mm: 0.3 },
+    { kind: 'text', field: 'custom', text: row.letter, x_mm: 1, y_mm: 1, w_mm: w - 2, h_mm: h - 2, font_size_mm: Math.min(12, h * 0.7), align: 'center', fit: 'shrink' },
+    { kind: 'text', field: 'custom', text: `R ${row.shift_right_mm}`, x_mm: 1.2, y_mm: 1.2, w_mm: Math.min(16, w / 3), h_mm: Math.min(4, h / 2 - 1), font_size_mm: 2.2, fit: 'shrink' }
+  ].map(normaliseElement);
+}
 export async function printLineUp(roll, preset) {
   const base = Object.assign({}, roll || defaultTemplate(), { assets: {} });
   if (base.settings.sheet.mode === 'a4') return null;
   const { w, h } = base;
   const per = base.settings.per_row * base.settings.per_col;
-  const cur = Number(preset.shift_right_mm) || 0;
-  const rows = LINE_UP_STEPS_MM.map((step, i) => ({ letter: String.fromCharCode(65 + i), shift_right_mm: Math.round((cur + step) * 10) / 10 }));
+  const rows = lineUpRows(preset);
   const segments = rows.map(r => {
-    const t = Object.assign({}, base, { elements: [
-      { kind: 'box', x_mm: 0.5, y_mm: 0.5, w_mm: w - 1, h_mm: h - 1, thickness_mm: 0.3 },
-      { kind: 'text', field: 'custom', text: r.letter, x_mm: 1, y_mm: 1, w_mm: w - 2, h_mm: h - 2, font_size_mm: Math.min(12, h * 0.7), align: 'center', fit: 'shrink' },
-      { kind: 'text', field: 'custom', text: `R ${r.shift_right_mm}`, x_mm: 1.2, y_mm: 1.2, w_mm: Math.min(16, w / 3), h_mm: Math.min(4, h / 2 - 1), font_size_mm: 2.2, fit: 'shrink' }
-    ].map(normaliseElement) });
+    const t = Object.assign({}, base, { elements: lineUpElements(w, h, r) });
     return { t: withPrinterPreset(t, Object.assign({}, preset, { shift_right_mm: r.shift_right_mm })), items: Array(per).fill({ sku: '', name: '' }) };
   });
   // Each row already carries its shift and skew; the print path adds only
@@ -1861,6 +1895,42 @@ export async function printLineUp(roll, preset) {
   return rows;
 }
 
+// 251.1: the check label for Fix from photo - on every label of the roll a
+// thin frame and a corner dot over where the template's own content prints,
+// so it lands on the tag's printable part (the head of a tail tag). geo is
+// where they sit in a label's cell as it comes off the roll, which is what
+// print-align.js's detectAlignment measures a photo of the print against.
+export async function checkLabelPlan(roll) {
+  const A = await import('./print-align.js' + new URL(import.meta.url).search);
+  const t = Object.assign({}, roll || defaultTemplate(), { assets: {} });
+  const vertical = t.settings.direction === 'vertical';
+  const cell = cellSize(t);
+  const geo = A.checkGeometry(cell.w, cell.h, A.contentBox(t.elements, vertical, t.h));
+  if (t.settings.per_row > 1) geo.pitch = cell.w + t.settings.gap_h_mm;
+  t.elements = A.checkElements(geo, vertical, t.h).map(normaliseElement);
+  return { t, geo };
+}
+// 257.1: one label's cell as it comes off the roll, as ink from 0 (paper) to
+// 1 on a grid of step mm, drawn smooth (not in printer dots). Fix from photo
+// matches a photo with no check frame against these.
+export function cellInk(t, label, step) {
+  const cell = cellSize(t), k = 1 / step;
+  const cols = Math.max(1, Math.round(cell.w * k)), rows = Math.max(1, Math.round(cell.h * k));
+  const c = newCanvas(cols, rows);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, cols, rows);
+  drawCell(ctx, t, label, { scale: k, dpi: 203, snap: false, mono: false });
+  const d = ctx.getImageData(0, 0, cols, rows).data, ink = new Float32Array(cols * rows);
+  for (let i = 0; i < ink.length; i++) ink[i] = 1 - (0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]) / 255;
+  return { cols, rows, step, ink };
+}
+// Printed like the alignment test: shown first, with the printer's preset,
+// nothing logged. Resolves true when printed.
+export function printCheckLabel(plan, preset) {
+  return printTestLabel(plan.t, { sku: '', name: '' }, preset, 'Check label');
+}
+
 // Stage 137.3: Calibrate roll - the printer feeds a few labels and measures
 // the label and the gap (TSPL GAPDETECT, ZPL ~JC), so each print starts where
 // the template expects. Needed after loading a different roll.
@@ -1868,9 +1938,9 @@ export async function calibrateRoll(printer) {
   const lang = String((printer && printer.printer_language) || '').toUpperCase();
   const data = { TSPL: 'GAPDETECT\r\n', ZPL: '~JC' }[lang];
   if (!data) throw new Error('Calibrate needs a label printer whose Printer Language is TSPL or ZPL.');
-  if (!printer.qz_printer_name) throw new Error('This printer has no OS Printer Name.');
-  if (!window.QZPrint || !await window.qzTryConnect()) throw new Error('PrintBridge is not running on this computer.');
-  await window.QZPrint.printItems(printer.qz_printer_name, [{ type: 'raw', format: 'command', flavor: 'plain', data }], 1);
+  if (!osPrinterName(printer)) throw new Error('This printer has no OS Printer Name.');
+  if (!window.PrintAgent || !await window.agentTryConnect()) throw new Error('PrintBridge is not running on this computer.');
+  await window.PrintAgent.printItems(osPrinterName(printer), [{ type: 'raw', format: 'command', flavor: 'plain', data }], 1);
 }
 
 // Draws a template thumbnail/preview into an existing canvas at `scale` px/mm

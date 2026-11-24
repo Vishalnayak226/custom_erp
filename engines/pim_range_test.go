@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"errors"
@@ -459,6 +460,15 @@ func TestListingDrift(t *testing.T) {
 	}
 	if _, err := ChannelDrift(f.tenantID, ""); errCode(err) != listingDriftCodeChannel {
 		t.Errorf("no channel: %v", err)
+	}
+	// 245.2: through the report runner the refusal keeps its code (422), not
+	// REPORT-0162 "could not be generated" (503); with no channel at all the
+	// runner asks for it before the report runs.
+	if _, _, _, err := RunReportContext(context.Background(), f.tenantID, "listing-drift", RoleSuperAdmin, "", map[string]string{"channel": "  "}); errCode(err) != listingDriftCodeChannel {
+		t.Errorf("blank channel through the runner: %v", err)
+	}
+	if _, _, _, err := RunReportContext(context.Background(), f.tenantID, "listing-drift", RoleSuperAdmin, "", map[string]string{}); err == nil || errCode(err) == "REPORT-0162" {
+		t.Errorf("no channel through the runner: %v", err)
 	}
 
 	ins("L-OK", "RING-1", "ring-1  NAME", 1000, 1200, "Listed") // matches, case and spacing ignored

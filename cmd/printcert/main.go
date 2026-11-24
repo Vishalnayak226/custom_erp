@@ -1,14 +1,15 @@
-// Command qzcert exports the QZ Tray signing certificate.
+// Command printcert exports the print signing certificate.
 //
 // Silent printing needs each packing PC to trust the certificate this server
-// signs print requests with. QZ Tray reads that trust from a file called
-// override.crt in its install directory, so rolling this out is: run this
-// once, copy the file to every PC, restart QZ Tray.
+// signs print requests with. PrintBridge trusts it by itself; a marketplace PC
+// that runs QZ Tray reads that trust from a file called override.crt in its
+// install directory, so rolling that out is: run this once, copy the file to
+// the PC, restart QZ Tray.
 //
 // Usage:
 //
-//	go run ./cmd/qzcert                 # print the certificate to stdout
-//	go run ./cmd/qzcert -o override.crt # write it to a file
+//	go run ./cmd/printcert                 # print the certificate to stdout
+//	go run ./cmd/printcert -o override.crt # write it to a file
 //
 // The private key never leaves the server - this only ever emits the public
 // certificate, which is safe to copy around and to commit to a deployment
@@ -26,9 +27,9 @@ func main() {
 	out := flag.String("o", "", "write the certificate to this file instead of stdout")
 	flag.Parse()
 
-	cert, err := engines.QZCertificatePEM()
+	cert, err := engines.AgentCertificatePEM()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not load the QZ signing certificate: %v\n", err)
+		fmt.Fprintf(os.Stderr, "could not load the print signing certificate: %v\n", err)
 		os.Exit(1)
 	}
 

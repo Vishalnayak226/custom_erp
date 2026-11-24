@@ -219,7 +219,20 @@ func CreateWaveFromSelection(tenantID, location, waveID string, taskIDs []string
 		}
 	}
 	if len(ok) == 0 {
-		return res, &ValidationError{Code: "INVENT-0499", Message: "none of these tasks can go into a wave - they are at another location, already in a wave, or past picking"}
+		// 245.14: each task named with its reason, in the order chosen (the
+		// first five), so the user knows what to change.
+		var why []string
+		named := map[string]bool{} // a task chosen twice is named once
+		for _, id := range taskIDs {
+			if reason, refused := res.Refused[id]; refused && !named[id] && len(why) < 5 {
+				named[id] = true
+				why = append(why, id+" "+reason)
+			}
+		}
+		if more := len(res.Refused) - len(why); more > 0 {
+			why = append(why, fmt.Sprintf("and %d more", more))
+		}
+		return res, &ValidationError{Code: "INVENT-0499", Message: "none of these tasks can go into a wave: " + strings.Join(why, "; ")}
 	}
 	if waveID == "" {
 		newID, _, err := CreateWave(tenantID, location, "", ok, "Manual", userID)
