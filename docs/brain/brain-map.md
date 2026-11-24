@@ -12,7 +12,7 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 | Graph built from commit | `30f30e9e` |
 | Brain redrawn | source graph 30f30e9e |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 3219 (2456 of them parsed into the graph) |
+| Files in the working tree | 3220 (2456 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
 | Symbols in the graph | 28796 |
 | Cross-region relationships | 12134 extracted (95% inferred) + 8 declared by hand |
@@ -39,7 +39,7 @@ flowchart LR
   n_business["Functional Lobes — Business Operations<br/><small>654 files · 7991 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>99 files · 1661 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>23 files · 280 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>504 files · 6024 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>505 files · 6024 symbols</small>"]
   n_motor["Motor Cortex — Build & Delivery<br/><small>74 files · 346 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>937 files · 4669 symbols</small>"]
   n_business -->|4230| n_brainstem
@@ -103,7 +103,7 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 654 | 7991 | 3313 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 99 | 1661 | 8 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 23 | 280 | 36 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 504 | 6024 | 289 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 505 | 6024 | 289 |
 | **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 74 | 346 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 937 | 4669 | 0 |
 
@@ -164,7 +164,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>497 files · 5904 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>498 files · 5904 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 120 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -486,7 +486,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>497 files · 5904 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>498 files · 5904 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 120 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -1035,7 +1035,7 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 34 | 456 | → Error & Message Catalog (75) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 10 | 101 | ← Product Information (PIM) (27) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 13 | 179 | ← Warehouse Management (WMS) (83) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 497 | 5904 | ← The Brain Map (this) (286) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 498 | 5904 | ← The Brain Map (this) (286) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 120 | → Project Documentation (286) |
 | [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 74 | 346 | → Identity, RBAC & MFA (14) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 57 | 507 | → Logging, Alerting & Notifications (54) |
@@ -3992,7 +3992,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - ← **Product Information (PIM)** — 2 relationships, 2 inferred
 - ← **Device Printing (PrintBridge)** — 2 relationships, 2 inferred
 
-<details><summary>497 files</summary>
+<details><summary>498 files</summary>
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - [README.md](../../README.md)
@@ -4247,6 +4247,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/product/einvoice-iris-irp-plan-2026-10-17.md](../../docs/product/einvoice-iris-irp-plan-2026-10-17.md)
 - [docs/product/erp-build-checklist.md](../../docs/product/erp-build-checklist.md)
 - [docs/product/erp-functional-verification-plan-2026-10-04.md](../../docs/product/erp-functional-verification-plan-2026-10-04.md)
+- [docs/product/erp-improvement-plan-2026-11-25.md](../../docs/product/erp-improvement-plan-2026-11-25.md)
 - [docs/product/erp-maturity-roadmap-2026-09-16.md](../../docs/product/erp-maturity-roadmap-2026-09-16.md)
 - [docs/product/erp-module-usability-plan-2026-10-04.md](../../docs/product/erp-module-usability-plan-2026-10-04.md)
 - [docs/product/erp-user-qa-2026-10-04.md](../../docs/product/erp-user-qa-2026-10-04.md)
@@ -5601,10 +5602,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 3219 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 3220 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **2456 of 3219 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **2456 of 3220 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **2238 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

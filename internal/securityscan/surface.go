@@ -401,6 +401,13 @@ func scanCLICommands(root string, s *Surface) error {
 		if strings.HasPrefix(e.Name(), "_") || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
+		// 265.4: a folder with no Go file is no command. Git does not keep
+		// empty folders, so a deleted command's leftover folder (the release
+		// worktree kept cmd/qzcert after 263 removed its main.go) counted
+		// here but not in GitHub's checkout.
+		if goFiles, _ := filepath.Glob(filepath.Join(root, "cmd", e.Name(), "*.go")); len(goFiles) == 0 {
+			continue
+		}
 		s.CLICommands = append(s.CLICommands, CLICommand{Name: e.Name(), Path: "cmd/" + e.Name()})
 	}
 	return nil

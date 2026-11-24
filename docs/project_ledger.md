@@ -44,6 +44,10 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 431. Current ERP improvement review and plan (2026-11-25; ask 266, documentation only)
+
+Prepared the [current improvement plan](product/erp-improvement-plan-2026-11-25.md), narrowing the October platform plan against today's source and module tracker. Confirmed Returns loads one batch of 200 then filters locally, retains filter state without synchronizing the new select, and asks for an exchange item code; retained the existing 264.4 decision for FX payment date/rate. Eight proposed packages cover those improvements, bounded-list checks, real role-operated reconciliation, physical/provider acceptance, release evidence and performance, with a next-review map across all 25 modules. Current `cmd/releasebudget` passes: cold core 182,660/184,320 bytes and initial JS 113,817/122,880. No new browser/provider/device/production acceptance, application changes, commit, push or deploy. Only the review/plan item 266.1 is Done; existing implementation and external gates retain their owners.
+
 ## 430. "Why it is printing so much when i connected printer" - PrintBridge refuses a print to a printer that is off or unplugged instead of letting Windows hold it (2026-11-24, PrintBridge agent 0.3.3 + public/downloads + guides, ask 249; not committed, held from release)
 
 - Taken as: two Line up strips sent by Guide on 11-22 to the unplugged LD0801 came out when it was plugged in on 11-23, because the agent answered *printed* as soon as Windows took the job.

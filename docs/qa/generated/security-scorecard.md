@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from the security evidence files named in each row, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Evidence, not one number (Stage 49.17.4). Judged as of 2026-11-24, the newest dated ledger section; *attention* rows need an owner's look.
+Evidence, not one number (Stage 49.17.4). Judged as of 2026-11-25, the newest dated ledger section; *attention* rows need an owner's look.
 
 | Area | Measure | State | Evidence |
 |---|---|---|---|
@@ -18,11 +18,11 @@ Evidence, not one number (Stage 49.17.4). Judged as of 2026-11-24, the newest da
 | Open risks | 11 open | no review overdue | `docs/security/risk-register.md` |
 | Detections | 26 rules (8 page, 18 queue for review) | every rule fires in the drill test | `engines/security_detection.go`, `TestStage49118DetectionDrillCoversEveryRule` |
 | Tenant and access negative tests | 0 test functions | run in every release (G10) | `*redteam*_test.go`, `stage49_3*_test.go`, `stage49_4_7*_test.go` |
-| Restore drill | last logged 2026-08-07 | attention: last logged drill 109 days ago (monthly expected); `deploy/restore_drill.sh` now also checks ledgers and audit evidence | `docs/operations/restore-drill-log.md` |
+| Restore drill | last logged 2026-08-07 | attention: last logged drill 110 days ago (monthly expected); `deploy/restore_drill.sh` now also checks ledgers and audit evidence | `docs/operations/restore-drill-log.md` |
 | Drill pass rate 2026-07 | restore drills: 2 of 2 passed | all passed | `docs/operations/restore-drill-log.md` |
 | Drill pass rate 2026-08 | restore drills: 1 of 1 passed | all passed | `docs/operations/restore-drill-log.md` |
 | Drill pass rate (restore, all) | 3 of 3 passed (100%) | no failed run | `docs/operations/restore-drill-log.md` |
-| Drill: Detection drill | held 2026-10-26; no pass/fail recorded | logged 29 days ago | `TestStage49118DetectionDrillCoversEveryRule` |
+| Drill: Detection drill | held 2026-10-26; no pass/fail recorded | logged 30 days ago | `TestStage49118DetectionDrillCoversEveryRule` |
 | Security documents | 30 documents | attention: past review_by - README.md, assurance-evidence-handling.md, customer-security-pack.md, dependency-inventory.md, human-operations-and-social-engineering.md, secure-development-lifecycle.md, third-party-risk-register.md, threat-model.md, verification-standards-matrix.md, vulnerability-disclosure-lifecycle.md | `docs/security/*.md` front matter |
 | Cadence: threat model review | last 2026-09-09 | current | `docs/security/threat-model.md` |
 | Cadence: risk register review | last 2026-11-14 | current | `docs/security/risk-register.md` |

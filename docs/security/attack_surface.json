@@ -7268,10 +7268,6 @@
       "path": "cmd/printcert"
     },
     {
-      "name": "qzcert",
-      "path": "cmd/qzcert"
-    },
-    {
       "name": "releasebudget",
       "path": "cmd/releasebudget"
     },
@@ -7919,7 +7915,7 @@
   ],
   "totals": {
     "background_jobs": 56,
-    "cli_commands": 28,
+    "cli_commands": 27,
     "dependencies": 2,
     "direct_dependencies": 2,
     "environment_flags": 54,

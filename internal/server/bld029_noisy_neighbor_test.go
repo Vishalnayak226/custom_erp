@@ -139,6 +139,11 @@ func TestBLD029NoisyNeighbourIsContained(t *testing.T) {
 	}
 
 	capA := engines.GetSettingInt("default", "platform.per_tenant_max_concurrent_requests")
+	// 265.6: admission reads both caps from the settings cache. Read cold, all
+	// 40 of the first burst looked the global cap up at once and the pool
+	// peaked at 40 (once 248.4 kept 25 idle connections ready); a running
+	// server has read it at its first request, so warm it like capA above.
+	globalMaxConcurrentRequests()
 	campaign("contention (A's long reports)", "/api/v1/reports/current-stock", 40, max(1, capA/2))
 	campaign("spike (A's ordinary requests)", "/api/v1/doc/Item", 100, capA)
 

@@ -1618,8 +1618,8 @@
     {
       "id": "release-0.29.0",
       "label": "release 0.29.0",
-      "recorded_at": "2026-11-24T18:25:55Z",
-      "commit": "30f30e9e14747dd4d6a36f0d8c5a283c35b87abf",
+      "recorded_at": "2026-11-24T22:58:51Z",
+      "commit": "7d59685a5595ace2f1044f5d36e403cb1d7217d1",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {
@@ -1664,7 +1664,7 @@
           "status": "measured"
         },
         "budget.cold_core_gzip_bytes": {
-          "value": 182626,
+          "value": 182661,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
@@ -1761,7 +1761,7 @@
           "note": "no -journeys evidence given"
         },
         "static.public_bytes": {
-          "value": 7990286,
+          "value": 7990343,
           "unit": "bytes",
           "source": "files under public/",
           "status": "measured"
@@ -1773,7 +1773,7 @@
           "status": "measured"
         },
         "static.public_gzip_bytes": {
-          "value": 4375078,
+          "value": 4375118,
           "unit": "bytes",
           "source": "each file gzipped on its own, summed (what a browser downloads)",
           "status": "measured"
@@ -1786,7 +1786,7 @@
           "note": "no -binary given"
         },
         "support.cmd_tools": {
-          "value": 28,
+          "value": 27,
           "unit": "tools",
           "source": "folders under cmd/",
           "status": "measured"

@@ -3273,11 +3273,6 @@ html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar > :n
   html[data-boot~="nav-hidden"] #login-screen.hidden ~ #app-root.hidden .sidebar { display: none; }
   html[data-boot~="nav-hidden"] #login-screen.hidden ~ #app-root.hidden .header-brand { display: inline-flex; }
 }
-/* 234.5: phone menu logo waits for the app */
-@media (max-width: 820px) {
-  html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden .sidebar .brand-logo { display: none; }
-}
-
 .nav-scrim {
   display: none;
   position: fixed;
@@ -3287,6 +3282,9 @@ html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar > :n
 }
 
 @media (max-width: 820px) {
+  /* 234.5: phone menu logo waits for the app. 265.5: kept inside this block,
+     the one TestOperatorWidthLayoutInvariants reads. */
+  html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden .sidebar .brand-logo { display: none; }
   /* Stage 88.1: no room beside the menu - a second menu opens under its row. */
   .menu-subflyout { position: static; border: 0; box-shadow: none; padding: 0 0 0 12px; animation: none; }
   .nav-toggle {

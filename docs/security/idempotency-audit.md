@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **703**; keyed: **38**; findings (money / stock without a key): **148**.
+Routes audited: **707**; keyed: **39**; findings (money / stock without a key): **148**.
 
 ## Findings
 
@@ -704,13 +704,17 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/pricing/endings/apply` | `handlePriceEndingsApply` | no | - | document |
 | `POST /api/v1/pricing/endings/preview` | `handlePriceEndingsPreview` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/pricing/line` | `handlePricingLine` | no | - | document |
+| `POST /api/v1/print/agent/assignments` | `handleAgentPrinterChoices` | no | - | document |
+| `POST /api/v1/print/agent/log` | `handleAgentPrintLog` | no | - | document |
+| `POST /api/v1/print/agent/payload` | `handleAgentPrintPayload` | yes (command key) | per engine (see handler) | document |
+| `POST /api/v1/print/agent/sign` | `handleAgentSign` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/print/document/{txn}/{id}/log` | `handlePrintDocumentLog` | no | - | document |
 | `POST /api/v1/print/document/{txn}/{id}/reprint-request` | `handleRequestReprint` | yes (command key `print.reprint.request`) | 7 days (command claim) | document |
 | `POST /api/v1/print/document/{txn}/{id}/send` | `handlePrintDocumentSend` | no | - | document |
-| `POST /api/v1/print/qz/assignments` | `handleQZPrinterChoices` | no | - | document |
-| `POST /api/v1/print/qz/log` | `handleQZPrintLog` | no | - | document |
-| `POST /api/v1/print/qz/payload` | `handleQZPrintPayload` | yes (command key) | per engine (see handler) | document |
-| `POST /api/v1/print/qz/sign` | `handleQZSign` | n.a. (a question, not a command) | - | document |
+| `POST /api/v1/print/qz/assignments` | `handleAgentPrinterChoices` | no | - | document |
+| `POST /api/v1/print/qz/log` | `handleAgentPrintLog` | no | - | document |
+| `POST /api/v1/print/qz/payload` | `handleAgentPrintPayload` | yes (command key) | per engine (see handler) | document |
+| `POST /api/v1/print/qz/sign` | `handleAgentSign` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/print/templates/{id}/versions/{version}` | `handlePrintTemplateVersionAction` | no | - | document |
 | `POST /api/v1/procurement/bulk-upload/apply` | `handleBulkPurchaseApply` | no | - | document |
 | `POST /api/v1/procurement/bulk-upload/preview` | `handleBulkPurchasePreview` | n.a. (a question, not a command) | - | document |

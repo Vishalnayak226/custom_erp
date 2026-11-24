@@ -244,7 +244,7 @@
     },
     {
       "path": "docs/qa/generated/backlog-journey-map.md",
-      "sha256": "e50e240fdc20d9413982a445a92c5a78dfab8ef938d0d2d160867478f4e9e176",
+      "sha256": "3f3854e05b25fd8fe99154a42477c86dd92e24cc00099134782d404154c05eee",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -270,7 +270,7 @@
     },
     {
       "path": "docs/qa/generated/security-assurance-statement.md",
-      "sha256": "6b06837f0404e5e79bab34dd51e618f170ef163b92ecd6ea277e173803fcc893",
+      "sha256": "8a7fdafdc061d643482beb2d03afc5aff05a2261630d4c80dd2fd0b78f2f2248",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -283,7 +283,7 @@
     },
     {
       "path": "docs/qa/generated/security-scorecard.md",
-      "sha256": "789600e4b88ebde98cc3ce92ee20e88bf8fdfaa827ac0ac6f33b0a257e465102",
+      "sha256": "9a59edd37df41b090ba865fa837cda49ba49d0df9f07fd9671e3d8227d661dc9",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
