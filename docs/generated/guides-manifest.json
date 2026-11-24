@@ -114,7 +114,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "981a52bff4651edea174c2bf9ddf9936e883baae10fb8c07019655997183fdbf",
+      "sha256": "ffa1a7e9748d68302d911f397e7d0c220ccab405f66e3236d9a265aa5434fb9f",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -244,7 +244,7 @@
     },
     {
       "path": "docs/qa/generated/backlog-journey-map.md",
-      "sha256": "3f3854e05b25fd8fe99154a42477c86dd92e24cc00099134782d404154c05eee",
+      "sha256": "3b669d79b20664ae63d32bf9d405d90eda85a543a091323013b53381441edeb9",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

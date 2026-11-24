@@ -19,12 +19,16 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **307** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **308** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-09-01 to 2026-10-19
 - [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-01
+
+## 2026-11-25
+
+**"Push and deploy all if nothing is pending to build" - release 0.29.0 (9db21d3) deployed to app and minn** *(release scripts + securityscan + styles.css + one test, ask 265)*
 
 ## 2026-11-24
 

@@ -562,6 +562,12 @@ func Build(root string) (*BuildResult, error) {
 	return result, nil
 }
 
+// isReleaseNotes reports the pages cmd/gendocs makes from the ledger:
+// release-notes.md, release-notes-2.md and so on.
+func isReleaseNotes(slug string) bool {
+	return slug == "release-notes" || strings.HasPrefix(slug, "release-notes-")
+}
+
 // buildSearchIndex tokenizes title, summary and body. The title's terms are
 // added twice so a query that matches a title outranks one that only appears in
 // a paragraph - which is the whole of the ranking model, and enough for a
@@ -584,7 +590,14 @@ func buildSearchIndex(articles []Article) SearchIndex {
 		index.Docs = append(index.Docs, SearchDoc{
 			Slug: article.Slug, Title: article.Title, Section: article.Section, Summary: article.Summary,
 		})
-		for _, source := range []string{article.Title, article.Title, article.Summary, article.Section, article.Text} {
+		body := article.Text
+		if isReleaseNotes(article.Slug) {
+			// 265.9: the release notes are the build ledger, which grows with every
+			// ask; their body words were a sixth of this index and kept pushing it
+			// over its 250 KiB budget. Found by title and summary; still readable.
+			body = ""
+		}
+		for _, source := range []string{article.Title, article.Title, article.Summary, article.Section, body} {
 			for _, token := range tokenPattern.FindAllString(strings.ToLower(source), -1) {
 				add(token, i)
 			}

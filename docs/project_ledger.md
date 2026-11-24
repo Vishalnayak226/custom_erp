@@ -44,6 +44,15 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 432. "Push and deploy all if nothing is pending to build" - release 0.29.0 (9db21d3) deployed to app and minn (2026-11-25, release scripts + securityscan + styles.css + one test, ask 265)
+
+- Taken as: nothing open can be built without the owner (251.3 needs the LD0801, 258.5 a PC with a marketplace panel, 264.4 the owner's OK), so release and deploy everything not held. PrintBridge 0.3.3's downloads stay in `release/hold.txt` (249.1).
+- Fixed before the cut: the cold core over its budget (265.1, comments only) and G4d reading the uncommitted agent (265.2).
+- GitHub's run of the first candidate failed four tests, all fixed: an empty `cmd/qzcert` counted by the surface scan (265.4), the phone-logo rule outside the 820px block the layout test reads (265.5), BLD029 reading the global cap cold (265.6), a stale idempotency audit (265.7).
+- The second cut's push got "Internal Server Error" from GitHub; the same push by hand went through, and G13 now tries three times (265.8, ships next release).
+- Result: GitHub run 45506144863 passed and main moved to 9db21d3. Deploy applied migrations 248.2, 251.2 and 263.4, installed the new service file, and app and minn answer 0.29.0 (9db21d3). Each client runs Settings › Data Healer › Printer names once. Deploy warns that erp.env has no `OPS_ALERT_WEBHOOK_URL` (waits on the owner's URL).
+- The records commit then found the Help search index 4 bytes under its 250 KiB budget, and this section tipped it over. The release-notes pages (the ledger, growing every ask) are now indexed by title and summary only: 255,996 -> 212,437 bytes. `Update-RecordsDocs.ps1` now regenerates from every staged file (265.9). Items 265.1-265.9.
+
 ## 431. Current ERP improvement review and plan (2026-11-25; ask 266, documentation only)
 
 Prepared the [current improvement plan](product/erp-improvement-plan-2026-11-25.md), narrowing the October platform plan against today's source and module tracker. Confirmed Returns loads one batch of 200 then filters locally, retains filter state without synchronizing the new select, and asks for an exchange item code; retained the existing 264.4 decision for FX payment date/rate. Eight proposed packages cover those improvements, bounded-list checks, real role-operated reconciliation, physical/provider acceptance, release evidence and performance, with a next-review map across all 25 modules. Current `cmd/releasebudget` passes: cold core 182,660/184,320 bytes and initial JS 113,817/122,880. No new browser/provider/device/production acceptance, application changes, commit, push or deploy. Only the review/plan item 266.1 is Done; existing implementation and external gates retain their owners.

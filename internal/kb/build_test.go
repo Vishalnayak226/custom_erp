@@ -88,6 +88,41 @@ Idempotency keys make a retry safe.
 	}
 }
 
+// 265.9: the release notes are the ledger, which grows with every ask, so their
+// body stays out of the search index; the title and summary still find them.
+func TestSearchIndexesReleaseNotesByTitleOnly(t *testing.T) {
+	dir := t.TempDir()
+	page := func(title, word string) string {
+		return "---\ntitle: " + title + "\nsection: Reference\norder: 25\nsummary: What shipped and when.\nlast_verified: 2026-11-25\n---\n\n# " + title + "\n\nThe ledger said " + word + ".\n"
+	}
+	writeArticle(t, dir, "reference/release-notes.md", page("Release notes", "zanzibarone"))
+	writeArticle(t, dir, "reference/release-notes-2.md", page("Release notes (part 2)", "zanzibartwo"))
+	writeArticle(t, dir, "reference/gamma.md", page("Gamma reference", "zanzibarthree"))
+
+	result, err := Build(dir)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	var search SearchIndex
+	if err := json.Unmarshal(result.Files["search.json"], &search); err != nil {
+		t.Fatalf("search index is not valid JSON: %v", err)
+	}
+	for _, word := range []string{"zanzibarone", "zanzibartwo"} {
+		if got := search.Terms[word]; len(got) != 0 {
+			t.Fatalf("release-notes body word %q was indexed: %v", word, got)
+		}
+	}
+	if got := search.Terms["zanzibarthree"]; len(got) != 1 {
+		t.Fatalf("an ordinary article's body word is missing: %v", got)
+	}
+	if got := search.Terms["release"]; len(got) != 2 {
+		t.Fatalf("release notes must still be found by title: %v", got)
+	}
+	if got := search.Terms["shipped"]; len(got) != 3 {
+		t.Fatalf("summaries must still be indexed: %v", got)
+	}
+}
+
 func keysOf(files map[string][]byte) []string {
 	out := make([]string, 0, len(files))
 	for name := range files {

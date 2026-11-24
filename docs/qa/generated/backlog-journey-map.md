@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 152 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 146 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -36,9 +36,9 @@ BLD-002: the 152 open checklist items reconciled into the business journeys they
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 5 | 0 | 5 |
 | Cross-journey acceptance and audits | - | - | 39 | 2 | 28 |
 | Engineering housekeeping | - | - | 1 | 0 | 1 |
-| Unmapped - place these stages | - | - | 43 | 4 | 13 |
+| Unmapped - place these stages | - | - | 37 | 4 | 13 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (2), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 232 (1), Stage 234 (1), Stage 249 (1), Stage 251 (3), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (4), Stage 265 (7) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (2), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 232 (1), Stage 234 (1), Stage 249 (1), Stage 251 (3), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (4), Stage 265 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -215,13 +215,7 @@ BLD-002: the 152 open checklist items reconciled into the business journeys they
 - **232.1** ci.yml on main is still red after 177.4
 - **234.6** G4 does not bump `theme-boot.js?v=`
 - **264.3** G7 stops on what ci.yml's `doclint -strict` stops on
-- **265.1** Cold core back under its budget
-- **265.2** G4d accepts an agent bump not committed yet
-- **265.4** The surface scan counts only command folders with a Go file
-- **265.5** The phone-logo rule moved into the main 820px block
-- **265.6** BLD029 warms the global cap before its burst
-- **265.7** Idempotency audit regenerated
-- **265.3** Release and deploy everything not held to app and minn
+- **265.8** G13 tries a refused push three times
 - **254.1** Guide presses Sign In itself when Edge filled the saved login
 - **214.1** Guide `journey`: the whole store journey, watched and recorded at human speed
 - **143.3** The same file on minn *(decision)*

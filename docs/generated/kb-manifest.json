@@ -469,7 +469,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "c4c1c7220024b48fe68508b365a5948be0fac952c7e13c8f04e2f566b9ac7945",
+      "sha256": "c4fc7d84b3096dae5f4f917c9fafd2b9e1dfb9cacd5814fa4be1ea6db724aa7b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -820,7 +820,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "404abffa9d96b10bc05c2a1c01b3a2da7ee529ecb9511f754fd769c7a704bd42",
+      "sha256": "cfc3fa250502e19e366e8e8bdec6bd38dc935fe6575b8fca9048aef86556418d",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -829,7 +829,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "d94afbfa642b4b7d6bec5396b4e4c31a3d629450a5c73de861c0a80eb2d0ea35",
+      "sha256": "5b6af8562e5161878cf15bd4357e07a00b138a18aed9687910e2e4ab698bedaa",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
