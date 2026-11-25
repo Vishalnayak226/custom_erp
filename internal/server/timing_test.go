@@ -137,11 +137,19 @@ func TestStage49103TimingDoesNotRevealExistence(t *testing.T) {
 	t.Setenv("SMTP_HOST", "127.0.0.1")
 	t.Setenv("SMTP_PORT", port)
 	t.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "1")
-	measure("password reset", 2, func() (int, time.Duration) {
+	resetHidden := func() (int, time.Duration) {
 		r, d := do("POST", "/api/v1/auth/forgot-password", "", map[string]string{"username_or_email": "tim-cashier"})
 		return r.Code, d
-	}, func() (int, time.Duration) {
+	}
+	resetAbsent := func() (int, time.Duration) {
 		r, d := do("POST", "/api/v1/auth/forgot-password", "", map[string]string{"username_or_email": "tim-nobody"})
 		return r.Code, d
-	})
+	}
+	// 265.10: one warm-up call a side. The first reset for the account is the
+	// first to read its settings and write its row and audit line; with two
+	// samples the median was that one cold call (79 ms against 1 ms on CI).
+	// A mail sent on the caller's time is 1.5 s on every call, so it still fails.
+	resetHidden()
+	resetAbsent()
+	measure("password reset", 3, resetHidden, resetAbsent)
 }

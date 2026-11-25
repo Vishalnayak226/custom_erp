@@ -51,7 +51,8 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 - GitHub's run of the first candidate failed four tests, all fixed: an empty `cmd/qzcert` counted by the surface scan (265.4), the phone-logo rule outside the 820px block the layout test reads (265.5), BLD029 reading the global cap cold (265.6), a stale idempotency audit (265.7).
 - The second cut's push got "Internal Server Error" from GitHub; the same push by hand went through, and G13 now tries three times (265.8, ships next release).
 - Result: GitHub run 45506144863 passed and main moved to 9db21d3. Deploy applied migrations 248.2, 251.2 and 263.4, installed the new service file, and app and minn answer 0.29.0 (9db21d3). Each client runs Settings › Data Healer › Printer names once. Deploy warns that erp.env has no `OPS_ALERT_WEBHOOK_URL` (waits on the owner's URL).
-- The records commit then found the Help search index 4 bytes under its 250 KiB budget, and this section tipped it over. The release-notes pages (the ledger, growing every ask) are now indexed by title and summary only: 255,996 -> 212,437 bytes. `Update-RecordsDocs.ps1` now regenerates from every staged file (265.9). Items 265.1-265.9.
+- The records commit then found the Help search index 4 bytes under its 250 KiB budget, and this section tipped it over. The release-notes pages (the ledger, growing every ask) are now indexed by title and summary only: 255,996 -> 212,437 bytes. `Update-RecordsDocs.ps1` now regenerates from every staged file (265.9).
+- ci.yml on that commit (ac92e5f) failed only the password-reset timing check: 79 ms against 1 ms, from 2 samples where the "median" was the first, cold call. The check now warms each path once and takes 3 samples; it passed 3 of 3 locally (265.10). Items 265.1-265.10.
 
 ## 431. Current ERP improvement review and plan (2026-11-25; ask 266, documentation only)
 
