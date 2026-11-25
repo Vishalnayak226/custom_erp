@@ -38,7 +38,7 @@ BLD-002: the 146 open checklist items reconciled into the business journeys they
 | Engineering housekeeping | - | - | 1 | 0 | 1 |
 | Unmapped - place these stages | - | - | 37 | 4 | 13 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (2), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 232 (1), Stage 234 (1), Stage 249 (1), Stage 251 (3), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (4), Stage 265 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (2), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 249 (1), Stage 251 (3), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (4), Stage 265 (2) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -212,10 +212,10 @@ BLD-002: the 146 open checklist items reconciled into the business journeys they
 - **162.16** Cross-origin write check: when to enforce? *(decision)*
 - **177.3** Deploy waits for the GitHub run *(blocked)*
 - **177.5** The click's own gates must take about a minute *(blocked)*
-- **232.1** ci.yml on main is still red after 177.4
 - **234.6** G4 does not bump `theme-boot.js?v=`
 - **264.3** G7 stops on what ci.yml's `doclint -strict` stops on
 - **265.8** G13 tries a refused push three times
+- **265.11** ci.yml's secrets scan reads the whole tree as new
 - **254.1** Guide presses Sign In itself when Edge filled the saved login
 - **214.1** Guide `journey`: the whole store journey, watched and recorded at human speed
 - **143.3** The same file on minn *(decision)*

@@ -244,7 +244,7 @@
     },
     {
       "path": "docs/qa/generated/backlog-journey-map.md",
-      "sha256": "3b669d79b20664ae63d32bf9d405d90eda85a543a091323013b53381441edeb9",
+      "sha256": "e371fe436513fffb610ad08bf8eda37a44ada88bed8c72d0c7b0df60d2d140c3",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

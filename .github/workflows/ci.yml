@@ -38,6 +38,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (Stage 49.9.8: pinned to commit, not the mutable v4 tag)
+        with:
+          # 265.11: the secrets scan needs the pushed commits' parents. At depth 1
+          # the commit has none, so gitleaks reads every file as added and flags
+          # the test fixtures already in history.
+          fetch-depth: 0
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned; see above)
         with:
