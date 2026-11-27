@@ -44,6 +44,15 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 469. "Once all activity done, push all release all. Wait for all developement to finish" - 0.30.0 and 0.31.0 live on app and minn (2026-11-27, release/ + internal/server/ test, ask 308; 308.1)
+
+- **Taken as:** wait for every session building on the shared tree, then run the Release and Deploy clicks for everything not held. Ask 309, added while this ran, had already shipped in 0.30.0.
+- **0.30.0 (acc8603):** the ask 289 session cut it and ran Deploy. On the way, this session:
+  - held 297.2's half-built hunks out of files that were not yet in `release/hold.txt`;
+  - fixed `TestModuleManifestCatalog` to read 283.2's `sweepTenantSchemas` as a literal module filter.
+  The GitHub runs went red twice (the idempotency audit and type scale, then the 4946 parser test half-closing GETs) and were fixed by the ask 289 session (§468).
+- **0.31.0 (8b900f5):** 297.2 (imports of any size) once its holds were dropped. The idempotency audit was regenerated and the 22 guard tests passed locally. GitHub run 45970582792 was green. Deploy applied `migrations_stage297_2_resumable_uploads.sql` (a new table and indexes only, no client data) and D4 shows both hosts on 0.31.0.
+- **Left for the owner:** 288.3(c), 297.4, 297.5 and 297.8, 301's decision items, and production `OPS_ALERT_WEBHOOK_URL` (Deploy warns about it).
 ## 467. "Is the erp is lightweight for browser? It should work in very kbps speed of internet... If User bulk upload 1Cr row also it should not fail..." / "All recommended approved, build all" - no hard refresh after a deploy, the 2G profile, the tab's footprint, a Tasks bar for long work, imports of any size (2026-11-27, engines/ + internal/server/ + public/ + db/migrations/ + release/ + guides, ask 297; 297.1/297.3/297.6/297.7 in release 0.30.0, 297.2 not committed)
 
 - **Taken as:** answer with measurements, record what makes each point true at that scale as an item with a recommended answer, then build in the order 297.1/297.6/297.7, 297.3/297.2, 297.4, 297.5. "It should be fail" read as "should not fail". 297.8 (the report catalog on a slow line) was found on the way and waits for the owner.

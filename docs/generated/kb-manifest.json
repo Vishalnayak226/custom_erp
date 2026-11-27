@@ -487,7 +487,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "e00a5f0737a97be1f47955e6cf9bfe399456598226574760b3f669916eaadcd0",
+      "sha256": "c75ea9f09176902729a0293d9036a5fa7ea0abe5817c380536e7b26cad538ac4",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

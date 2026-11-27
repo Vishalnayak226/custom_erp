@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/doclint",
   "generator_version": "stage48-v1",
-  "release": "0.29.0",
+  "release": "0.31.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
