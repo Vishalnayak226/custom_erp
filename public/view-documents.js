@@ -1,7 +1,21 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
-import { documentSearchLink } from './view-document-links.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+// 297.6: this module's helpers all start downloading now, side by side - awaited
+// one after another they cost a round trip each on a slow line. An import below
+// of the same address joins the download already under way.
+const siblingsReady = ['./view-document-links.js', './row-actions.js', './list-columns.js'].map(f => import(f + new URL(import.meta.url).search));
+const { documentSearchLink } = await siblingsReady[0];
+// 276.5: a row's History, Copy and Delete sit in a "⋯" menu.
+const { rowMenu } = await import('./row-actions.js' + new URL(import.meta.url).search);
+// 276.2: each user chooses a list's columns; an admin sets the default.
+const listCols = await import('./list-columns.js' + new URL(import.meta.url).search);
+// 276.10: a list is titled as the menu names it ("Vendors"); a record keeps
+// its singular name ("New Vendor").
+function listTitle() {
+  return document.querySelector(`.menu-item[data-doctype="${CSS.escape(currentDoctype)}"]`)?.textContent.trim() || getDoctypeLabel(currentDoctype);
+}
 async function renderDocTableView(container) {
   // A print template is drawn in the studio, not typed into a list: the
   // generic table showed its layout as a raw text column, beside the very
@@ -16,6 +30,7 @@ async function renderDocTableView(container) {
   const pageAtRequestTime = currentTablePage;
   const searchAtRequestTime = currentSearchQuery;
   const mySeq = ++docTableRequestSeq;
+  const columnChoice = listCols.loadColumnChoice(doctypeAtRequestTime); // 276.2, beside the rows' fetch
   const cacheKey = `doctable:${doctypeAtRequestTime}:${pageAtRequestTime}:${searchAtRequestTime}`;
   const cached = swrFetch(cacheKey, () => fetchDocTableData(doctypeAtRequestTime, pageAtRequestTime, searchAtRequestTime), (fresh) => {
     // Only apply if the user hasn't navigated to a different doctype/view,
@@ -93,7 +108,7 @@ async function renderDocTableView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       ${showQuickCreateBack ? `<a href="#" id="quick-create-back" class="empty-state-link s-dcc58a">&larr; Back to ${escapeHTMLText(quickCreateReturn.label || getTranslatedLabel(quickCreateReturn.view))}</a>` : ''}
-      <h1 class="page-title">${escapeHTMLText(getDoctypeLabel(currentDoctype))}</h1>
+      <h1 class="page-title">${escapeHTMLText(listTitle())}</h1>
     </div>
     <div class="s-55b451">
       ${currentDoctype === 'CustomOrderQuote' ? (state.permissions.isAdmin || state.permissions.create.has('SalesOrder') ? '<button class="btn btn-primary" id="doc-custom-order">New order</button>' : '') : currentDoctype === 'PasswordResetRequest' ? (isMenuRuleVisible(MENU_PERMISSION_MAP['menu-users'])
@@ -155,9 +170,10 @@ async function renderDocTableView(container) {
       window.printBinLabels?.(bins.filter(Boolean));
     });
   }
-  // Stage 55.18: service tickets, contracts and projects open with their
-  // working view (queue, coverage, ledger) above the record list.
-  if (['ServiceTicket', 'ServiceContract', 'Project'].includes(currentDoctype)) {
+  // Stage 55.18: contracts and projects open with their working view
+  // (coverage, ledger) above the record list. 288.2: the ticket queue is its
+  // own page now (view:service-desk).
+  if (['ServiceContract', 'Project'].includes(currentDoctype)) {
     const deskHost = document.createElement('div');
     container.appendChild(deskHost);
     // 245.13: the desk is in before the screen shows, so the list below it
@@ -225,6 +241,7 @@ async function renderDocTableView(container) {
         </svg>
         <input type="text" id="doc-table-search" aria-label="Search this list" placeholder="Search table..." value="${escapeHTMLText(currentSearchQuery)}">
       </div>
+      ${listCols.columnsButtonHTML('doc-columns-btn')}
       ${currentDoctype === 'Item' ? `<button class="btn btn-outline" id="pim-group-actions-btn" title="Act on a saved Product Group instead of hand-picking rows">Group Actions</button>` : ''}
       ${currentDoctype === 'Project' ? `<button class="btn btn-outline" id="project-revenue-run-btn">Run revenue</button>` : ''}
       ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" disabled>Reject Selected</button>` : ''}</div>` : ''}
@@ -247,8 +264,26 @@ async function renderDocTableView(container) {
   panel.querySelector('#pim-bulk-edit-button')?.addEventListener('click', openPIMBulkEditModal);
   panel.querySelector('#pim-bulk-approve-button')?.addEventListener('click', () => bulkDecideProductContent('Approved'));
   panel.querySelector('#pim-bulk-reject-button')?.addEventListener('click', () => bulkDecideProductContent('Rejected'));
+  panel.querySelector('#doc-columns-btn')?.addEventListener('click', e => openDocColumns(e.currentTarget));
 
+  docColumnChoice = { doctype: doctypeAtRequestTime, choice: await columnChoice };
   renderDocTable();
+}
+
+// 276.2: the Columns chooser on the shared list. A change shows at once.
+function openDocColumns(button) {
+  const doctype = currentDoctype;
+  listCols.openColumnChooser(button, {
+    listId: doctype,
+    columns: listChoosable().map(f => ({ key: f.fieldname, label: listHeader(f) })),
+    shown: listColumns().map(f => f.fieldname),
+    defaultKeys: defaultListColumns().map(f => f.fieldname),
+    onChange: keys => {
+      if (currentDoctype !== doctype) return;
+      docColumnChoice = { doctype, choice: { mine: { columns: keys.map(key => ({ key, visible: true })) } } };
+      renderDocTable();
+    },
+  });
 }
 
 // 74.1.1: a long Setup list narrows by one field's options (a server filter, so
@@ -372,8 +407,30 @@ function privacyRowButton(row) {
     : '';
 }
 
+// 276.2: what the list shows - this user's own choice, else the default for
+// everyone, else the key columns below. Raw JSON fields are never offered.
+const LIST_CHOOSER_SKIP = new Set(['JSON', 'JSONMap']);
+// The column walk found these blank on every row; off unless chosen.
+const LIST_DEFAULT_OFF = { Vendor: new Set(['gstin', 'bank_account_number', 'bank_ifsc', 'onboarding_status']) };
+let docColumnChoice = null; // {doctype, choice} from list-columns.js
+
+function listChoosable() {
+  return (state.activeDocFields || []).filter(f => !LIST_CHOOSER_SKIP.has(f.fieldtype));
+}
+
 function listColumns() {
-  const fields = state.activeDocFields || [];
+  const defaults = defaultListColumns();
+  const choice = docColumnChoice?.doctype === currentDoctype ? docColumnChoice.choice : null;
+  if (!choice || (!choice.mine && !choice.everyone)) return defaults;
+  const byName = new Map((state.activeDocFields || []).map(f => [f.fieldname, f]));
+  const keys = listCols.chosenKeys(choice, listChoosable().map(f => f.fieldname), defaults.map(f => f.fieldname));
+  const picked = keys.map(k => byName.get(k)).filter(Boolean);
+  return picked.length ? picked : defaults;
+}
+
+function defaultListColumns() {
+  const off = LIST_DEFAULT_OFF[currentDoctype];
+  const fields = (state.activeDocFields || []).filter(f => !off?.has(f.fieldname));
   if (fields.length <= LIST_MAX_COLUMNS) return fields;
   const rank = f => {
     const n = String(f.fieldname || '').toLowerCase();
@@ -390,6 +447,17 @@ function listColumns() {
     .map(x => x.f);
   return picked.length ? picked : fields.slice(0, LIST_MAX_COLUMNS);
 }
+
+// 276.8: a column's title is its form label without the form's hint -
+// "Service window start (HH:MM, optional)" heads its column as "Service window start".
+function listHeader(f) {
+  const label = getTranslatedLabel(f.label);
+  return label.replace(/\s*\([^()]*\)\s*$/, '') || label;
+}
+
+// 276.8: a short value stays on one line; long text wraps.
+const SHORT_CELL = 24;
+const cellClass = v => (String(v).length <= SHORT_CELL ? ' class="nowrap"' : '');
 
 function renderDocTable() {
   const wrapper = document.getElementById('doc-table-wrapper');
@@ -408,7 +476,7 @@ function renderDocTable() {
       <thead>
         <tr>
           ${bulkEditingEnabled ? `<th class="s-6feda3"><input type="checkbox" aria-label="Select all visible records" data-pim-select-page ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
-          ${cols.map(f => `<th>${escapeHTMLText(getTranslatedLabel(f.label))}</th>`).join('')}
+          ${cols.map(f => `<th>${escapeHTMLText(listHeader(f))}</th>`).join('')}
           ${currentDoctype === 'PurchaseRequisition' ? '<th>Next document</th>' : ''}
           <th class="row-actions-cell s-30489c">Actions</th>
         </tr>
@@ -423,12 +491,11 @@ function renderDocTable() {
     // and "No records found." was equally uninformative whether the list was
     // genuinely empty or the user had simply typed a search that matched
     // nothing. Those are different problems with different next steps.
-    const label = escapeHTMLText(getDoctypeLabel(currentDoctype));
+    // 276.9: a few words, no how-to (Article 7).
+    const label = escapeHTMLText(listTitle());
     const emptyMsg = currentSearchQuery
-      ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
-      : canCreateDoctype(currentDoctype)
-        ? `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`
-        : `No ${label} records yet.`;
+      ? `No ${label} match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;`
+      : `No ${label} yet`;
     tableHTML += `<tr><td colspan="${cols.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {
     // 234.4: the first LIST_FIRST_ROWS rows draw with the screen, the rest on scroll (app.js drawRestOfRows).
@@ -442,12 +509,12 @@ function renderDocTable() {
         const val = row[f.fieldname] || '';
         if (f.fieldname === 'status') {
           const cls = val === 'Active' ? 'badge-success' : 'badge-secondary';
-          tableHTML += `<td><span class="badge ${cls}">${escapeHTMLText(val)}</span></td>`;
+          tableHTML += `<td class="nowrap"><span class="badge ${cls}">${escapeHTMLText(val)}</span></td>`;
         } else if (val && ((f.fieldtype === 'Link' && f.options) || f.pick_from)) {
           // Stage 57.1: marked as a reference, so the shell's name sweep shows
           // the record's name here (the copy chip still copies the code).
           // Stage 93.9: a picked plain field (an employee's department) too.
-          tableHTML += `<td data-link-doctype="${escapeHTMLText(f.options && f.fieldtype === 'Link' ? f.options : f.pick_from)}" data-link-ref="${escapeHTMLText(val)}">${copyableCell(val, val)}</td>`;
+          tableHTML += `<td${cellClass(val)} data-link-doctype="${escapeHTMLText(f.options && f.fieldtype === 'Link' ? f.options : f.pick_from)}" data-link-ref="${escapeHTMLText(val)}">${copyableCell(val, val)}</td>`;
         } else if (f.fieldtype === 'JSONTable' && val) {
           // Stage 55.0F: a line table reads as its lines ("SKU1 × 2, SKU2 × 1"),
           // not as the raw JSON it is stored as.
@@ -459,9 +526,9 @@ function renderDocTable() {
           tableHTML += `<td title="${escapeHTMLText(text)}">${escapeHTMLText(Array.isArray(lines) && text.length > 60 ? `${lines.length} lines` : text)}</td>`;
         } else if (f.fieldtype === 'Date' && val) {
           // Stage 47.14.2: "03 Feb 2026", never a 03/02 that reads both ways.
-          tableHTML += `<td>${copyableCell(formatDay(val), val)}</td>`;
+          tableHTML += `<td class="nowrap">${copyableCell(formatDay(val), val)}</td>`;
         } else {
-          tableHTML += `<td>${copyableCell(val, val)}</td>`;
+          tableHTML += `<td${cellClass(val)}>${copyableCell(val, val)}</td>`;
         }
       });
       if (currentDoctype === 'PurchaseRequisition') {
@@ -583,22 +650,16 @@ function renderDocTable() {
         : '';
       tableHTML += `
         <td class="row-actions-cell s-30489c">
-          ${showHistory ? `<button class="action-btn s-c6b76b" title="History" aria-label="History for ${escapeHTMLText(row.id)}" data-doc-action="taxonomy-history" data-doc-id="${escapeHTMLText(row.id)}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </button>` : ''}
           ${prActions}
-          ${currentDoctype !== 'PasswordResetRequest' && canCreateDoctype(currentDoctype) ? `
-          <button class="action-btn s-c6b76b" title="Copy: a new record with these details" aria-label="Copy ${escapeHTMLText(row.id)}" data-doc-action="copy" data-doc-id="${escapeHTMLText(row.id)}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>` : ''}
           ${currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canUpdateDoctype(currentDoctype) ? `
           <button class="action-btn s-c6b76b" title="Edit" aria-label="Edit ${escapeHTMLText(row.id)}" data-doc-action="edit" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>` : ''}
-          ${currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canDeleteDoctype(currentDoctype) ? `
-          <button class="action-btn action-btn-danger" title="Delete" aria-label="Delete ${escapeHTMLText(row.id)}" data-doc-action="delete" data-doc-id="${escapeHTMLText(row.id)}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-          </button>` : ''}
+          ${rowMenu([
+            showHistory && { label: 'History', attrs: `data-doc-action="taxonomy-history" data-doc-id="${escapeHTMLText(row.id)}"` },
+            currentDoctype !== 'PasswordResetRequest' && canCreateDoctype(currentDoctype) && { label: 'Copy', title: 'A new record with these details', attrs: `data-doc-action="copy" data-doc-id="${escapeHTMLText(row.id)}"` },
+            currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canDeleteDoctype(currentDoctype) && { label: 'Delete', danger: true, attrs: `data-doc-action="delete" data-doc-id="${escapeHTMLText(row.id)}"` },
+          ])}
         </td>
       </tr>`;
       return tableHTML;
@@ -696,6 +757,8 @@ function renderDocTablePager() {
   const end = estimated ? start + state.docData.length : Math.min(start + state.docData.length, total);
   const totalText = estimated ? `about ${Number(total.toPrecision(2)).toLocaleString()}` : total;
   const lastPage = estimated ? state.docData.length < itemsPerPage : currentTablePage === pages;
+  // 276.9: nothing to page through, no pager.
+  paginator.classList.toggle('hidden', total === 0 && currentTablePage === 1 && !docTableLoading);
   paginator.innerHTML = `
     <span>Showing ${total === 0 ? 0 : start + 1}-${end} of ${totalText}${docTableLoading ? ' — loading…' : ''}</span>
     <div class="pagination-buttons">
@@ -950,7 +1013,8 @@ async function runProjectRevenue(button) {
   }
 }
 
-async function runServiceTicketStep(id, step, button) {
+// 288.2: after (optional) redraws the caller's page instead of the list.
+async function runServiceTicketStep(id, step, button, after) {
   let body = {};
   if (step === 'assign') {
     const who = (await showCustomPrompt('Username of the technician who will do the work:', '', 'Assign Service Ticket') || '').trim();
@@ -976,7 +1040,7 @@ async function runServiceTicketStep(id, step, button) {
       await showApiError(res, 'The service ticket could not be updated.');
       return;
     }
-    renderView('doctype-table');
+    if (after) after(); else renderView('doctype-table');
   } finally {
     button.disabled = false;
   }
@@ -1644,6 +1708,12 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
         });
       };
 
+      // 276.19: a record type whose module this client does not have is not
+      // asked for - the server refuses it (SAAS-0191). A saved value still shows.
+      if (state.activeDoctypes?.length && !state.activeDoctypes.some(d => d.name === f.options)) {
+        select.innerHTML = `<option value="" selected>— ${escapeHTMLText(getDoctypeLabel(f.options))} not in use —</option>`;
+        selectKnownValue();
+      } else
       // Fetch target link options asynchronously
       apiFetch(`/api/v1/doc/${f.options}?count=true`).then(res => {
         if (!res || !res.ok) {
@@ -2009,8 +2079,20 @@ function wireOfferScopeValue(body) {
       attachLinkTypeahead(fresh, 'Item');
     } else if (scope === 'Product Group') {
       fresh.placeholder = 'Choose a PIM product group';
-      attachLinkTypeahead(fresh, 'PIMProductGroup', { showAllOnFocus: true });
+      // 296.1 (ask 296): a group's products are set on its own form, which the
+      // inline quick-create cannot show (it made a group with no products), so
+      // the box gets no "Add" hint. The line below links that form in a new
+      // tab instead - always visible, and the half-filled offer stays. The box
+      // fetches on every click, so the new group is there on return.
+      attachLinkTypeahead(fresh, 'PIMProductGroup', { showAllOnFocus: true, noSetupHint: true });
       hint.textContent = 'Every product in the group gets the offer - a dynamic group follows its rules as products change.';
+      if (canCreateDoctype('PIMProductGroup')) {
+        hint.insertAdjacentHTML('beforeend', ` <a href="${deepLinkForDoctype('PIMProductGroup')}" target="_blank" rel="noopener" class="empty-state-link" title="Opens in a new tab">New product group` +
+          `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">` +
+          `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a>`);
+        // Set here, not as a style="" in the markup: the CSP (style-src 'self') blocks those.
+        Object.assign(hint.querySelector('a svg').style, { marginLeft: '3px', verticalAlign: '-1px' });
+      }
     } else if (scope === 'SKU List') {
       fresh.placeholder = 'SKU codes, separated by commas or one per line';
       hint.textContent = 'Only these SKUs get the offer.';
@@ -2034,14 +2116,7 @@ function wireOfferScopeValue(body) {
           offerCategoryList.sort((a, b) => a.localeCompare(b));
         }
       }
-      let list = document.getElementById('offer-category-options');
-      if (!list) {
-        list = document.createElement('datalist');
-        list.id = 'offer-category-options';
-        document.body.appendChild(list);
-      }
-      list.replaceChildren(...offerCategoryList.map(c => Object.assign(document.createElement('option'), { value: c })));
-      if (valueEl === fresh) fresh.setAttribute('list', list.id);
+      if (valueEl === fresh) attachSuggestList(fresh, offerCategoryList); // 294.1
     } else {
       fresh.readOnly = true;
       fresh.placeholder = 'Not used - the offer applies to the whole bill';

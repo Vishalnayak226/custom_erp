@@ -333,6 +333,19 @@ async function renderHelpArticle(slug) {
     window.scrollTo(0, 0);
   }
   loadHelpSnapshots(holder);
+  playHelpSteps(holder);
+}
+
+// 290.4: a ```steps block plays as a "How it works" step-through. The player
+// loads only for an article that has one; should it fail, the block stays
+// readable as plain text.
+async function playHelpSteps(holder) {
+  const blocks = [...holder.querySelectorAll('pre > code.language-steps')];
+  if (blocks.length === 0) return;
+  try {
+    const { mountHelpSteps } = await import('./view-help-steps.js' + new URL(import.meta.url).search);
+    blocks.forEach(code => mountHelpSteps(code.parentElement));
+  } catch { /* the block stays as text */ }
 }
 
 // openHelpDrawer (Stage 39.5) shows the article(s) mapped to a screen, over the
@@ -456,6 +469,7 @@ async function openHelpDrawer(screenID) {
     <h4 class="s-249d01">${escapeHTMLText(article.title)}</h4>
     <div class="kb-body">${helpSectionHTML(article.html, anchors)}</div>
     ${others.length > 0 ? `<p class="text-muted s-1b0f49">Also for this screen: ${others.map(s => `<a href="/help/${encodeURIComponent(s)}">${escapeHTMLText(titleOf(s))}</a>`).join(', ')}</p>` : ''}`;
+  playHelpSteps(body);
 }
 
 // helpSectionHTML keeps only the named sections of an article: each heading

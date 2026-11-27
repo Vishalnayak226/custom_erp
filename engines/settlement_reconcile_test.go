@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -160,15 +161,19 @@ func TestApplyReturnQCExchange(t *testing.T) {
 	cleanup()
 	defer cleanup()
 
-	itemData, _ := json.Marshal(map[string]interface{}{"code": exchSKU, "name": "Exchange Target", "status": "Active"})
+	// 267.10: the replacement sells at the 500 the customer paid - a like-for-like swap.
+	itemData, _ := json.Marshal(map[string]interface{}{"code": exchSKU, "name": "Exchange Target", "status": "Active", "sale_price": 500.0, "hsn_code": "6109", "gst_rate": 5.0})
 	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", exchSKU, itemData); err != nil {
 		t.Fatalf("seed exchange Item: %v", err)
 	}
 	if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 5, 5)", exchSKU, location); err != nil {
 		t.Fatalf("seed exchange stock: %v", err)
 	}
+	// 267.2: the sale booked 300 a unit out of stock, so inspection has a cost
+	// basis to post the value ledger with.
 	cartData, _ := json.Marshal(map[string]interface{}{
-		"items": []map[string]interface{}{{"sku": sku, "qty": 2, "sale_price": 500.0, "cost_price": 300.0}},
+		"items":      []map[string]interface{}{{"sku": sku, "qty": 2, "sale_price": 500.0, "cost_price": 300.0}},
+		"sale_costs": []map[string]interface{}{{"sku": sku, "qty": 2, "value_paise": 60000, "source": "moving_average"}},
 	})
 	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')", cartID, cartData); err != nil {
 		t.Fatalf("seed POSCart: %v", err)
@@ -181,6 +186,8 @@ func TestApplyReturnQCExchange(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", returnID)
 		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'RefundRequest' AND data->>'return_request_id' = $1", returnID)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'StockLedgerEntry' AND data->>'voucher_id' = $1", returnID)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".gl_postings WHERE document_type = 'ReturnRequest' AND document_id = $1", returnID)
 	})
 	if err := ApproveReturnRequest(tenantID, returnID, "approver1"); err != nil {
 		t.Fatalf("ApproveReturnRequest: %v", err)
@@ -218,6 +225,20 @@ func TestApplyReturnQCExchange(t *testing.T) {
 	if exchangeSKUOnRecord != exchSKU {
 		t.Errorf("expected the return record to keep exchange_sku=%q, got %q", exchSKU, exchangeSKUOnRecord)
 	}
+
+	// 267.2: the value ledger reconciles. The unit coming back is put into
+	// inventory at the 300 the sale booked (Dr 1200, Cr 5100), the unit going
+	// out takes the same 300 back out (Dr 5100, Cr 1200): both legs balance and
+	// a like-for-like swap leaves inventory and COGS where the sale left them.
+	var debit, credit, net1200, net5100 int64
+	if err := db.DB.QueryRow("SELECT COALESCE(SUM(debit),0), COALESCE(SUM(credit),0), "+
+		"COALESCE(SUM(debit-credit) FILTER (WHERE account_code = '1200'),0), COALESCE(SUM(debit-credit) FILTER (WHERE account_code = '5100'),0) "+
+		"FROM "+schema+".gl_postings WHERE document_type = 'ReturnRequest' AND document_id = $1", returnID).Scan(&debit, &credit, &net1200, &net5100); err != nil {
+		t.Fatal(err)
+	}
+	if debit != 60000 || credit != 60000 || net1200 != 0 || net5100 != 0 {
+		t.Errorf("value ledger: want 600.00 each side netting to zero on 1200 and 5100, got debit %d credit %d net 1200 %d net 5100 %d", debit, credit, net1200, net5100)
+	}
 }
 
 // TestApplyReturnQCExchangeInsufficientStockRollsBack asserts the whole QC
@@ -245,7 +266,7 @@ func TestApplyReturnQCExchangeInsufficientStockRollsBack(t *testing.T) {
 	cleanup()
 	defer cleanup()
 
-	itemData, _ := json.Marshal(map[string]interface{}{"code": exchSKU, "name": "Out Of Stock Item", "status": "Active"})
+	itemData, _ := json.Marshal(map[string]interface{}{"code": exchSKU, "name": "Out Of Stock Item", "status": "Active", "sale_price": 500.0, "hsn_code": "6109", "gst_rate": 5.0})
 	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", exchSKU, itemData); err != nil {
 		t.Fatalf("seed exchange Item: %v", err)
 	}
@@ -269,8 +290,19 @@ func TestApplyReturnQCExchangeInsufficientStockRollsBack(t *testing.T) {
 		t.Fatalf("ReceiveReturnRequest: %v", err)
 	}
 
-	if _, _, err := ApplyReturnQC(tenantID, returnID, map[string]string{sku: "Sellable"}, "qc1", map[string]string{sku: exchSKU}); err == nil {
+	_, _, err = ApplyReturnQC(tenantID, returnID, map[string]string{sku: "Sellable"}, "qc1", map[string]string{sku: exchSKU})
+	if err == nil {
 		t.Fatal("expected ApplyReturnQC to refuse an exchange with insufficient ATS")
+	}
+	// 267.2: the refusal is shown to the inspector as it is - plain words that
+	// name the item and the store, not "ATS".
+	if msg := err.Error(); !strings.Contains(msg, exchSKU+" is not stocked at "+location) || strings.Contains(msg, "ATS") {
+		t.Errorf("refusal should say %s is not stocked at %s in plain words, got %q", exchSKU, location, msg)
+	}
+	// An unknown item is refused by name too, and still leaves the return Received.
+	if _, _, err := ApplyReturnQC(tenantID, returnID, map[string]string{sku: "Sellable"}, "qc1", map[string]string{sku: "SKU-EXC-NO-SUCH"}); err == nil ||
+		!strings.Contains(err.Error(), "SKU-EXC-NO-SUCH cannot be given in exchange: it is not an active item") {
+		t.Errorf("an unknown exchange item should be refused by name, got %v", err)
 	}
 
 	var origAvailable sql.NullInt64
@@ -284,6 +316,95 @@ func TestApplyReturnQCExchangeInsufficientStockRollsBack(t *testing.T) {
 	}
 	if status != "Received" {
 		t.Errorf("a rolled-back QC call must leave the return request Received (unchanged), got %q", status)
+	}
+}
+
+// TestApplyReturnQCExchangeDifferentPriceRefused covers 267.10: an exchange at
+// inspection moves no money, so an item the till sells at a price other than
+// what the customer paid - dearer or cheaper - is refused by name, pointing at
+// the till's Exchange, and nothing moves: no stock either way, no ledger, the
+// return stays Received. The same item at the paid price still swaps.
+func TestApplyReturnQCExchangeDifferentPriceRefused(t *testing.T) {
+	spInitDB()
+	tenantID := "default"
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const (
+		cartID   = "PC-EXC-TEST-267-10"
+		location = "LOC-EXC-TEST-267-10"
+		sku      = "SKU-EXC-267-10-ORIG"
+		dearer   = "SKU-EXC-267-10-DEARER"
+		cheaper  = "SKU-EXC-267-10-CHEAPER"
+	)
+	cleanup := func() {
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'POSCart' AND id = $1", cartID)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'Item' AND id IN ($1, $2)", dearer, cheaper)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku IN ($1, $2, $3)", sku, dearer, cheaper)
+	}
+	cleanup()
+	defer cleanup()
+
+	for code, price := range map[string]float64{dearer: 650, cheaper: 400} {
+		itemData, _ := json.Marshal(map[string]interface{}{"code": code, "name": "Exchange " + code, "status": "Active", "sale_price": price, "hsn_code": "6109", "gst_rate": 5.0})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", code, itemData); err != nil {
+			t.Fatalf("seed Item %s: %v", code, err)
+		}
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 5, 5)", code, location); err != nil {
+			t.Fatalf("seed stock %s: %v", code, err)
+		}
+	}
+	cartData, _ := json.Marshal(map[string]interface{}{
+		"items": []map[string]interface{}{{"sku": sku, "qty": 1, "sale_price": 500.0, "cost_price": 300.0}},
+	})
+	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')", cartID, cartData); err != nil {
+		t.Fatalf("seed POSCart: %v", err)
+	}
+	returnID, err := CreateReturnRequest(tenantID, "Customer Return", location, cartID, "", "tester", []ReturnItemInput{{SKU: sku, Qty: 1}})
+	if err != nil {
+		t.Fatalf("CreateReturnRequest: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", returnID)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".gl_postings WHERE document_type = 'ReturnRequest' AND document_id = $1", returnID)
+	})
+	if err := ApproveReturnRequest(tenantID, returnID, "approver1"); err != nil {
+		t.Fatalf("ApproveReturnRequest: %v", err)
+	}
+	if err := ReceiveReturnRequest(tenantID, returnID, "warehouse1"); err != nil {
+		t.Fatalf("ReceiveReturnRequest: %v", err)
+	}
+
+	for code, want := range map[string]string{dearer: "sells at 650.00 but the customer paid 500.00", cheaper: "sells at 400.00 but the customer paid 500.00"} {
+		_, _, err := ApplyReturnQC(tenantID, returnID, map[string]string{sku: "Sellable"}, "qc1", map[string]string{sku: code})
+		if err == nil {
+			t.Fatalf("an exchange for %s at a different price was accepted", code)
+		}
+		if msg := err.Error(); !strings.Contains(msg, code+" "+want) || !strings.Contains(msg, "More… → Exchange") {
+			t.Errorf("refusal for %s should name both prices and the till's Exchange, got %q", code, msg)
+		}
+		var left int
+		if err := db.DB.QueryRow("SELECT available FROM "+schema+".inventory_availability WHERE sku = $1 AND location_code = $2", code, location).Scan(&left); err != nil {
+			t.Fatal(err)
+		}
+		if left != 5 {
+			t.Errorf("a refused exchange must not issue %s: available %d, want 5", code, left)
+		}
+	}
+	var origAvailable sql.NullInt64
+	_ = db.DB.QueryRow("SELECT available FROM "+schema+".inventory_availability WHERE sku = $1 AND location_code = $2", sku, location).Scan(&origAvailable)
+	if origAvailable.Valid && origAvailable.Int64 != 0 {
+		t.Errorf("a refused exchange must not receive the returned item either: available=%v", origAvailable)
+	}
+	var status string
+	var postings int
+	if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", returnID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".gl_postings WHERE document_type = 'ReturnRequest' AND document_id = $1", returnID).Scan(&postings)
+	if status != "Received" || postings != 0 {
+		t.Errorf("a refused exchange leaves the return Received with no ledger: status %q, postings %d", status, postings)
 	}
 }
 

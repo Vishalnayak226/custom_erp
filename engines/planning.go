@@ -143,16 +143,14 @@ func replenishmentSuggestions(tenantID, locationCode string, defaultLeadTimeDays
 		return resolveReorderLimits(schema, sku, locationCode)
 	}
 	var suggestions []ReplenishmentSuggestion
+	velocities, _ := SalesVelocityAt(tenantID, locationCode, 30) // 273.1: one read, not one per SKU; a failed read is zero velocity, as before
 	for rows.Next() {
 		var sku string
 		var available, inward, qcPending int
 		if err := rows.Scan(&sku, &available, &inward, &qcPending); err != nil {
 			continue
 		}
-		velocity, verr := CalculateSalesVelocity(tenantID, locationCode, sku, 30)
-		if verr != nil {
-			velocity = 0.0
-		}
+		velocity := velocities[sku]
 		leadTimeDays, safetyStock := defaultLeadTimeDays, defaultSafetyStock
 		if !useConfig {
 		} else if configuredLeadTime, configuredSafety, found := resolveReorderPointConfig(tenantID, sku, locationCode); found {

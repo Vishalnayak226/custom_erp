@@ -1,0 +1,48 @@
+<h1 id="how-buying-works">How buying works <a class="kb-anchor" href="#how-buying-works" aria-label="Copy link to this section">#</a></h1>
+<p>One purchase, from the order to the payment. Click <strong>Next</strong> or press the arrow keys. The lit box is where the step happens.</p>
+<pre><code class="language-steps">diagram: PO=Purchase order, GRN=Goods receipt, STOCK=Stock, BILL=Vendor bill, PAY=Payment
+links: PO&gt;GRN, GRN&gt;STOCK, GRN&gt;BILL, BILL&gt;PAY
+
+## Raise the purchase order
+The buyer picks the vendor and the items on Procurement › Purchase Order and saves a draft.
+A purchase order moves no stock and posts nothing to the books.
+Tip: Already know the vendor? Skip the requisition and the RFQ and start here.
+show: PO
+
+## Get it approved
+Submitting sends the order for approval by its amount: by default a Store Manager up to ₹49,999 and a Super Admin from ₹50,000.
+Nothing can be received against an order still waiting for approval.
+Tip: An amended order goes back for approval before more goods can be received.
+show: PO
+
+## Receive the goods
+When the cartons arrive, Procurement › Goods Receipt loads the vendor&#39;s open orders; key what arrived and the vendor&#39;s invoice number, date and total.
+Saving the receipt still posts nothing.
+Tip: Scanning an item already on the receipt counts one more.
+show: PO&gt;GRN, GRN
+
+## Verify and price
+Verify records what is really in hand, what was rejected or damaged, and the agreed price.
+Each line is then checked against its last purchase price, so a new item or a changed price is seen before it posts.
+Tip: When everything matches, Post all runs verify, price check and posting in one go.
+show: GRN
+
+## Post: stock goes in
+Posting puts the goods into stock at the receipt price, with the MRP on the batch.
+The books take Inventory (1200) up, and GRN Suspense (2100), what you owe the vendor, up by the same amount.
+Tip: Only a posted goods receipt changes stock, never the purchase order.
+show: GRN&gt;STOCK, STOCK
+
+## The vendor bill
+Posting the last part makes the vendor bill from the invoice keyed at Receive, with a debit or credit note for any gap between their bill and your count.
+A bill recorded by hand is matched against its order and receipt, within 2% by default.
+Tip: A bill further off than that waits on hold until someone overrides it with a reason.
+show: GRN&gt;BILL, BILL
+
+## Pay
+Pay part or all of the bill by bank, UPI, cheque or cash, with TDS withheld where it applies.
+Paying clears GRN Suspense (2100) against Cash/Bank (1100); the TDS goes to TDS Payable (2300).
+Tip: Not paying today? Leave it in Payables; the Payables Ageing report shows what falls due.
+show: BILL&gt;PAY, PAY</code></pre>
+<h2 id="where-to-read-more">Where to read more <a class="kb-anchor" href="#where-to-read-more" aria-label="Copy link to this section">#</a></h2>
+<ul><li>Each screen, step by step: <a href="/help/procurement">Procurement</a>.</li><li>The accounts and the ledger: <a href="/help/finance-tax">Finance and tax</a>.</li><li>The other half of the business: <a href="/help/how-a-sale-works">How a sale works</a>.</li></ul>

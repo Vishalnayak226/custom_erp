@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/brainmap",
   "generator_version": "stage48-v1",
-  "release": "0.29.0",
+  "release": "0.30.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "docs/brain/brain-map.md",
-      "sha256": "0dfcec01eafb44bef2a2b49922c272543a7ec6923eb46ef46339295c91263963",
+      "sha256": "d00c015a3f6a1fc59bc5f3951e2ef1485bafa739ecc24f231c0971c0e15bfc37",
       "sources": [
         "docs/brain/brain.map.json",
         "graphify-out/graph.json",
@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/brain/brain.html",
-      "sha256": "4722d36f9c724576c0461687ff50acdc35552dc181347e931a026205a4f4b66f",
+      "sha256": "129cc2d13b75879004c045b2aff7052ec068df9ceb669061f482377ab32b914d",
       "sources": [
         "docs/brain/brain.map.json",
         "graphify-out/graph.json",

@@ -1,10 +1,10 @@
 // Stage 101.5 / 101.11.3 / 101.12: the CRM's service pages - the WhatsApp
-// inbox, tickets, feedback (and referrals), and the store worklist (tasks,
+// inbox, tickets, feedback, referrals, and the store worklist (tasks,
 // appointments, hold requests). Loaded by view-crm.js; its helpers are
 // globals published by the shell's loader.
 
 export async function crmRenderTab(tab, host, st) {
-  const pages = { inbox: crmInbox, tickets: crmTickets, feedback: crmFeedback, worklist: crmWorklist };
+  const pages = { inbox: crmInbox, tickets: crmTickets, feedback: crmFeedback, referrals: crmReferrals, worklist: crmWorklist };
   return pages[tab](host, st);
 }
 
@@ -140,37 +140,43 @@ async function crmTicket(host, id) {
   });
 }
 
-// --- feedback and referrals -----------------------------------------------------
+// --- feedback, then referrals ----------------------------------------------------
 
 async function crmFeedback(host, st) {
   if (st.page === 'survey') return crmSurveyEdit(host, st.params.id);
   if (st.page === 'summary') return crmSurveySummary(host, st.params.id);
   const body = crmFrame(host, { title: 'Feedback', actions: crmMeta.can_manage ? '<button class="btn btn-primary" type="button" id="sv-new">+ New survey</button>' : '' });
   host.querySelector('#sv-new')?.addEventListener('click', () => crmGo('feedback', 'survey', {}));
-  const [r, refs] = await Promise.all([crmApi('surveys'), crmApi('referrals')]);
+  const r = await crmApi('surveys');
   if (!r) return;
   body.innerHTML = crmTable([{ label: 'Survey', html: s => `<a href="#" data-sv="${crmEsc(s.id)}">${crmEsc(s.name)}</a><small class="crm-sub">${crmEsc(s.question)}</small>` },
     { label: 'On', html: s => s.enabled ? crmChip('On', 'ok') : crmChip('Off', 'muted') }, { label: 'Scale', html: s => s.scale === 'nps' ? '0-10 (NPS)' : '1-5 rating' }, { label: 'By', key: 'channel' },
     { label: '', html: s => `<button class="action-btn" data-sum="${crmEsc(s.id)}">Results</button>` }], r.surveys,
-    { empty: 'No survey yet. Journeys > Add the ready-made journeys adds "After a bill" (off until you switch it on).' }) +
-    `<h3 class="crm-section">Referrals</h3>
-    <form class="crm-form crm-form-inline" id="rf-form">${crmField('rf-f', 'New customer (the friend)', crmInput('rf-f'))}${crmField('rf-c', 'Referral code they gave', crmInput('rf-c'))}<button class="btn btn-outline" type="submit">Record</button></form>
+    { empty: 'No survey yet. Journeys > Add the ready-made journeys adds "After a bill" (off until you switch it on).' });
+  body.querySelectorAll('[data-sv]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); crmGo('feedback', 'survey', { id: a.dataset.sv }); }));
+  body.querySelectorAll('[data-sum]').forEach(b => b.addEventListener('click', () => crmGo('feedback', 'summary', { id: b.dataset.sum })));
+}
+
+// 288.2: referrals are their own page (crm:referrals), no longer under Feedback.
+async function crmReferrals(host, st) {
+  const body = crmFrame(host, { title: 'Referrals' });
+  const refs = await crmApi('referrals');
+  if (!refs) return;
+  body.innerHTML = `<form class="crm-form crm-form-inline" id="rf-form">${crmField('rf-f', 'New customer (the friend)', crmInput('rf-f'))}${crmField('rf-c', 'Referral code they gave', crmInput('rf-c'))}<button class="btn btn-outline" type="submit">Record</button></form>
     ${crmTable([{ label: 'Referred by', html: x => crmCustLink(x.referrer_id, x.referrer_name) }, { label: 'Friend', html: x => crmCustLink(x.friend_id, x.friend_name) }, { label: 'Code', key: 'code' },
       { label: 'Status', html: x => crmStatus(x.status) + (x.flag_reason ? `<small class="crm-reason">${crmEsc(x.flag_reason)}</small>` : '') },
       { label: 'Reward on', html: x => x.qualifies_on ? crmDate(x.qualifies_on) : 'after the first bill' }, { label: 'Points', key: 'reward_points', num: true },
       { label: '', html: x => x.status === 'Flagged' && crmMeta.can_manage ? `<button class="action-btn" data-rf="${crmEsc(x.id)}" data-ok="1">Allow</button> <button class="action-btn" data-rf="${crmEsc(x.id)}" data-ok="0">Cancel</button>` : '' }],
-      (refs || {}).referrals || [], { empty: 'No referrals yet. A customer\'s code is on their customer page.' })}`;
-  body.querySelectorAll('[data-sv]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); crmGo('feedback', 'survey', { id: a.dataset.sv }); }));
-  body.querySelectorAll('[data-sum]').forEach(b => b.addEventListener('click', () => crmGo('feedback', 'summary', { id: b.dataset.sum })));
+      refs.referrals || [], { empty: 'No referrals yet. A customer\'s code is on their customer page.' })}`;
   crmWireCust(body);
   const friend = crmCustomerPicker(body.querySelector('#rf-f'));
   body.querySelector('#rf-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const x = await crmApi('referrals', { method: 'POST', body: { friend_id: friend(), code: crmVal(body, 'rf-c') } });
-    if (x) { showToast(x.status === 'Flagged' ? 'Recorded, but flagged: ' + x.flag_reason : 'Recorded. The reward follows the friend\'s first bill.', { variant: x.status === 'Flagged' ? 'warning' : 'success' }); crmFeedback(host, st); }
+    if (x) { showToast(x.status === 'Flagged' ? 'Recorded, but flagged: ' + x.flag_reason : 'Recorded. The reward follows the friend\'s first bill.', { variant: x.status === 'Flagged' ? 'warning' : 'success' }); crmReferrals(host, st); }
   });
   body.querySelectorAll('[data-rf]').forEach(b => b.addEventListener('click', async () => {
-    if (await crmApi(`referrals/${encodeURIComponent(b.dataset.rf)}/decide`, { method: 'POST', body: { approve: b.dataset.ok === '1' } })) crmFeedback(host, st);
+    if (await crmApi(`referrals/${encodeURIComponent(b.dataset.rf)}/decide`, { method: 'POST', body: { approve: b.dataset.ok === '1' } })) crmReferrals(host, st);
   }));
 }
 

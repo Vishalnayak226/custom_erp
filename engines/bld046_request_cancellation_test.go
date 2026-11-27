@@ -84,10 +84,11 @@ func cancellationTestTenant(t *testing.T) (tenantID, schema string) {
 
 // TestBLD046CancellationReportPath covers the report leg. The report path is
 // the one where cancellation is prompt rather than complete: the abandoned
-// run's own query is left to finish and be discarded (see
+// run's own Go code is left to finish and be discarded (see
 // RunReportContext's comment for why that is deliberate), so what is
 // asserted is that the CALLER is released immediately and that no
-// already-cancelled request ever starts a run at all.
+// already-cancelled request ever starts a run at all. Since 283.3 the run's
+// queries do stop in Postgres (TestReportRunAbandonedQueryStopsInPostgres).
 func TestBLD046CancellationReportPath(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		tenantID, _ := cancellationTestTenant(t)

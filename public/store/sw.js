@@ -7,8 +7,8 @@
 // Stage 102.1.3: it also shows push alerts (approvals, low stock) when the app
 // is closed, and opens the right screen when one is tapped. Stage 102.3.3: the
 // count screen's module is kept too, so a count can be done offline.
-const CACHE = 'store-app-v2';
-const SHELL = ['./', 'store.css?v=2', 'store.js?v=2', 'store-stock.js?v=2', 'manifest.json', 'icon.svg', 'icon-192.png', 'apple-touch-icon.png'];
+const CACHE = 'store-app-v3';
+const SHELL = ['./', 'store.css?v=3', 'store.js?v=3', 'store-stock.js?v=3', 'manifest.json', 'icon.svg', 'icon-192.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

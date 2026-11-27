@@ -503,3 +503,4 @@ R5175	card-lines-unmatched	Card lines not matched	Expenses
 R7971	calibration-due	Instruments due for calibration	Quality
 R9062	own-approval-decisions	Own approval decisions	Admin
 R9063	declaration-gaps	Declaration gaps	PIM
+R1035	sold-below-cost	Sold below cost	Sales

@@ -7,6 +7,7 @@ const { txnPagedSection, txnRestorePane, txnDone, txnPageOf } = await import('./
 
 let currentHRTab = 'attendance';
 const HR_TABS = [
+  { id: 'home', label: 'Home' }, // 284.2 (ask 300): the module's tiles
   { id: 'attendance', label: 'Attendance' },
   { id: 'leave', label: 'Leave' },
   { id: 'payroll-export', label: 'Payroll Export' },
@@ -14,27 +15,49 @@ const HR_TABS = [
   { id: 'payroll', label: 'Payroll' },
   { id: 'loans', label: 'Loans/Advances' },
   { id: 'payroll-tax', label: 'Tax & Benefits' },
+  { id: 'pf-ecr', label: 'PF ECR' },
+  { id: 'form-24q', label: 'Form 24Q' },
+  { id: 'arrears', label: 'Salary arrears' },
   { id: 'onboarding', label: 'Onboarding/Offboarding' },
   { id: 'appraisals', label: 'Appraisals' },
   { id: 'calibration', label: 'Calibration' },
+  { id: 'rating-spread', label: 'Rating spread' },
   { id: 'training', label: 'Training' },
   { id: 'grievances', label: 'Grievances' },
   { id: 'people', label: 'People' },
+  { id: 'certificates', label: 'Certificates expiring' },
+  { id: 'accept-offer', label: 'Accept offer' },
+  { id: 'onboarding-login', label: 'Login from onboarding' },
   { id: 'my-requests', label: 'My Requests' }
 ];
 // Stage 55.14: the doctype each tab reads, for hiding what a role cannot open.
 const HR_TAB_DOCTYPE = {
   attendance: 'Attendance', leave: 'Leave', roster: 'ShiftAssignment', payroll: 'Payslip',
   'payroll-export': 'Payslip', loans: 'EmployeeLoan', onboarding: 'OnboardingChecklist',
-  calibration: 'Appraisal', 'payroll-tax': 'Payslip', appraisals: 'Appraisal', training: 'TrainingRecord', grievances: 'Grievance', people: 'Employee'
+  calibration: 'Appraisal', 'payroll-tax': 'Payslip', appraisals: 'Appraisal', training: 'TrainingRecord', grievances: 'Grievance', people: 'Employee',
+  // 288.2: the pages split out of Calibration, Tax & Benefits and People.
+  'rating-spread': 'Appraisal', 'pf-ecr': 'Payslip', 'form-24q': 'Payslip', arrears: 'Payslip',
+  certificates: 'TrainingRecord', 'accept-offer': 'JobOffer', 'onboarding-login': 'OnboardingChecklist',
+  home: 'ExpenseClaim' // HRM home holds the expense claim tiles (284.2)
 };
 // Payroll runs, exports and loans are the hr.payroll capability's (the server
 // refuses every one of their commands without it).
-const HR_PAYROLL_TABS = ['payroll', 'payroll-export', 'loans', 'payroll-tax'];
+const HR_PAYROLL_TABS = ['payroll', 'payroll-export', 'loans', 'payroll-tax', 'pf-ecr', 'form-24q', 'arrears'];
+// Making a login is an admin's job (the server refuses anyone else).
+const HR_ADMIN_TABS = ['onboarding-login'];
 const hrCanRunPayroll = () => state.permissions.isAdmin || state.permissions.capabilities.has('hr.payroll');
 // Stage 151: each tab is its own HRM sidebar entry ("hr:<tab>"), so the tab strip is gone.
 const hrMenuId = tab => tab === 'my-requests' ? 'menu-hr' : `menu-hr-${tab}`;
 const hrReload = () => renderView(`hr:${currentHRTab}`);
+// 288.2: the pages view-hr-pay-extras.js and view-hr-people.js draw, by tab.
+const HR_EXTRA_PAGES = {
+  calibration: 'renderCalibrationTab', 'rating-spread': 'renderRatingSpreadTab', 'payroll-tax': 'renderTaxBenefitsTab',
+  'pf-ecr': 'renderPFECRTab', 'form-24q': 'renderForm24QTab', arrears: 'renderSalaryArrearsTab'
+};
+const HR_PEOPLE_PAGES = {
+  people: 'renderHRPeopleTab', certificates: 'renderHRCertificatesTab',
+  'accept-offer': 'renderHRAcceptOfferTab', 'onboarding-login': 'renderHROnboardingLoginTab'
+};
 
 async function renderHRView(container) {
   if (currentViewTab) currentHRTab = currentViewTab;
@@ -50,16 +73,21 @@ async function renderHRView(container) {
   // Stage 55.14: only a tab this role can actually read (no page that opens
   // on a permission error) - a link to one it cannot falls back to the first it can.
   const visible = HR_TABS.filter(t => (!HR_TAB_DOCTYPE[t.id] || canReadDoctype(HR_TAB_DOCTYPE[t.id]))
-    && (!HR_PAYROLL_TABS.includes(t.id) || hrCanRunPayroll()));
+    && (!HR_PAYROLL_TABS.includes(t.id) || hrCanRunPayroll())
+    && (!HR_ADMIN_TABS.includes(t.id) || state.permissions.isAdmin));
   if (!visible.some(t => t.id === currentHRTab)) currentHRTab = (visible[0] || HR_TABS[HR_TABS.length - 1]).id;
   currentViewTab = currentHRTab;
   setActiveMenu(hrMenuId(currentHRTab));
+  if (currentHRTab === 'home') header.querySelector('.page-title').textContent = 'HRM home';
 
   // Stage 30.5.8: the whole Employee list used to be fetched here, on every
   // HR tab render, purely to build <option>s - including for the eight tabs
   // that never showed an employee picker at all. The pickers are typeaheads
   // now and fetch what they need on demand, so the eager list is gone.
-  if (currentHRTab === 'attendance') {
+  if (currentHRTab === 'home') {
+    const exp = await import('./view-expenses.js' + new URL(import.meta.url).search);
+    if (!(await exp.renderExpenseHomeTiles(container))) renderErrorPanel(container, 'Failed to load HRM home.', hrReload);
+  } else if (currentHRTab === 'attendance') {
     await renderAttendanceTab(container);
   } else if (currentHRTab === 'leave') {
     await renderLeaveTab(container);
@@ -81,18 +109,19 @@ async function renderHRView(container) {
     // template) is a Master, managed under Setup like every other master -
     // this tab is the per-employee Appraisal transactions against it.
     await renderAppraisalsTab(container);
-  } else if (currentHRTab === 'calibration' || currentHRTab === 'payroll-tax') {
-    // Ask 170 group F: view-hr-pay-extras.js
+  } else if (HR_EXTRA_PAGES[currentHRTab]) {
+    // Ask 170 group F: view-hr-pay-extras.js (288.2: one page per job)
     const extras = await import('./view-hr-pay-extras.js' + new URL(import.meta.url).search);
-    await (currentHRTab === 'calibration' ? extras.renderCalibrationTab(container) : extras.renderTaxBenefitsTab(container));
+    await extras[HR_EXTRA_PAGES[currentHRTab]](container);
   } else if (currentHRTab === 'training') {
     // TrainingProgram is a Master (managed under Setup); this tab is the
     // per-employee enrolment/completion records against it.
     await renderTrainingTab(container);
   } else if (currentHRTab === 'grievances') {
     await renderGrievancesTab(container);
-  } else if (currentHRTab === 'people') {
-    await (await import('./view-hr-people.js' + new URL(import.meta.url).search)).renderHRPeopleTab(container);
+  } else if (HR_PEOPLE_PAGES[currentHRTab]) {
+    const people = await import('./view-hr-people.js' + new URL(import.meta.url).search);
+    await people[HR_PEOPLE_PAGES[currentHRTab]](container);
   } else if (currentHRTab === 'my-requests') {
     await renderMyRequestsTab(container);
   }
@@ -162,7 +191,7 @@ ${employeePickerField('att-employee', '200px')}
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="5" class="s-306094">No attendance records yet. Click <b>+ Mark Attendance</b> to record one.</td></tr>`
+    ? `<tr><td colspan="5" class="s-306094">No attendance records yet.</td></tr>`
     : records.map(r => `
         <tr>
           <td class="s-355794">${hrEsc(r.code || r.id)}</td>
@@ -260,7 +289,7 @@ ${employeePickerField('leave-employee', '200px')}
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="8" class="s-306094">No leave applications yet. Click <b>+ Apply Leave</b> to record one on an employee's behalf.</td></tr>`
+    ? `<tr><td colspan="8" class="s-306094">No leave applications yet.</td></tr>`
     : records.map(r => `
         <tr>
           <td class="s-355794">${hrEsc(r.code || r.id)}</td>
@@ -502,7 +531,7 @@ ${employeePickerField('payroll-run-employee', '200px')}
   const dedParts = p => [['PF', p.pf_deduction], ['ESI', p.esi_deduction], ['PT', p.pt_deduction], ['TDS', p.tds_deduction], ['Loan', p.loan_deduction], ['LWF', p.lwf_deduction], ['Benefits', p.benefit_deductions]]
     .filter(([, v]) => Number(v) > 0);
   html += payslips.length === 0
-    ? `<tr><td colspan="8" class="s-306094">No payslips yet. Click <b>+ Run Payroll</b> &mdash; each employee needs a Salary Structure first.</td></tr>`
+    ? `<tr><td colspan="8" class="s-306094">No payslips yet.</td></tr>`
     : payslips.map(p => `
         <tr>
           <td class="s-355794">${hrEsc(p.code || p.id)}</td>
@@ -617,7 +646,7 @@ ${employeePickerField('loan-employee', '200px')}
       <tbody>
   `;
   html += loans.length === 0
-    ? `<tr><td colspan="7" class="s-306094">No loans yet. Click <b>+ New Loan/Advance</b>, then <b>Disburse</b> it here to post it to the ledger.</td></tr>`
+    ? `<tr><td colspan="7" class="s-306094">No loans yet.</td></tr>`
     : loans.map(l => `
         <tr>
           <td class="s-355794">${hrEsc(l.code || l.id)}</td>
@@ -835,7 +864,7 @@ async function renderMyRequestsTab(container) {
         ${myLeaves.map(l => `<tr><td>Leave</td><td>${hrEsc(l.leave_type)} ${hrEsc(l.from_date)} to ${hrEsc(l.to_date)}</td><td><span class="badge badge-secondary">${hrEsc(l.status)}</span></td></tr>`).join('')}
         ${myExpenses.map(e => `<tr><td>Expense</td><td>${hrEsc(e.category)} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${hrEsc(e.status)}</span></td></tr>`).join('')}
         ${myGrievances.map(g => `<tr><td>Grievance</td><td>${hrEsc(g.category || '')} ${hrEsc(g.description || '')}${g.resolution_notes ? `<div class="text-muted">Resolution: ${hrEsc(g.resolution_notes)}</div>` : ''}</td><td><span class="badge badge-secondary">${hrEsc((HR_GRV_STATE[g.status] || [g.status])[0])}</span></td></tr>`).join('')}
-        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" class="s-306094">No requests submitted yet. Use <b>+ Request Leave</b>, <b>+ Expense Claim</b> or <b>+ Grievance</b>.</td></tr>` : ''}
+        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" class="s-306094">No requests yet.</td></tr>` : ''}
       </tbody>
     </table>
   `;
@@ -1141,7 +1170,7 @@ async function renderOnboardingTab(container) {
   const drawList = () => {
     const rows = records.filter(r => (!hrOnbFilter.type || r.checklist_type === hrOnbFilter.type) && (!hrOnbFilter.status || r.status === hrOnbFilter.status));
     const empty = records.length === 0
-      ? (canCreate ? 'No onboarding or offboarding checklists yet. Click <b>+ New checklist</b> to start one for an employee.' : 'No onboarding or offboarding checklist has been started for you.')
+      ? (canCreate ? 'No checklists yet.' : 'No onboarding or offboarding checklist has been started for you.')
       : 'No checklist matches these filters.';
     listPanel.innerHTML = `<div class="hr-bar">
         ${hrSelect('hr-onb-ftype', 'Type', [['', 'All'], ['Onboarding', 'Onboarding'], ['Offboarding', 'Offboarding']], hrOnbFilter.type, '150px')}
@@ -1381,7 +1410,7 @@ async function renderAppraisalsTab(container) {
     </div>
     ${cycle ? `<div class="hr-muted hr-pad">${mine ? '' : `KRAs: ${kras.length ? kras.map(k => `${hrEsc(k.kra)} (${hrEsc(k.weight)})`).join(', ') : 'none set on this cycle'} · `}${counts}</div>` : ''}
     <table><thead><tr><th>Employee</th><th>Department</th><th>Status</th><th>Overall</th><th>Appraisal</th><th></th></tr></thead><tbody>
-    ${!cycle ? `<tr><td colspan="6" class="s-306094">${mine ? 'No appraisal of yours has been started yet.' : canCreateDoctype('AppraisalCycle') ? 'No appraisal cycles yet. Use <b>Manage cycles</b> to set one up with its KRAs.' : 'No appraisal cycle has been set up yet.'}</td></tr>`
+    ${!cycle ? `<tr><td colspan="6" class="s-306094">${mine ? 'No appraisal of yours has been started yet.' : canCreateDoctype('AppraisalCycle') ? 'No appraisal cycles yet.' : 'No appraisal cycle has been set up yet.'}</td></tr>`
       : shown.length === 0 ? `<tr><td colspan="6" class="s-306094">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'No appraisal of yours in this cycle yet.') : 'No employee matches this status.'}</td></tr>`
       : shown.map(r => {
         const [label, kind] = HR_APR_STATE[stateOf(r)] || [stateOf(r), 'secondary'];
@@ -1590,7 +1619,7 @@ async function renderTrainingTab(container) {
     </div>
     ${program ? `<div class="hr-muted hr-pad">${program.description ? `${hrEsc(program.description)} · ` : ''}${Object.keys(HR_TRN_STATE).map(s => `${HR_TRN_STATE[s][0]} ${rows.filter(r => stateOf(r) === s).length}`).join(' · ')}</div>` : ''}
     <table><thead><tr>${canCreate ? '<th class="s-82b9d8"></th>' : ''}<th>Employee</th><th>Department</th><th>Status</th><th>Completed on</th><th>Score</th><th></th></tr></thead><tbody>
-    ${!program ? `<tr><td colspan="7" class="s-306094">${mine ? 'You are not enrolled in any training yet.' : canCreateDoctype('TrainingProgram') ? 'No training programs yet. Use <b>Manage programs</b> to add one.' : 'No training program has been set up yet.'}</td></tr>`
+    ${!program ? `<tr><td colspan="7" class="s-306094">${mine ? 'You are not enrolled in any training yet.' : canCreateDoctype('TrainingProgram') ? 'No training programs yet.' : 'No training program has been set up yet.'}</td></tr>`
       : shown.length === 0 ? `<tr><td colspan="7" class="s-306094">${rows.length === 0 ? (canCreate ? 'No active employees in your scope.' : 'You are not enrolled in this program.') : 'No employee matches this status.'}</td></tr>`
       : shown.map(row => {
         const [label, kind] = HR_TRN_STATE[stateOf(row)] || [stateOf(row), 'secondary'];

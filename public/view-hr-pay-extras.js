@@ -1,4 +1,6 @@
-// Ask 170 group F (170.22-170.25): the Calibration and Tax & Benefits HR tabs.
+// Ask 170 group F (170.22-170.25): the Calibration and Tax & Benefits HR pages.
+// 288.2: each job is its own page - Calibration and Rating spread; Tax &
+// Benefits (its setup lists), PF ECR, Form 24Q and Salary arrears.
 // A native ES module loaded by view-hr.js on first use; shared app services
 // (apiFetch, showApiError, escapeHTMLText, openSetupDoctype) come from the shell.
 
@@ -19,32 +21,30 @@ const title = (container, text) => {
 
 let calCycleId = '';
 
-export async function renderCalibrationTab(container) {
-  title(container, 'Calibration');
+// The appraisal-cycle picker both calibration pages share; load(body) runs on a change.
+async function cyclePanel(container, load) {
   const cycles = await getJSON('/api/v1/doc/AppraisalCycle?limit=1000', []);
   if (!cycles.some(c => c.id === calCycleId)) calCycleId = (cycles.find(c => c.status === 'Active') || cycles[0] || {}).id || '';
   const panel = document.createElement('div');
   panel.className = 'table-panel';
-  panel.innerHTML = `<div class="toolbar"><select id="cal-cycle" class="form-select s-0fff9b">${cycles.map(c => `<option value="${esc(c.id)}"${c.id === calCycleId ? ' selected' : ''}>${esc(c.code || c.id)}${c.status ? ' · ' + esc(c.status) : ''}</option>`).join('')}</select></div><div id="cal-body"></div>`;
+  panel.innerHTML = `<div class="toolbar"><select id="cal-cycle" class="form-select s-0fff9b" aria-label="Appraisal cycle">${cycles.map(c => `<option value="${esc(c.id)}"${c.id === calCycleId ? ' selected' : ''}>${esc(c.code || c.id)}${c.status ? ' · ' + esc(c.status) : ''}</option>`).join('')}</select></div><div id="cal-body"></div>`;
   container.appendChild(panel);
-  panel.querySelector('#cal-cycle').addEventListener('change', e => { calCycleId = e.target.value; load(); });
   const body = panel.querySelector('#cal-body');
+  const run = async () => { if (calCycleId) await load(body); else body.innerHTML = '<p>No appraisal cycle.</p>'; };
+  panel.querySelector('#cal-cycle').addEventListener('change', e => { calCycleId = e.target.value; run(); });
+  await run();
+}
 
-  async function load() {
-    if (!calCycleId) { body.innerHTML = '<p>No appraisal cycle.</p>'; return; }
-    const [spread, appraisals] = await Promise.all([
-      getJSON(`/api/v1/hr/appraisal-cycles/${encodeURIComponent(calCycleId)}/rating-spread`, { spread: [] }),
-      getJSON(`/api/v1/doc/Appraisal?cycle_id=${encodeURIComponent(calCycleId)}&limit=1000`, [])]);
-    const band = (arr) => arr.map(n => `<td>${n}</td>`).join('');
-    const spreadRows = (spread.spread || []).map(r => `<tr><td>${esc(r.department)}</td>${band(r.original)}${band(r.calibrated)}<td>${r.unrated}</td></tr>`).join('');
+export async function renderCalibrationTab(container) {
+  title(container, 'Calibration');
+  const load = async (body) => {
+    const appraisals = await getJSON(`/api/v1/doc/Appraisal?cycle_id=${encodeURIComponent(calCycleId)}&limit=1000`, []);
     const apRows = appraisals.filter(a => a.status === 'Approved').map(a => `<tr data-id="${esc(a.id)}">
       <td>${esc(a.employee_id)}</td><td>${esc(a.overall_rating ?? '')}</td><td>${esc(a.calibrated_rating ?? '')}</td><td>${esc(a.calibration_reason ?? '')}</td>
       <td><input class="cal-rating hr-num70" type="number" min="1" max="5" step="0.5"></td>
       <td><input class="cal-reason hr-minw200" type="text" placeholder="Reason"></td>
       <td><button class="btn btn-primary cal-save">Calibrate</button></td></tr>`).join('');
-    body.innerHTML = `
-      <table class="data-table"><thead><tr><th>Department</th><th colspan="5">Original 1-5</th><th colspan="5">Calibrated 1-5</th><th>Unrated</th></tr></thead><tbody>${spreadRows || '<tr><td colspan="12">No ratings yet.</td></tr>'}</tbody></table>
-      <table class="data-table"><thead><tr><th>Employee</th><th>Original</th><th>Calibrated</th><th>Reason</th><th>New rating</th><th>Reason</th><th></th></tr></thead><tbody>${apRows || '<tr><td colspan="7">No approved appraisal.</td></tr>'}</tbody></table>`;
+    body.innerHTML = `<table class="data-table"><thead><tr><th>Employee</th><th>Original</th><th>Calibrated</th><th>Reason</th><th>New rating</th><th>Reason</th><th></th></tr></thead><tbody>${apRows || '<tr><td colspan="7">No approved appraisal.</td></tr>'}</tbody></table>`;
     body.querySelectorAll('.cal-save').forEach(btn => btn.addEventListener('click', async () => {
       const tr = btn.closest('tr');
       const res = await apiFetch(`/api/v1/hr/appraisals/${encodeURIComponent(tr.dataset.id)}/calibrate`, {
@@ -52,10 +52,20 @@ export async function renderCalibrationTab(container) {
         body: JSON.stringify({ rating: parseFloat(tr.querySelector('.cal-rating').value), reason: tr.querySelector('.cal-reason').value })
       });
       if (!res.ok) { await showApiError(res, 'The rating was not calibrated.', 'Not Calibrated'); return; }
-      load();
+      load(body);
     }));
-  }
-  await load();
+  };
+  await cyclePanel(container, load);
+}
+
+export async function renderRatingSpreadTab(container) {
+  title(container, 'Rating spread');
+  await cyclePanel(container, async (body) => {
+    const spread = await getJSON(`/api/v1/hr/appraisal-cycles/${encodeURIComponent(calCycleId)}/rating-spread`, { spread: [] });
+    const band = (arr) => arr.map(n => `<td>${n}</td>`).join('');
+    const rows = (spread.spread || []).map(r => `<tr><td>${esc(r.department)}</td>${band(r.original)}${band(r.calibrated)}<td>${r.unrated}</td></tr>`).join('');
+    body.innerHTML = `<table class="data-table"><thead><tr><th>Department</th><th colspan="5">Original 1-5</th><th colspan="5">Calibrated 1-5</th><th>Unrated</th></tr></thead><tbody>${rows || '<tr><td colspan="12">No ratings yet.</td></tr>'}</tbody></table>`;
+  });
 }
 
 // ---- Tax & Benefits ----------------------------------------------------------
@@ -71,35 +81,50 @@ async function download(url, name) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
-export async function renderTaxBenefitsTab(container) {
-  title(container, 'Tax & Benefits');
-  const now = new Date();
-  const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const fy = `${fyStart}-${String((fyStart + 1) % 100).padStart(2, '0')}`;
+const taxPanel = (container, name, html) => {
+  title(container, name);
   const panel = document.createElement('div');
   panel.className = 'table-panel';
-  panel.innerHTML = `
+  panel.innerHTML = html;
+  container.appendChild(panel);
+  return panel;
+};
+
+export async function renderTaxBenefitsTab(container) {
+  const panel = taxPanel(container, 'Tax & Benefits', `
     <div class="toolbar">
       ${['TaxSlab', 'TaxRegimeRule', 'LWFRate', 'BenefitPlan', 'BenefitEnrolment', 'SalaryRevision'].map(d => `<button class="btn" data-open="${d}">${esc(d.replace(/([a-z])([A-Z])/g, '$1 $2'))}</button>`).join(' ')}
-    </div>
-    <div class="toolbar"><strong>PF ECR</strong> <input id="tb-ecr-month" class="form-input s-0fff9b" type="month" value="${now.toISOString().slice(0, 7)}"> <button class="btn btn-primary" id="tb-ecr">Download</button></div>
-    <div class="toolbar"><strong>Form 24Q</strong>
-      <input id="tb-fy" class="form-input s-da190a" type="text" value="${fy}" aria-label="Financial year">
-      <select id="tb-q" class="form-select s-34deaa" aria-label="Quarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
-      <select id="tb-ann" class="form-select s-0fff9b" aria-label="Annexure"><option value="I">Annexure I</option><option value="II">Annexure II (Q4)</option></select>
-      <button class="btn btn-primary" id="tb-24q">Download</button></div>
-    <div class="toolbar"><strong>Arrears</strong> <input id="tb-rev" class="form-input s-0fff9b" type="text" placeholder="Revision id"> <button class="btn" id="tb-arrears">List</button></div>
-    <div id="tb-out"></div>`;
-  container.appendChild(panel);
+    </div>`);
   panel.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => window.openSetupDoctype(b.dataset.open)));
+}
+
+export async function renderPFECRTab(container) {
+  const now = new Date();
+  const panel = taxPanel(container, 'PF ECR', `<div class="toolbar"><input id="tb-ecr-month" class="form-input s-0fff9b" type="month" value="${now.toISOString().slice(0, 7)}" aria-label="Month"> <button class="btn btn-primary" id="tb-ecr">Download</button></div>`);
   panel.querySelector('#tb-ecr').addEventListener('click', () => {
     const m = panel.querySelector('#tb-ecr-month').value;
     download(`/api/v1/hr/pf-ecr?month=${encodeURIComponent(m)}`, `ECR-${m}.txt`);
   });
+}
+
+export async function renderForm24QTab(container) {
+  const now = new Date();
+  const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fy = `${fyStart}-${String((fyStart + 1) % 100).padStart(2, '0')}`;
+  const panel = taxPanel(container, 'Form 24Q', `<div class="toolbar">
+      <input id="tb-fy" class="form-input s-da190a" type="text" value="${fy}" aria-label="Financial year">
+      <select id="tb-q" class="form-select s-34deaa" aria-label="Quarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
+      <select id="tb-ann" class="form-select s-0fff9b" aria-label="Annexure"><option value="I">Annexure I</option><option value="II">Annexure II (Q4)</option></select>
+      <button class="btn btn-primary" id="tb-24q">Download</button></div>`);
   panel.querySelector('#tb-24q').addEventListener('click', () => {
     const f = panel.querySelector('#tb-fy').value, q = panel.querySelector('#tb-q').value, a = panel.querySelector('#tb-ann').value;
     download(`/api/v1/hr/form-24q?fin_year=${encodeURIComponent(f)}&quarter=${q}&annexure=${a}`, `Form24Q-${f}-${q}-${a}.csv`);
   });
+}
+
+export async function renderSalaryArrearsTab(container) {
+  const panel = taxPanel(container, 'Salary arrears', `<div class="toolbar"><input id="tb-rev" class="form-input s-0fff9b" type="text" placeholder="Revision id" aria-label="Revision id"> <button class="btn" id="tb-arrears">List</button></div>
+    <div id="tb-out"></div>`);
   panel.querySelector('#tb-arrears').addEventListener('click', async () => {
     const id = panel.querySelector('#tb-rev').value.trim();
     const res = await apiFetch(`/api/v1/hr/salary-revisions/${encodeURIComponent(id)}/arrears`);

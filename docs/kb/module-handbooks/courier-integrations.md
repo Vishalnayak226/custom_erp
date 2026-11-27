@@ -6,7 +6,7 @@ summary: Book a shipment, check serviceability, print a label, and track it to d
 audience: warehouse operator, admin
 last_verified: 2026-09-03
 screens: [doctype:courierservicearea, doctype:ndrcase, doctype:couriertrackingevent, doctype:manifest, oms]
-screen_sections: [oms=day-to-day-the-oms-pack-and-ship-pages]
+screen_sections: [oms=day-to-day-the-oms-pack-and-shipping-pages]
 doc_id: DOC-1512253FF0
 type: procedure
 status: draft
@@ -71,7 +71,7 @@ functions below are the real entry points, all in `engines/courier.go`:
     retry first asks the courier by the reference (Delhivery and
     Shiprocket can be asked) and adopts the AWB it finds, booking only if
     the courier has none. If the courier can't be asked, the retry is
-    refused with INTEGR-4718 until someone uses **Resolve** on OMS → Ship
+    refused with INTEGR-4718 until someone uses **Resolve** on OMS → Make manifest
     (enter the AWB from the courier's portal, or mark it not booked).
   - The database allows one AWB per courier per live booking and one live
     AWB per parcel.
@@ -133,11 +133,11 @@ field, checked against the `X-Courier-Signature` header at
 that resolves to `Delivered` calls `RecordDeliveryEvent`; one that resolves
 to a delivery failure opens or updates an `NDRCase` via `RecordNDR`; `RTO`
 calls `RecordRTO` — the same three functions the manual flow's own
-**In transit** / **Delivered** / **RTO** buttons (OMS → Ship, *On the way*) call by
+**In transit** / **Delivered** / **RTO** buttons (OMS → On the way) call by
 hand (see below), so a booking is not locked into "manual" or "automatic"
 forever — whichever one reports a status first wins.
 
-## Day to day: the OMS Pack and Ship pages
+## Day to day: the OMS Pack and shipping pages
 
 > [!WHAT]
 > **OMS → Pack** books the courier as part of **Pack, bill and label**. **OMS
@@ -155,8 +155,8 @@ forever — whichever one reports a status first wins.
 > over** to dispatch them.
 
 **OMS → Pack** books the courier as part of **Pack, bill and label**, and
-**OMS → Ship** (`view-oms-steps.js`) does the rest - what a warehouse
-actually uses today:
+the shipping pages (`view-oms-steps.js`, one job each since 288.2) do the
+rest - **Ship**, **Make manifest**, **Manifests** and **On the way**:
 
 > [!HOW]
 
@@ -174,14 +174,14 @@ actually uses today:
    (`WMSLOG-0137`, "logistics partner required"); a pincode with no
    serviceable row configured for it is refused as `WMSLOG-0138`
    ("AWB generation failed").
-2. **Manifests** group every AWB-assigned booking for one courier at one
-   location (**Make manifest**); **Gate pass** records the collecting vehicle;
+2. **Make manifest** groups every AWB-assigned booking for one courier at
+   one location; on **Manifests**, **Gate pass** records the collecting vehicle;
    **Hand over** dispatches every fulfillment task in it, makes each
    parcel's ERP bill, closes the gate pass and flips an order to Shipped once
    all its tasks have shipped.
-3. Per booking: **Print label** (auto-picks the printer whose Default For is
+3. Per booking: **Print label** (on Make manifest) (auto-picks the printer whose Default For is
    Shipping Label via PrintBridge, falling back to the on-screen label view
-   if PrintBridge isn't running), **In transit** / **Delivered** under **On the way**
+   if PrintBridge isn't running), **In transit** / **Delivered** on **On the way**
    (`RecordDeliveryEvent`, `WMSLOG-0139` on failure), and **RTO**
    (`RecordRTO`) once a booking is Handed Over.
 

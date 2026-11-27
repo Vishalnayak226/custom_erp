@@ -8,9 +8,10 @@
 //   Movement - the Loyalty Points Movement report for a period: earned,
 //              redeemed, given back, taken back, adjusted, expired, closing,
 //              and (when points are accrued) the liability in the books.
-//   Vouchers & campaigns (55.17) - each voucher in words (what, for whom,
-//              where, when, usable now or why not, what it gave away) and
-//              each campaign (trigger, message, who it picks today, results).
+//   Voucher use (55.17) - each voucher in words (what, for whom, where,
+//              when, usable now or why not, what it gave away).
+//   Campaign results (55.17) - each campaign (trigger, message, who it
+//              picks today, results). Its own page since 288.2.
 //   The Customer tab also shows the customer's recent bills, returns and
 //   usable vouchers (55.17) - the till's own customer context.
 
@@ -47,7 +48,7 @@ async function loyJSON(url, fallback) {
 }
 
 // Stage 155.7: each pane is its own sidebar entry ("loyalty:<pane>").
-const LOY_PAGES = { customer: ['menu-loyalty', 'Customer Points'], tiers: ['menu-loyalty-tiers', 'Tiers'], movement: ['menu-loyalty-movement', 'Points Movement'], offers: ['menu-loyalty-offers', 'Vouchers & Campaigns'] };
+const LOY_PAGES = { customer: ['menu-loyalty', 'Customer Points'], tiers: ['menu-loyalty-tiers', 'Tiers'], movement: ['menu-loyalty-movement', 'Points Movement'], offers: ['menu-loyalty-offers', 'Voucher use'], campaigns: ['menu-loyalty-campaigns', 'Campaign results'] }; // 288.2: offers was vouchers + campaigns
 export async function renderLoyaltyView(root) {
   const page = LOY_PAGES[currentViewTab] ? currentViewTab : 'customer';
   currentViewTab = page;
@@ -96,13 +97,13 @@ export async function renderLoyaltyView(root) {
         </table></div>
       </section>
       <section data-loy-pane="offers" class="hidden">
-        <h3 class="s-09e886">Vouchers</h3>
         <div class="table-wrapper"><table>
           <thead><tr><th>Code</th><th>Gives</th><th>For</th><th>Where</th><th>Valid</th><th>Used</th><th>Now</th><th>Discount given</th></tr></thead>
           <tbody id="loy-vouchers"></tbody>
         </table></div>
         <div class="s-1388c0"><button class="btn btn-outline btn-sm" type="button" data-loy-open="Voucher">Add or edit vouchers</button></div>
-        <h3 class="s-09e886">Campaigns</h3>
+      </section>
+      <section data-loy-pane="campaigns" class="hidden">
         <div class="table-wrapper"><table>
           <thead><tr><th>Campaign</th><th>Trigger</th><th>Sent by</th><th>Status</th><th>Message as sent</th><th>Would pick today</th><th>Skipped: no consent</th><th>Sent to</th><th>Sales since</th><th>Cost</th><th>Return</th></tr></thead>
           <tbody id="loy-campaigns"></tbody>
@@ -116,7 +117,8 @@ export async function renderLoyaltyView(root) {
   const show = tab => {
     panel.querySelectorAll('[data-loy-pane]').forEach(s => s.classList.toggle('hidden', s.dataset.loyPane !== tab));
     if (tab === 'tiers') loadTiers(panel);
-    if (tab === 'offers') loadOffers(panel);
+    if (tab === 'offers') loadVouchers(panel);
+    if (tab === 'campaigns') loadCampaigns(panel);
   };
   panel.addEventListener('click', e => {
     // Vouchers and campaigns are set up on their own records.
@@ -343,24 +345,28 @@ async function loadCustomerContext(panel, id) {
     </div>`;
 }
 
-// loadOffers (55.17): vouchers and campaigns in words.
-async function loadOffers(panel) {
-  const [v, c] = await Promise.all([
-    loyJSON('/api/v1/loyalty/vouchers', null),
-    loyJSON('/api/v1/loyalty/campaigns', null)
-  ]);
-  const money = n => Number(n || 0).toFixed(2);
+// loadVouchers / loadCampaigns (55.17): vouchers and campaigns in words.
+const loyMoney = n => Number(n || 0).toFixed(2);
+
+async function loadVouchers(panel) {
+  const v = await loyJSON('/api/v1/loyalty/vouchers', null);
+  const money = loyMoney;
   const vouchers = (v && v.vouchers) || [];
   panel.querySelector('#loy-vouchers').innerHTML = !v ? '<tr><td colspan="8" class="txn-hint">The vouchers could not be looked up.</td></tr>'
     : vouchers.length ? vouchers.map(x => `<tr><td class="s-eed0f8">${loyEsc(x.code)}</td><td>${loyEsc(x.gives)}</td><td>${loyEsc(x.for)}</td><td>${loyEsc(x.where)}</td>
         <td>${loyEsc(x.valid_from || 'now')} to ${loyEsc(x.expiry_date || 'no end')}</td><td>${x.used_count}${x.max_uses ? ` of ${x.max_uses}` : ''}</td>
         <td class="${x.usable ? 'u-good' : 'u-muted'}">${loyEsc(x.state)}</td><td>${money(x.discount_given)}</td></tr>`).join('')
-    : '<tr><td colspan="8" class="txn-hint">No vouchers yet. Add one with the button below.</td></tr>';
+    : '<tr><td colspan="8" class="txn-hint">No vouchers yet.</td></tr>';
+}
+
+async function loadCampaigns(panel) {
+  const c = await loyJSON('/api/v1/loyalty/campaigns', null);
+  const money = loyMoney;
   const campaigns = (c && c.campaigns) || [];
   panel.querySelector('#loy-campaigns').innerHTML = !c ? '<tr><td colspan="11" class="txn-hint">The campaigns could not be looked up.</td></tr>'
     : campaigns.length ? campaigns.map(x => `<tr><td class="s-eed0f8">${loyEsc(x.name || x.id)}</td><td>${loyEsc(x.trigger)}</td>
         <td>${x.note ? `<span class="s-a9b0eb">${loyEsc(x.note)}</span>` : loyEsc(x.channel)}</td><td>${loyEsc(x.status)}</td>
         <td>${loyEsc(x.message_preview || '-')}</td><td>${x.note ? 'No one' : x.status === 'Active' ? `${x.picks_today} customer${x.picks_today === 1 ? '' : 's'}` : 'Paused'}</td><td>${x.skipped_no_consent || 0}</td><td>${x.sent_to}</td>
         <td>${money(x.sales_since)}</td><td>${x.cost ? money(x.cost) : '-'}</td><td>${!x.sent_to ? 'Nothing sent yet' : x.roi == null ? '-' : `${Math.round(x.roi * 100)}%`}</td></tr>`).join('')
-    : '<tr><td colspan="11" class="txn-hint">No campaigns yet. Add one with the button below.</td></tr>';
+    : '<tr><td colspan="11" class="txn-hint">No campaigns yet.</td></tr>';
 }

@@ -42,7 +42,7 @@ manual journal entries — is a caller of that one function.
 
 ## The Finance screen
 
-One sidebar entry each: **Work to review**, **Trial Balance**, **Chart of
+One sidebar entry each: **Home**, **Trial Balance**, **Chart of
 Accounts**, **Accounting Periods**. This is deliberately a small screen —
 most of what a controller actually reads regularly lives in **Reports →
 Finance** instead (25 registered reports as of this writing; see

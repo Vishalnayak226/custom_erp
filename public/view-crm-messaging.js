@@ -1,12 +1,12 @@
 // Stage 101.3 / 101.4 / 101.9: the CRM's messaging pages - templates,
-// campaigns, journeys, messages and the CRM settings (senders, lifecycle,
+// campaigns, journeys, messages, ready to send and the CRM settings (senders, lifecycle,
 // appointment hours). Loaded by view-crm.js; its helpers (crmApi, crmFrame,
 // crmTable ...) are globals published by the shell's loader.
 
 const CH = ['WhatsApp', 'SMS', 'Email'];
 
 export async function crmRenderTab(tab, host, st) {
-  const pages = { templates: crmTemplates, campaigns: crmCampaigns, journeys: crmJourneys, messages: crmMessages, settings: crmSettings };
+  const pages = { templates: crmTemplates, campaigns: crmCampaigns, journeys: crmJourneys, messages: crmMessages, ready: crmReady, settings: crmSettings };
   return pages[tab](host, st);
 }
 
@@ -412,6 +412,19 @@ async function crmMessageNew(host, p) {
   });
 }
 
+// --- ready to send ---------------------------------------------------------------
+
+// crmReady is each channel's send check: whether WhatsApp, SMS and Email can
+// go out, and the check that stops one. Its own page since 288.3 (it sat at
+// the top of Settings).
+async function crmReady(host) {
+  const body = crmFrame(host, { title: 'Ready to send' });
+  const ready = await crmApi('readiness');
+  if (!ready) { renderErrorPanel(body, 'The send checks could not be loaded.', () => crmReady(host)); return; }
+  body.innerHTML = crmTable([{ label: 'Channel', key: 'channel' }, { label: 'Ready', html: r => r.ready ? crmChip('Yes', 'ok') : crmChip('Not yet', 'warn') },
+    { label: 'Checks', html: r => (r.checks || []).map(c => `${c.ok ? '✓' : '✗'} ${crmEsc(c.name)}: ${crmEsc(c.detail)}`).join('<br>') }], ready, { empty: 'No channels.' });
+}
+
 // --- settings ---------------------------------------------------------------------
 
 async function crmSettings(host, st) {
@@ -419,11 +432,9 @@ async function crmSettings(host, st) {
   const body = crmFrame(host, { title: 'Settings' });
   // 245.1: senders are admin-only; asking anyway logged a refusal per visit.
   const admin = typeof isAdminRoleName === 'function' && isAdminRoleName(localStorage.getItem('erp_role'));
-  const [senders, life, ready] = await Promise.all([admin ? crmApi('senders', { quiet: true }) : null, crmApi('lifecycle'), crmApi('readiness', { quiet: true })]);
+  const [senders, life] = await Promise.all([admin ? crmApi('senders', { quiet: true }) : null, crmApi('lifecycle')]);
   const store = (typeof currentUserLocation === 'string' && currentUserLocation) || localStorage.getItem('erp_location') || '';
   body.innerHTML = `
-    ${ready ? `<h3 class="crm-section">Ready to send</h3>${crmTable([{ label: 'Channel', key: 'channel' }, { label: 'Ready', html: r => r.ready ? crmChip('Yes', 'ok') : crmChip('Not yet', 'warn') },
-      { label: 'Checks', html: r => (r.checks || []).map(c => `${c.ok ? '✓' : '✗'} ${crmEsc(c.name)}: ${crmEsc(c.detail)}`).join('<br>') }], ready, { empty: '' })}` : ''}
     <h3 class="crm-section">Senders</h3>
     ${senders ? crmTable([{ label: 'Channel', key: 'channel' }, { label: 'Provider', key: 'provider' }, { label: 'Name', html: s => `<a href="#" data-snd="${crmEsc(s.id)}">${crmEsc(s.name)}</a>` },
       { label: 'Status', html: s => s.status === 'Active' ? crmChip('Active', 'ok') : crmChip('Off', 'muted') },

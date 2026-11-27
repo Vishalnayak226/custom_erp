@@ -37,6 +37,9 @@ type ReportColumn struct {
 	// FinanceSees (157.4b): a Sensitive column a finance.statements holder also
 	// reads in full, because the report's own endpoint already gives it to them.
 	FinanceSees bool `json:"-"`
+	// PayrollSees (278.2): a Sensitive column an hr.payroll holder also reads
+	// in full - payroll totals, which that role keys and runs.
+	PayrollSees bool `json:"-"`
 }
 
 // ReportParam describes one input field, rendered generically by the
@@ -266,6 +269,9 @@ func reportColumnMasked(c ReportColumn, role string) bool {
 	if !c.Sensitive || reportFullVisibilityRoles[CanonicalRole(role)] {
 		return false
 	}
+	if c.PayrollSees && RoleHasCapability(role, SensitiveCategoryPayroll) {
+		return false
+	}
 	return !c.FinanceSees || !RoleHasCapability(role, "finance.statements")
 }
 
@@ -348,9 +354,9 @@ func RunReport(tenantID, reportID, role, userID string, params map[string]string
 // point every report already runs through races the run against ctx, so the
 // caller is released immediately and - the dominant cost for a large report
 // - the row cap check, masking and JSON serialization of a payload nobody
-// is waiting for are all skipped. The abandoned run's own query is left to
-// finish on its pooled connection and its result is discarded; it is
-// time-bounded by reportRunHardTimeout rather than running forever.
+// is waiting for are all skipped. Since 283.3 the run's goroutine is bound to
+// ctx (db.BindContext), so the abandoned run's own queries are cancelled in
+// Postgres too, and reportRunHardTimeout cancels a run that outlives it.
 func RunReportContext(ctx context.Context, tenantID, reportID, role, userID string, params map[string]string) (def *ReportDefinition, rows []map[string]interface{}, masked bool, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, false, err
@@ -499,9 +505,14 @@ func runReportRaced(ctx context.Context, def ReportDefinition, tenantID string, 
 	if !acquireReportRun(tenantID) {
 		return nil, errReportRunsBusy
 	}
+	// 283.3: the run's queries stop in Postgres when the caller leaves or the
+	// hard timeout passes, and the run slot frees with them.
+	runCtx, stopRun := context.WithTimeout(ctx, reportRunHardTimeout)
+	defer stopRun()
 	done := make(chan runOutcome, 1)
 	go func() {
 		defer releaseReportRun(tenantID)
+		defer db.BindContext(runCtx)()
 		defer db.ExemptStatementTimeout(reportRunHardTimeout)() // 49.13.3a: a report keeps its own bound
 		defer func() {
 			// A panic in one report must not take the process down through a
@@ -528,7 +539,8 @@ func runReportRaced(ctx context.Context, def ReportDefinition, tenantID string, 
 
 // Stage 49.13.3: a run the caller walked away from (or that passed
 // reportRunHardTimeout) keeps its goroutine and pooled connection until its
-// query ends - the race above releases the caller, not the query. So every
+// query ends - since 283.3 that is when Postgres has cancelled it, but code
+// between queries and work on other goroutines still runs on. So every
 // LIVE run is counted, abandoned or not, per client and process-wide, and a
 // new run past either bound is refused up front instead of piling more
 // queries onto a pool that is already busy with ones nobody reads.

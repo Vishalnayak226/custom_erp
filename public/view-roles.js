@@ -17,8 +17,8 @@ adoptCss('view-roles-css', `
 .roles-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--success-soft-bg); color: var(--success-strong); }
 .roles-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
 .roles-toolbar .form-input { width: 260px; max-width: 100%; }
-.roles-toolbar .roles-held { margin-left: auto; font-size: 13px; color: var(--text-muted); }
-.roles-toolbar .roles-landing { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.roles-toolbar .roles-held { margin-left: auto; font-size: 13.5px; color: var(--text-muted); }
+.roles-toolbar .roles-landing { display: inline-flex; gap: 6px; align-items: center; font-size: 13.5px; }
 .roles-toolbar .roles-landing .form-input { width: auto; }
 .roles-matrix-wrap { overflow-x: auto; }
 .roles-matrix th.roles-col, .roles-matrix td.roles-col { text-align: center; width: 96px; }
@@ -29,13 +29,13 @@ adoptCss('view-roles-css', `
 .roles-caret::before { content: '\\25B8'; display: inline-block; width: 12px; transition: transform var(--transition-fast); }
 .roles-caret[aria-expanded="true"]::before { transform: rotate(90deg); }
 .roles-savebar { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; padding: 12px 16px; background: var(--panel-bg); border-top: 1px solid var(--border-color); }
-.roles-savebar-note { margin-right: auto; font-size: 13px; color: var(--text-muted); }
+.roles-savebar-note { margin-right: auto; font-size: 13.5px; color: var(--text-muted); }
 .roles-savebar-note.dirty { color: var(--warning-strong); font-weight: 600; }
 .roles-new-form { padding: 24px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 .roles-new-form .form-group { margin-bottom: 0; }
-.roles-risk { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); cursor: help; }
+.roles-risk { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); cursor: help; }
 .roles-matrix td.roles-col.roles-del-on { background: var(--warning-soft-bg); }
-.roles-risk-line { padding: 8px 16px; font-size: 13px; color: var(--warning-strong); border-bottom: 1px solid var(--border-color); }
+.roles-risk-line { padding: 8px 16px; font-size: 13.5px; color: var(--warning-strong); border-bottom: 1px solid var(--border-color); }
 `);
 
 const SCREEN = 'roles-screen';

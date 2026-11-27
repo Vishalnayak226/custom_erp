@@ -49,6 +49,7 @@ const roleAccountant = "Accountant"
 
 // datasetContracts is every built-in dataset's declaration, by key.
 var datasetContracts = map[string]datasetContract{
+	"all_sales":       {Owner: RoleStoreManager, Basis: KPIBasisOperational},
 	"sales_lines":     {Owner: RoleStoreManager, Basis: KPIBasisOperational},
 	"pos_bills":       {Owner: RoleStoreManager, Basis: KPIBasisOperational},
 	"stock_on_hand":   {Owner: RoleStoreManager, Basis: KPIBasisStockLedger},
@@ -113,7 +114,7 @@ func buildKPIContract(ds DashboardDataset, q DatasetQuery, limited bool, stores 
 			totals = append(totals, "number of rows")
 			continue
 		}
-		totals = append(totals, datasetMeasureLabel(m.Agg, label(m.Field)))
+		totals = append(totals, ds.measureLabel(m))
 	}
 	if len(totals) > 0 {
 		parts = append(parts, "Shows "+strings.Join(totals, ", ")+".")

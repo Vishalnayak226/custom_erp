@@ -601,14 +601,12 @@ func GetMRPSuggestions(tenantID, locationCode string, leadTimeDays, safetyStock 
 	rows.Close()
 
 	out := []MRPSuggestion{}
+	velocities, _ := SalesVelocityAt(tenantID, locationCode, 30) // 273.1: one read for every parent item
 	for _, item := range parentItems {
 		var available int
 		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), item, locationCode).Scan(&available)
 
-		velocity, verr := CalculateSalesVelocity(tenantID, locationCode, item, 30)
-		if verr != nil {
-			velocity = 0
-		}
+		velocity := velocities[item]
 		reorderPoint := int(math.Ceil(velocity*float64(leadTimeDays))) + safetyStock
 		if available >= reorderPoint {
 			continue

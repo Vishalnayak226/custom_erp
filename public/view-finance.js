@@ -1,4 +1,5 @@
-import { documentSearchLink } from './view-document-links.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { documentSearchLink } = await import('./view-document-links.js' + new URL(import.meta.url).search);
 
 // Stage 62/63: debit / credit note prints come from trade-docs.js.
 const tradeDocsReady = import('./trade-docs.js' + new URL(import.meta.url).search);
@@ -15,7 +16,7 @@ const financeCanPost = () => !!(state.permissions && (state.permissions.isAdmin 
 let currentClosePeriodId = null;
 const PERIOD_TASK_COUNT = 5;
 const FINANCE_TABS = [
-  { id: 'work', label: 'Work to review' },
+  { id: 'work', label: 'Finance home' },
   { id: 'trial-balance', label: 'Trial Balance' },
   { id: 'chart-of-accounts', label: 'Chart of Accounts' },
   { id: 'periods', label: 'Accounting Periods' }
@@ -101,7 +102,7 @@ async function renderFinanceView(container) {
       <span class="stat-label">Ledger Status</span>
       <div class="s-0afcb6">
         <span class="pulse-dot ${data.balanced ? 'u-bg-green' : 'u-bg-red'}"></span>
-        <span class="u-fs16 u-fw7 ${data.balanced ? 'u-green' : 'u-red2'}">${escapeHTMLText(data.status || '')}</span>
+        <span class="u-fs18 u-fw7 ${data.balanced ? 'u-green' : 'u-red2'}">${escapeHTMLText(data.status || '')}</span>
       </div>
     </div>
     <div class="stat-card">
@@ -158,9 +159,6 @@ async function renderFinanceWorkPanel(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
-  const heading = document.createElement('h2');
-  heading.textContent = 'Finance work to review';
-  panel.appendChild(heading);
   const list = document.createElement('div');
   list.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px';
   cards.forEach(card => {
@@ -293,7 +291,7 @@ async function renderAccountingPeriodsPanel(container) {
       <thead><tr><th>Period Name</th><th>Start</th><th>End</th><th>Status</th><th>Close tasks</th><th>Closed By</th><th>Actions</th></tr></thead>
       <tbody>
         ${periods.length === 0
-          ? `<tr><td colspan="7" class="s-306094">No accounting periods yet. Use <b>Create Period</b> above to open your first one; its close tasks are created with it.</td></tr>`
+          ? `<tr><td colspan="7" class="s-306094">No accounting periods yet.</td></tr>`
           : periods.map(p => `
             <tr>
               <td class="s-eed0f8">${escapeHTMLText(p.period_name)}</td>
@@ -592,7 +590,7 @@ async function renderVendorInvoicesView(container) {
       <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th class="num">Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="8" class="s-306094">No vendor invoices yet. Use <b>+ New Vendor Invoice</b> above &mdash; have the Purchase Order and Goods Receipt it should 3-way match against to hand.</td></tr>`
+          ? `<tr><td colspan="8" class="s-306094">No vendor invoices yet.</td></tr>`
           : invoices.map(v => {
             // Stage 73 / 55.10: what is still owed, and the payments behind it.
             const history = settlementHistory(v, 'payments');
@@ -600,10 +598,10 @@ async function renderVendorInvoicesView(container) {
             return `
             <tr>
               <td class="s-355794">${escapeHTMLText(v.invoice_number || v.id)}</td>
-              <td>${escapeHTMLText(v.vendor_id || '')}</td>
-              <td>${documentSearchLink('PurchaseOrder', v.po_id)}</td>
-              <td>${documentSearchLink('GRN', v.grn_id)}</td>
-              <td>${formatNumber(v.invoice_amount)}</td>
+              <td class="nowrap">${escapeHTMLText(v.vendor_id || '')}</td>
+              <td class="nowrap">${documentSearchLink('PurchaseOrder', v.po_id)}</td>
+              <td class="nowrap">${documentSearchLink('GRN', v.grn_id)}</td>
+              <td class="nowrap">${formatNumber(v.invoice_amount)}</td>
               <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'invoice_amount', ['Matched', 'MismatchHold', 'Pending Approval', 'Approved']))}</td>
               <td><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>${renderVendorInvoiceActions(v)}${history.length > 0 ? ` <button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}</td>
@@ -705,10 +703,12 @@ async function payVendorInvoicePlain(invoiceId) {
   const inv = await docRes.json();
   const outstanding = openBalance(inv, 'invoice_amount', ['Matched']);
   const currency = inv.currency ? ` ${inv.currency}` : '';
-  const body = await askSettlementAmount(`Amount to pay the vendor via Cash/Bank. Outstanding: ${formatMoney(outstanding)}${currency}.`, outstanding, 'Pay Vendor Invoice');
+  const url = '/api/v1/procurement/vendor-invoice/pay';
+  const body = await askSettlementAmount(`Amount to pay the vendor via Cash/Bank. Outstanding: ${formatMoney(outstanding)}${currency}.`, outstanding, 'Pay Vendor Invoice',
+    inv, { url, body: { invoice_id: invoiceId }, verb: 'Pay' });
   if (!body) return;
   body.invoice_id = invoiceId;
-  const res = await apiFetch('/api/v1/procurement/vendor-invoice/pay', {
+  const res = await apiFetch(url, {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -719,7 +719,7 @@ async function payVendorInvoicePlain(invoiceId) {
   }
   const out = await res.json();
   await showCustomAlert(out.status === 'Paid'
-    ? `Paid ${formatMoney(out.amount_paid)}${currency}. The invoice is fully paid.`
+    ? `Paid ${formatMoney(out.amount_paid)}${currency}${settledInBase(inv, out)}. The invoice is fully paid.`
     : `Paid ${formatMoney(out.amount_paid)}${currency}. Still outstanding: ${formatMoney(out.outstanding_amount)}${currency}.`, 'Payment Recorded');
   renderView('vendor-invoices');
 }
@@ -807,7 +807,7 @@ async function renderPaymentProposalsView(container) {
       <thead><tr><th>Proposal #</th><th>Invoices</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${proposals.length === 0
-          ? `<tr><td colspan="5" class="s-306094">No payment proposals yet. Click <b>+ New Proposal</b>, tick one or more Matched vendor invoices, then <b>Create Proposal from Selected</b>.</td></tr>`
+          ? `<tr><td colspan="5" class="s-306094">No payment proposals yet.</td></tr>`
           : proposals.map(p => {
             let ids = [];
             try { ids = JSON.parse(p.invoice_ids || '[]'); } catch (e) { /* leave empty */ }
@@ -941,7 +941,7 @@ async function renderBankReconciliationView(container) {
       <label class="s-dd294b"><input type="checkbox" id="bank-rule-reference" checked> Use the statement reference</label>
       <button class="btn btn-primary" id="bank-rule-run">Run rule match</button>
     </div>
-    ${accounts.length === 0 ? `<p class="s-5872de">No bank accounts yet - use "Manage Bank Accounts" to add one.</p>` : ''}
+    ${accounts.length === 0 ? `<p class="s-5872de">No bank accounts yet.</p>` : ''}
     <div id="bank-recon-result"></div>
     <div id="bank-recon-workbench"></div>
   `;
@@ -1027,7 +1027,7 @@ async function renderBankWorkbench(host) {
     </div>
     <table>
       <thead><tr><th>Date</th><th>Description / reference</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${lines.length === 0 ? `<tr><td colspan="5" class="s-306094">No statement lines in this view. Import a statement with "Statement Lines / Import CSV", or widen the dates or the Show filter.</td></tr>` : lines.map(l => `
+      <tbody>${lines.length === 0 ? `<tr><td colspan="5" class="s-306094">No statement lines in this view.</td></tr>` : lines.map(l => `
         <tr data-line="${escapeHTMLText(l.id)}" data-drcr="${escapeHTMLText(l.dr_cr)}" data-amount="${l.amount}">
           <td>${escapeHTMLText(l.txn_date)}</td>
           <td>${escapeHTMLText(l.description || '')}${l.reference_number ? `<br><small>Ref ${escapeHTMLText(l.reference_number)}</small>` : ''}</td>
@@ -1196,7 +1196,7 @@ async function renderFinanceNotesView(container) {
       <thead><tr><th>Note #</th><th>Customer</th><th>Invoice</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${creditNotes.length === 0
-          ? `<tr><td colspan="7" class="s-306094">No credit notes yet. Use <b>+ New Credit Note</b>, then <b>Post</b> it to raise one against a customer.</td></tr>`
+          ? `<tr><td colspan="7" class="s-306094">No credit notes yet.</td></tr>`
           : creditNotes.map(n => `
             <tr>
               <td class="s-355794">${n.note_number || n.id}</td>
@@ -1294,7 +1294,7 @@ function financeListScreen(container, { title, hint, count, total, newId, newLab
 }
 
 async function renderSalesInvoicesView(container) {
-  const res = await apiFetch('/api/v1/doc/SalesInvoice');
+  const res = await apiFetch('/api/v1/doc/SalesInvoice?sort=recent'); // 267.11: newest first, past 500 too
   if (!res) return;
 
   const invoices = res.ok ? await res.json() : [];
@@ -1310,7 +1310,7 @@ async function renderSalesInvoicesView(container) {
       <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th class="num">Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="6" class="s-306094">No sales invoices yet. Use <b>+ New Sales Invoice</b> above to bill a customer on credit; POS sales are settled immediately and do not appear here.</td></tr>`
+          ? `<tr><td colspan="6" class="s-306094">No sales invoices yet.</td></tr>`
           : invoices.map(v => {
             // Stage 73 / 55.10: what is still owed, and the receipts behind it.
             const history = settlementHistory(v, 'settlements');
@@ -1473,9 +1473,11 @@ async function settleSalesInvoiceAction(id) {
   const inv = await docRes.json();
   const outstanding = openBalance(inv, 'total_amount', ['Approved']);
   const currency = inv.currency ? ` ${inv.currency}` : '';
-  const body = await askSettlementAmount(`Amount received from the customer. Outstanding: ${formatMoney(outstanding)}${currency}.`, outstanding, 'Settle Invoice');
+  const url = `/api/v1/finance/sales-invoice/${encodeURIComponent(id)}/settle`;
+  const body = await askSettlementAmount(`Amount received from the customer. Outstanding: ${formatMoney(outstanding)}${currency}.`, outstanding, 'Settle Invoice',
+    inv, { url, body: {}, verb: 'Receive' });
   if (!body) return;
-  const res = await apiFetch(`/api/v1/finance/sales-invoice/${encodeURIComponent(id)}/settle`, { method: 'POST', body: JSON.stringify(body) });
+  const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to settle invoice.');
@@ -1483,7 +1485,7 @@ async function settleSalesInvoiceAction(id) {
   }
   const out = await res.json();
   await showCustomAlert(out.status === 'Paid'
-    ? `Received ${formatMoney(out.amount)}${currency}. The invoice is fully settled.`
+    ? `Received ${formatMoney(out.amount)}${currency}${settledInBase(inv, out)}. The invoice is fully settled.`
     : `Received ${formatMoney(out.amount)}${currency}. Still outstanding: ${formatMoney(out.outstanding_amount)}${currency}.`, 'Receipt Recorded');
   renderView('sales-invoices');
 }
@@ -1508,8 +1510,82 @@ function settlementReference() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// askSettlementAmount returns the request body, or null when cancelled.
-async function askSettlementAmount(message, outstanding, title) {
+// foreignInvoice: the invoice is in another currency than the books.
+function foreignInvoice(inv) {
+  const c = String(inv.currency || '').trim().toUpperCase();
+  return !!c && c !== String(inv.functional_currency || '').trim().toUpperCase();
+}
+
+// settledInBase is " (83,250.00 INR)" after a foreign-currency receipt or
+// payment, from the functional amount the server posted.
+function settledInBase(inv, out) {
+  return foreignInvoice(inv) && Number(out.functional_amount) > 0 && inv.functional_currency
+    ? ` (${formatMoney(out.functional_amount)} ${inv.functional_currency})` : '';
+}
+
+// askForeignSettlement (264.4): a foreign-currency invoice settles in full
+// (FIN-0518), so the dialog asks when the money moved and, optionally, the
+// bank's rate. The server works the rate and base amount out with the
+// settlement's own engine (preview: true posts nothing) and the user confirms
+// them; Cancel there goes back to the form with the entries kept. Returns the
+// request body, null when cancelled, or 'functional' when the server finds the
+// invoice is in the base currency after all.
+async function askForeignSettlement(outstanding, title, inv, fx) {
+  const { posFormDialog } = await import('./view-pos-extras.js' + new URL(import.meta.url).search);
+  let kept = { date: todayISO(), rate: '' };
+  for (;;) {
+    const picked = await posFormDialog(title, `${formatMoney(outstanding)} ${inv.currency} in full · base ${inv.functional_currency}`,
+      `<div class="form-group">
+        <label class="form-label" for="fx-settle-date">Date the money moved</label>
+        <input type="date" id="fx-settle-date" class="form-input" data-fx-date value="${cfgEsc(kept.date)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fx-settle-rate">Bank's rate (optional)</label>
+        <input type="number" id="fx-settle-rate" class="form-input" data-fx-rate step="any" min="0" placeholder="From the rate table" value="${cfgEsc(kept.rate)}">
+      </div>`,
+      (el) => ({ date: el.querySelector('[data-fx-date]').value.trim(), rate: el.querySelector('[data-fx-rate]').value.trim() }));
+    if (!picked) return null;
+    kept = picked;
+    const body = { settlement_date: picked.date };
+    if (picked.rate !== '') {
+      const rate = Number(picked.rate);
+      if (!(rate > 0) || !isFinite(rate)) {
+        await showCustomAlert('Enter a rate above zero, or leave it blank for the rate table.', title);
+        continue;
+      }
+      body.exchange_rate = rate;
+    }
+    const res = await apiFetch(fx.url, { method: 'POST', body: JSON.stringify({ ...fx.body, ...body, preview: true }) });
+    if (!res) return null;
+    if (!res.ok) {
+      await showApiError(res, 'The base amount could not be worked out.', title, { modal: true });
+      continue;
+    }
+    const p = await res.json();
+    if (!p.foreign) return 'functional';
+    const base = p.functional_currency;
+    const source = p.rate_source === 'Operator' ? "bank's rate" : `rate table${p.rate_source ? ` · ${p.rate_source}` : ''}`;
+    const lines = [
+      ['Date', p.settlement_date],
+      ['Rate', `${Number(p.rate).toFixed(4)} · ${source}`],
+      [`In ${base}`, `${formatMoney(p.functional_amount)} ${base}`]
+    ];
+    if (Number(p.realised_gain_loss)) {
+      lines.push([p.realised_gain_loss > 0 ? 'Exchange gain' : 'Exchange loss', `${formatMoney(Math.abs(p.realised_gain_loss))} ${base}`]);
+    }
+    const confirmed = await posFormDialog(title, `${fx.verb} ${formatMoney(p.amount)} ${p.currency}`,
+      lines.map(([k, v]) => `<div data-fx-line><strong>${cfgEsc(k)}:</strong> ${cfgEsc(v)}</div>`).join(''), () => true);
+    if (confirmed) return { reference: settlementReference(), ...body };
+  }
+}
+
+// askSettlementAmount returns the request body, or null when cancelled. fx
+// ({url, body, verb}) is given on a foreign-currency invoice (264.4).
+async function askSettlementAmount(message, outstanding, title, inv, fx) {
+  if (fx && foreignInvoice(inv)) {
+    const body = await askForeignSettlement(outstanding, title, inv, fx);
+    if (body !== 'functional') return body;
+  }
   const entered = await showCustomPrompt(message, outstanding.toFixed(2), title, 'number');
   if (entered === null) return null;
   const amount = Number(String(entered).trim());

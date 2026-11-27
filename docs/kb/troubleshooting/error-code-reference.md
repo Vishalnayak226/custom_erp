@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **1013** of them,
+Every refusal in this application carries a code. There are **1015** of them,
 across **84** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -94,7 +94,7 @@ open the right page.
 - [Order Management](error-code-reference-2.md#order-management) - 12 codes
 - [PIM](error-code-reference-3.md#pim) - 57 codes
 - [PIM / Product Publishing](error-code-reference-3.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-3.md#pos-billing) - 49 codes
+- [POS / Billing](error-code-reference-3.md#pos-billing) - 51 codes
 - [POS / Offline & Cash Drawer](error-code-reference-3.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-3.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-3.md#payments) - 7 codes

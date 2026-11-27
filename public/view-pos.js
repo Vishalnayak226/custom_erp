@@ -167,7 +167,7 @@ function renderPOSView(container) {
         <div class="form-group txn-entry-main">
           <label class="form-label" for="pos-sku-input">Scan or search</label>
           <input type="text" id="pos-sku-input" class="form-input pos-scan-input"
-                 placeholder="Scan a barcode, or type a product name / code" autocomplete="off">
+                 placeholder="Scan a barcode, or type a design no., combination ID or name" autocomplete="off">
         </div>
         <button class="btn btn-primary" id="pos-add-btn">Add to Cart</button>
         <!-- Stage 72.4: shown only when a line's box (or other packaging) may
@@ -474,9 +474,11 @@ async function fetchPOSProductMatches(term) {
   const rows = (await res.json()) || [];
   const skus = rows.map(r => r.code || r.id).filter(Boolean);
   if (skus.length && posLocation) {
-    const a = await apiFetch(`/api/v1/availability?skus=${encodeURIComponent(skus.join(','))}&location=${encodeURIComponent(posLocation)}`).catch(() => null);
-    const ats = a && a.ok ? ((await a.json()) || {}).ats : null;
-    if (ats) rows.forEach(r => { r.ats = Number(ats[r.code || r.id]) || 0; });
+    // 272.2: describe=1 also brings each one's Design No, for the list.
+    const a = await apiFetch(`/api/v1/availability?skus=${encodeURIComponent(skus.join(','))}&location=${encodeURIComponent(posLocation)}&describe=1`).catch(() => null);
+    const body = a && a.ok ? ((await a.json()) || {}) : {};
+    if (body.ats) rows.forEach(r => { r.ats = Number(body.ats[r.code || r.id]) || 0; });
+    if (body.design_no) rows.forEach(r => { r.design_no = body.design_no[r.code || r.id] || ''; });
   }
   return { rows };
 }
@@ -542,9 +544,7 @@ function onPOSScanKeyDown(e) {
 function highlightPOSSearchResult(idx) {
   posSearchActiveIndex = idx;
   const rows = document.querySelectorAll('#pos-search-results .pos-result-row');
-  rows.forEach((r, i) => {
-    r.style.background = i === idx ? 'var(--bg-color)' : '';
-  });
+  rows.forEach((r, i) => r.classList.toggle('is-active', i === idx));
   if (rows[idx]) rows[idx].scrollIntoView({ block: 'nearest' });
 }
 
@@ -555,20 +555,26 @@ function renderPOSSearchResults(all, term) {
   posSearchResults = rows;
   posSearchTerm = term;
   posSearchActiveIndex = rows.length ? 0 : -1;
+  // 272.2: one row per combination, with its Design No, Combination ID and
+  // barcode, so the cashier matches the tag and picks the row to bill it.
+  const showAts = rows.some(r => r.ats !== undefined);
   el.innerHTML = `
     <div class="s-4777e4">
-      ${rows.length ? `${rows.length} product(s) in stock matching &ldquo;${cfgEsc(term)}&rdquo; &mdash; click one, or use the arrow keys and Enter.`
+      ${rows.length ? `${rows.length} in stock &middot; &ldquo;${cfgEsc(term)}&rdquo;`
         : `None in stock here matches &ldquo;${cfgEsc(term)}&rdquo;.`}
     </div>
-    ${rows.map((r, i) => `
-      <div class="pos-result-row s-e14388" data-idx="${i}">
-        <span class="s-814ed6">${cfgEsc(r.name || r.code || r.id || '')}</span>
-        ${r.ats !== undefined ? `<span class="s-6e0fd9"><strong>${cfgEsc(r.ats)} available</strong></span>` : ''}
-        <span class="s-6e0fd9">${cfgEsc(r.code || r.id || '')}</span>
-        ${r.parent_product_code ? `<span class="s-6e0fd9">Design ${cfgEsc(r.parent_product_code)}</span>` : ''}
-        ${r.barcode ? `<span class="s-6e0fd9">${cfgEsc(r.barcode)}</span>` : ''}
-      </div>
-    `).join('')}
+    ${rows.length ? `<table class="pos-result-table">
+      <thead><tr><th>Design No</th><th>Combination ID</th><th>Barcode</th><th>Item</th>${showAts ? '<th class="pos-result-num">Available</th>' : ''}</tr></thead>
+      <tbody>${rows.map((r, i) => `
+        <tr class="pos-result-row" data-idx="${i}">
+          <td>${cfgEsc(r.design_no || r.parent_product_code || r.family || '')}</td>
+          <td>${cfgEsc(r.code || r.id || '')}</td>
+          <td class="pos-result-code">${cfgEsc(r.barcode || '')}</td>
+          <td class="pos-result-name">${cfgEsc(r.name || r.code || r.id || '')}</td>
+          ${showAts ? `<td class="pos-result-num">${cfgEsc(r.ats ?? '')}</td>` : ''}
+        </tr>`).join('')}
+      </tbody>
+    </table>` : ''}
   `;
   el.classList.remove('hidden');
   el.querySelectorAll('.pos-result-row').forEach(row => {
@@ -633,7 +639,7 @@ async function addPOSScanTerm(term, errorEl) {
   }
   if (rows.length === 0) {
     if (await (await posExtras()).posNamedScan(posTill, term, addResolvedItemToPOSCart)) return;
-    errorEl.textContent = `No product matches "${term}". Check the barcode, or search by part of the design no., SKU or product name.`;
+    errorEl.textContent = `No product matches "${term}". Check the barcode, or search by part of the design no., combination ID or product name.`;
     errorEl.classList.remove('hidden');
     return;
   }
@@ -1160,7 +1166,7 @@ async function refreshPOSQuote() {
         ${posAppliedOffers.map(o => `<li>${cfgEsc(o.name)} <span class="s-5872de">- ${cfgEsc(o.description || '')}</span> <strong>-${Number(o.discount).toFixed(2)}</strong></li>`).join('')}
       </ul>
       <div class="s-203476">Total offer discount: -${newDiscount.toFixed(2)}</div>` : ''}
-    ${unmatched.length ? `<div data-css="font-size:12.5px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
+    ${unmatched.length ? `<div data-css="font-size:12px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
         Coupon code${unmatched.length > 1 ? 's' : ''} ${unmatched.map(c => cfgEsc(c) + ((data.coupon_messages || {})[c] ? ` (${cfgEsc(data.coupon_messages[c])})` : '')).join(', ')} did not apply to this cart.
       </div>` : ''}
   `;
@@ -1280,6 +1286,7 @@ async function submitPOSCheckoutInner() {
       // the cashier confirmed it is a second payment.
       tenders: posSecondPayment ? posTenders.map(t => ({ ...t, second_payment: true })) : posTenders,
       second_payment: posSecondPayment,
+      below_cost_ok: posBelowCostOK,
       exchange_credit_id: posExchange ? posExchange.id : '',
       coupon_codes: currentPOSCouponCodes(),
       remarks: (document.getElementById('pos-remarks')?.value || '').trim(), // 260.3
@@ -1383,6 +1390,14 @@ async function submitPOSCheckoutInner() {
       // cashier can say the customer really paid twice.
       if (await showCustomConfirm(`${data.detail || 'This payment was already taken on an earlier bill.'}\n\nIs this a second payment with the same reference?`, 'Second payment')) {
         posSecondPayment = true;
+        await submitPOSCheckoutInner();
+      }
+      return;
+    }
+    if (!res.ok && data.code === 'POSOFF-1372' && !posBelowCostOK) {
+      // 273.4: an item is sold below cost; the cashier confirms the price.
+      if (await showCustomConfirm(`${data.detail || 'An item on this bill is sold below cost.'}\n\nBill it at this price?`, 'Below cost')) {
+        posBelowCostOK = true;
         await submitPOSCheckoutInner();
       }
       return;
@@ -1512,13 +1527,13 @@ function freezePOSTill(sale) {
       <span>${(it.qty * (Number(it.sale_price) || 0)).toFixed(2)}</span>
     </div>`).join('');
   const money = (label, value, strong) => `
-    <div data-css="display:flex; justify-content:space-between; padding:3px 0; ${strong ? 'font-size:18px; font-weight:700; padding-top:8px; border-top:1px solid var(--border-color);' : 'font-size:13px;'}">
+    <div data-css="display:flex; justify-content:space-between; padding:3px 0; ${strong ? 'font-size:18px; font-weight:700; padding-top:8px; border-top:1px solid var(--border-color);' : 'font-size:13.5px;'}">
       <span>${cfgEsc(label)}</span><span>${Number(value).toFixed(2)}</span>
     </div>`;
 
   panel.innerHTML = `
     <div class="s-74f21a">
-      <span data-css="font-size:19px; font-weight:700; color:${colour};">${cfgEsc(sale.heading)}</span>
+      <span data-css="font-size:18px; font-weight:700; color:${colour};">${cfgEsc(sale.heading)}</span>
       <span class="s-b14cdc">${cfgEsc(sale.billNumber ? `Bill ${sale.billNumber}` : (sale.cartNumber || ''))}</span>
       <span class="s-b14cdc">${cfgEsc(posStoreLabel())}</span>
       <span class="s-b14cdc">${cfgEsc(sale.paymentMode || '')}</span>
@@ -1680,6 +1695,8 @@ let posRedemptionAuth = {};
 let posTenders = [];
 // 49.5.4: the cashier confirmed this bill's tender repeats an earlier one on purpose.
 let posSecondPayment = false;
+// 273.4: the cashier confirmed this bill's below-cost price.
+let posBelowCostOK = false;
 // 73.2.6: an exchange's credit ({id, amount}) paying this bill.
 let posExchange = null;
 
@@ -1689,6 +1706,7 @@ function clearPOSRedemption() {
   posRedemptionAuth = {};
   posTenders = [];
   posSecondPayment = false;
+  posBelowCostOK = false;
   posExchange = null;
   document.getElementById('pos-split-row')?.remove();
   document.getElementById('pos-exchange-row')?.remove();
@@ -1766,7 +1784,7 @@ function renderPOSPackagingRow() {
   }
   posPackagingShortages.forEach(s => {
     const blocking = s.action === 'block';
-    parts.push(`<div data-css="font-size:12.5px; color:${blocking ? 'var(--danger-color, #b3261e)' : 'var(--warning-color, #b26a00)'};">
+    parts.push(`<div data-css="font-size:12px; color:${blocking ? 'var(--danger-color, #b3261e)' : 'var(--warning-color, #b26a00)'};">
       Short of ${cfgEsc(s.name || s.component)}: store has ${s.available}, this sale uses ${s.needed} &mdash; ${blocking ? 'choose another option under Packaging' : 'the sale goes ahead and the shortfall is listed under Item Exceptions'}</div>`);
   });
   row.innerHTML = parts.join('');

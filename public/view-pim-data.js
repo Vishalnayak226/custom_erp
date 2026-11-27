@@ -76,13 +76,17 @@ async function renderChannelTemplates(container) {
 
 // ---- Feeds -----------------------------------------------------------------
 async function renderFeeds(container) {
-  const [feeds, runs, templates, groups] = await Promise.all([getList('PIMFeed'), getList('PIMExportRun'), getList('PIMExportTemplate'), getList('PIMProductGroup')]);
+  // 267.3: the runs table is a preview - the newest 30, read newest first
+  // (ids sort oldest first, so a plain first page missed new runs) - and
+  // All runs opens the whole, paged list.
+  const recentRuns = async () => { const r = await apiFetch('/api/v1/doc/PIMExportRun?sort=recent&limit=30'); return r && r.ok ? r.json() : []; };
+  const [feeds, runs, templates, groups] = await Promise.all([getList('PIMFeed'), recentRuns(), getList('PIMExportTemplate'), getList('PIMProductGroup')]);
   runs.sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)));
   const list = panel(`${feeds.length ? `<div class="table-wrapper"><table><thead><tr><th>Feed</th><th>Group</th><th>Ready only</th><th>Goes to</th><th></th></tr></thead><tbody>
     ${feeds.map(f => `<tr><td>${esc(f.name || f.id)}</td><td>${esc(f.product_group)}</td><td>${esc(f.ready_only || 'No')}</td><td>${esc(f.destination || 'Download')}</td>
       <td>${f.status === 'Active' ? `<button type="button" class="btn btn-primary btn-sm" data-pd-run="${esc(f.id)}">Run</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-muted">None yet.</p>'}
-    ${runs.length ? `<h3 class="pd-sub">Runs</h3><div class="table-wrapper"><table><thead><tr><th>When</th><th>Feed</th><th>Status</th><th>Rows</th><th>Left out</th><th>Delivery</th></tr></thead><tbody>
-    ${runs.slice(0, 30).map(x => `<tr><td>${esc(String(x.started_at).replace('T', ' ').slice(0, 16))}</td><td>${esc(x.feed)}</td><td>${esc(x.status)}</td><td>${x.rows}</td>
+    ${runs.length ? `<h3 class="pd-sub">Runs <a class="pd-all-runs" href="${deepLinkForDoctype('PIMExportRun')}">All runs</a></h3><div class="table-wrapper"><table><thead><tr><th>When</th><th>Feed</th><th>Status</th><th>Rows</th><th>Left out</th><th>Delivery</th></tr></thead><tbody>
+    ${runs.map(x => `<tr><td>${esc(String(x.started_at).replace('T', ' ').slice(0, 16))}</td><td>${esc(x.feed)}</td><td>${esc(x.status)}</td><td>${x.rows}</td>
       <td title="${esc((x.skipped || []).slice(0, 20).map(s => `${s.item}: ${s.reason}`).join('\n'))}">${x.skipped_count}</td><td title="${esc(x.delivery_message)}">${esc(x.delivery_status)}</td></tr>`).join('')}</tbody></table></div>` : ''}`);
   const form = panel(`<div class="pd-form">
     <label>Code<input class="form-input" id="pf-code"></label><label>Name<input class="form-input" id="pf-name"></label>

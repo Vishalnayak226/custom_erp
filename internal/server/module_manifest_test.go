@@ -328,7 +328,8 @@ func moduleWorkerFacts(t *testing.T) map[string][]string {
 			if !ok {
 				return true
 			}
-			if id.Name == "listTenantSchemas" {
+			// sweepTenantSchemas (283.2) takes the same literal module filter.
+			if id.Name == "listTenantSchemas" || id.Name == "sweepTenantSchemas" {
 				if len(call.Args) == 0 {
 					modules = append(modules, "core")
 				}

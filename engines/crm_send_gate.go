@@ -223,7 +223,7 @@ func StartCRMWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("crm_loyalty")
+				schemas, err := sweepTenantSchemas("crm_loyalty")
 				if err != nil {
 					log.Printf("[CRM] failed to list tenant schemas: %v", err)
 					continue
@@ -256,7 +256,11 @@ func RunCRMTickForSchema(schema string) {
 		}()
 		fn(schema)
 	}
+	idle := !crmWorkInFlight(schema)
 	for _, t := range ticks {
+		if idle && crmIdleSkipTicks[t.name] {
+			continue
+		}
 		safely(t.name, t.fn)
 	}
 	today := time.Now().In(crmLocation(schema)).Format("2006-01-02")
@@ -268,9 +272,32 @@ func RunCRMTickForSchema(schema string) {
 		crmDailyDone.Store(key, today)
 		safely(t.name, t.fn)
 	}
-	safely("dispatch", func(s string) { crmDispatchDue(s, 200) })
-	safely("unknown sweep", crmSweepUnknown)
+	if !idle {
+		safely("dispatch", func(s string) { crmDispatchDue(s, 200) })
+		safely("unknown sweep", crmSweepUnknown)
+	}
 	safely("alerts", crmCheckAlerts)
+}
+
+// crmIdleSkipTicks (283.2) are the ticks that only act on a row
+// crmWorkInFlight looks for; with none of those rows they have nothing to do.
+// A tick not named here always runs.
+var crmIdleSkipTicks = map[string]bool{"campaign runs": true, "events": true, "journeys": true}
+
+// crmWorkInFlight is one statement asking whether any tick has a row to act
+// on: an unprocessed event, a scheduled or running campaign run, a running
+// campaign, an active or waiting journey run, or a message queued, deferred or
+// sending. Each condition takes in its tick's own (dispatch: Queued or
+// Deferred and due; unknown sweep: Sending and late). On any error it says
+// yes, so every tick runs as before. Alerts and the daily jobs always run.
+func crmWorkInFlight(schema string) bool {
+	var inFlight bool
+	err := db.DB.QueryRow(fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %[1]s.crm_events WHERE processed_at IS NULL)
+		OR EXISTS (SELECT 1 FROM %[1]s.crm_campaign_runs WHERE status IN ('Scheduled', 'Running'))
+		OR EXISTS (SELECT 1 FROM %[1]s.documents WHERE doctype = 'Campaign' AND status = 'Running')
+		OR EXISTS (SELECT 1 FROM %[1]s.crm_journey_runs WHERE state IN ('Active', 'Waiting'))
+		OR EXISTS (SELECT 1 FROM %[1]s.crm_sends WHERE status IN ('Queued', 'Deferred', 'Sending'))`, schema)).Scan(&inFlight)
+	return err != nil || inFlight
 }
 
 func init() {

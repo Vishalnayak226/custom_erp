@@ -18,13 +18,19 @@ export async function renderTransferAllocationView(container) {
   const res = await apiFetch('/api/v1/doc/Location');
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Locations could not be loaded.'); return; }
-  const locs = (await res.json()).map(l => (l.data || l).code || l.id).filter(Boolean).sort();
+  // 276.12: From reads "name (code)"; the code is what is sent.
+  const locs = (await res.json()).map(l => { const d = l.data || l; return { code: d.code || l.id, name: d.name || '' }; })
+    .filter(l => l.code).sort((a, b) => (a.name || a.code).localeCompare(b.name || b.code));
   taFile = null; taRun = ''; taBody = null;
+  // 276.12: the standard page header, like every other screen.
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = '<div class="page-title-section"><h1 class="page-title">Allocation</h1></div>';
+  container.appendChild(header);
   const box = document.createElement('div');
   box.className = 'table-panel';
   box.style.padding = '24px';
   box.innerHTML = `
-    <h3 class="s-ca6dfe">Allocation</h3>
     <div class="s-7e6838">
       <div class="form-group"><label class="form-label" for="ta-grn">From a goods receipt</label><input id="ta-grn" class="form-input" autocomplete="off" placeholder="GRN no."></div>
     </div>
@@ -32,11 +38,13 @@ export async function renderTransferAllocationView(container) {
     <div class="s-7e6838">
       <div class="form-group"><label class="form-label" for="ta-run">Run ID</label><input id="ta-run" class="form-input" autocomplete="off"></div>
       <div class="form-group"><label class="form-label" for="ta-from">From</label>
-        <select id="ta-from" class="form-select">${locs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
+        <select id="ta-from" class="form-select">${locs.map(l => `<option value="${esc(l.code)}">${esc(l.name ? `${l.name} (${l.code})` : l.code)}</option>`).join('')}</select></div>
       <div class="form-group"><label class="form-label" for="ta-purpose">Purpose</label>
         <select id="ta-purpose" class="form-select"><option value="">Replenishment</option><option>New store</option><option>Launch allocation</option></select></div>
     </div>
-    <div class="form-group"><label class="form-label" for="ta-file">File (Excel or CSV)</label><input id="ta-file" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+    <div class="form-group"><span class="form-label">File (Excel or CSV)</span>
+      <div><label class="btn btn-outline">Choose file<input id="ta-file" type="file" hidden accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <span id="ta-file-name" class="text-muted s-5e0faa">No file chosen</span></div></div>
     <div class="s-881549">
       <button class="btn" id="ta-preview" disabled>Preview</button>
       <button class="btn btn-primary" id="ta-make" disabled>Make Drafts</button>
@@ -49,6 +57,7 @@ export async function renderTransferAllocationView(container) {
   q('ta-grn-sheet').addEventListener('click', () => taGRNSheet(q('ta-grn-sheet')));
   q('ta-file').addEventListener('change', (e) => {
     taFile = e.target.files[0] || null;
+    q('ta-file-name').textContent = taFile ? taFile.name : 'No file chosen';
     q('ta-preview').disabled = q('ta-make').disabled = !taFile;
   });
   q('ta-preview').addEventListener('click', () => taSend(true));

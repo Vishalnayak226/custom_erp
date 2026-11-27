@@ -27,8 +27,8 @@ prerequisites: Signed-in account with permission for the described task; observe
 
 # Product Information Management
 
-The PIM menu holds its working pages (**Dashboard**, **Workbench**, **PIM Reports**,
-**My Work**, **Media Library**, **Supplier Submissions**, **Catalogs**); every
+The PIM menu holds its working pages (**Home**, **Workbench**, **PIM Reports**,
+**My Work**, **Workflow runs**, **Media Library**, **Supplier Submissions**, **Catalogs**); every
 taxonomy and channel-mapping record type is a **Setup → PIM** list, built on the generic
 document machinery — each one that isn't a bespoke screen is a plain
 doctype table with create/list/edit/RBAC/audit/CSV-import for free. This

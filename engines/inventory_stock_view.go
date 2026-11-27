@@ -153,6 +153,27 @@ func loadStockItems(tenantID, schema string, skus []string) (map[string]*StockIt
 	return out, nil
 }
 
+// DesignNumbersOf is each SKU's Design No as Stock on Hand shows it (ask 272.2:
+// the till's search list shows it beside the Combination ID and barcode). A
+// SKU with no design is left out.
+func DesignNumbersOf(tenantID string, skus []string) (map[string]string, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	info, err := loadStockItems(tenantID, schema, skus)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for sku, it := range info {
+		if it.DesignNo != "" {
+			out[sku] = it.DesignNo
+		}
+	}
+	return out, nil
+}
+
 // eachDocData runs a read of (id, data::text) with one text-array argument
 // and hands each row's data to fn.
 func eachDocData(query string, arg []string, fn func(id string, data map[string]interface{})) error {

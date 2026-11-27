@@ -36,6 +36,9 @@ a pending sale during a network failure; server acceptance happens on replay. Th
 covers the till lifecycle, the sale itself, returns, discounts and offers,
 offline mode, and closing the day, including setup and troubleshooting.
 
+New to the till? [How a sale works](../getting-started/how-a-sale-works.md) walks one
+sale from opening the till to closing the day, step by step.
+
 ## Before the first sale
 
 Three things have to exist first, or checkout is refused with an error that

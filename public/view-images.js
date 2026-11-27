@@ -496,7 +496,9 @@ async function renderDriveCopy(box) {
       renderDriveCopy(box);
       return;
     }
-    showToast('Copy started.', { variant: 'success' });
+    const started = await r.json().catch(() => ({}));
+    if (started.job_id) trackTask(`job:${started.job_id}`, 'Copy images'); // 297.3: the Tasks bar
+    else showToast('Copy started.', { variant: 'success' });
     renderDriveCopy(box);
   });
   if (c.running) setTimeout(() => renderDriveCopy(box), 3000);

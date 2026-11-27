@@ -5,8 +5,8 @@ order: 80
 summary: Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.
 audience: store manager, marketing, admin
 last_verified: 2026-11-15
-screens: [crm, module:crm, doctype:customer, loyalty, reports, configuration]
-screen_sections: [loyalty=loyalty-points-earn-and-burn,doctype:customer=merging-duplicate-customers]
+screens: [crm, module:crm, doctype:customer, loyalty, reports, configuration, service-desk]
+screen_sections: [loyalty=loyalty-points-earn-and-burn,doctype:customer=merging-duplicate-customers,service-desk=service-desk]
 doc_id: DOC-F07FAE98C4
 type: procedure
 status: draft
@@ -130,7 +130,7 @@ redemption already effectively consumed.
    **Customer**.
 2. At the till, type the code into the POS **Coupon code** box. One voucher
    per bill.
-3. See each voucher's use on **CRM → Loyalty → Vouchers & campaigns**.
+3. See each voucher's use on **CRM → Loyalty → Voucher use**.
 
 A **Voucher** (**Setup → Master Data → Voucher**, individually or via bulk
 CSV import — both come free from the same generic doctype/import machinery
@@ -246,6 +246,23 @@ notification only goes out once real credentials exist. An inbound
 **segment-sync** endpoint also exists for pulling a CleverTap-defined
 segment back into this system.
 
+## Service desk
+
+**CRM → Service desk** is the working queue for open service tickets. The
+ticket list itself is **CRM → Service Tickets**.
+
+1. Open **CRM → Service desk**. Overdue tickets come first, then by priority
+   and Resolve By date.
+2. Pick **Mine and unassigned** (your tickets and any nobody has taken) or
+   **All open** (everyone's).
+3. Read the row: the **Due** badge (*Response overdue*, *Resolution overdue*,
+   *Due today*) and the contract's coverage (*Covered - 2 visit(s) left*,
+   *Ended …*, *All visits used*).
+4. Press **Next step** (Assign, Start work, Resolve with notes, Close). It
+   runs the same step as the row button on the ticket list.
+5. Click a ticket number to see its status history: each change, when and by
+   whom.
+
 ## Reports
 
 All seven live under **Reports → CRM**:
@@ -288,13 +305,15 @@ Lapsed Customer campaign needs at least one prior Paid sale to have
 **A voucher code is refused at the till.** The offers panel says why — used
 up, expired, restricted to another customer (put that customer on the sale
 first), online only, or not valid yet. Check it on **CRM → Loyalty →
-Vouchers & campaigns**.
+Voucher use**.
 
 ## Where the CRM screens are
 
 The **CRM** menu holds the customer page, consent, segments, templates,
-campaigns, journeys, messages, the WhatsApp inbox, tickets, feedback, the
-worklist and the business-buyer pipeline (User Guide §9D), plus **CRM →
-Loyalty** (customer points, tiers, points movement, vouchers and campaigns).
+campaigns, journeys, messages, the WhatsApp inbox, tickets, feedback,
+referrals, the worklist, the business-buyer pipeline (User Guide §9D) and the
+service desk and service tickets, plus
+**CRM → Loyalty** (customer points, tiers, points movement, voucher use,
+campaign results).
 At the till, points, vouchers and the one-time code are part of the sale
 (see [Point of Sale](pos-operations.md)).

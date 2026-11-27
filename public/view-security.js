@@ -17,14 +17,16 @@ const DETECTION = /^rule=(\S+) subject=(.*?): (\d+) in (\d+) min - (.*?)\. Owner
 function detectionHtml(details) {
   const m = DETECTION.exec(details || '');
   if (!m) return esc(details);
+  // 287.3: the evidence joins action codes with "/" into one run with no break
+  // point; <wbr> lets it wrap between codes instead of mid-code at the cell edge.
   return `<strong>${esc(m[5])}</strong> · ${esc(m[2])} · ${esc(m[3])} in ${esc(m[4])} min<br>${esc(m[7])}`
-    + `<div class="s-69ffa6">${esc(m[6])} · ${esc(m[8])}${esc(m[9])}</div>`;
+    + `<div class="s-69ffa6">${esc(m[6])} · ${esc(m[8])}${esc(m[9]).replace(/\//g, '/<wbr>')}</div>`;
 }
 
 function stat(label, value, bad) {
   return `<div class="table-panel s-96a620">
     <div class="s-8cadba">${esc(label)}</div>
-    <div class="u-fs15 u-fw6${bad ? ' u-bad' : ''}">${esc(value)}</div>
+    <div class="u-fs14 u-fw6${bad ? ' u-bad' : ''}">${esc(value)}</div>
   </div>`;
 }
 

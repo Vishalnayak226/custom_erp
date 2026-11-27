@@ -258,6 +258,17 @@ var roleTemplates = []RoleTemplate{
 			"Core": AccessRead, "Sales": AccessRead, "Procurement": AccessRead,
 			"Inventory": AccessRead, "Manufacturing": AccessRead,
 		},
+		// 278.1: the seed's Accountant held these beyond its modules. A new
+		// client's Accountant is written from this template (newClientTemplateRoles),
+		// and the plan for an existing one must not take them away. A level
+		// cannot say create without update, so ReprintRequest gains update; it
+		// is raised by the print command and decided in Approvals.
+		Doctypes: map[string]AccessLevel{
+			"UserShortcut": AccessManage, "PaymentTerm": AccessOperate,
+			"TradeChargeCode": AccessOperate, "TradeChargeRule": AccessOperate,
+			"ReturnDispositionRule": AccessOperate, "ReprintRequest": AccessOperate,
+			"InspectionLot": AccessRead,
+		},
 		Capabilities: []string{"finance.statements", "assets.manage", "expenses.manage", "finance.post"},
 		GlobalScopes: []ScopeDimension{ScopeLocation},
 	},
@@ -415,8 +426,10 @@ var newClientSeedWidenings = map[string][]string{
 
 // newClientTemplateRoles (55.5a) are seeded roles a new client gets exactly
 // as their template says, not as the seed copied them. The shipped Cashier
-// seed showed about 35 menu entries beyond the till.
-var newClientTemplateRoles = []string{RoleCashier}
+// seed showed about 35 menu entries beyond the till; the shipped Accountant
+// (278.1, ask 279) could not add a fixed asset or a bank statement line, or
+// send a journal for approval.
+var newClientTemplateRoles = []string{RoleCashier, "Accountant"}
 
 // fitNewClientSeedGrantsTx shapes a new client's copy of the seed inside its
 // provisioning transaction: newClientSeedNarrowings keep read and lose

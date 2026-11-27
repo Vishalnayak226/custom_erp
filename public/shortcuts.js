@@ -90,15 +90,22 @@ function markMenuCodes() {
 window.markMenuCodes = markMenuCodes;
 codesReady.then(markMenuCodes);
 
-let reports = null, reportsTried = 0;
+let reports = null, reportsTried = 0, reportsLoading = null;
 async function loadReports() {
   if (reports) return reports;
+  // 297.6: a load still on its way is waited for, not skipped. On a slow line
+  // the second key typed searched without the reports, and built the whole
+  // search index inside that key press.
+  if (reportsLoading) return reportsLoading;
   if (Date.now() - reportsTried < 60000) return []; // no Reports module, or offline: not on every keystroke
   reportsTried = Date.now();
-  const res = await window.apiFetch('/api/v1/reports/catalog').catch(() => null);
-  if (!res || !res.ok) return [];
-  reports = await res.json();
-  return reports;
+  reportsLoading = (async () => {
+    const res = await window.apiFetch('/api/v1/reports/catalog').catch(() => null);
+    if (!res || !res.ok) return [];
+    reports = await res.json();
+    return reports;
+  })().catch(() => []).finally(() => { reportsLoading = null; });
+  return reportsLoading;
 }
 const REPORT_AREAS = { 1: 'Sales & POS', 2: 'Procurement', 3: 'Inventory', 4: 'WMS', 5: 'Finance', 6: 'CRM & Commerce', 7: 'PIM & Manufacturing', 8: 'HR', 9: 'MIS, Master Data & Audit' };
 const reportByRoute = route => (reports || []).find(r => `reports:${r.id}` === route);

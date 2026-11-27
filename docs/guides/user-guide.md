@@ -174,7 +174,7 @@ Jump straight to the thing you're trying to do.
       - [5.1 Choosing a wave on Mobile Picking](user-guide-selling-and-stock.md#51-choosing-a-wave-on-mobile-picking)
       - [5.2 How a pick list holds stock in the bins](user-guide-selling-and-stock.md#52-how-a-pick-list-holds-stock-in-the-bins)
       - [5.1 Stock locations inside a store — what sells and what doesn't](user-guide-selling-and-stock.md#51-stock-locations-inside-a-store--what-sells-and-what-doesnt)
-      - [5.3 Inventory Dashboard](user-guide-selling-and-stock.md#53-inventory-dashboard)
+      - [5.3 Inventory home](user-guide-selling-and-stock.md#53-inventory-home)
       - [5.4 Inventory Ledger](user-guide-selling-and-stock.md#54-inventory-ledger)
       - [5.5 Stock Adjustment](user-guide-selling-and-stock.md#55-stock-adjustment)
       - [5.6 MRP Change](user-guide-selling-and-stock.md#56-mrp-change)

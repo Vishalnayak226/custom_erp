@@ -60,7 +60,7 @@ A few things work the same way everywhere in this system. Learn them once here i
 
 ## 2. Where you land after signing in
 
-1. Signing in takes you to **Home**, at the top of the sidebar. It shows only what your own role actually does day to day: a grid of quick-action tiles straight to your real screens (POS for a cashier, Purchase Orders for buying, the Warehouse Cockpit for a floor operator, Finance / GL for an accountant, and so on — a tile is simply absent if your role cannot use it, never shown greyed out), how many approvals are waiting on you, the records you most recently touched, and — while your company is still setting up — a "Get started" panel naming the first master record you need to create. From the second visit onward you land back on whichever screen you were last using instead, so you can pick up where you left off.
+1. Signing in takes you to **Home**, at the top of the sidebar. It shows only what your own role actually does day to day: a grid of quick-action tiles straight to your real screens (POS for a cashier, Purchase Orders for buying, WMS home for a floor operator, Finance home for an accountant, and so on — a tile is simply absent if your role cannot use it, never shown greyed out), how many approvals are waiting on you, the records you most recently touched, and — while your company is still setting up — a "Get started" panel naming the first master record you need to create. From the second visit onward you land back on whichever screen you were last using instead, so you can pick up where you left off.
 2. **Reports** (§14) is still one click away in the sidebar, and its first tab is the same dashboard of live figures — stale approvals, failed syncs, negative stock and a sales trend — it always was.
 3. There is no separate admin-shortcuts Dashboard screen. The one that used to sit at the top of the sidebar only held derived counts and shortcuts to admin/config tools (**Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, **Activity Log**), all of which are in the **Settings** module — see **[admin-sop.md](admin-sop.md)**. It was removed in August 2026 rather than kept as a second front door to the same screens; Home does not bring it back — it links only to real task screens, never a Settings/admin one.
 
@@ -281,7 +281,7 @@ Reached via the **Sales & Marketplace** flyout → **Marketplace**. Two independ
 ### 13.2 Logistics Bookings
 
 1. A booking is made on **OMS → Ship**, under **Book the courier**: check the **Pincode**, leave **Courier** blank for the first one that serves it (or type one), and click **Book**. **Pack, bill and label** on **OMS → Pack** books it too, and an order's **Book shipment** opens Ship on that order. The Logistics Booking list has no **New**: a booking typed on a form would skip the pincode check, the AWB and the packed task.
-2. The booking moves to **Booked - make the manifest** with its AWB. **Make manifest** groups the booked parcels by courier and store (user guide §9A.11).
+2. The booking moves to **OMS → Make manifest** with its AWB. **Make manifest** groups the booked parcels by courier and store (user guide §9A.11).
 
 ---
 
@@ -531,8 +531,8 @@ Designed for a phone or handheld held one-handed in an aisle; it works on a desk
 
 Reached via the **Stock** flyout → **Cycle Count**. Counts stock in place, without shutting the warehouse.
 
-1. **Get Plan** (with a **Location**) suggests which bins are due a count. How often a bin comes round depends on its ABC tier, and the intervals are configurable (ADMIN_SOP Part A → Configuration). Items marked **Leave out of cycle counts** on the Item form are left off the plan.
-2. **Manage Count Lines** opens the lines for a **Count Session**. Enter the **Counted Qty (blind)** for each — *blind* means the counter is not shown the expected figure, so the count is not anchored by it.
+1. **Stock → ABC count plan** (its own page): **Get Plan** with a **Location** suggests which bins are due a count. How often a bin comes round depends on its ABC tier, and the intervals are configurable (ADMIN_SOP Part A → Configuration). Items marked **Leave out of cycle counts** on the Item form are left off the plan.
+2. **Stock → Count lines** (its own page) holds the lines for a **Count Session**. Enter the **Counted Qty (blind)** for each — *blind* means the counter is not shown the expected figure, so the count is not anchored by it.
 3. Click **Reconcile Session**:
    - Lines that match the system exactly **post immediately**.
    - Lines with a variance route to **Approvals** for a Store Manager, and do not adjust stock until decided.
@@ -612,7 +612,7 @@ Reached via the **HRM** flyout → **Fixed Assets**. Lifecycle: Draft → Capita
 
 ## 25. Expenses
 
-Reached via the **HRM** flyout → **Expenses**. Lifecycle: Claim → Manager Approval → Finance Verification → Payment.
+Reached via the **HRM** flyout → **Expenses**. Lifecycle: Claim → Manager Approval → Finance Verification → Payment. **HRM → Home** counts the claims, and their amount, waiting at each step.
 
 1. The screen opens on the list of claims. Click **+ New Expense Claim**, then fill in **Employee**, **Location**, **Expense Date**, **Category** (Conveyance/Travel/Food/Hotel/Fuel/Repair/Medical/Marketing/StoreExpense/Other), **Amount**, **GST Amount** (optional), **Advance Adjusted** (optional), and **Purpose**. Click **Create Draft**. **Claim Number** is issued on save (see §1).
 2. Click **Submit for Approval** — this routes through the same Approvals screen (§6) as everything else; a manager approves or rejects it there.
@@ -641,9 +641,9 @@ Reached via **Manufacturing** in the sidebar. Single-level Bill of Materials (BO
 
 ## 27. PIM (Product Information Management)
 
-Reached via **PIM** in the sidebar. Three bespoke tabs (Dashboard, Workbench, Reports) plus six tabs that are really shortcuts into record-list screens for PIM's underlying record types, all sharing the same **PIM** title/tab bar so it never feels like you've left the module.
+Reached via **PIM** in the sidebar. Three bespoke tabs (Home, Workbench, Reports) plus six tabs that are really shortcuts into record-list screens for PIM's underlying record types, all sharing the same **PIM** title/tab bar so it never feels like you've left the module.
 
-### 27.1 Dashboard tab
+### 27.1 PIM home
 
 A grid of clickable stat cards (Products, Incomplete, Pending approval, Ready to publish, Published, Missing main image, Publish queued, Publish failed). Clicking one jumps to either the **Workbench** tab or, for "Pending approval," straight to the **ProductContent** record list.
 

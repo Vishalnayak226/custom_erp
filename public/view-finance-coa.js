@@ -2,6 +2,8 @@
 // Lazy: loaded by view-finance.js. Every change is a GLAccountChange request that
 // goes through approval and is applied when approved.
 const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+// 276.2: each user chooses the list's columns.
+const { columnsButtonHTML, wireColumns } = await import('./list-columns.js' + new URL(import.meta.url).search);
 await loadViewStyles('view-finance-coa.css');
 
 const esc = (v) => escapeHTMLText(v == null ? '' : String(v));
@@ -46,7 +48,14 @@ export function renderChartOfAccounts(container, accounts) {
   list.innerHTML = rows.length
     ? `<table><thead><tr><th>Account Code</th><th>Account Name</th><th>Type</th><th>Parent</th><th>Flags</th>${canChange ? '<th></th>' : ''}</tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table>`
     : '<p class="text-muted s-287f77">No accounts yet.</p>';
-  if (!canChange) { container.appendChild(list); return; }
+  // 276.2: the walk found Parent and Flags blank on every row: off unless chosen.
+  const columns = () => wireColumns(list.querySelector('table'), container.querySelector('#coa-columns-btn'), 'chart-of-accounts', ['Parent', 'Flags']);
+  if (!canChange) {
+    if (rows.length) list.insertAdjacentHTML('afterbegin', `<div class="table-controls">${columnsButtonHTML('coa-columns-btn')}</div>`);
+    container.appendChild(list);
+    columns();
+    return;
+  }
 
   const accountOptions = (blank) => `<option value="">${esc(blank)}</option>` +
     accounts.map(a => `<option value="${esc(a.account_code)}">${esc(a.account_name)}</option>`).join('');
@@ -64,9 +73,10 @@ export function renderChartOfAccounts(container, accounts) {
     <div><button type="button" class="btn btn-primary" id="coa-send">Send for approval</button></div>
     <div class="text-danger hidden" id="coa-err"></div></div>`;
   const section = txnPagedSection({ id: 'finance-coa', title: 'Chart of Accounts', page: 'Account request', count: accounts.length,
-    newLabel: 'Account', form, list, heading: 'h2' });
+    newLabel: 'Account', form, list, heading: 'h2', extra: rows.length ? columnsButtonHTML('coa-columns-btn') : '' });
   container.appendChild(section);
   txnRestorePane('finance-coa');
+  columns();
 
   const $ = (s) => form.querySelector(s);
   const sync = () => {

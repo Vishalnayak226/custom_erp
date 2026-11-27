@@ -21,7 +21,7 @@ const (
 	// TransferReserveSetting switches the hold on.
 	TransferReserveSetting = "inventory.transfer_reserve_on_approval"
 	// TransferHoldStaleDaysSetting is the age after which a still-unmoved
-	// transfer hold shows on the Warehouse Cockpit.
+	// transfer hold shows on WMS home.
 	TransferHoldStaleDaysSetting = "inventory.transfer_hold_stale_days"
 
 	transferReservationType = "Transfer"
@@ -38,7 +38,7 @@ func init() {
 	RegisterSetting(SettingDefinition{
 		Key: TransferHoldStaleDaysSetting, Module: "Warehouse",
 		Label: "Days before a transfer hold shows as stale", Type: SettingTypeInt, Default: "3",
-		Description: "A held transfer not dispatched after this many days shows on the Warehouse Cockpit. 0 = never.",
+		Description: "A held transfer not dispatched after this many days shows on WMS home. 0 = never.",
 	})
 }
 

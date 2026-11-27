@@ -645,9 +645,10 @@ func crmJourneyDailyTriggers(schema string) {
 				col := map[string]string{"birthday": "dob", "anniversary": "anniversary"}[t.Date]
 				q = fmt.Sprintf(` SELECT id, '{}'::jsonb FROM cf WHERE %[1]s IS NOT NULL AND to_char(%[1]s, 'MM-DD') = to_char(%[2]s + %[3]d, 'MM-DD')`, col, today, t.DaysBefore)
 			case "points_expiring":
-				q = fmt.Sprintf(` SELECT l.customer_id, jsonb_build_object('points.expiring', SUM(l.points)::text, 'points.expiry_date', to_char(MIN(l.expires_at), 'DD Mon'))
+				q = fmt.Sprintf(` SELECT l.customer_id, jsonb_build_object('points.expiring', SUM(l.points)::text, 'points.expiry_date', to_char(%s, 'DD Mon'))
 					FROM %s.loyalty_point_ledger l JOIN cf ON cf.id = l.customer_id
-					WHERE l.transaction_type = 'Earn' AND l.cancelled_at IS NULL AND l.expires_at::date = %s + %d GROUP BY l.customer_id`, schema, today, t.DaysBefore)
+					WHERE l.transaction_type = 'Earn' AND l.cancelled_at IS NULL AND %s::date = %s + %d GROUP BY l.customer_id`,
+					crmDocLocalSQL("MIN(l.expires_at)", zone), schema, crmDocLocalSQL("l.expires_at", zone), today, t.DaysBefore)
 			}
 		case "inactive":
 			args = append(args, t.Days)

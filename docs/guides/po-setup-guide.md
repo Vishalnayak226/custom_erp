@@ -286,7 +286,7 @@ Raise one PO for a small amount and take it all the way through. If every check 
 
 | # | Do | Where | Check |
 |---|---|---|---|
-| 1 | Click **+ New Purchase Order**, pick the vendor, the billing store and one or two items or an item name with a design | Procurement → Purchase Order | The **supply-type banner** says CGST + SGST or IGST correctly (not amber). HSN and GST fill in on every line; none is red. |
+| 1 | Click **+ New Purchase Order**, pick the vendor, check the billing store (it starts as the top-bar store) and one or two items or an item name with a design | Procurement → Purchase Order | The **supply-type banner** says CGST + SGST or IGST correctly (not amber). HSN and GST fill in on every line; none is red. |
 | 2 | **Create Draft** | – | The PO number reads the way you set it in step 6 (`PO/BDR/26-27/00001`). |
 | 3 | **Submit for Approval** on its row | PO list | Status moves to **Pending Approval**. |
 | 4 | **Approve**, as the approving user | Approvals | Status **Approved**; **Receive goods** appears on the row. |
@@ -308,7 +308,7 @@ The full walk of each screen is in the [User Guide](user-guide.md), §6 (PO) and
 
 | You see | Why | Fix |
 |---|---|---|
-| Amber banner: *... has no state — choose it* | The vendor, or the billing store and its Legal Entity, have no GSTIN or State | Choose the state in the banner and click **Save to vendor** / **Save to store**; it is saved on that record for every later PO. Or add it to the vendor (step 10) or the legal entity (step 2). |
+| Amber banner: *... has no state — choose it* | The vendor, or the billing store and its Legal Entity, have no GSTIN or State | Choose the state in the banner and click **Save to vendor** / **Save to store**; it is saved on that record for every later PO. Or add it to the vendor (step 10) or the legal entity (step 2), or click **Open store** to fix the store in **Settings › Stores**. |
 | A PO line turns red | That item has no HSN code or GST rate | Fix the item (or its item name) in Setup. |
 | *enter the purchase price* | A line has no purchase price | Every PO line needs one. |
 | *has no approval rule configured* | The PO amount falls in a gap between bands | Close the gap (step 14). |

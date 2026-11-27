@@ -80,7 +80,8 @@ async function apiErrorText(res, fallback) {
 
 const scheduleRows = v => { try { const a = typeof v === 'string' ? JSON.parse(v || '[]') : v; return Array.isArray(a) ? a : []; } catch (e) { return []; } };
 
-// renderLeaseSection appends the lease list (list first, New on its own page).
+// renderLeaseSection draws the Leases page (288.2: its own page, assets:leases;
+// list first, New on its own page).
 export async function renderLeaseSection(container) {
   const r = await apiFetch('/api/v1/doc/Lease?limit=500');
   const body = r && r.ok ? await r.json() : [];
@@ -115,7 +116,7 @@ export async function renderLeaseSection(container) {
   </tbody></table>`;
 
   const extra = '<button class="btn btn-outline" type="button" id="ls-run">Post due</button>';
-  container.appendChild(txnPagedSection({ id: 'lease-screen', title: 'Leases', page: 'New lease', count: leases.length, newLabel: 'New Lease', form, list, extra, heading: 'h2' }));
+  container.appendChild(txnPagedSection({ id: 'lease-screen', title: 'Leases', page: 'New lease', count: leases.length, newLabel: 'New Lease', form, list, extra }));
   txnRestorePane('lease-screen');
 
   const syncType = () => {
@@ -127,7 +128,7 @@ export async function renderLeaseSection(container) {
   syncType();
   attachLinkTypeahead(form.querySelector('#ls-asset'), 'Asset');
 
-  const reload = () => renderView('assets');
+  const reload = () => renderView('assets:leases');
   const fail = m => { const el = form.querySelector('#ls-error'); el.textContent = m; el.classList.remove('hidden'); };
   form.querySelector('#ls-save').addEventListener('click', e => guardAgainstDoubleSubmit(e.currentTarget, 'Saving...', async () => {
     const code = form.querySelector('#ls-code').value.trim();

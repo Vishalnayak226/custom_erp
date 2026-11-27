@@ -1,7 +1,8 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
-import { documentSearchLink } from './view-document-links.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { documentSearchLink } = await import('./view-document-links.js' + new URL(import.meta.url).search);
 
 // Stage 73.2.14: this module's own stylesheet, linked once on first load so
 // the cold-core styles.css stays inside its release budget. Stage 152: the
@@ -47,8 +48,10 @@ async function renderOMSWorkbenchView(container) {
   // Orders is the console without its configuration, which is OMS settings.
   const tab = typeof currentViewTab === 'string' ? currentViewTab : '';
   if (tab === 'settlements') return renderOMSSettlementsView(container);
+  if (tab === 'reconciliation') return renderOMSSettlementReconciliationView(container); // 288.2
   if (tab === 'settings') return renderOMSSettingsView(container);
-  if (tab === 'freight') return (await import('./view-oms-freight.js' + new URL(import.meta.url).search)).renderOMSFreightView(container); // 73.4.2.6/7
+  if (tab === 'home') return renderOMSHomeView(container);
+  if (tab === 'freight' || tab === 'freight-invoices') return (await import('./view-oms-freight.js' + new URL(import.meta.url).search)).renderOMSFreightView(container, tab === 'freight' ? 'claims' : 'invoices'); // 73.4.2.6/7, 288.2
   if (tab) {
     const steps = await import('./view-oms-steps.js' + new URL(import.meta.url).search);
     if (steps.isOMSStep(tab)) return steps.renderOMSStep(tab, container);
@@ -66,28 +69,11 @@ async function renderOMSWorkbenchView(container) {
       </span>
     </div>
     <div data-pane="list">
-    <!-- dashboard-stats-row / stat-val, not stats-grid / stat-value: the two
-         class names the previous version of this screen used do not exist in
-         styles.css at all, which is why its four tiles rendered as full-width
-         stacked bars with an unstyled number. -->
-    <!-- 152.6 (user 2026-11-13): the attention chips sit in the tile row and
-         the search box in the filter row, so the list fits a 768 px window. -->
-    <div class="oms-top-row">
-      <div class="dashboard-stats-row" id="oms-tiles"></div>
-      <div class="oms-attention" role="group" aria-label="Work needing attention">
-        <button class="btn btn-outline btn-sm" data-oms-queue="hold">Allocation or payment holds</button>
-        <button class="btn btn-outline btn-sm" data-oms-go="pending">Pending Orders</button>
-        <button class="btn btn-outline btn-sm" data-oms-queue="overdue">Overdue open orders</button>
-        <button class="btn btn-outline btn-sm" data-oms-go="settings">Unmapped channel items</button>
-        <a class="btn btn-outline btn-sm" href="#/setup/ReturnRequest">Return requests</a>
-        <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
-      </div>
-    </div>
-    <div id="oms-queue-rows" class="table-panel oms-compact-panel"></div>
-    <div class="table-panel s-bd6ccb" id="oms-ai-drafts"></div>
+    <!-- 284.1 (user 2026-11-26): "Order will show only order" - the tiles,
+         attention chips, exception queues and assistant drafts are OMS home
+         (renderOMSHomeView); the page title already says Orders. -->
     <div class="table-panel s-ddaf9e">
-      <div class="oms-console-head">
-        <h2 class="s-b79c2e">Orders</h2>
+      <div class="oms-console-head oms-console-head-end">
         <div class="oms-view-actions">
           <select id="oms-saved-views" class="form-input s-27af89" aria-label="Saved views"><option value="">Saved views…</option></select>
           <button class="btn btn-outline btn-sm" id="oms-save-view">Save this view</button>
@@ -121,19 +107,6 @@ async function renderOMSWorkbenchView(container) {
   txnRestorePane('oms-screen');
 
   document.getElementById('oms-refresh').addEventListener('click', () => renderView('oms'));
-  container.querySelectorAll('[data-oms-go]').forEach(button => button.addEventListener('click', () => {
-    const page = button.dataset.omsGo;
-    setActiveMenu(`menu-oms-${page}`);
-    renderView(`oms:${page}`);
-  }));
-  container.querySelectorAll('[data-oms-queue]').forEach(button => button.addEventListener('click', async () => {
-    const queue = button.dataset.omsQueue;
-    omsConsoleState.filter = { channel: '', status: queue === 'hold' ? 'On Hold' : '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: queue === 'overdue' ? 60 : 0 };
-    omsConsoleState.offset = 0;
-    omsConsoleState.selected.clear();
-    await loadOMSOrders();
-    document.getElementById('oms-order-table')?.scrollIntoView({ block: 'start' });
-  }));
   document.getElementById('oms-search-btn').addEventListener('click', runOMSGlobalSearch);
   document.getElementById('oms-global-search').addEventListener('keydown', e => { if (e.key === 'Enter') runOMSGlobalSearch(); });
   document.getElementById('oms-search-clear').addEventListener('click', () => {
@@ -148,10 +121,52 @@ async function renderOMSWorkbenchView(container) {
   document.getElementById('oms-saved-views').addEventListener('change', applySelectedOMSView);
 
   renderManualOrderPanel(document.getElementById('oms-manual-panel'));
+  // The saved views and the order list are independent reads, so they go out
+  // together rather than in sequence.
+  await Promise.all([loadOMSSavedViews(), loadOMSOrders()]);
+}
+
+// 284.1 (user 2026-11-26): "OMS home required. Order will show only order."
+// OMS home holds what needs attention - the four report tiles, the attention
+// chips with the exception queues and their rows, and the assistant drafts.
+// A chip that filters orders opens Orders with that filter set.
+async function renderOMSHomeView(container) {
+  // dashboard-stats-row / stat-val: the tile classes styles.css defines.
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-section"><h1 class="page-title">OMS home</h1></div>
+      <div class="s-b32917"><button class="btn btn-outline" id="oms-home-refresh">Refresh</button></div>
+    </div>
+    <div class="oms-top-row">
+      <div class="dashboard-stats-row" id="oms-tiles"></div>
+      <div class="oms-attention" role="group" aria-label="Work needing attention">
+        <button class="btn btn-outline btn-sm" data-oms-queue="hold">Allocation or payment holds</button>
+        <button class="btn btn-outline btn-sm" data-oms-go="pending">Pending Orders</button>
+        <button class="btn btn-outline btn-sm" data-oms-queue="overdue">Overdue open orders</button>
+        <button class="btn btn-outline btn-sm" data-oms-go="settings">Unmapped channel items</button>
+        <a class="btn btn-outline btn-sm" href="#/setup/ReturnRequest">Return requests</a>
+        <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
+      </div>
+    </div>
+    <div id="oms-queue-rows" class="table-panel oms-compact-panel"></div>
+    <div class="table-panel s-bd6ccb" id="oms-ai-drafts"></div>`;
+
+  document.getElementById('oms-home-refresh').addEventListener('click', () => renderView('oms:home'));
+  container.querySelectorAll('[data-oms-go]').forEach(button => button.addEventListener('click', () => {
+    const page = button.dataset.omsGo;
+    setActiveMenu(`menu-oms-${page}`);
+    renderView(`oms:${page}`);
+  }));
+  container.querySelectorAll('[data-oms-queue]').forEach(button => button.addEventListener('click', () => {
+    const queue = button.dataset.omsQueue;
+    omsConsoleState.filter = { channel: '', status: queue === 'hold' ? 'On Hold' : '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: queue === 'overdue' ? 60 : 0 };
+    omsConsoleState.offset = 0;
+    omsConsoleState.selected.clear();
+    setActiveMenu('menu-oms');
+    renderView('oms');
+  }));
   import('./view-ai-drafts.js' + new URL(import.meta.url).search).then(m => m.renderAssistantDrafts(document.getElementById('oms-ai-drafts'))).catch(() => document.getElementById('oms-ai-drafts')?.remove());
-  // The tiles, the saved views and the order list are independent reads, so
-  // they go out together rather than in sequence.
-  await Promise.all([loadOMSTiles(), loadOMSExceptionQueues(), loadOMSSavedViews(), loadOMSOrders()]);
+  await Promise.all([loadOMSTiles(), loadOMSExceptionQueues()]);
 }
 
 // Stage 88.2.9: OMS settings on one page, reached from Setup ▸ OMS - channel
@@ -205,7 +220,7 @@ async function loadOMSExceptionQueues() {
   const { queues = [] } = await res.json();
   host.innerHTML = queues.map(q => `
     <button class="btn btn-outline btn-sm" data-oms-exception="${escapeHTMLText(q.id)}" title="${escapeHTMLText(q.hint || '')}">
-      ${escapeHTMLText(q.label)} <span class="badge">${q.error ? '!' : escapeHTMLText(String(q.count))}</span>
+      ${escapeHTMLText(q.label)} <span class="badge">${q.error ? '!' : escapeHTMLText(`${q.count}${q.more ? '+' : ''}`)}</span>
     </button>`).join('');
   host.querySelectorAll('[data-oms-exception]').forEach(btn => btn.addEventListener('click', () => openOMSExceptionQueue(btn.dataset.omsException, btn.textContent.trim())));
   // Stage 73.3.3: My work's Open lands here with its queue already showing.
@@ -225,12 +240,13 @@ async function openOMSExceptionQueue(queue, label) {
   const res = await apiFetch(`/api/v1/oms/queues/${encodeURIComponent(queue)}`);
   if (!res) return;
   if (!res.ok) { host.innerHTML = ''; await showApiError(res, 'Failed to load this queue.'); return; }
-  const { rows = [] } = await res.json();
+  const { rows = [], more = false } = await res.json();
   if (rows.length === 0) {
-    host.innerHTML = `<p class="text-muted oms-detail-empty">Nothing is stuck in ${escapeHTMLText(label.replace(/\s*\d+$/, ''))}.</p>`;
+    host.innerHTML = `<p class="text-muted oms-detail-empty">Nothing is stuck in ${escapeHTMLText(label.replace(/\s*\d+\+?$/, ''))}.</p>`;
     return;
   }
-  host.innerHTML = `
+  // 267.3: a queue past its cap shows its oldest rows - work from the top.
+  host.innerHTML = `${more ? `<p class="text-muted">Oldest ${rows.length} shown</p>` : ''}
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Why it is here</th><th>Since</th><th class="num">Hours</th><th>Next step</th><th>Document</th></tr></thead>
       <tbody>${rows.map(r => `<tr>
@@ -258,7 +274,7 @@ async function loadOMSBundleOperations() {
   const res = await apiFetch('/api/v1/doc/ProductBundle');
   if (!res || !res.ok) { host.innerHTML = '<div class="text-muted">Bundle definitions are unavailable.</div>'; return; }
   const bundles = (await res.json()).filter(bundle => (bundle.status || '') === 'Active');
-  if (bundles.length === 0) { host.innerHTML = '<div class="text-muted">No active bundles. Use Manage definitions to create one.</div>'; return; }
+  if (bundles.length === 0) { host.innerHTML = '<div class="text-muted">No active bundles.</div>'; return; }
   const availability = await Promise.all(bundles.map(async bundle => {
     const sku = bundle.bundle_sku || bundle.code || bundle.id;
     const response = await apiFetch(`/api/v1/oms/bundles/${encodeURIComponent(sku)}/availability`);
@@ -1596,23 +1612,15 @@ async function renderOMSSettlementsView(container) {
       </tbody>
     </table>
   `;
-  if (canPayouts) {
-    container.appendChild(section(txnPagedSection({ id: 'mkt-settlements', title: 'Settlements', page: 'Reconcile a payout',
-      count: settlements.length, newLabel: 'Reconcile Payout', form: settlementPanel, list: settlementList, heading: 'h2' })));
-    txnRestorePane('mkt-settlements');
+  // 288.2: the per-line reconciliation is its own page (oms:reconciliation);
+  // a role that reads only the lines has that entry, not this one.
+  if (!canPayouts) {
+    container.insertAdjacentHTML('beforeend', '<p class="text-muted">Your role cannot see payouts.</p>');
+    return;
   }
-
-  // --- Settlement Reconciliation panel (Stage 35.8, the "UniReco" gap) ---
-  // The panel above stays exactly as it was (a manual one-shot reconcile for
-  // a caller who already knows the payout math). This one is the real
-  // per-order-line workflow: import a marketplace's settlement file as
-  // MarketplaceSettlementLine rows (reuses the generic Bulk Import UI, one
-  // click away via "Import / View Settlement Lines" below - no new upload
-  // code needed), auto-match them against what was actually invoiced, and
-  // work the Variance queue by hand when a line doesn't match within
-  // tolerance.
-  await renderSettlementReconciliationPanel(container);
-  if (!canPayouts) return;
+  container.appendChild(section(txnPagedSection({ id: 'mkt-settlements', title: 'Settlements', page: 'Reconcile a payout',
+    count: settlements.length, newLabel: 'Reconcile Payout', form: settlementPanel, list: settlementList, heading: 'h2' })));
+  txnRestorePane('mkt-settlements');
 
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-order-add').addEventListener('click', addOMSSettlementOrder);
@@ -1656,6 +1664,16 @@ async function addOMSSettlementOrder() {
 // GET /api/v1/reports/run/{id} every other report uses) for the queue table,
 // and drives ReconcileMarketplaceSettlements/RaiseSettlementDispute/
 // ResolveSettlementDispute/WriteOffSettlementVariance directly.
+// 288.2: OMS > Settlement reconciliation is its own page; Settlements keeps
+// the payouts. The panel imports a marketplace's settlement file as
+// MarketplaceSettlementLine rows (the generic Bulk Import, via "Import / View
+// Settlement Lines"), auto-matches them against what was invoiced, and works
+// the Variance queue by hand when a line does not match within tolerance.
+async function renderOMSSettlementReconciliationView(container) {
+  container.insertAdjacentHTML('beforeend', '<div class="page-header"><div class="page-title-section"><h1 class="page-title">Settlement reconciliation</h1></div></div>');
+  await renderSettlementReconciliationPanel(container);
+}
+
 async function renderSettlementReconciliationPanel(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';

@@ -56,12 +56,12 @@ func StartOutboxWorker(ctx context.Context, interval time.Duration) {
 					continue
 				}
 
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[OUTBOX] Failed to list tenant schemas: %v", err)
 					continue
 				}
-				for _, schema := range schemas {
+				for _, schema := range dueSchemas(schemas, "integration_event_outbox", outboxDueWhere) {
 					processOutbox(schema)
 				}
 			}
@@ -88,11 +88,30 @@ func listRegisteredTenantSchemas(moduleKeys ...string) ([]string, error) {
 }
 
 func tenantSchemas(operationalOnly bool, moduleKeys ...string) ([]string, error) {
+	schemas, tenantOf, err := readTenantSchemas(operationalOnly)
+	if err != nil {
+		return nil, err
+	}
+	if len(moduleKeys) == 0 {
+		return schemas, nil
+	}
+	eligible := []string{}
+	for _, schema := range schemas {
+		if RequireModules(tenantOf[schema], moduleKeys...) == nil {
+			eligible = append(eligible, schema)
+		}
+	}
+	return eligible, nil
+}
+
+// readTenantSchemas reads the tenant registry: each schema with the tenant
+// whose entitlements it follows. sweepTenantSchemas shares the same read.
+func readTenantSchemas(operationalOnly bool) ([]string, map[string]string, error) {
 	rows, err := db.DB.Query(`SELECT schema_name, MIN(tenant_id),
 		bool_or(lifecycle_status = 'active' AND (trial_ends_at IS NULL OR trial_ends_at > NOW()))
 		FROM public.tenants GROUP BY schema_name ORDER BY schema_name`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -106,7 +125,7 @@ func tenantSchemas(operationalOnly bool, moduleKeys ...string) ([]string, error)
 		var s, tenantID string
 		var operational bool
 		if err := rows.Scan(&s, &tenantID, &operational); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if operationalOnly && !operational {
 			continue
@@ -115,30 +134,24 @@ func tenantSchemas(operationalOnly bool, moduleKeys ...string) ([]string, error)
 		tenantOf[s] = tenantID
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// Release the enumeration connection before checking entitlements, so
-	// a single-connection pool cannot deadlock. Core maintenance callers
+	// Return the enumeration connection before anyone checks entitlements,
+	// so a single-connection pool cannot deadlock. Core maintenance callers
 	// omit the filter; module-owned workers declare their key at the call.
-	rows.Close()
-	if len(moduleKeys) == 0 {
-		return schemas, nil
-	}
-	eligible := []string{}
-	for _, schema := range schemas {
-		if RequireModules(tenantOf[schema], moduleKeys...) == nil {
-			eligible = append(eligible, schema)
-		}
-	}
-	return eligible, nil
+	return schemas, tenantOf, nil
 }
+
+// outboxDueWhere is the outbox rows a tick dispatches; dueSchemas asks every
+// client the same question first (283.2).
+const outboxDueWhere = `status IN ('Pending', 'Failed') AND attempts < 5`
 
 func processOutbox(schema string) {
 	// Query pending/failed events
 	query := fmt.Sprintf(`
-		SELECT id, event_name, payload, attempts, correlation_id 
-		FROM %s.integration_event_outbox 
-		WHERE status IN ('Pending', 'Failed') AND attempts < 5 
+		SELECT id, event_name, payload, attempts, correlation_id
+		FROM %s.integration_event_outbox
+		WHERE `+outboxDueWhere+`
 		ORDER BY created_at LIMIT 10`, schema)
 
 	rows, err := db.DB.Query(query)

@@ -105,7 +105,7 @@ search feed publishes. This is the file to hand an agency or a translator.
 takes a group id and lists its members with their readiness. Schedule it like
 any other report to get a standing view of a dynamic group's health.
 
-**Give the group out as work.** Open **PIM » My Work**, then **Task Templates**.
-Under **Run a task template**, pick a **Template** and the **Product group** and
+**Give the group out as work.** Open **PIM » My Work** and press **Run a task template**.
+On that page, pick a **Template** and the **Product group** and
 click **Create tasks**: each product in the group gets its own task, with the
 template's owner and due date.

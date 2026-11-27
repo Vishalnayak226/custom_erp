@@ -1089,4 +1089,5 @@ var reportNumbers = map[string]string{
 	"calibration-due":                                          "R7971",
 	"own-approval-decisions":                                   "R9062",
 	"declaration-gaps":                                         "R9063",
+	"sold-below-cost":                                          "R1035",
 }

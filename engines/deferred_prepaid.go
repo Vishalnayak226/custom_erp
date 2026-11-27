@@ -289,7 +289,7 @@ func StartAmortizationWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[AMORTIZATION] Failed to list tenant schemas: %v", err)
 					continue
@@ -448,7 +448,7 @@ func StartRecurringBillingWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[RECURRING-BILLING] Failed to list tenant schemas: %v", err)
 					continue

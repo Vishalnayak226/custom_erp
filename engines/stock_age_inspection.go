@@ -105,7 +105,7 @@ func StartStockAgeInspectionWorker(ctx context.Context, interval time.Duration) 
 				if !IsSchedulerLeader() || db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					continue
 				}

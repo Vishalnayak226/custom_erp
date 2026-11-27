@@ -153,7 +153,7 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required', 
         if (!err) {
           err = document.createElement('div');
           err.id = 'custom-dialog-prompt-error';
-          err.style.cssText = 'color: var(--danger-color, #b3261e); font-size: 12.5px; margin-top: 6px;';
+          err.style.cssText = 'color: var(--danger-color, #b3261e); font-size: 12px; margin-top: 6px;';
           err.setAttribute('role', 'alert');
           input.after(err);
         }
@@ -227,9 +227,11 @@ async function getErrorMessage(res, fallback) {
 // fallback here - see apierror.go's apiErrorBody comment). title is only
 // used by the modal fallback, so existing callers passing just (res,
 // fallback) are unaffected.
-async function showApiError(res, fallback, title = 'Error') {
+// opts.modal (264.4): always the modal, for a caller that re-opens a dialog.
+async function showApiError(res, fallback, title = 'Error', opts = {}) {
   const details = await getErrorDetails(res, fallback);
-  const { message, detail, userAction, code, displayStyle, correlationId, savedNote, help } = details;
+  const { message, detail, userAction, code, correlationId, savedNote, help } = details;
+  const displayStyle = opts.modal ? 'Modal' : details.displayStyle;
   if (code) console.debug(`[API error] ${code}`);
   if (displayStyle === 'Toast') {
     // Toast is transient (a few seconds) - too short-lived for a reference
@@ -404,7 +406,7 @@ const loadedViewModules = new Map();
 const viewModuleLoadAttempts = new Map();
 // 53.17: VIEW_MODULE_VERSION busts lazy view modules' cache after a deploy (the release bumps it
 // with index.html's app.js?v=); viewModuleCacheBust is set by Reset so it re-fetches them too.
-const VIEW_MODULE_VERSION = '93';
+const VIEW_MODULE_VERSION = '94';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -432,6 +434,7 @@ const LAZY_VIEW_MODULES = {
   'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability', 'rf.css'],
   returns: ['view-returns.js', 'renderReturnsView', 'Returns', 'txn-screen.css'],
   loyalty: ['view-loyalty.js', 'renderLoyaltyView', 'Loyalty'],
+  'service-desk': ['view-service-desk.js', 'renderServiceDeskView', 'Service desk'], // 288.2
   crm: ['view-crm.js', 'renderCRMView', 'CRM', 'crm.css'],
   finance: ['view-finance.js', 'renderFinanceView', 'Finance'],
   'vendor-invoices': ['view-finance.js', 'renderVendorInvoicesView', 'Vendor Invoices', 'txn-screen.css'],
@@ -447,7 +450,7 @@ const LAZY_VIEW_MODULES = {
   'stock-locations': ['view-stock-locations.js', 'renderStockLocationsView', 'Stock Locations', 'txn-screen.css'],
   'stock-moves': ['view-stock-locations.js', 'renderStockMovesView', 'Move Stock', 'txn-screen.css'],
   putaway: ['view-warehouse.js', 'renderPutawayView', 'Putaway'],
-  'warehouse-cockpit': ['view-warehouse.js', 'renderWarehouseCockpitView', 'Warehouse Cockpit'],
+  'warehouse-cockpit': ['view-warehouse.js', 'renderWarehouseCockpitView', 'WMS home'],
   'appointment-calendar': ['view-warehouse.js', 'renderAppointmentCalendarView', 'Appointment Calendar'],
   'yard-board': ['view-warehouse.js', 'renderYardBoardView', 'Yard Board'],
   'place-hold': ['view-warehouse.js', 'renderPlaceHoldView', 'Place Hold'],
@@ -467,6 +470,7 @@ const LAZY_VIEW_MODULES = {
   approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
   dataquality: ['view-data-quality.js', 'renderDataQualityView', 'Data quality'],
   datahealer: ['view-data-healer.js', 'renderDataHealerView', 'Data Healer', 'txn-screen.css'],
+  stores: ['view-stores.js', 'renderStoresView', 'Stores', 'txn-screen.css'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
   'gate-entry': ['view-gate-entry.js', 'renderGateEntryView', 'Gate entries', 'txn-screen.css'],
@@ -630,7 +634,8 @@ function showToast(message, opts = {}) {
     toast.classList.remove('toast-visible');
     setTimeout(() => toast.remove(), 300);
   };
-  toast.addEventListener('click', dismiss);
+  // 297.3: opts.onClick - a finished task's toast opens the Tasks panel.
+  toast.addEventListener('click', () => { if (opts.onClick) opts.onClick(); dismiss(); });
   setTimeout(dismiss, opts.ms || 5000);
 }
 
@@ -1108,10 +1113,128 @@ function refusedListRead(url) {
 // the one it was fetched under, so no save ever shows an old status.
 let apiWriteSeq = 0;
 
+// 297.1: a deploy reaches every open tab by itself - no hard refresh. Every API
+// reply names the server's build (X-ERP-Build: VIEW_MODULE_VERSION of the files
+// on disk). When it is not this tab's, the tab reloads at a moment that loses
+// nothing: a sidebar entry or Back/Forward (the address bar holds the target),
+// a tab hidden a minute, or one left alone ten minutes at the top of a screen.
+// A plain reload is enough because every file carries the release's ?v=. It
+// waits while a write is on its way, a dialog is open, the till has lines, a
+// typed field is unsaved, or a screen holds work that outlives a screen change
+// (holdUpdateWhile). What sits in localStorage, sessionStorage or IndexedDB
+// (offline sales, the session, filters, drafts) survives the reload untouched.
+let serverBuild = '';
+let writesOpen = 0;
+let lastInputAt = Date.now();
+let hiddenSince = 0;
+let navUpdateArmedAt = 0;
+let updateTimer = 0;
+const updateHolds = new Map(); // name -> () => true while that screen holds unsaved work
+function holdUpdateWhile(name, busy) { updateHolds.set(name, busy); }
+{
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    const write = method !== 'GET' && method !== 'HEAD';
+    if (write) writesOpen++;
+    const sent = nativeFetch(input, init);
+    sent.then(r => { const b = r.headers.get('X-ERP-Build'); if (b) noteServerBuild(b); }, () => {});
+    return write ? sent.finally(() => { writesOpen--; }) : sent;
+  };
+}
+function noteServerBuild(build) {
+  serverBuild = build;
+  if (build !== VIEW_MODULE_VERSION && !updateTimer) updateTimer = setInterval(() => reloadForUpdate('idle'), 30000);
+}
+// Only fields the user typed into count: a screen sets some by code (the
+// till's payment mode, a report's layout picker), and those are not work.
+const typedFields = new WeakSet();
+function typedUnsaved() {
+  return [...document.querySelectorAll('#view-root :is(input, textarea, select), #dynamic-modal :is(input, textarea, select)')].some(f => typedFields.has(f) && (
+    f.tagName === 'SELECT' ? [...f.options].some(o => o.selected !== o.defaultSelected)
+      : /^(checkbox|radio)$/.test(f.type) ? f.checked !== f.defaultChecked
+        : !/^(search|hidden|button|submit|reset)$/.test(f.type) && f.value !== f.defaultValue));
+}
+function reloadForUpdate(why) {
+  if (!serverBuild || serverBuild === VIEW_MODULE_VERSION || writesOpen > 0 || posCart.length || quickCreateReturn) return false;
+  for (const busy of updateHolds.values()) { try { if (busy()) return false; } catch { return false; } }
+  if (document.querySelector('.modal-overlay.open, .modal-overlay.active, .custom-dialog-backdrop:not(.hidden), dialog[open]')) return false;
+  if (why === 'idle') {
+    const quiet = document.hidden ? Date.now() - hiddenSince > 60000
+      : Date.now() - lastInputAt > 600000 && !document.getElementById('view-root')?.scrollTop;
+    if (!quiet || !localStorage.getItem('erp_token') || typedUnsaved()) return false;
+  }
+  let tried = {};
+  try { tried = JSON.parse(sessionStorage.getItem('erp_build_reload') || '{}'); } catch { /* storage off: no record */ }
+  if (tried.build === serverBuild && Date.now() - tried.at < 600000) return false; // one try per build each ten minutes
+  try { sessionStorage.setItem('erp_build_reload', JSON.stringify({ build: serverBuild, at: Date.now() })); } catch { /* reload anyway */ }
+  location.reload();
+  return true;
+}
+['keydown', 'pointerdown', 'input'].forEach(t => document.addEventListener(t, (e) => {
+  lastInputAt = Date.now();
+  if (t === 'input' && e.isTrusted && e.target instanceof Element) typedFields.add(e.target);
+}, { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenSince = Date.now(); return; }
+  // Back after five minutes away: one cheap public call tells the tab the build.
+  if (hiddenSince && Date.now() - hiddenSince > 300000) fetch('/api/v1/version', { cache: 'no-store' }).catch(() => {});
+  hiddenSince = 0;
+});
+document.addEventListener('click', (e) => {
+  if (e.target.closest?.('#app-sidebar .menu-item:not(.menu-item-group):not(.submenu-parent)')) navUpdateArmedAt = Date.now();
+}, true);
+window.addEventListener('popstate', () => { navUpdateArmedAt = Date.now(); });
+
+// 290.3: every read of /api/v1/doc gives each record its version. A save of
+// that record whose body still carries it sends it as expected_version, so a
+// save over someone else's newer edit is refused (409) instead of silently
+// overwriting it (24.10). A body with no version, or with its own
+// expected_version, goes as it is. Saves of one record go one at a time, and
+// a second save from the same copy asks for the version the first one made.
+const docSaveVersions = new Map(); // 'tenant|Doctype/id' -> { base, latest }
+const docSaveTurns = new Map();
+function docSaveKey(url, method) {
+  if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH') return '';
+  const m = /^\/api\/v1\/doc\/([A-Za-z0-9_]+)\/([^/?#]+)(?:\?|$)/.exec(url);
+  return m ? `${localStorage.getItem('erp_tenant_id') || 'default'}|${m[1]}/${m[2]}` : '';
+}
+async function saveDocWithVersion(key, url, options) {
+  let body = options.body;
+  let base = null;
+  if (typeof body === 'string' && body.charAt(0) === '{') {
+    try {
+      const doc = JSON.parse(body);
+      if (doc && doc.expected_version === undefined && typeof doc.version === 'number') {
+        base = doc.version;
+        const own = docSaveVersions.get(key);
+        doc.expected_version = own && own.base === base ? own.latest : base;
+        body = JSON.stringify(doc);
+      }
+    } catch { /* not JSON: sent as it is */ }
+  }
+  const response = await apiFetchOnce(url, body === options.body ? options : { ...options, body });
+  if (base !== null && response && response.ok) {
+    try {
+      const out = await response.clone().json();
+      if (typeof out.version === 'number') docSaveVersions.set(key, { base, latest: out.version });
+    } catch { /* no version back: the next save sends its own */ }
+  }
+  return response;
+}
+function saveDocInTurn(key, url, options) {
+  const run = (docSaveTurns.get(key) || Promise.resolve()).then(() => saveDocWithVersion(key, url, options));
+  const settled = run.catch(() => {});
+  docSaveTurns.set(key, settled);
+  settled.then(() => { if (docSaveTurns.get(key) === settled) docSaveTurns.delete(key); });
+  return run;
+}
+
 async function apiFetch(url, options = {}) {
   if (options.method && options.method !== 'GET') {
     apiWriteSeq++;
-    try { return await apiFetchOnce(url, options); } finally { apiWriteSeq++; }
+    const saveKey = docSaveKey(url, options.method);
+    try { return await (saveKey ? saveDocInTurn(saveKey, url, options) : apiFetchOnce(url, options)); } finally { apiWriteSeq++; }
   }
   if (options.body || options.signal) return apiFetchOnce(url, options);
   const refused = refusedListRead(url);
@@ -1157,7 +1280,37 @@ function setReadOnlyBanner(on) {
   document.body.appendChild(strip);
 }
 
-async function apiFetchOnce(url, options = {}, retried = false) {
+// 297.6: a call cut by a dropped line (slow or patchy internet) is sent again
+// after 1, 2, 4 and 8 s - while the browser says it is offline, as soon as the
+// line is back - with a strip saying so. Only what is safe to send twice is: a
+// read, or a write with a command key, which the server answers once
+// (49.4.7a). Any other write is never resent; its effect is unknown.
+const NET_RETRY_WAITS = [1000, 2000, 4000, 8000];
+let netWaiting = 0;
+function setNetRetryStrip(on) {
+  let strip = document.getElementById('net-retry-strip');
+  if (!on) { if (strip) strip.remove(); return; }
+  if (strip) return;
+  strip = document.createElement('div');
+  strip.id = 'net-retry-strip';
+  strip.setAttribute('role', 'status');
+  strip.textContent = 'Connection lost · retrying';
+  document.body.appendChild(strip);
+}
+function waitForLine(ms, signal) {
+  return new Promise(resolve => {
+    let timer = 0;
+    const done = go => { clearTimeout(timer); removeEventListener('online', onOnline); signal?.removeEventListener('abort', onAbort); resolve(go); };
+    const onOnline = () => done(true);
+    const onAbort = () => done(false);
+    if (signal?.aborted) return resolve(false);
+    signal?.addEventListener('abort', onAbort);
+    if (!navigator.onLine) addEventListener('online', onOnline);
+    timer = setTimeout(() => done(true), navigator.onLine ? ms : Math.max(ms, 30000));
+  });
+}
+
+async function apiFetchOnce(url, options = {}, retried = false, netTry = 0) {
   const token = localStorage.getItem('erp_token');
   const isRead = !options.method || options.method === 'GET';
   const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
@@ -1178,7 +1331,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
   const timeoutId = controller && timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
   const viewSignal = controller && isRead && !options.keepAcrossViews && (viewReadsOpen || isViewBoundRead(url)) ? viewAbort.signal : null;
   const onViewAbort = () => controller.abort();
-  if (viewSignal) { noteViewRead(url); viewSignal.addEventListener('abort', onViewAbort); }
+  if (viewSignal) { if (!netTry) noteViewRead(url); viewSignal.addEventListener('abort', onViewAbort); }
 
   let response;
   try {
@@ -1189,6 +1342,17 @@ async function apiFetchOnce(url, options = {}, retried = false) {
     });
   } catch (err) {
     if (viewSignal && viewSignal.aborted) return null; // the view is gone
+    // 297.6: a dropped line - not a timeout, not a cancel - on a call that is safe to send twice.
+    if (err.name !== 'AbortError' && (isRead || options.commandKey) && netTry < NET_RETRY_WAITS.length) {
+      netWaiting++;
+      setNetRetryStrip(true);
+      const go = await waitForLine(NET_RETRY_WAITS[netTry], viewSignal || options.signal);
+      netWaiting--;
+      if (go) return apiFetchOnce(url, options, retried, netTry + 1);
+      if (!netWaiting) setNetRetryStrip(false);
+      return null; // the view is gone
+    }
+    if (!netWaiting) setNetRetryStrip(false);
     if (isRead) lastLoadFailure = { status: 0, at: Date.now() };
     if (timeoutId && err.name === 'AbortError') {
       // A mutating call's server-side effect is genuinely unknown once the
@@ -1205,6 +1369,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
     if (timeoutId) clearTimeout(timeoutId);
     if (viewSignal) viewSignal.removeEventListener('abort', onViewAbort);
   }
+  setNetRetryStrip(false); // an answer came: the line is back
   if (options.commandKey && response.status !== 409) pendingCommandKeys.delete(options.commandKey);
 
   if (response.status === 401) {
@@ -1347,6 +1512,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   let debounceTimer = null;
   let requestSeq = 0;
   let resultsCapped = false;
+  let createFor = ''; // 303.1: the typed text a "+ Create" row under the results offers ('' = none)
 
   function onDocMouseDown(e) {
     if (menu && !menu.contains(e.target) && e.target !== inputEl) closeMenu();
@@ -1400,6 +1566,17 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     items = [];
     activeIndex = -1;
     resultsCapped = false;
+    createFor = '';
+  }
+
+  // Stage 57.2: create the record here, seeded with the typed text. The menu
+  // is a child of <body>: torn down before the dialog opens, or it is left
+  // floating over it. Committed through pick(), so a field storing something
+  // other than the code (valueFields - the HSN number) gets the right value.
+  // opts.onCreate: the screen's own create form (the till's phone-first customer, 85.C6).
+  function startCreate(typed) {
+    closeMenu();
+    (opts.onCreate ? opts.onCreate(typed) : openQuickCreate(doctype, typed)).then(doc => { if (doc && inputEl.isConnected) pick(doc); });
   }
 
   function pick(doc) {
@@ -1468,16 +1645,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       } else {
         row.innerHTML = `No matching ${h}<a href="#" class="empty-state-link typeahead-create"></a>`;
         row.querySelector('a').textContent = typed ? `+ Create “${typed}”` : `+ Create a new ${label}`;
-        // The menu is a child of <body>: tear it down before the dialog opens
-        // or it is left floating over it.
-        row.querySelector('a').addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          closeMenu();
-          // Committed through pick(), so a field storing something other
-          // than the code (valueFields - the HSN number) gets the right value.
-          // opts.onCreate: the screen's own create form (the till's phone-first customer, 85.C6).
-          (opts.onCreate ? opts.onCreate(typed) : openQuickCreate(doctype, typed)).then(doc => { if (doc && inputEl.isConnected) pick(doc); });
-        });
+        row.querySelector('a').addEventListener('mousedown', (e) => { e.preventDefault(); startCreate(typed); });
       }
       menu.appendChild(row);
       document.body.appendChild(menu);
@@ -1515,6 +1683,25 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(doc); });
       menu.appendChild(row);
     });
+    // 303.1 (the user: "Not alllowing me to create new product type"): "Tikka"
+    // found only "maang tikka", and the create link above shows only when
+    // nothing matches - so a new name close to an old one could not be made.
+    // When no row is the typed text itself (name or code), a create row
+    // follows the results. It is the last .typeahead-item, at index
+    // items.length, so the arrow keys and Enter reach it too. Masters only:
+    // a lookup of a transaction (a GRN's PO) is not where one is made.
+    const typed = typedTextOf(inputEl).trim();
+    const t = typed.toLowerCase();
+    const master = (state.activeDoctypes || []).some(d => d.name === doctype && d.document_type === 'Master');
+    if (t && master && typeof opts.source !== 'function' && !opts.noQuickCreate && canCreateDoctype(doctype) &&
+        !items.some(d => [labelFn(d), d.code, d.name, d.id].some(v => v !== undefined && v !== null && String(v).trim().toLowerCase() === t))) {
+      createFor = typed;
+      const row = document.createElement('div');
+      row.className = 'typeahead-item typeahead-item-create';
+      row.textContent = `+ Create “${typed}”`;
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); startCreate(typed); });
+      menu.appendChild(row);
+    }
     // A browse that filled its page looks identical to a browse that returned
     // everything, so a user replacing a <select> with this could reasonably
     // conclude the tenant has 50 employees. Say so instead. Not a
@@ -1604,8 +1791,10 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     }, { signal: listeners.signal });
   }
   inputEl.addEventListener('keydown', (e) => {
+    // 267.2: Escape also cancels a list still waiting to open (scanner Enter).
+    if (e.key === 'Escape') { clearTimeout(debounceTimer); requestSeq++; }
     if (!menu || items.length === 0) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(activeIndex + 1, items.length - 1)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(activeIndex + 1, items.length - (createFor ? 0 : 1))); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(activeIndex - 1, 0)); }
     else if (e.key === 'Enter') {
       if (activeIndex >= 0) {
@@ -1616,7 +1805,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
         // was attached before that one, so attachLinkTypeahead() call sites
         // that share Enter with another handler must run first.
         e.stopImmediatePropagation();
-        pick(items[activeIndex]);
+        if (activeIndex === items.length) startCreate(createFor); // 303.1: the create row
+        else pick(items[activeIndex]);
       }
     }
     // Escape closes the list only - not the form it sits in (55.0F).
@@ -1687,6 +1877,45 @@ function attachLinkTypeahead(inputEl, doctype, opts = {}) {
   // out (a free-text catalogue, a transaction lookup). 131.1: its create link
   // uses the screen's own form (opts.onCreate), as the menu's does.
   if (!opts.noSetupHint) attachSetupHint(inputEl, doctype, opts.onCreate);
+}
+
+// attachSuggestList (294.1, the user: "No dropdown should show like this"): a
+// free-text box that suggests from a fixed list, in the app's own picker menu.
+// It replaces <datalist>, whose popup the browser draws (black in Edge) and
+// looks like no other list in the app. `words` is an array, or a function
+// returning one (read on every search); an entry is a string or { value,
+// label }. Anything else can still be typed. A pick fires input and change,
+// as a datalist pick did.
+function attachSuggestList(inputEl, words, opts = {}) {
+  if (!inputEl) return;
+  const max = opts.max || 200;
+  let picked = null; // the value just picked: its own input event must not reopen the list
+  attachTypeahead(inputEl, '', {
+    showAllOnFocus: true,
+    labelFn: r => r.label,
+    source: (q) => {
+      if (picked !== null && q === picked) return null;
+      picked = null;
+      const t = q.toLowerCase();
+      const rows = [];
+      for (const w of (typeof words === 'function' ? words() : words) || []) {
+        const value = String(typeof w === 'string' ? w : w.value);
+        const label = typeof w === 'string' ? w : String(w.label || value);
+        if (!t || label.toLowerCase().includes(t) || value.toLowerCase().includes(t)) rows.push({ code: value, label });
+        if (rows.length >= max) break;
+      }
+      return rows.length ? rows : null;
+    },
+    onPick: (r) => {
+      picked = r.code.trim();
+      inputEl.value = r.code;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+  });
+  // A typed word box keeps its text across a working-store switch (view-store.js
+  // skips pickers only because their box shows a name, not the value).
+  delete inputEl.dataset.ta;
 }
 
 // ---------------------------------------------------------------------------
@@ -1761,7 +1990,18 @@ const NATIVE_INPUT_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prot
 // linkDocCache memoises reference -> record lookups for the session, so
 // showing names does not turn every re-render into another burst of
 // requests against the per-session rate limit.
+// 297.7: it keeps the last 1000 codes used, not every one of the day - a
+// record is a few KB, and a code that dropped out is fetched again when a
+// screen shows it. A Map keeps insertion order, so the first key is the
+// least recently used.
 const linkDocCache = new Map();
+const LINK_DOC_CACHE_MAX = 1000;
+function keepLinkDoc(key, p) {
+  linkDocCache.delete(key);
+  linkDocCache.set(key, p);
+  if (linkDocCache.size > LINK_DOC_CACHE_MAX) linkDocCache.delete(linkDocCache.keys().next().value);
+  return p;
+}
 
 function linkDisplayName(doc) {
   if (!doc) return '';
@@ -1778,7 +2018,7 @@ function linkCodeOf(doc) {
 function rememberLinkDoc(doctype, doc) {
   if (!doctype || !doc) return;
   const p = Promise.resolve(doc);
-  [doc.id, doc.code].filter(Boolean).forEach(ref => linkDocCache.set(`${doctype}|${ref}`, p));
+  [doc.id, doc.code].filter(Boolean).forEach(ref => keepLinkDoc(`${doctype}|${ref}`, p));
 }
 
 // lookupLinkDoc: by id, then exact code (pre-51.1 records).
@@ -1786,7 +2026,7 @@ function lookupLinkDoc(doctype, ref) {
   ref = String(ref == null ? '' : ref).trim();
   if (!doctype || !ref) return Promise.resolve(null);
   const key = `${doctype}|${ref}`;
-  if (linkDocCache.has(key)) return linkDocCache.get(key);
+  if (linkDocCache.has(key)) return keepLinkDoc(key, linkDocCache.get(key));
   const pending = (async () => {
     const byId = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}/${encodeURIComponent(ref)}`);
     if (byId && byId.ok) return byId.json();
@@ -1796,8 +2036,7 @@ function lookupLinkDoc(doctype, ref) {
     return ((await search.json()) || []).find(d =>
       String(d.code || '').toLowerCase() === lower || String(d.id || '').toLowerCase() === lower) || null;
   })().catch(() => null);
-  linkDocCache.set(key, pending);
-  return pending;
+  return keepLinkDoc(key, pending);
 }
 
 // typedTextOf is what is visibly in the box - what the user typed, or the
@@ -1962,16 +2201,22 @@ async function sweepLinkNames(root, now) {
   targets.forEach(t => { if (t.doctype && t.ref && canReadDoctype(t.doctype)) (byDoctype[t.doctype] = byDoctype[t.doctype] || []).push(t); });
   for (const [doctype, list] of Object.entries(byDoctype)) {
     const map = now ? (linkNameMap(doctype), linkNameReady.get(doctype)) : await linkNameMap(doctype);
-    for (const t of list) {
-      let name = map.get(t.ref);
-      // Past the first 1000 records of a type, fall back to a single lookup -
-      // bounded by what is on screen, at most a page of rows.
-      if (!name && !map.complete) name = linkDisplayName(await lookupLinkDoc(doctype, t.ref));
+    const show = (t, name) => {
       if (name && name !== t.ref && t.el.isConnected) {
         t.el.textContent = name;
         t.el.title = t.ref;
       }
-    }
+    };
+    // Past the first 1000 records of a type, fall back to a single lookup -
+    // bounded by what is on screen, at most a page of rows.
+    const misses = [];
+    list.forEach(t => { const name = map.get(t.ref); if (!name && !map.complete) misses.push(t); else show(t, name); });
+    // 297.6: four lookups at a time, not one by one - on a slow line each is a
+    // round trip or two. The same code twice shares one lookup (linkDocCache).
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, misses.length) }, async () => {
+      while (next < misses.length) { const t = misses[next++]; show(t, linkDisplayName(await lookupLinkDoc(doctype, t.ref))); }
+    }));
   }
 }
 
@@ -2173,7 +2418,7 @@ function renderJSONLineEditor(fg, f, existingVal) {
     `;
     const tbody = wrap.querySelector('tbody');
     if (rows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="${cols.length + 1}" class="json-line-empty">No lines yet. Use <b>+ Add Line</b> below.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${cols.length + 1}" class="json-line-empty">No lines yet.</td></tr>`;
     }
     rows.forEach((r, idx) => tbody.appendChild(buildRow(r, idx)));
 
@@ -3324,7 +3569,38 @@ function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-root').classList.remove('hidden');
   updateSidebarUserInfo();
+  resumeMyTasks();
 }
+
+// 297.3: the Tasks button (task-progress.js). A screen that queues a long task
+// calls trackTask(id, label) - id is "job:<id>" or "export:<id>" - and the bar
+// runs in the top bar while the user works elsewhere. The module loads only
+// when a task exists: this browser keeps a running task's id until it ends,
+// so a reload or a second tab picks the bar up again, and a tab with nothing
+// running asks the server nothing.
+function myTasksKey() {
+  return `erp_tasks:${localStorage.getItem('erp_tenant_id') || 'default'}:${localStorage.getItem('erp_username') || ''}`;
+}
+function trackTask(id, label) {
+  return loadViewModule('/task-progress.js').then(m => m.tasksStart(id, label)).catch(() => {});
+}
+// watchTasks(fn): a screen shows its own task's live bar again when the user
+// comes back to it. Returns a stop function; nothing loads while no task runs.
+function watchTasks(fn) {
+  let stop = () => {};
+  let stopped = false;
+  if (loadedViewModules.has('/task-progress.js') || hasMyTasks()) {
+    loadViewModule('/task-progress.js').then(m => { if (!stopped) stop = m.tasksWatch(fn); }).catch(() => {});
+  }
+  return () => { stopped = true; stop(); };
+}
+function hasMyTasks() {
+  try { return (localStorage.getItem(myTasksKey()) || '[]') !== '[]'; } catch (_) { return false; }
+}
+function resumeMyTasks() {
+  if (hasMyTasks()) loadViewModule('/task-progress.js').then(m => m.tasksResume()).catch(() => {});
+}
+window.addEventListener('storage', e => { if (e.key === myTasksKey() && e.newValue) resumeMyTasks(); });
 
 // Stage 82: the industry profile is chosen in Configuration → Industry
 // (view-admin.js renderConfigIndustry), not in the top bar.
@@ -3922,6 +4198,7 @@ const MENU_PERMISSION_MAP = {
   'menu-crm-pipeline': { doctypes: ['SalesQuotation'] }, // /crm/opportunities
   'menu-crm-tickets': { doctypes: ['ServiceTicket'] },
   'menu-crm-settings': { update: 'Campaign' }, // the server's can_manage
+  'menu-crm-ready': { update: 'Campaign' }, // 288.3: left CRM Settings, same gate
   'menu-einvoice': { capability: 'finance.statements' }, // /einvoice/documents (on top of data-like Finance)
   // 162.4: a screen whose data the role cannot read is hidden, on top of the borrowed module rule.
   'menu-finance-trial-balance': { capability: 'finance.statements' },
@@ -3983,6 +4260,14 @@ const MENU_PERMISSION_MAP = {
   'menu-hr-training': { doctypes: ['TrainingRecord'] },
   'menu-hr-grievances': { doctypes: ['Grievance'] },
   'menu-hr-people': { doctypes: ['Employee'] },
+  // 288.2: the pages split out of Calibration, Tax & Benefits and People.
+  'menu-hr-rating-spread': { doctypes: ['Appraisal'] },
+  'menu-hr-pf-ecr': { capability: 'hr.payroll' },
+  'menu-hr-form-24q': { capability: 'hr.payroll' },
+  'menu-hr-arrears': { capability: 'hr.payroll' },
+  'menu-hr-certificates': { doctypes: ['TrainingRecord'] },
+  'menu-hr-accept-offer': { doctypes: ['JobOffer'] },
+  'menu-hr-onboarding-login': { adminOnly: true },
   'menu-assets': { doctypes: ['Asset'] },
   'menu-expenses': { doctypes: ['ExpenseClaim'] },
 
@@ -4027,6 +4312,7 @@ const MENU_PERMISSION_MAP = {
   // as GET/PUT /api/v1/admin/settings.
   // 132.15: also a role whose template holds admin.settings (Setup Operator).
   'menu-configuration': { adminOnly: true, capability: 'admin.settings' },
+  'menu-stores': { doctypes: ['Location'] }, // item 301: Settings › Stores
   // Tenant Entitlements admin screen (Stage 26.1.4) - reads/writes
   // cross-tenant module entitlements, HR/Admin-only same as every other
   // admin/tenant-control endpoint it calls.
@@ -4132,6 +4418,12 @@ const MENU_MODULE_MAP = {
     "views": [
       "loyalty",
       "crm"
+    ]
+  },
+  "menu-service-desk": {
+    "module": "service",
+    "views": [
+      "service-desk"
     ]
   },
   "menu-rf-traceability": {
@@ -4370,6 +4662,12 @@ const MENU_MODULE_MAP = {
     "module": "core",
     "views": [
       "datahealer"
+    ]
+  },
+  "menu-stores": {
+    "module": "core",
+    "views": [
+      "stores"
     ]
   },
   "@system-status": {
@@ -5165,12 +5463,9 @@ function setupEventListeners() {
     renderView('doctype-table');
   });
 
-  // Stage 30.5.5: the `menu-stores` handler was removed here along with its
-  // sidebar entry. `Stores` had zero Link references and zero Go references -
-  // nothing could ever select one - while `Location` (Type = Store) is what
-  // every transaction uses. Its four unique fields (address, city,
-  // contact_phone, manager) are Location fields now; see
-  // db/migrations/migrations_stage30_5_5_retire_stores.sql.
+  // Stage 30.5.5 retired the old Stores master (nothing could select one; its
+  // fields moved to Location). Settings › Stores (item 301, data-go="stores")
+  // is view-stores.js over the Location records, not that master.
 
   // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors above.
   document.getElementById('menu-pos-profiles').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-profiles'); closeSubmenus(); currentDoctype = 'POSProfile'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
@@ -5223,7 +5518,7 @@ function setupEventListeners() {
   // deliberately left exactly as it was. That is the whole distinction from
   // Reset below.
   document.getElementById('sync-btn').addEventListener('click', async () => {
-    if (await showCustomConfirm('Re-fetch labels and screen definitions from the server?\n\nEverything you have open stays as it is, and cached data is kept. If you need a genuinely clean slate, use Reset instead.', 'Refresh')) {
+    if (await showCustomConfirm('Re-fetch labels and screen definitions from the server?\n\nEverything you have open stays as it is, and cached data is kept. If you need a genuinely clean slate, use Reset in the user menu (bottom left) instead.', 'Refresh')) {
       await fetchLabels();
       await fetchRegisteredDoctypes();
       (window.rerenderKeeping || renderView)(currentView, true);
@@ -5890,6 +6185,7 @@ const STATIC_VIEW_MENU_IDS = {
   'rf-traceability': 'menu-rf-traceability',
   returns: 'menu-returns',
   loyalty: 'menu-loyalty',
+  'service-desk': 'menu-service-desk',
   approvals: 'menu-approvals',
   reports: 'menu-reports',
   help: 'menu-knowledge-center',
@@ -6093,7 +6389,10 @@ let viewRenderToken = 0;
 function syncDocumentTitle() {
   const active = document.querySelector('#app-sidebar .submenu-item.active, #app-sidebar .menu-item.active:not(.menu-item-group)') ||
     document.querySelector('#app-sidebar .menu-item-group.active');
-  const label = active ? (active.querySelector('span') || active).textContent.replace(/\s+/g, ' ').trim() : '';
+  let label = active ? (active.querySelector('span') || active).textContent.replace(/\s+/g, ' ').trim() : '';
+  // 284.3: a module's Home entry names its module in the tab ("CRM home").
+  const group = label === 'Home' && active.closest('.menu-flyout')?.previousElementSibling;
+  if (group) label = `${(group.querySelector('span') || group).textContent.trim()} home`;
   document.title = label ? `${label} | Wholeops` : 'Wholeops';
 }
 
@@ -6201,6 +6500,9 @@ async function renderViewContent(view, root) {
   }
   currentView = view;
   saveNavState();
+  // 297.1: a newer build is out and this move carries nothing but the address.
+  if (Date.now() - navUpdateArmedAt < 3000 && reloadForUpdate('nav')) return;
+  navUpdateArmedAt = 0;
 
   if (view === 'home') {
     await renderHomeView(root);
@@ -6320,13 +6622,13 @@ function isAdminRoleName(name) {
 // decides the empty state and which masters "Get started" names.
 const HOME_QUICK_ACTIONS = [
   { id: 'pos', label: 'Point of Sale', desc: 'Ring up sales, take payment, handle receipted returns.', view: 'pos', menuId: 'menu-pos' },
-  { id: 'warehouse-cockpit', label: 'Warehouse Cockpit', desc: 'Open tasks, exceptions, waves and inbound for one location.', view: 'warehouse-cockpit', menuId: 'menu-warehouse-cockpit' },
+  { id: 'warehouse-cockpit', label: 'WMS home', desc: 'Open tasks, exceptions, waves and inbound for one location.', view: 'warehouse-cockpit', menuId: 'menu-warehouse-cockpit' },
   { id: 'purchase-orders', label: 'Purchase Orders', desc: 'Raise and track orders to vendors.', view: 'doctype-table', doctype: 'PurchaseOrder', menuId: 'menu-purchase-orders' },
   { id: 'purchase-requisitions', label: 'Purchase Requisitions', desc: 'Requests waiting to become a purchase order.', view: 'doctype-table', doctype: 'PurchaseRequisition', menuId: 'menu-purchase-requisitions' },
   { id: 'grn', label: 'Goods Receipt (GRN)', desc: 'Receive against open purchase orders.', view: 'doctype-table', doctype: 'GRN', menuId: 'menu-grn' },
   { id: 'vendor-invoices', label: 'Vendor Invoices', desc: 'Match and process what the company owes.', view: 'doctype-table', doctype: 'VendorInvoice', menuId: 'menu-vendor-invoices' },
   { id: 'payment-proposals', label: 'Payment Proposals', desc: 'Review and release vendor payments.', view: 'doctype-table', doctype: 'PaymentProposal', menuId: 'menu-payment-proposals' },
-  { id: 'finance', label: 'Work to review', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
+  { id: 'finance', label: 'Finance home', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
   { id: 'approvals', label: 'Approvals', desc: 'Documents waiting on your sign-off.', view: 'approvals', menuId: 'menu-approvals' },
   { id: 'sales-invoices', label: 'Sales Invoices', desc: 'What customers owe the company.', view: 'sales-invoices', menuId: 'menu-sales-invoices' },
   { id: 'journal-vouchers', label: 'Journal Vouchers', desc: 'Manual entries: accruals, corrections, opening balances.', view: 'journal-vouchers', menuId: 'menu-journal-vouchers' },
@@ -6810,7 +7112,7 @@ let currentPIMTab = 'dashboard', currentViewTab = '';
 let currentPIMFamilyFilter = '';
 let currentPIMSelectedItem = '';
 const PIM_TABS = [
-  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'dashboard', label: 'Home' },
   { id: 'workbench', label: 'Workbench' },
 	{ id: 'reports', label: 'Reports' },
   // Stage 36.2. My Work is the task inbox (36.2.7); the two doctype-backed

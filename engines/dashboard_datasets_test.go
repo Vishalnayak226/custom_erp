@@ -91,6 +91,18 @@ func TestStage1001DashboardDatasets(t *testing.T) {
 		}
 		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", id)
 	}
+	// 307.2: the query checks the role's read right, as the screen always
+	// did, and a store manager has no POS bill read by default: grant it here.
+	if ok, _ := RoleMayOnDoctype(tenantID, "Store Manager", "POSCart", "read"); !ok {
+		res, err := db.DB.Exec("INSERT INTO " + schema + ".role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES ('Store Manager', 'POSCart', TRUE, FALSE, FALSE, FALSE) ON CONFLICT DO NOTHING")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			t.Skip("Store Manager has a POS bill row that denies read")
+		}
+		defer db.DB.Exec("DELETE FROM " + schema + ".role_permissions WHERE role = 'Store Manager' AND doctype_name = 'POSCart'")
+	}
 	q := DatasetQuery{Dataset: "pos_bills", GroupBy: []string{"store"}, Measures: []DatasetMeasure{{Agg: "count"}, {Field: "value", Agg: "sum"}},
 		Filters: []DatasetFilter{{Field: "payment_mode", Op: "eq", Value: "T1001"}}}
 	all, err := RunDatasetQuery(tenantID, admin, q)

@@ -1,7 +1,8 @@
-// Stage 55.18: the service desk and project context. Native ES module,
-// loaded by the generic record list (view-documents.js) for ServiceTicket,
-// ServiceContract and Project, and rendered above their table. Read-only
-// views (GET /api/v1/service/desk, /service/contracts/{id},
+// Stage 55.18: the service desk and project context. Native ES module.
+// 288.2: the service desk is its own page (view:service-desk, CRM > Service
+// desk); the generic record list (view-documents.js) still loads this for
+// ServiceContract and Project and renders their lookup above the table.
+// Read-only views (GET /api/v1/service/desk, /service/contracts/{id},
 // /projects/{id}/ledger); ticket steps run through the list's own
 // runServiceTicketStep, so the lifecycle has one implementation.
 
@@ -19,20 +20,28 @@ async function renderServiceDeskPanel(container, doctype) {
   panel.className = 'table-panel';
   panel.style.cssText = 'padding:16px 24px;margin-bottom:24px;';
   container.appendChild(panel);
-  if (doctype === 'ServiceTicket') return renderTicketDesk(panel);
   if (doctype === 'ServiceContract') return renderLookup(panel, 'Contract coverage', 'Contract number', '/api/v1/service/contracts/', renderContract);
   if (doctype === 'Project') return renderLookup(panel, 'Project cost and revenue', 'Project code', '/api/v1/projects/', renderProjectLedger, '/ledger');
 }
 
+// 288.2: the service desk page - open tickets with their next step.
+async function renderServiceDeskView(container) {
+  container.insertAdjacentHTML('beforeend', '<div class="page-header"><div class="page-title-section"><h1 class="page-title">Service desk</h1></div></div>');
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.cssText = 'padding:16px 24px;margin-bottom:24px;';
+  container.appendChild(panel);
+  return renderTicketDesk(panel);
+}
+
 async function renderTicketDesk(panel) {
-  panel.innerHTML = '<h2 class="s-78a190">Service desk</h2><p class="text-muted">Loading…</p>';
+  panel.innerHTML = '<p class="text-muted">Loading…</p>';
   const res = await apiFetch(`/api/v1/service/desk${deskMineOnly ? '?mine=1' : ''}`);
   if (!res) return;
-  if (!res.ok) { panel.innerHTML = '<h2 class="s-78a190">Service desk</h2><p class="text-muted">The service desk could not be loaded.</p>'; return; }
+  if (!res.ok) { panel.innerHTML = '<p class="text-muted">The service desk could not be loaded.</p>'; return; }
   const { tickets = [] } = await res.json();
   panel.innerHTML = `
     <div class="s-9c33ed">
-      <h2 class="s-1a3007">Service desk</h2>
       <button class="btn btn-sm ${deskMineOnly ? 'btn-primary' : 'btn-outline'}" data-desk-scope="mine" aria-pressed="${deskMineOnly}">Mine and unassigned</button>
       <button class="btn btn-sm ${deskMineOnly ? 'btn-outline' : 'btn-primary'}" data-desk-scope="all" aria-pressed="${!deskMineOnly}">All open</button>
     </div>
@@ -57,7 +66,10 @@ async function renderTicketDesk(panel) {
   panel.querySelectorAll('[data-desk-history]').forEach(b => b.addEventListener('click', () => {
     panel.querySelector(`[data-desk-history-row="${CSS.escape(b.dataset.deskHistory)}"]`)?.classList.toggle('hidden');
   }));
-  panel.querySelectorAll('[data-desk-step]').forEach(b => b.addEventListener('click', () => window.runServiceTicketStep(b.dataset.deskTicket, b.dataset.deskStep, b)));
+  panel.querySelectorAll('[data-desk-step]').forEach(b => b.addEventListener('click', async () => {
+    await loadViewModule('/view-documents.js?v=1');
+    window.runServiceTicketStep(b.dataset.deskTicket, b.dataset.deskStep, b, () => renderTicketDesk(panel));
+  }));
 }
 
 function renderLookup(panel, title, label, base, render, suffix = '') {
@@ -100,4 +112,4 @@ function renderProjectLedger(p) {
       <tbody>${p.documents.map(d => `<tr><td>${escapeHTMLText(deskWhen(d.posted_at))}</td><td>${escapeHTMLText(d.document_type)} ${escapeHTMLText(d.document_id)}</td><td class="num">${formatMoney(d.revenue)}</td><td class="num">${formatMoney(d.expense)}</td></tr>`).join('')}</tbody></table></div>`}`;
 }
 
-export { renderServiceDeskPanel };
+export { renderServiceDeskPanel, renderServiceDeskView };

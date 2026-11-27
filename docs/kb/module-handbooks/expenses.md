@@ -27,7 +27,7 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 
 # Submit and settle an expense claim
 
-Use **Expenses** to move a claim from Draft through approval, verification and payment.
+Use **Expenses** to move a claim from Draft through approval, verification and payment. **HRM → Home** counts the claims, and their amount, waiting at each step.
 
 ## Submit a claim
 

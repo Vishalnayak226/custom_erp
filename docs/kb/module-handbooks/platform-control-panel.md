@@ -37,8 +37,10 @@ the error `PLATFORM-0317`.
 ## The Control Panel
 
 > [!WHAT]
-> **Settings → Control Panel** shows every client on one page: the running
-> release, client counts, hosting domain and the last backup.
+> **Settings → Platform** holds one page per job: **Control Panel** (the
+> running release, client counts, hosting domain and the last backup),
+> **Clients**, **Releases**, **Certificates**, **Slow queries**, **Query plan**
+> and **Capability maturity**.
 
 > [!WHY]
 > Each client row shows its version, active users, records and errors in the
@@ -48,18 +50,19 @@ the error `PLATFORM-0317`.
 
 > [!USECASE]
 > A client's trial ends and the client is paused automatically. You open
-> **Settings → Control Panel**, check the row, and click **Mark paid** or
+> **Settings → Platform → Clients**, check the row, and click **Mark paid** or
 > extend the **Trial** in days.
 
 > [!HOW]
 
-1. Open **Settings → Control Panel** and read the release, clients and backup
-   panels.
-2. On a client's row, use **Modules**, **Data** or **Attributes** to work on
+1. Open **Settings → Platform → Control Panel** and read the release, clients
+   and backup cards. Click a card to open its page.
+2. On **Clients**, on a client's row, use **Modules**, **Data** or **Attributes** to work on
    that client.
 3. Use **Pause / Resume** or **Trial** with a reason. Nothing is deleted.
 
-**Settings → Control Panel** shows every client on one page.
+**Settings → Platform → Control Panel** shows four cards. **Running release**,
+**Clients** and **Hosted at** open their own pages.
 
 - **Running release** - the version number, commit and date of the build serving
   the page, and the environment (`production` on the live server).
@@ -68,7 +71,7 @@ the error `PLATFORM-0317`.
 - **Hosted at** - the domain each client's own address sits under.
 - **Last backup** - the newest nightly backup, its outcome and size.
 
-Each client has one row: status, address, created date, **Version** (the
+**Settings → Platform → Clients** has one row per client: status, address, created date, **Version** (the
 release it is on), modules on and off, active users, records, last activity
 and errors in the last 24 hours. From the row:
 

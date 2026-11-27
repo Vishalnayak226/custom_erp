@@ -240,7 +240,7 @@ func StartPIMImportScheduleWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("pim")
+				schemas, err := sweepTenantSchemas("pim")
 				if err != nil {
 					log.Printf("[PIM_IMPORT_SCHEDULE] failed to list tenant schemas: %v", err)
 					continue

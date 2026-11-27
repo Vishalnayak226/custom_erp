@@ -36,6 +36,25 @@ function expenseReimbursable(c) {
   return Number(c.amount || 0) + Number(c.gst_amount || 0) - Number(c.advance_adjusted || 0);
 }
 
+// What is still owed, by where it waits: HRM home's tiles (284.2, ask 300 -
+// one page, one job). Each opens the claims list.
+async function renderExpenseHomeTiles(container) {
+  const res = await apiFetch('/api/v1/doc/ExpenseClaim');
+  if (!res || !res.ok) return false;
+  const claims = await res.json();
+  const by = s => claims.filter(c => c.status === s);
+  const sum = list => list.reduce((t, c) => t + expenseReimbursable(c), 0);
+  const stats = document.createElement('div');
+  stats.className = 'dashboard-stats-row';
+  stats.innerHTML = [
+    ['Awaiting approval', by('Pending Approval')], ['Approved - to verify', by('Approved')],
+    ['Verified - to pay', by('Verified')], ['Rejected - to correct', by('Rejected')]
+  ].map(([label, list]) => `<div class="stat-card" title="Open Expenses"><span class="stat-label">${label}</span><span class="stat-val">${list.length} &middot; ${formatMoney(sum(list))}</span></div>`).join('');
+  stats.querySelectorAll('.stat-card').forEach(card => makeClickable(card, () => { setActiveMenu('menu-expenses'); renderView('expenses'); }));
+  container.appendChild(stats);
+  return true;
+}
+
 async function renderExpensesView(container) {
   // 30.5.8: the parallel Employee fetch that used to sit alongside this one
   // only existed to build the picker's <option>s; the picker is a typeahead
@@ -106,16 +125,7 @@ ${employeePickerField('exp-employee', '180px')}
     <div id="exp-form-error" class="login-error hidden s-4c0544"></div>
   `;
 
-  // What is still owed, by where it waits.
-  const by = s => claims.filter(c => c.status === s);
-  const sum = list => list.reduce((t, c) => t + expenseReimbursable(c), 0);
   const money = v => formatMoney(v || 0);
-  const stats = document.createElement('div');
-  stats.className = 'dashboard-stats-row';
-  stats.innerHTML = [
-    ['Awaiting approval', by('Pending Approval')], ['Approved - to verify', by('Approved')],
-    ['Verified - to pay', by('Verified')], ['Rejected - to correct', by('Rejected')]
-  ].map(([label, list]) => `<div class="stat-card"><span class="stat-label">${label}</span><span class="stat-val">${list.length} &middot; ${money(sum(list))}</span></div>`).join('');
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -127,7 +137,7 @@ ${employeePickerField('exp-employee', '180px')}
       <tbody>
   `;
   html += claims.length === 0
-    ? `<tr><td colspan="9" class="s-306094">No expense claims yet. Click <b>+ New Expense Claim</b> to raise one.</td></tr>`
+    ? `<tr><td colspan="9" class="s-306094">No expense claims yet.</td></tr>`
     : claims.map(c => `
         <tr>
           <td class="s-355794">${escapeHTMLText(c.code || c.id)}<br><small data-exp-clip="${escapeHTMLText(c.id)}"></small></td>
@@ -144,11 +154,9 @@ ${employeePickerField('exp-employee', '180px')}
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  const listWrap = document.createElement('div');
-  listWrap.appendChild(stats);
-  listWrap.appendChild(listPanel);
+  // 284.2 (ask 300): the status tiles sit on HRM home; this page is the claims list.
   container.appendChild(txnPagedSection({ id: 'exp-screen', title: 'Expenses', page: 'New expense claim', count: claims.length,
-    newLabel: 'New Expense Claim', form: formPanel, list: listWrap }));
+    newLabel: 'New Expense Claim', form: formPanel, list: listPanel }));
   txnRestorePane('exp-screen');
 
   document.getElementById('exp-create-btn').addEventListener('click', createExpenseClaim);
@@ -448,6 +456,7 @@ async function createExpenseClaimInner() {
 
 export {
   renderExpensesView,
+  renderExpenseHomeTiles,
   expenseStatusBadge,
   renderExpenseActions,
   createExpenseClaim,

@@ -23,7 +23,7 @@ async function renderSupplyProposalsTab(container) {
       <div class="form-group s-50435f"><label class="form-label" for="sp-location">Location</label>
         <input type="text" id="sp-location" class="form-input s-f9de92" autocomplete="off" value="${esc(planLocation)}"></div>
       <div class="form-group s-50435f"><label class="form-label" for="sp-source">Propose from</label>
-        <select id="sp-source" class="form-select"><option value="reorder">Reorder points (all stock items)</option><option value="mrp">MRP (manufactured items and their materials)</option><option value="backorder">Back orders</option></select></div>
+        <select id="sp-source" class="form-select"><option value="reorder">Reorder points (all stock items)</option><option value="mrp">MRP (manufactured items and their materials)</option><option value="backorder">Back orders</option><option value="rebalance">Other stores' spare stock</option></select></div>
       <div class="form-group s-50435f"><label class="form-label" for="sp-lead">Lead time (days)</label>
         <input type="number" id="sp-lead" class="form-input s-34deaa" min="1" value="7"></div>
       <div class="form-group s-50435f"><label class="form-label" for="sp-safety">Safety stock</label>
@@ -92,7 +92,7 @@ async function loadProposals() {
           ${open.length ? `<td>${p.status === 'Proposed' ? `<input type="checkbox" class="sp-pick" aria-label="Select ${esc(p.item_name || p.sku)}">` : ''}</td>` : ''}
           <td>${esc(p.item_name || p.sku)}<div class="s-428d6b">${esc(p.sku)}</div></td>
           <td>${esc(p.location)}</td>
-          <td>${esc(p.source)}${p.for_item ? `<div class="s-a11453">for ${esc(p.for_item)}</div>` : ''}</td>
+          <td>${esc(p.source)}${p.for_item ? `<div class="s-a11453">for ${esc(p.for_item)}</div>` : ''}${p.from_location ? `<div class="s-a11453">from ${esc(p.from_location)}${p.from_available ? ` · has ${num(p.from_available)}, keeps ${num(p.from_keeps)}` : ''}</div>` : ''}</td>
           <td class="num">${num(p.available)}${spParts(p)}</td><td class="num">${num(p.reorder_point)}</td><td class="num">${num(p.suggested_qty)}</td>
           <td class="num">${p.status === 'Proposed' ? `<input type="number" class="form-input sp-qty s-34deaa" min="0" value="${num(p.suggested_qty)}" aria-label="Quantity for ${esc(p.sku)}">` : num(p.approved_qty)}</td>
           <td>${esc(p.action || '')}</td>
@@ -105,7 +105,7 @@ async function loadProposals() {
       <div class="form-group s-50435f" id="sp-vendor-wrap"><label class="form-label" for="sp-vendor">Vendor</label>
         <input type="text" id="sp-vendor" class="form-input s-0fff9b" autocomplete="off"></div>
       <div class="form-group hidden s-50435f" id="sp-from-wrap"><label class="form-label" for="sp-from">From location</label>
-        <input type="text" id="sp-from" class="form-input s-f9de92" autocomplete="off"></div>
+        <input type="text" id="sp-from" class="form-input s-f9de92" autocomplete="off" placeholder="As proposed"></div>
       <div class="form-group s-50435f"><label class="form-label" for="sp-note">Note / reason</label>
         <input type="text" id="sp-note" class="form-input s-30080b" maxlength="200"></div>
       <button class="btn btn-primary" type="button" id="sp-approve">Approve selected</button>
@@ -116,10 +116,13 @@ async function loadProposals() {
   attachLinkTypeahead(document.getElementById('sp-from'), 'Location');
   document.getElementById('sp-all').addEventListener('change', e => el.querySelectorAll('.sp-pick').forEach(c => { c.checked = e.target.checked; }));
   const actionEl = document.getElementById('sp-action');
-  actionEl.addEventListener('change', () => {
+  const showActionFields = () => {
     document.getElementById('sp-vendor-wrap').classList.toggle('hidden', actionEl.value !== 'Purchase');
     document.getElementById('sp-from-wrap').classList.toggle('hidden', actionEl.value !== 'Transfer');
-  });
+  };
+  actionEl.addEventListener('change', showActionFields);
+  // 273.2: rebalance proposals are transfers from the store they name.
+  if (open.every(p => p.action === 'Transfer')) { actionEl.value = 'Transfer'; showActionFields(); }
   const picked = () => [...el.querySelectorAll('tr[data-id]')].filter(tr => tr.querySelector('.sp-pick')?.checked);
   document.getElementById('sp-approve').addEventListener('click', () => guardAgainstDoubleSubmit(document.getElementById('sp-approve'), 'Approving...', async () => {
     const rows = picked();

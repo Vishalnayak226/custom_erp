@@ -1,4 +1,5 @@
-import { documentSearchLink } from './view-document-links.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { documentSearchLink } = await import('./view-document-links.js' + new URL(import.meta.url).search);
 
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
@@ -913,7 +914,7 @@ async function loadAppointmentCalendar() {
         const leftPct = Math.max(0, (startMin - rangeStart) / (rangeEnd - rangeStart) * 100);
         const widthPct = Math.max(2, (endMin - startMin) / (rangeEnd - rangeStart) * 100);
         html += `<div title="${escapeHTMLText(a.carrier || '')} ${escapeHTMLText(a.trailer_no || '')} ${escapeHTMLText(a.start_time)}-${escapeHTMLText(a.end_time)}"
-          data-css="position:absolute; left:${leftPct}%; width:${widthPct}%; top:2px; bottom:2px; background:var(--accent, #4f46e5); color:#fff; font-size:10px; border-radius:3px; overflow:hidden; padding:2px 4px; white-space:nowrap;">
+          data-css="position:absolute; left:${leftPct}%; width:${widthPct}%; top:2px; bottom:2px; background:var(--accent, #4f46e5); color:#fff; font-size:12px; border-radius:3px; overflow:hidden; padding:2px 4px; white-space:nowrap;">
           ${escapeHTMLText(a.appointment_type === 'Outbound' ? 'OUT' : 'IN')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
       }
       html += '</div></div>';
@@ -932,7 +933,7 @@ function timeToMinutes(hhmm) {
 
 function apptChip(a) {
   const color = a.appointment_type === 'Outbound' ? '#9333ea' : '#4f46e5';
-  return `<div data-css="background:${color}; color:#fff; font-size:10px; border-radius:3px; padding:2px 4px; margin-bottom:3px;">${escapeHTMLText(a.start_time || '')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
+  return `<div data-css="background:${color}; color:#fff; font-size:12px; border-radius:3px; padding:2px 4px; margin-bottom:3px;">${escapeHTMLText(a.start_time || '')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
 }
 
 async function submitNewAppointment() {
@@ -1676,7 +1677,8 @@ async function loadLoadingDock() {
 // doesn't exist yet, and the plan's own note says that section is populated
 // there, not here.
 // Stage 155.4: each page is its own sidebar entry ("warehouse-cockpit:<page>").
-const COCKPIT_PAGES = { cockpit: ['menu-warehouse-cockpit', 'Warehouse Cockpit'], labour: ['menu-wms-labour', 'Labour'], billing: ['menu-wms-billing', 'Warehouse Billing'] };
+// 288.2: labour is two pages - the plan and the standards.
+const COCKPIT_PAGES = { cockpit: ['menu-warehouse-cockpit', 'WMS home'], labour: ['menu-wms-labour', 'Labour plan'], standards: ['menu-wms-standards', 'Labour standards'], billing: ['menu-wms-billing', 'Warehouse Billing'] };
 async function renderWarehouseCockpitView(container) {
   const cockpitTab = COCKPIT_PAGES[currentViewTab] ? currentViewTab : 'cockpit';
   currentViewTab = cockpitTab;
@@ -1695,6 +1697,7 @@ async function renderWarehouseCockpitView(container) {
   if (cockpitTab !== 'cockpit') {
     const mod = await import('./view-wms-labour.js' + new URL(import.meta.url).search);
     if (cockpitTab === 'labour') await mod.renderLabourTab(container, inboundLocation);
+    else if (cockpitTab === 'standards') await mod.renderStandardsTab(container);
     else await mod.renderBillingTab(container);
     return;
   }
@@ -1952,22 +1955,23 @@ async function submitBinConditionTransition() {
 
 // Stage 26.5.4: LPN/carton/pallet grouping on top of bin_stock - assign a
 // bin's sku/condition qty into a container, and look up what's inside one.
+// 288.2: two pages - assign stock to an LPN (lpn), look one up (lpn:lookup).
 async function renderLPNView(container) {
+  const lookup = currentViewTab === 'lookup';
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">LPN / Carton / Pallet Grouping</h1>
+      <h1 class="page-title">${lookup ? 'Look up an LPN' : 'LPN / Carton / Pallet Grouping'}</h1>
     </div>
   `;
   container.appendChild(header);
+  if (lookup) return renderLPNLookup(container);
 
   const assignPanel = document.createElement('div');
   assignPanel.className = 'table-panel';
   assignPanel.style.padding = '24px';
-  assignPanel.style.marginBottom = '24px';
   assignPanel.innerHTML = `
-    <h2 class="s-fcb488">Assign Bin Stock to an LPN</h2>
     <div class="s-608a43">
       <div class="form-group s-50435f">
         <label class="form-label" for="lpn-code">LPN Code</label>
@@ -1994,12 +1998,16 @@ async function renderLPNView(container) {
     <div id="lpn-assign-error" class="login-error hidden s-4bb900"></div>
   `;
   container.appendChild(assignPanel);
+  document.getElementById('lpn-assign-btn').addEventListener('click', submitLPNAssign);
+  attachLinkTypeahead(document.getElementById('lpn-bin'), 'Bin');
+  attachLinkTypeahead(document.getElementById('lpn-sku'), 'Item');
+}
 
+function renderLPNLookup(container) {
   const lookupPanel = document.createElement('div');
   lookupPanel.className = 'table-panel';
   lookupPanel.style.padding = '24px';
   lookupPanel.innerHTML = `
-    <h2 class="s-fcb488">Look Up an LPN's Contents</h2>
     <div class="s-608a43">
       <div class="form-group s-50435f">
         <label class="form-label" for="lpn-lookup-code">LPN Code</label>
@@ -2010,11 +2018,7 @@ async function renderLPNView(container) {
     <div id="lpn-contents-result" class="s-4c0544"></div>
   `;
   container.appendChild(lookupPanel);
-
-  document.getElementById('lpn-assign-btn').addEventListener('click', submitLPNAssign);
   document.getElementById('lpn-lookup-btn').addEventListener('click', lookupLPNContents);
-  attachLinkTypeahead(document.getElementById('lpn-bin'), 'Bin');
-  attachLinkTypeahead(document.getElementById('lpn-sku'), 'Item');
 }
 
 async function submitLPNAssign() {
@@ -2148,11 +2152,13 @@ window.executeBinReplenishmentRow = async function(idx) {
 // the history of moves - the completed Move warehouse tasks every MoveBinStock
 // logs - and + New Movement opens the bin-stock picker as a page of its own.
 let locMoveRows = [];
+let locMoveList = null; // 267.3: the history's search and page
 
 async function renderLocationMovementView(container) {
   const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
   const history = document.createElement('div');
   history.className = 'table-panel';
+  history.style.padding = '16px 20px';
   history.id = 'locmove-history';
 
   const panel = document.createElement('div');
@@ -2178,26 +2184,27 @@ async function renderLocationMovementView(container) {
   await loadLocationMovementHistory();
 }
 
-// loadLocationMovementHistory fills the list page: the latest 200 bin-to-bin
-// moves, newest first, with the count in the title.
+// loadLocationMovementHistory fills the list page: bin-to-bin moves, newest
+// first, a page at a time with search (267.3), and the whole count in the title.
 async function loadLocationMovementHistory() {
   const el = document.getElementById('locmove-history');
   if (!el) return;
-  const res = await apiFetch('/api/v1/doc/WarehouseTask?task_type=Move&sort=recent&limit=200');
-  if (!res) return;
-  if (!res.ok) {
-    el.innerHTML = `<p class="s-3359ff">Failed to load past movements. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['location-movement'])}>Try Again</button></p>`;
+  const txn = await loadTxnScreen();
+  locMoveList = locMoveList || txn.txnListState();
+  const page = await txn.txnLoadList('WarehouseTask', locMoveList, { filters: { task_type: 'Move' } });
+  if (page.error) {
+    el.innerHTML = `<p class="s-3359ff">${escapeHTMLText(page.error)} <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['location-movement'])}>Try Again</button></p>`;
     return;
   }
-  const moves = await res.json();
+  const moves = page.docs;
   const count = document.querySelector('#locmove-screen .txn-count');
-  if (count) count.textContent = String(moves.length);
-  el.innerHTML = `
-    <table>
+  if (count) count.textContent = String(txn.txnListCount(page));
+  el.innerHTML = `${txn.txnListBar(locMoveList, page, null, 'Search moves (item, bin, batch)')}
+    <div class="table-wrapper"><table>
       <thead><tr><th>Moved</th><th>Location</th><th>Item</th><th>From bin</th><th>To bin</th><th class="num">Qty</th><th>Batch</th><th>Reason</th></tr></thead>
       <tbody>
         ${moves.length === 0
-          ? `<tr><td colspan="8" class="s-306094">No stock moved between bins yet.</td></tr>`
+          ? `<tr><td colspan="8" class="s-306094">${locMoveList.q ? 'No move matches that search.' : 'No stock moved between bins yet.'}</td></tr>`
           : moves.map(m => `
             <tr>
               <td>${m.updated_at ? escapeHTMLText(formatDateTime(m.updated_at)) : ''}</td>
@@ -2210,7 +2217,8 @@ async function loadLocationMovementHistory() {
               <td>${escapeHTMLText(m.notes || '')}</td>
             </tr>`).join('')}
       </tbody>
-    </table>`;
+    </table></div>`;
+  txn.txnWireListBar(el, locMoveList, loadLocationMovementHistory);
 }
 
 async function loadLocationMovementStock() {
@@ -2751,7 +2759,10 @@ function toggleMobilePickListening() {
 // therefore its Bulk Import button) from the UI at all. Fixed here by
 // linking directly into the existing generic doctype-table view instead of
 // building a second import mechanism.
+// 288.2: two pages - work a count session (cycle-count) and the ABC plan
+// (cycle-count:plan); the count lines are their own list (CycleCountLine).
 async function renderCycleCountView(container) {
+  if (currentViewTab === 'plan') return renderABCPlanView(container);
   let stockContext = null;
   try { stockContext = JSON.parse(sessionStorage.getItem('erp_stock_count_context') || 'null'); }
   catch (error) { /* Invalid navigation context never blocks ordinary counting. */ }
@@ -2765,73 +2776,33 @@ async function renderCycleCountView(container) {
   `;
   container.appendChild(header);
 
-  const importPanel = document.createElement('div');
-  importPanel.className = 'table-panel';
-  importPanel.style.padding = '24px';
-  importPanel.style.marginBottom = '24px';
-  importPanel.innerHTML = `
-    <h2 class="s-fcb488">1. Enter counted quantities</h2>
-    <button class="btn btn-outline" id="cyclecount-open-lines-btn" type="button">Manage Count Lines</button>
-    ${stockContext?.sku && stockContext?.location ? `<div class="notice s-56f435">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>` : ''}
-  `;
-  container.appendChild(importPanel);
+  // A count started from Stock on Hand carries its item and location here.
+  if (stockContext?.sku && stockContext?.location) {
+    container.insertAdjacentHTML('beforeend', `<div class="notice s-56f435">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>`);
+  }
 
+  // Stage 55.6: one session - reconcile it, and its lines as a work table
+  // (reasons picked by name, recount and posting from the row) instead of
+  // typing Line IDs. Book quantity and difference appear only once a line
+  // is reconciled.
   const reconcilePanel = document.createElement('div');
   reconcilePanel.className = 'table-panel';
   reconcilePanel.style.padding = '24px';
   reconcilePanel.innerHTML = `
-    <h2 class="s-fcb488">2. Reconcile a session</h2>
     <div class="s-608a43">
       <div class="form-group s-50435f">
         <label class="form-label" for="cyclecount-session">Count Session</label>
         <input type="text" id="cyclecount-session" class="form-input s-30080b">
       </div>
+      <button class="btn btn-outline" id="cyclecount-lines-btn" type="button">Show lines</button>
       <button class="btn btn-primary" id="cyclecount-reconcile-btn" type="button">Reconcile Session</button>
     </div>
     <div id="cyclecount-form-error" class="login-error hidden s-4c0544"></div>
     <div id="cyclecount-result" class="s-4c0544"></div>
+    <div id="cyclecount-lines" class="s-4bb900"></div>
   `;
   container.appendChild(reconcilePanel);
 
-  // Stage 55.6: the session's lines as a work table - reasons picked by name,
-  // recount and posting from the row - instead of typing Line IDs. Book
-  // quantity and difference appear only once a line is reconciled.
-  const linesPanel = document.createElement('div');
-  linesPanel.className = 'table-panel';
-  linesPanel.style.padding = '24px';
-  linesPanel.style.marginTop = '24px';
-  linesPanel.innerHTML = `
-    <h2 class="s-fcb488">3. Session lines</h2>
-    <button class="btn btn-outline" id="cyclecount-lines-btn" type="button">Show lines</button>
-    <div id="cyclecount-lines" class="s-4bb900"></div>
-  `;
-  container.appendChild(linesPanel);
-
-  // Stage 26.5.9: ABC cycle-count planner - which SKUs are due for their
-  // next count, ranked by velocity tier.
-  const abcPanel = document.createElement('div');
-  abcPanel.className = 'table-panel';
-  abcPanel.style.padding = '24px';
-  abcPanel.style.marginTop = '24px';
-  abcPanel.innerHTML = `
-    <h2 class="s-fcb488">4. ABC cycle-count planner</h2>
-    <div class="s-608a43">
-      <div class="form-group s-50435f">
-        <label class="form-label" for="abc-location">Location</label>
-        <input type="text" id="abc-location" class="form-input s-56cae7" autocomplete="off">
-      </div>
-      <button class="btn btn-primary" id="abc-plan-btn" type="button">Get Plan</button>
-    </div>
-    <div id="abc-plan-result" class="s-4c0544"></div>
-  `;
-  container.appendChild(abcPanel);
-
-  document.getElementById('cyclecount-open-lines-btn').addEventListener('click', () => {
-    currentDoctype = 'CycleCountLine';
-    currentSearchQuery = '';
-    currentTablePage = 1;
-    renderView('doctype-table');
-  });
   document.getElementById('cyclecount-start-source-btn')?.addEventListener('click', async () => {
     if (!canCreateDoctype('CycleCountLine')) return;
     const session = `CC-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -2846,11 +2817,30 @@ async function renderCycleCountView(container) {
   });
   document.getElementById('cyclecount-reconcile-btn').addEventListener('click', submitCycleCountReconcile);
   document.getElementById('cyclecount-lines-btn').addEventListener('click', loadCycleCountLines);
-  document.getElementById('abc-plan-btn').addEventListener('click', fetchABCCycleCountPlan);
-  attachLinkTypeahead(document.getElementById('abc-location'), 'Location');
   const lastSession = sessionStorage.getItem('erp_cycle_count_last_session');
   if (lastSession) document.getElementById('cyclecount-session').value = lastSession;
-  if (stockContext?.location) document.getElementById('abc-location').value = stockContext.location;
+}
+
+// Stage 26.5.9: ABC cycle-count planner - which SKUs are due for their next
+// count, ranked by velocity tier. Its own page since 288.2.
+function renderABCPlanView(container) {
+  container.insertAdjacentHTML('beforeend', '<div class="page-header"><div class="page-title-section"><h1 class="page-title">ABC count plan</h1></div></div>');
+  const abcPanel = document.createElement('div');
+  abcPanel.className = 'table-panel';
+  abcPanel.style.padding = '24px';
+  abcPanel.innerHTML = `
+    <div class="s-608a43">
+      <div class="form-group s-50435f">
+        <label class="form-label" for="abc-location">Location</label>
+        <input type="text" id="abc-location" class="form-input s-56cae7" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="abc-plan-btn" type="button">Get Plan</button>
+    </div>
+    <div id="abc-plan-result" class="s-4c0544"></div>
+  `;
+  container.appendChild(abcPanel);
+  document.getElementById('abc-plan-btn').addEventListener('click', fetchABCCycleCountPlan);
+  attachLinkTypeahead(document.getElementById('abc-location'), 'Location');
 }
 
 async function submitCycleCountReconcile() {

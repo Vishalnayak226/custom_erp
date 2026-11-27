@@ -5,6 +5,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -306,16 +307,24 @@ func StartJobRunnerWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[JOBRUNNER] Failed to list tenant schemas: %v", err)
 					continue
 				}
-				for _, schema := range schemas {
-					if ctx.Err() != nil {
-						return
+				for pass := 0; pass < jobYieldPassesMax; pass++ {
+					jobsYielded.Store(false)
+					for _, schema := range dueSchemas(schemas, "async_jobs", jobDueWhere) {
+						if ctx.Err() != nil {
+							return
+						}
+						runClaimedJobsContext(ctx, schema)
 					}
-					runClaimedJobsContext(ctx, schema)
+					// 297.2: a job that yielded has more to do now, so the
+					// next pass starts at once instead of a tick later.
+					if !jobsYielded.Load() {
+						break
+					}
 				}
 			}
 		}
@@ -424,6 +433,11 @@ func watchJobCancellation(ctx context.Context, schema, jobID string, cancel cont
 	}
 }
 
+// jobDueWhere is the jobs a tick may claim; dueSchemas asks every client the
+// same question first (283.2).
+const jobDueWhere = `((status = 'Pending' AND next_attempt_at <= CURRENT_TIMESTAMP)
+		   OR (status = 'Leased' AND leased_until < CURRENT_TIMESTAMP))`
+
 func claimJobs(schema string, limit int) ([]Job, error) {
 	tx, err := db.DB.Begin()
 	if err != nil {
@@ -439,8 +453,7 @@ func claimJobs(schema string, limit int) ([]Job, error) {
 	rows, err := tx.Query(fmt.Sprintf(`
 		SELECT id, job_type, payload, attempts, max_attempts, actor
 		FROM %s.async_jobs
-		WHERE (status = 'Pending' AND next_attempt_at <= CURRENT_TIMESTAMP)
-		   OR (status = 'Leased' AND leased_until < CURRENT_TIMESTAMP)
+		WHERE `+jobDueWhere+`
 		ORDER BY next_attempt_at
 		LIMIT %d
 		FOR UPDATE SKIP LOCKED`, schema, limit))
@@ -476,7 +489,8 @@ func claimJobs(schema string, limit int) ([]Job, error) {
 				lease = bound
 			}
 			if _, err := tx.Exec(fmt.Sprintf(`
-				UPDATE %s.async_jobs SET status = 'Leased', leased_by = $1, leased_until = $2, updated_at = CURRENT_TIMESTAMP
+				UPDATE %s.async_jobs SET status = 'Leased', leased_by = $1, leased_until = $2, updated_at = CURRENT_TIMESTAMP,
+				started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
 				WHERE id = $3`, schema), jobWorkerIdentity, time.Now().Add(lease), j.ID); err != nil {
 				return nil, err
 			}
@@ -512,7 +526,50 @@ func jobRetryBackoff(attempts int) time.Duration {
 	return backoff
 }
 
+// ErrJobYield (297.2) is what a long handler returns when it stopped at a
+// safe point with more to do: the job goes back to the queue due at once,
+// with no attempt counted and its progress kept. The handler saves where it
+// got to before it yields, so the next run carries on from there.
+var ErrJobYield = errors.New("job yielded: more to do")
+
+// JobStopError (297.2) is an error no retry can fix - a file that cannot be
+// read the same way twice. The job ends Failed at once with the message,
+// which the user's tasks list shows; it is not dead-lettered or retried.
+type JobStopError struct{ Err error }
+
+func (e JobStopError) Error() string { return e.Err.Error() }
+func (e JobStopError) Unwrap() error { return e.Err }
+
+// jobsYielded tells the worker loop a job yielded during this pass.
+var jobsYielded atomic.Bool
+
+// jobYieldPassesMax bounds the passes one tick makes while jobs keep
+// yielding, so a tick still ends; the next tick goes on.
+const jobYieldPassesMax = 1000
+
 func finishJob(schema string, job Job, result map[string]interface{}, jobErr error) {
+	if errors.Is(jobErr, ErrJobYield) {
+		if _, err := db.DB.Exec(fmt.Sprintf(`
+			UPDATE %s.async_jobs SET status = 'Pending', next_attempt_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND status = 'Leased'`, schema), job.ID); err != nil {
+			log.Printf("[JOBRUNNER] failed to requeue yielded job %s: %v", job.ID, err)
+		}
+		jobsYielded.Store(true)
+		return
+	}
+	var stop JobStopError
+	if errors.As(jobErr, &stop) {
+		msg := stop.Error()
+		if len(msg) > 2000 {
+			msg = msg[:2000]
+		}
+		if _, err := db.DB.Exec(fmt.Sprintf(`
+			UPDATE %s.async_jobs SET status = 'Failed', attempts = attempts + 1, last_error = $1, updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
+			WHERE id = $2 AND status = 'Leased'`, schema), msg, job.ID); err != nil {
+			log.Printf("[JOBRUNNER] failed to stop job %s: %v", job.ID, err)
+		}
+		return
+	}
 	if jobErr == nil {
 		resultBytes, merr := json.Marshal(result)
 		if merr != nil {
@@ -563,6 +620,29 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 	if err != nil {
 		log.Printf("[JOBRUNNER] failed to reschedule job %s: %v", job.ID, err)
 	}
+}
+
+// ReportJobProgress (297.3) is how a long handler tells its user how far it
+// is: rows done out of rows in all, which the tasks list turns into a bar and
+// a time left. It also renews the lease - a handler still reporting is alive,
+// so its job is never claimed twice however long it runs. GREATEST keeps a
+// longer lease (a type with a long runtime bound) from being shortened.
+func ReportJobProgress(schema, jobID string, done, total int64) error {
+	if done < 0 {
+		done = 0
+	}
+	if total < done {
+		total = done
+	}
+	pct := 0
+	if total > 0 {
+		pct = int(done * 100 / total)
+	}
+	_, err := db.DB.Exec(fmt.Sprintf(`
+		UPDATE %s.async_jobs SET progress_done = $1, progress_total = $2, progress_pct = $3, updated_at = CURRENT_TIMESTAMP,
+		leased_until = CASE WHEN status = 'Leased' THEN GREATEST(leased_until, $4) ELSE leased_until END
+		WHERE id = $5`, schema), done, total, pct, time.Now().Add(jobLeaseDuration), jobID)
+	return err
 }
 
 // UpdateJobProgress lets a long-running handler report percent-complete

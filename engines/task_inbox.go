@@ -139,7 +139,7 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 	// 2. OMS exception queues with work in them.
 	if scope.OMS {
 		for _, def := range OMSExceptionQueueDefs {
-			rows, err := OMSExceptionQueue(tenantID, def.ID)
+			rows, capped, err := OMSExceptionQueueCapped(tenantID, def.ID)
 			if err != nil {
 				inbox.Errors["oms:"+def.ID] = err.Error()
 				continue
@@ -149,8 +149,12 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 			}
 			oldest, _ := rows[0]["since"].(time.Time)
 			first, _ := rows[0]["reason"].(string)
+			more := ""
+			if capped {
+				more = "+" // 267.3: the queue holds more than its cap
+			}
 			inbox.Items = append(inbox.Items, TaskInboxItem{
-				Source: "Order desk", Title: fmt.Sprintf("%s: %d", def.Label, len(rows)),
+				Source: "Order desk", Title: fmt.Sprintf("%s: %d%s", def.Label, len(rows), more),
 				Reason: "Oldest: " + first + " - " + fmt.Sprint(rows[0]["next_action"]),
 				View:   "oms", Queue: def.ID, WaitingSince: oldest, Count: len(rows),
 				Overdue: time.Since(oldest) > 24*time.Hour,

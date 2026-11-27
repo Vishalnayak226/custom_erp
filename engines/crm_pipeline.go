@@ -1023,7 +1023,7 @@ func GetCRMForecast(tenantID string) ([]CRMForecastRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(to_char(COALESCE(o.expected_close, o.closed_at::date), 'YYYY-MM'), 'No date'),
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(to_char(COALESCE(o.expected_close, public.erp_local_date(o.closed_at)), 'YYYY-MM'), 'No date'),
 		COUNT(*) FILTER (WHERE o.status = 'Open'),
 		COALESCE(SUM(o.value) FILTER (WHERE o.status = 'Open'), 0),
 		COALESCE(SUM(o.value * o.probability / 100.0) FILTER (WHERE o.status = 'Open'), 0),

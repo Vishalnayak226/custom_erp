@@ -90,7 +90,7 @@ async function renderRFTraceabilityView(container) {
   wrap.className = 'rf-wrap';
   wrap.innerHTML = `
     <div class="rf-header s-62ef81">
-      <div class="rf-title" id="rf-title">Choose a task</div>
+      <div class="rf-title" id="rf-title" role="heading" aria-level="1">Choose a task</div>
       <div class="rf-instruction" id="rf-instruction"></div>
       <div class="s-fd7036">
         <button class="rf-help-btn s-8d66d1" type="button" aria-label="Help for RF Traceability" title="Help for this screen" ${actionAttrs('openHelpDrawer', ['rf-traceability'])}>Help</button>

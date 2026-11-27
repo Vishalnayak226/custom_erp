@@ -19,6 +19,12 @@ const num = v => Number(v) || 0;
 const r1 = v => Math.round(v * 10) / 10;
 const mm = v => r1(Number(v));
 const PHOTO_MAX_PX = 1600; // the long side the photo is read at
+const NO_ROLE = 'Your role cannot change printers';
+// saidAs: a preset change in words - "right 1.6 mm", or with the values it
+// replaced "right -0.5 → 1.6 mm" (275.1).
+const SAID = { shift_right_mm: ['right', ' mm'], shift_down_mm: ['down', ' mm'], skew_deg: ['skew', '°'] };
+const saidAs = (changes, was) => Object.entries(changes).map(([k, v]) =>
+  `${SAID[k][0]} ${was ? `${mm(num(was[k]))} → ` : ''}${v}${SAID[k][1]}`).join(', ');
 const SKEW_MIN_DEG = 0.5;  // a short frame reads about 0.2° of noise
 
 // rollKey names a roll as align_confirmed stores it: one label's size, the
@@ -53,14 +59,19 @@ async function freshen(p) {
 }
 
 // Perfect: kept on the Printer for every computer; a role that cannot change
-// printers keeps it on this computer instead, rather than asking every day.
+// printers (or a save that fails) keeps it on this computer instead, rather
+// than asking every day. 275.3: returns where it is kept, 'printer' or
+// 'computer', so the answer says which.
 async function markPerfect(p, key) {
-  if (confirmed(p, key)) return;
+  const where = () => (keysOf(p.align_confirmed).includes(key) ? 'printer' : 'computer');
+  if (confirmed(p, key)) return where();
   if (mayUpdate(p)) await freshen(p);
-  if (confirmed(p, key)) return;
-  if (mayUpdate(p) && await savePrinter(p, { align_confirmed: keysOf(p.align_confirmed).concat(key).join(',') })) return;
+  if (confirmed(p, key)) return where();
+  if (mayUpdate(p) && await savePrinter(p, { align_confirmed: keysOf(p.align_confirmed).concat(key).join(',') })) return 'printer';
   setKey('localStorage', localKey(p), keysOf(getKey('localStorage', localKey(p))).concat(key).join(','));
+  return 'computer';
 }
+const perfectSaid = where => (where === 'printer' ? ['Saved for this roll.', 'success'] : ['Kept on this computer.', 'info']);
 
 // The faces: drawn here, not the system emoji font, so they look the same
 // on every computer and phone.
@@ -116,8 +127,8 @@ export async function askAfterPrint(p, t) {
     document.body.classList.remove('pc-asking');
     asking = false;
     if (face === 'perfect') {
-      await markPerfect(p, key);
-      window.showToast?.('Saved. Won\'t ask again for this roll.', { variant: 'success' });
+      const [msg, variant] = perfectSaid(await markPerfect(p, key));
+      window.showToast?.(`${msg} Won't ask again.`, { variant });
     } else if (face !== 'close') {
       openFixFromPhoto(p, t);
     }
@@ -148,6 +159,7 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
           <li><span>Photo it from above</span><label class="btn btn-outline pc-file">Add photo<input type="file" accept="image/*" hidden></label></li>
         </ol>
         <div class="pc-drop" data-f="drop"><span>Drop or paste the photo here</span><canvas class="pc-shot" hidden></canvas></div>
+        <div class="pc-saved" aria-live="polite" hidden></div>
         <div class="pc-result" aria-live="polite"></div>
         <div class="pc-again" hidden><span class="pc-again-title">How is it now?</span>${facesHTML()}</div>
         <div class="form-group pc-lineup" hidden><span class="form-label">Best row</span>
@@ -157,14 +169,24 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" data-f="lineup">Line up</button>
         <button type="button" class="btn btn-outline" data-f="close">Cancel</button>
-        <button type="button" class="btn btn-primary" data-f="apply" disabled${may ? '' : ' title="Your role cannot change printers"'}>Apply</button>
+        <button type="button" class="btn btn-primary" data-f="apply" disabled title="${may ? 'Add a photo first' : NO_ROLE}">Apply</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
   const $ = s => overlay.querySelector(s);
   const errorEl = $('.pc-error'), resultEl = $('.pc-result'), shot = $('.pc-shot'), drop = $('.pc-drop'), again = $('.pc-again');
-  const applyBtn = $('[data-f="apply"]'), lineupEl = $('.pc-lineup');
+  const applyBtn = $('[data-f="apply"]'), lineupEl = $('.pc-lineup'), printBtn = $('[data-f="print"]'), savedEl = $('.pc-saved');
+  // 275.2: a greyed-out Apply says why on its tip; 275.1: Apply reads Saved
+  // after a save until the next photo is read.
+  const setApply = (label, why) => { applyBtn.textContent = label; applyBtn.disabled = !!why; applyBtn.title = why || ''; };
+  // 275.1: what was saved stays in the dialog, old value to new, whatever the
+  // check label's print does next (a toast alone was gone by then).
+  const showSaved = (changes, was) => {
+    savedEl.textContent = `Saved · ${saidAs(changes, was)}`;
+    savedEl.hidden = false;
+    reveal(savedEl);
+  };
   // 255.1: what just appeared (the result, an error, "How is it now?") is
   // scrolled into view; on a short window it would sit under the fold.
   const reveal = (el) => requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
@@ -224,7 +246,7 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
   async function readPhoto(file) {
     say('');
     fix = null;
-    applyBtn.disabled = true;
+    setApply('Apply', may ? 'Reading the photo' : NO_ROLE);
     again.hidden = true;
     resultEl.innerHTML = '<span class="pc-reading">Reading the photo…</span>';
     let img, ctx;
@@ -253,6 +275,7 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
     drawFound(ctx, res);
     if (!res.ok) {
       resultEl.innerHTML = '';
+      setApply('Apply', may ? 'Photo not read' : NO_ROLE);
       say({
         tags: 'No labels found. Photo the roll from above, on a dark table.',
         print: 'Print not known. Photo a check label, Line up or alignment test.',
@@ -268,11 +291,11 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
     if (res.picks) notes.push(readFrom(res.picks));
     if (res.down === null) notes.push('Up and down not read');
     const same = Math.abs(res.right) < 0.25 && (res.down === null || Math.abs(res.down) < 0.25) && !fix.skew_deg;
-    fixText = Object.entries(fix).map(([k, v]) => `${{ shift_right_mm: 'right', shift_down_mm: 'down', skew_deg: 'skew' }[k]} ${v}${k === 'skew_deg' ? '°' : ' mm'}`).join(', ');
+    fixText = saidAs(fix);
     resultEl.innerHTML = `<div class="pc-advice${same ? ' ok' : ''}">${esc(A.adviceText(res))}</div>
       <div class="pc-values">New preset: ${esc(fixText)}</div>
       ${notes.map(n => `<div class="pc-note">${esc(n)}</div>`).join('')}`;
-    applyBtn.disabled = !may || same;
+    setApply('Apply', !may ? NO_ROLE : same ? 'Already centred' : '');
     if (!may) say('Your role cannot change printers. Ask a manager to apply this.');
     if (same) again.hidden = false;
     reveal(same ? again : resultEl);
@@ -302,9 +325,18 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
     }
   }
 
+  // 275.2: Print check label reads Printing… while its print runs, whoever
+  // started it (the button, Apply, a Line up row).
   const printCheck = async () => {
     lineupEl.hidden = true;
-    if (await E.printCheckLabel(plan, p)) { again.hidden = false; reveal(again); }
+    printBtn.disabled = true;
+    printBtn.textContent = 'Printing…';
+    try {
+      if (await E.printCheckLabel(plan, p)) { again.hidden = false; reveal(again); }
+    } finally {
+      printBtn.disabled = false;
+      printBtn.textContent = 'Print check label';
+    }
   };
 
   overlay.addEventListener('click', async (e) => {
@@ -316,9 +348,9 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
     if (act === 'close') { close(); return; }
     if (act === 'face') {
       if (face === 'perfect') {
-        await markPerfect(p, key);
+        const [msg, variant] = perfectSaid(await markPerfect(p, key));
         close();
-        window.showToast?.('Lovely. Saved for this roll.', { variant: 'success' });
+        window.showToast?.(`Lovely. ${msg}`, { variant });
       } else {
         again.hidden = true;
         resultEl.innerHTML = '';
@@ -336,10 +368,12 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
         await printCheck();
       } else if (act === 'apply' && fix) {
         if (Math.abs(fix.shift_right_mm) > 20 || Math.abs(fix.shift_down_mm || 0) > 20) { say('That is more than 20 mm. Check the roll set on this printer.'); return; }
+        const was = { ...p };
         if (!await savePrinter(p, fix)) return;
         onSaved?.(p);
-        window.showToast?.(`Saved: ${fixText}.`, { variant: 'success' });
+        showSaved(fix, was);
         fix = null;
+        setApply('Saved', 'Saved');
         resultEl.innerHTML = '';
         shot.hidden = true;
         drop.classList.remove('has-shot');
@@ -350,16 +384,18 @@ export async function openFixFromPhoto(p, roll, { onSaved } = {}) {
         if (lineRows) lineupEl.querySelectorAll('[data-pick]').forEach((b, i) => { b.title = `Shift right ${lineRows[i].shift_right_mm} mm`; });
       } else if (act === 'pick' && lineRows) {
         if (!may) { say('Your role cannot change printers.'); return; }
-        const row = lineRows[Number(pick.dataset.pick)];
+        const row = lineRows[Number(pick.dataset.pick)], was = { ...p };
         if (!await savePrinter(p, { shift_right_mm: row.shift_right_mm })) return;
         onSaved?.(p);
-        window.showToast?.(`Row ${pick.textContent} saved: shift right ${row.shift_right_mm} mm.`, { variant: 'success' });
+        showSaved({ shift_right_mm: row.shift_right_mm }, was);
         await printCheck();
       }
     } catch (err) {
       say(err.message || String(err));
     } finally {
-      if (btn) btn.disabled = act === 'apply' ? !fix || !may : false;
+      // Apply keeps the state setApply gave it (Saved, or Apply again when
+      // the save did not go through); the other buttons come back.
+      if (btn === applyBtn) { if (fix) setApply('Apply', may ? '' : NO_ROLE); } else if (btn && btn !== printBtn) btn.disabled = false;
     }
   });
 }

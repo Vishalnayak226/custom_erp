@@ -167,7 +167,7 @@ jobs:
   evidence:
     name: Browser budgets and journeys
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 80 # 297.6: the 2G profile adds about 12 minutes
     permissions:
       contents: read
       actions: read # only to fetch the last run's evidence (its first-pass day)
@@ -228,14 +228,14 @@ jobs:
       - name: Browser budgets (perf-budget.cjs)
         if: steps.start.outcome == 'success'
         continue-on-error: true
-        timeout-minutes: 35
+        timeout-minutes: 55
         run: |
           set -euo pipefail
           mkdir -p /tmp/evidence-src
           # Playwright stays a CI tool (dependency ledger): installed into the
           # runner's home, where capture-screenshots.js resolves it, never committed.
           (cd ~ && npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.64.1 && npx --no-install playwright install --with-deps chromium)
-          for i in $(seq 1 16); do /tmp/minttoken manager1 "Store Manager"; echo; done > /tmp/tokens.txt
+          for i in $(seq 1 20); do /tmp/minttoken manager1 "Store Manager"; echo; done > /tmp/tokens.txt
           node docs/qa/perf-budget.cjs --base "http://127.0.0.1:$PORT" --tokens /tmp/tokens.txt --ratchet --out /tmp/evidence-src/perf.json --record-gate .
       - name: Journeys (journeylab)
         if: steps.start.outcome == 'success'

@@ -46,6 +46,9 @@ type SupplyProposal struct {
 	ApprovedQty   float64 `json:"approved_qty,omitempty"`
 	BOMID         string  `json:"bom_id,omitempty"`
 	ForItem       string  `json:"for_item,omitempty"`
+	FromLocation  string  `json:"from_location,omitempty"`  // 273.2: the store a transfer comes from
+	FromAvailable float64 `json:"from_available,omitempty"` // and what it holds / keeps for itself
+	FromKeeps     float64 `json:"from_keeps,omitempty"`
 	Action        string  `json:"action"`
 	Status        string  `json:"status"`
 	TargetDoctype string  `json:"target_doctype,omitempty"`
@@ -61,6 +64,7 @@ func proposalFromData(id, status string, d map[string]interface{}) SupplyProposa
 		Location: str(d, "location"), Available: numFromInterface(d["available"]), ReorderPoint: numFromInterface(d["reorder_point"]),
 		DailyVelocity: numFromInterface(d["daily_velocity"]), SuggestedQty: numFromInterface(d["suggested_qty"]),
 		ApprovedQty: numFromInterface(d["approved_qty"]), BOMID: str(d, "bom_id"), ForItem: str(d, "for_item"),
+		FromLocation: str(d, "from_location"), FromAvailable: numFromInterface(d["from_available"]), FromKeeps: numFromInterface(d["from_keeps"]),
 		Action: str(d, "action"), TargetDoctype: str(d, "target_doctype"), TargetID: str(d, "target_id"),
 		DecidedBy: str(d, "decided_by"), DecidedAt: str(d, "decided_at"), Reason: str(d, "reason"), GeneratedAt: str(d, "generated_at")}
 }
@@ -75,8 +79,9 @@ type GenerateSupplyProposalsResult struct {
 	Refreshed int `json:"refreshed"`
 }
 
-// GenerateSupplyProposals turns the current reorder ("reorder") or MRP
-// ("mrp") suggestions for a location into open proposals.
+// GenerateSupplyProposals turns the current reorder ("reorder"), MRP ("mrp"),
+// back-order ("backorder") or rebalance ("rebalance", 273.2: another
+// location's spare stock) suggestions for a location into open proposals.
 func GenerateSupplyProposals(tenantID, userID, location, source string, leadTimeDays, safetyStock int) (GenerateSupplyProposalsResult, error) {
 	var res GenerateSupplyProposalsResult
 	location = strings.TrimSpace(location)
@@ -134,8 +139,21 @@ func GenerateSupplyProposals(tenantID, userID, location, source string, leadTime
 					parts: map[string]interface{}{"inward": int(b.Inward), "on_order": int(b.OnOrder), "in_transit": int(b.InTransit), "back_orders": int(b.Waiting)}})
 			}
 		}
+	case "rebalance": // 273.2: another location's spare stock before a purchase
+		moves, err := RebalanceSuggestions(tenantID, location, leadTimeDays, safetyStock)
+		if err != nil {
+			return res, err
+		}
+		for _, m := range moves {
+			parts := map[string]interface{}{"from_location": m.From, "from_available": m.FromAvailable, "from_keeps": m.FromKeeps}
+			for k, v := range m.Parts {
+				parts[k] = v
+			}
+			cands = append(cands, cand{source: "Rebalance", sku: m.Sku, action: ProposalTransfer, available: m.ToAvailable,
+				reorderPoint: m.ToReorderPoint, velocity: m.ToVelocity, qty: m.Qty, parts: parts})
+		}
 	default:
-		return res, proposalErr("source must be reorder, mrp or backorder")
+		return res, proposalErr("source must be reorder, mrp, backorder or rebalance")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -279,14 +297,15 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 			}
 		}
 	}
+	// 273.2: with no source chosen, each proposal comes from the location it
+	// suggests (a rebalance proposal names one) and every source gets its own
+	// transfer.
+	fromOf := map[string]string{} // proposal -> source location
+	var fromOrder []string
 	if in.Action == ProposalTransfer {
-		if strings.TrimSpace(in.FromLocation) == "" {
-			return nil, proposalErr("choose the location the stock comes from")
-		}
-		if loc, err := ResolveLocationReference(tenantID, in.FromLocation); err == nil {
-			in.FromLocation = loc
-		} else {
-			return nil, proposalErr("from location: %v", err)
+		var err error
+		if fromOf, fromOrder, err = proposalSources(tenantID, ids, in.FromLocation); err != nil {
+			return nil, err
 		}
 	}
 	var numbers []string
@@ -296,6 +315,9 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 	}
 	if in.Action == ProposalPurchase {
 		need = len(vendorOrder)
+	}
+	if in.Action == ProposalTransfer {
+		need = len(fromOrder)
 	}
 	series := map[string]string{ProposalPurchase: "PO", ProposalTransfer: "TO", ProposalProduction: "PRO"}[in.Action]
 	for i := 0; i < need; i++ {
@@ -348,8 +370,10 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 		}
 		props = append(props, prop{id: id, data: d, qty: qty})
 	}
-	if in.Action == ProposalTransfer && in.FromLocation == location {
-		return nil, proposalErr("the stock cannot come from %s itself", location)
+	for _, from := range fromOrder {
+		if from == location {
+			return nil, proposalErr("the stock cannot come from %s itself", location)
+		}
 	}
 
 	res := &ApproveProposalsResult{Action: in.Action}
@@ -399,19 +423,26 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 		}
 		res.Doctype = "PurchaseOrder"
 	case ProposalTransfer:
-		var items []transferLine
-		for _, p := range props {
-			items = append(items, transferLine{Sku: str(p.data, "sku"), Qty: int(p.qty)})
-			target[p.id] = numbers[0]
+		for n, from := range fromOrder {
+			var items []transferLine
+			var pids []string
+			for _, p := range props {
+				if fromOf[p.id] == from {
+					items = append(items, transferLine{Sku: str(p.data, "sku"), Qty: int(p.qty)})
+					pids = append(pids, p.id)
+					target[p.id] = numbers[n]
+				}
+			}
+			itemsJSON, _ := json.Marshal(items)
+			if err := insert(numbers[n], "TransferOrder", map[string]interface{}{
+				"transfer_number": numbers[n], "from_warehouse": from, "to_warehouse": location,
+				"items": string(itemsJSON), "source_proposal_ids": strings.Join(pids, ","), "status": "Draft",
+			}); err != nil {
+				return nil, err
+			}
+			res.Documents = append(res.Documents, numbers[n])
 		}
-		itemsJSON, _ := json.Marshal(items)
-		if err := insert(numbers[0], "TransferOrder", map[string]interface{}{
-			"transfer_number": numbers[0], "from_warehouse": in.FromLocation, "to_warehouse": location,
-			"items": string(itemsJSON), "source_proposal_ids": strings.Join(ids, ","), "status": "Draft",
-		}); err != nil {
-			return nil, err
-		}
-		res.Doctype, res.Documents = "TransferOrder", []string{numbers[0]}
+		res.Doctype = "TransferOrder"
 	case ProposalProduction:
 		for i, p := range props {
 			bom := str(p.data, "bom_id")
@@ -442,7 +473,7 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 			p.data["vendor"], p.data["vendor_name"] = vendorOf[p.id], vendorName[vendorOf[p.id]]
 		}
 		if in.Action == ProposalTransfer {
-			p.data["from_location"] = in.FromLocation
+			p.data["from_location"] = fromOf[p.id]
 		}
 		if err := writeDocTx(tx, schema, "SupplyProposal", p.id, p.data, ProposalConverted); err != nil {
 			return nil, err

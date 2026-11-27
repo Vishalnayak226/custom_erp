@@ -329,6 +329,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/me/modules":                                           {LevelAuthenticated, "me.default"},
 	"GET /api/v1/me/permissions":                                       {LevelAuthenticated, "me.default"},
 	"GET /api/v1/me/stores":                                            {LevelAuthenticated, "me.default"},
+	"GET /api/v1/me/tasks":                                             {LevelAuthenticated, "me.default"}, // 297.3: own tasks only
+	"POST /api/v1/me/tasks/{id}/cancel":                                {LevelAuthenticated, "me.default"}, // 297.3: own tasks only
 	"GET /api/v1/stock-locations":                                      {LevelAuthenticated, "inventory.default"},
 	"GET /api/v1/pos/customer-lookup":                                  {LevelAuthenticated, "pos.default"},
 	"GET /api/v1/pos/advances":                                         {LevelAuthenticated, "pos.default"},

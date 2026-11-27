@@ -16,7 +16,7 @@ function loadBasket(ls) {
 
 async function barcodeSVG(text) {
   try {
-    const { encodeCode128 } = await import('/sticker-engine.js?v=2');
+    const { encodeCode128 } = await import('/sticker-engine.js?v=3');
     const modules = encodeCode128(text);
     if (!modules) return '';
     const w = modules.length + 20;

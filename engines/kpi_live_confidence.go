@@ -20,7 +20,7 @@ const (
 )
 
 var datasetConfidenceDomains = map[string]string{
-	"sales_lines": confidenceCash, "pos_bills": confidenceCash, "online_orders": confidenceCash, "ledger": confidenceCash,
+	"all_sales": confidenceCash, "sales_lines": confidenceCash, "pos_bills": confidenceCash, "online_orders": confidenceCash, "ledger": confidenceCash,
 	"stock_on_hand": confidenceStock, "stock_moves": confidenceStock, "transfers": confidenceStock,
 }
 

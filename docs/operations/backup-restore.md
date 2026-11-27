@@ -9,8 +9,8 @@ audience: [maintainers, operations-owner]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-last_verified: 2026-10-26
-review_by: 2026-12-26
+last_verified: 2026-11-27
+review_by: 2027-02-25
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -98,6 +98,91 @@ It is idempotent (a marker comment identifies its own crontab line, so re-runnin
 
   It decrypts every `*.enc` file to the same path without `.enc`, leaves a file already there alone (so it can be re-run), skips old plain objects, and names any file that does not decrypt — a wrong key restores nothing. It ends with `media restore: N restored, N already present, N failed` and exits non-zero if any failed. Every deploy ships the script to `/opt/erp/deploy/`.
 
+### Point-in-time recovery (item 290.2)
+
+The nightly dump brings the database back as it was at 02:00. Point-in-time recovery (PITR) brings it back as it was at **any minute** since the older of the two kept base backups (one to two weeks). A bad import at 14:05 goes back to 14:04, not to last night.
+
+**How it works.**
+
+- Postgres hands each finished WAL segment, its log of every change, to `deploy/pitr.sh`. A quiet hour still closes one every 5 minutes.
+- The script seals each segment with the dump's key and cipher and keeps it in `/var/lib/erp-pitr/wal`.
+- Every Sunday at 01:30 it takes a base backup, a copy of the whole cluster, into `/var/lib/erp-pitr/base`.
+- The newest two base backups are kept. Archived segments older than the older one are removed.
+- With `OFFSITE_S3_*` set, a job every 5 minutes copies new files to `<prefix>/pitr/wal/` and `<prefix>/pitr/base/`. Add a **30-day lifecycle rule on `<prefix>/pitr/`** in the bucket, the same way as for `<prefix>/database/`.
+- A restore never touches the live database. It unpacks a base backup into a new folder, replays the archive up to the minute asked for, and starts that copy on its own port. You take what you need from the copy.
+
+**Turn it on**, once per box. Postgres must run on the same box, version 13 or newer. It restarts Postgres once (a few seconds; the app reconnects), so run it in a quiet hour:
+
+```bash
+sudo bash /opt/erp/deploy/install_pitr.sh
+```
+
+The installer does the following:
+
+1. Checks the key and Postgres.
+2. Creates the folders.
+3. Copies the script to `/usr/local/lib/erp-pitr/`, outside `/opt/erp`, which deploys rewrite while Postgres runs.
+4. Writes `/etc/erp/pitr.env`, which holds the key and bucket and is readable by root and postgres only.
+5. Sets `archive_mode`, `archive_command` and `archive_timeout = 5min`.
+6. Restarts Postgres only if a setting needs it.
+7. Installs two cron lines for postgres.
+8. Proves it works by archiving one segment and taking the first base backup.
+
+It ends with `PITR-ON`.
+
+- **Every deploy** runs it with `--refresh`: a new `pitr.sh`, the key and the cron lines. It never restarts anything and does nothing on a box where PITR is off.
+- **After changing the key or the bucket** in `/etc/erp/erp.env`, deploy or run `--refresh`. Then take a base backup at once: `sudo -u postgres /usr/local/lib/erp-pitr/pitr.sh base`. Files sealed before the change still need the old key until they age out.
+- **`--off`** turns archiving off (one restart) and keeps the files.
+
+**Check it:** `cd / && sudo -u postgres /usr/local/lib/erp-pitr/pitr.sh status`. It shows:
+
+- archiving on or off;
+- the last archived segment and any failure;
+- the base backups kept;
+- the window you can go back to;
+- the size on disk;
+- how many files are copied off-box.
+
+The archive holds the changes since the older base backup plus two base backups, each about the compressed size of the database.
+
+**Restore to a minute.** Run it as postgres. Give the time with its zone, as it reads on a clock:
+
+```bash
+cd / && sudo -u postgres /usr/local/lib/erp-pitr/pitr.sh restore \
+  --to "2026-11-27 14:04 +05:30" --into /var/lib/erp-pitr/restore-1127 --port 5499
+```
+
+- It picks the newest base backup taken before that minute.
+- It refuses a folder that is not empty and a port already in use.
+- It replays the archive and prints where it stopped and how to reach the copy.
+- The folder needs room for the whole database.
+
+Then take what you need, usually one client's schema:
+
+```bash
+sudo -u postgres /usr/lib/postgresql/<N>/bin/pg_dump -h localhost -p 5499 -d <database> -n <tenant schema> -Fc -f /tmp/<tenant>-1404.dump
+```
+
+Load it into a scratch database first, never straight over a live schema (see *Exporting a single tenant* below). Then stop the copy with the `pg_ctl ... stop` line the restore printed, and delete its folder.
+
+- **A minute in the first few minutes of a base backup** cannot be reached from that backup. Postgres stops with "before consistent recovery point". Run the restore again with `--base <the older base backup>`.
+- **The box is lost:**
+  1. Download `<prefix>/pitr/` from the bucket into a folder. It holds `wal/` and `base/`.
+  2. On any machine with the same Postgres major version, run `read -rs BACKUP_ENCRYPTION_KEY; export BACKUP_ENCRYPTION_KEY`.
+  3. Run `PG_BIN=/usr/lib/postgresql/<N>/bin bash pitr.sh restore --from <folder> --to ... --into ...`.
+- Only the default tablespace is supported. This server has no other.
+
+**Alerts:**
+
+| Alert | Raised by | When |
+|---|---|---|
+| `BACKUP_WAL_ARCHIVE_FAILED` | the script, and the server's hourly monitor | Archiving is failing. The monitor reads `pg_stat_archiver`, so it also catches a script that cannot run at all. While archiving fails, Postgres keeps every segment in its own `pg_wal`, so the disk fills. Fix it the same day. |
+| `BACKUP_PITR_BASE_FAILED` | the script | The weekly base backup failed. |
+| `BACKUP_PITR_STALE` | the server | Base backups are recorded but none succeeded in the last 8 days. |
+| `BACKUP_PITR_OFFSITE_FAILED` | the script | Copying to the bucket failed. It retries every 5 minutes. |
+
+The script alerts at most once an hour per kind of failure. Each base backup is a `public.backup_runs` row with scope `pitr`. Drill: [`restore-drill-log.md`](restore-drill-log.md), 2026-11-27.
+
 ### Backup threat model (Stage 49.13.4)
 
 The question is not "did the backup run" but "who could destroy or alter both production and every usable backup". Read 2026-10-26 from `deploy/backup.sh`, the monitors in `engines/alerting.go` and the restore drill.
@@ -105,6 +190,7 @@ The question is not "did the backup run" but "who could destroy or alter both pr
 | Threat | What protects the backups today | Gap (owner's action) |
 |---|---|---|
 | Disk or droplet lost | nightly encrypted dump; off-box copy to the bucket when `OFFSITE_S3_*` is set; `BACKUP_OFFSITE_STALE` after 26 h | the off-box copy runs only once the bucket variables are set on each host |
+| A mistake found hours later (bad import, wrong bulk edit) | the nightly dump, which loses the day's work since 02:00; point-in-time recovery to the minute before, once it is on (item 290.2) | PITR is built but must be turned on: `install_pitr.sh` on each host |
 | Someone with root on the ERP host | the dumps are encrypted, but the key is in `/etc/erp/erp.env` on the same host, and local files can be deleted | **make the off-box copy immutable**: a bucket lock (retention) rule so no object can be deleted or overwritten for 35 days; with that, a host compromise cannot reach the backups of the last month |
 | Backup credential reused to destroy | the bucket token is scoped to one bucket; curl only uploads | the token can still delete; the bucket lock above is what stops it. Database backup and runtime use one role (risk R-07) |
 | Restore credential misuse | restores and the drill use a separate admin connection (`DRILL_ADMIN_URL`), never the app role | - |

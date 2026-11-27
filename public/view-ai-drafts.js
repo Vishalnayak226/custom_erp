@@ -1,4 +1,4 @@
-// Stage 148.37: drafts left by an AI assistant, in the Orders list. A person
+// Stage 148.37: drafts left by an AI assistant, on OMS home (284.1). A person
 // checks one and presses Submit; the order is then made under their name.
 // Shown only when the ai_access module is on and the user may make orders.
 
@@ -32,7 +32,7 @@ export async function renderAssistantDrafts(host) {
       if (!r) return;
       if (!r.ok) { await showApiError(r, 'Not submitted.'); return; }
       showToast('Order made.', { variant: 'success' });
-      renderView('oms');
+      renderView('oms:home');
     });
   }));
 }

@@ -786,12 +786,10 @@ func applyReturnedStockToBucket(tx *sql.Tx, schema, sku, locationCode string, qt
 // item just landed in, in the SAME transaction, so a shortage on the
 // exchange side rolls back the whole QC call - nothing is received without
 // its replacement actually being available, and nothing is issued without
-// the original actually coming back. This build deliberately only supports
-// an equal-value exchange (no price lookup exists on the Item master to
-// price a different-value swap correctly - the same missing-cost-master gap
-// resolveSalesOrderLinePrices' own comment already documents for RTO lines);
-// a different-value swap is refused with a message pointing at return +
-// new sale instead.
+// the original actually coming back. Only an equal-value exchange is made
+// here, since it moves no money and no tax: 267.10 prices the exchange item
+// as the till would sell it and refuses a different-value swap, pointing at
+// the till's Exchange, which settles the difference.
 func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]string, qcBy string, exchangeFor ...map[string]string) (totalRefund float64, refundRequestID string, err error) {
 	schema, data, err := fetchReturnRequest(tenantID, returnRequestID)
 	if err != nil {
@@ -952,10 +950,15 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 				return 0, "", err
 			}
 			if !exists {
-				return 0, "", fmt.Errorf("exchange sku %q is not a valid active Item", exchangeSKU)
+				return 0, "", fmt.Errorf("%s cannot be given in exchange: it is not an active item", exchangeSKU)
 			}
 			if err := deductExchangeStock(tx, schema, exchangeSKU, returnLocation, items[i].Qty, returnRequestID, qcBy); err != nil {
-				return 0, "", fmt.Errorf("exchange for sku %q: %v", items[i].SKU, err)
+				return 0, "", fmt.Errorf("exchange for %s: %v", items[i].SKU, err)
+			}
+			// 267.10: after the stock check, so an out-of-stock swap still says so
+			// plainly; a refusal here rolls the deduction back with the rest.
+			if err := refuseDifferentPriceExchange(tenantID, schema, returnRequestID, originalOrderID, returnLocation, items[i], exchangeSKU); err != nil {
+				return 0, "", err
 			}
 			items[i].ExchangeSKU = exchangeSKU
 			// Same documented cost-basis simplification as OriginalCostPrice
@@ -1106,6 +1109,35 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	return refundTotal, refundRequestID, nil
 }
 
+// refuseDifferentPriceExchange (267.10) prices one unit of the exchange item
+// the way the till would sell it - ResolvePOSQuote at the return's store, for
+// the original bill's customer, so price lists, shelf MRP and markdowns all
+// count - and refuses the swap unless that is what the customer paid for the
+// returned unit. An exchange at inspection moves no money and no tax, so only
+// a like-for-like swap keeps the books right; any other goes through the
+// till's Exchange, which settles the difference.
+func refuseDifferentPriceExchange(tenantID, schema, returnRequestID, originalOrderID, location string, line returnItemRecord, exchangeSKU string) error {
+	customer := ""
+	if originalOrderID != "" {
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(NULLIF(data->>'customer_id', ''), data->>'customer', '') FROM %s.documents WHERE id = $1`, schema),
+			originalOrderID).Scan(&customer)
+	}
+	q, err := ResolvePOSQuote(tenantID, QuoteRequest{CartNumber: returnRequestID, Location: location, CustomerID: customer,
+		Lines: []QuoteLineRequest{{Sku: exchangeSKU, Qty: 1}}})
+	if err != nil {
+		return fmt.Errorf("%s cannot be given in exchange here: %v", exchangeSKU, err)
+	}
+	price := 0.0
+	if len(q.Lines) > 0 {
+		price = q.Lines[0].UnitPrice
+	}
+	if RupeesToPaise(price) != RupeesToPaise(line.OriginalUnitPrice) {
+		return fmt.Errorf("%s sells at %.2f but the customer paid %.2f for %s: only a same-price swap is made at inspection. Use the till's More… → Exchange, which settles the difference",
+			exchangeSKU, price, line.OriginalUnitPrice, line.SKU)
+	}
+	return nil
+}
+
 // deductExchangeStock issues the exchange SKU out of return_location's own
 // stock, inside the caller's transaction - the same ATS-check-then-ledger-
 // entry shape engines/bundles.go's applyBundleAssemblyMovements already uses
@@ -1117,14 +1149,14 @@ func deductExchangeStock(tx *sql.Tx, schema, sku, locationCode string, qty int, 
 		 FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
 		sku, locationCode).Scan(&available, &reserved, &safety, &blocked, &qc, &damaged, &buffer, &held)
 	if err == sql.ErrNoRows {
-		return fmt.Errorf("insufficient stock for exchange sku %s at %s: no inventory record", sku, locationCode)
+		return fmt.Errorf("%s is not stocked at %s, so it cannot be given in exchange", sku, locationCode)
 	}
 	if err != nil {
 		return err
 	}
 	ats := computeATS(atsPolicyFor(schema), available, reserved, safety, blocked, qc, damaged, buffer, held)
 	if ats < qty {
-		return fmt.Errorf("insufficient ATS for exchange sku %s at %s: ATS %d, requested %d", sku, locationCode, ats, qty)
+		return fmt.Errorf("%s has only %d free to sell at %s; the exchange needs %d", sku, ats, locationCode, qty)
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.inventory_availability SET on_hand = on_hand - $3, available = available - $3, updated_at = CURRENT_TIMESTAMP

@@ -240,7 +240,9 @@ if ($LASTEXITCODE -ne 0) { throw "could not mark deploy/backup.sh executable on 
 # 2026-10-26: restore_drill.sh too - 0.15.0 changed it (erp-server -verify-restore) and the
 # server kept the August copy (Release gate G9b now names any deploy/ script left out here).
 # Stage 49.10.6a: restore_media.sh, the only way back from the encrypted media copy.
-foreach ($script in @("server_cleanup.sh", "install_cleanup_cron.sh", "erp.service", "install_service_unit.sh", "restore_drill.sh", "restore_media.sh")) {
+# Item 290.2: pitr.sh and its installer; remote_deploy.sh refreshes the copy Postgres
+# calls only on a box where point-in-time recovery is already on.
+foreach ($script in @("server_cleanup.sh", "install_cleanup_cron.sh", "erp.service", "install_service_unit.sh", "restore_drill.sh", "restore_media.sh", "pitr.sh", "install_pitr.sh")) {
     & scp "$RepoRoot\deploy\$script" "${Target}:$RemoteDir/deploy/$script"
     if ($LASTEXITCODE -ne 0) { throw "scp of deploy/$script failed" }
 }

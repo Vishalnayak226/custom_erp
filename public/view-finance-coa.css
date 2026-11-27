@@ -1,3 +1,3 @@
 /* Stage 148.5: Chart of Accounts request form. */
 .coa-form { display: grid; gap: 10px; max-width: 420px; }
-.coa-form label { display: grid; gap: 4px; font-size: 13px; }
+.coa-form label { display: grid; gap: 4px; font-size: 13.5px; }

@@ -206,7 +206,7 @@ func StartCampaignWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("crm_loyalty")
+				schemas, err := sweepTenantSchemas("crm_loyalty")
 				if err != nil {
 					log.Printf("[CAMPAIGN] Failed to list tenant schemas: %v", err)
 					continue

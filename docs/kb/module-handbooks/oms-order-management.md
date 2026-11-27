@@ -37,11 +37,12 @@ matter where an order came from.
 
 ## The OMS Workbench
 
-One screen (**sidebar → OMS → Orders**), not tabs: dashboard tiles,
-channel-connector sync health with unmapped-SKU exceptions, bundle/kit
-operations, a global search across order id/channel order id/AWB/phone/
-customer/SKU, manual order entry, and the main order queue with saved
-views and bulk actions. See [Channel Connectors](channel-connectors.md) for
+**OMS → Home** holds the dashboard tiles, the attention buttons, the
+exception queues and the assistant drafts. **OMS → Orders** shows only the
+order list: a global search across order id/channel order id/AWB/phone/
+customer/SKU, the filters, saved views, bulk actions and manual order entry
+(+ New Order). Channel-connector sync health, unmapped-SKU exceptions and
+bundle/kit operations are on **Setup → OMS → OMS settings**. See [Channel Connectors](channel-connectors.md) for
 the connector/credential setup this screen's health panel reads, and
 [Point of Sale](pos-operations.md) for the till side of a sale.
 
@@ -93,8 +94,8 @@ alone.
    a channel (blank covers every channel).
 2. Put a **Manual** rule last, as the catch-all that routes an order to a
    person.
-3. Work the orders held with reason `ALLOCATION_FAILED` from the On Hold
-   queue.
+3. Work the orders held with reason `ALLOCATION_FAILED` on **OMS → On
+   hold** (its own page).
 
 Once an order passes validation, the **Allocation/Sourcing Engine**
 (`ResolveAllocationPlan`) decides which location(s) fulfil it, running every

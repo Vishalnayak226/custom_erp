@@ -8,14 +8,14 @@
 // own page with a link back (Back works too).
 
 const crmModules = {
-  messaging: ['templates', 'campaigns', 'journeys', 'messages', 'settings'],
-  service: ['inbox', 'tickets', 'feedback', 'worklist'],
+  messaging: ['templates', 'campaigns', 'journeys', 'messages', 'ready', 'settings'],
+  service: ['inbox', 'tickets', 'feedback', 'referrals', 'worklist'],
   sales: ['pipeline'],
 };
 const crmTabs = [
-  ['overview', 'Overview'], ['customers', 'Customers'], ['segments', 'Segments'], ['templates', 'Templates'], ['campaigns', 'Campaigns'],
-  ['journeys', 'Journeys'], ['messages', 'Messages'], ['inbox', 'Inbox'], ['tickets', 'Tickets'], ['feedback', 'Feedback'],
-  ['worklist', 'Worklist'], ['pipeline', 'Pipeline'], ['settings', 'Settings'],
+  ['overview', 'CRM home'], ['customers', 'Customers'], ['segments', 'Segments'], ['templates', 'Templates'], ['campaigns', 'Campaigns'],
+  ['journeys', 'Journeys'], ['messages', 'Messages'], ['inbox', 'Inbox'], ['tickets', 'Tickets'], ['feedback', 'Feedback'], ['referrals', 'Referrals'],
+  ['worklist', 'Worklist'], ['pipeline', 'Pipeline'], ['ready', 'Ready to send'], ['settings', 'Settings'],
 ];
 let crmMeta = null;
 let crmRoot = null;
@@ -154,7 +154,8 @@ export async function renderCRMView(root) {
 
 async function crmPaint() {
   // Stage 155.6: each tab is its own sidebar entry; a page this role cannot open falls back to Overview.
-  const open = k => (k !== 'settings' || (crmMeta && crmMeta.can_manage)) && (k !== 'tickets' || canReadDoctype('ServiceTicket')) && (k !== 'pipeline' || canReadDoctype('SalesQuotation')); // 140.14.3
+  // 288.3: Ready to send left Settings for its own page and keeps its gate.
+  const open = k => ((k !== 'settings' && k !== 'ready') || (crmMeta && crmMeta.can_manage)) && (k !== 'tickets' || canReadDoctype('ServiceTicket')) && (k !== 'pipeline' || canReadDoctype('SalesQuotation')); // 140.14.3
   const tab = crmTabs.some(([k]) => k === crmState.tab) && open(crmState.tab) ? crmState.tab : 'overview';
   setActiveMenu(({ overview: 'menu-crm', customers: 'menu-customers', campaigns: 'menu-campaigns' })[tab] || `menu-crm-${tab}`);
   crmRoot.innerHTML = `<div class="page-header crm-page-header"><div class="page-title-section"><h1 class="page-title">${crmTabs.find(([k]) => k === tab)[1]}</h1></div></div>
@@ -177,7 +178,7 @@ async function crmPaint() {
 // --- overview ------------------------------------------------------------------
 
 async function crmOverview(host) {
-  const body = crmFrame(host, { title: 'Overview' });
+  const body = crmFrame(host, { title: 'CRM home' });
   const d = await crmApi('dashboard');
   if (!d) { body.innerHTML = ''; return; }
   const tile = (label, value, go, note) => `<button type="button" class="crm-tile" ${go ? `data-go-tab="${go}"` : ''}><span class="crm-tile-value">${crmEsc(value)}</span><span class="crm-tile-label">${crmEsc(label)}</span>${note ? `<span class="crm-tile-note">${crmEsc(note)}</span>` : ''}</button>`;

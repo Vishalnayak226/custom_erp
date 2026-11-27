@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **463**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **464**
 across **28** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -44,7 +44,7 @@ table has the same shape whoever runs it.
 - [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement--grn) - 27 reports
 - [Quality](#quality) - 4 reports
-- [Sales](#sales) - 14 reports
+- [Sales](#sales) - 15 reports
 - [Sales & POS](#sales--pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
@@ -4957,6 +4957,19 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 
 **Columns:** Salesman · Bills · Sales
+
+**Drill-down:** no.
+
+### Sold below cost
+
+**Report id:** `sold-below-cost`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Bill · Store · Cashier · Item · Qty · Sold at (ex GST) · Cost *(sensitive)* · Loss *(sensitive)* · Cleared by
 
 **Drill-down:** no.
 

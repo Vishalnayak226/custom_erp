@@ -37,6 +37,18 @@
       "latencyMs": 150,
       "downKbps": 1600,
       "upKbps": 750
+    },
+    "phone-2g": {
+      "label": "Phone on 2G, 4x CPU, 400 ms RTT, 256 kbps down, 128 up, 360x740 touch",
+      "viewport": {
+        "width": 360,
+        "height": 740
+      },
+      "mobile": true,
+      "cpu": 4,
+      "latencyMs": 400,
+      "downKbps": 256,
+      "upKbps": 128
     }
   },
   "views": {
@@ -67,10 +79,19 @@
       "viewportOverflow": 0,
       "unnamedControls": 0,
       "unlabelledFields": 0,
+      "jsHeapMBMax": 12,
+      "tabNodesMax": 10000,
       "serverP95Ms": 150,
       "serverP99Ms": 500
     },
-    "overrides": {}
+    "overrides": {
+      "phone-2g": {
+        "lcpP75Ms": 5000,
+        "cachedLcpP75Ms": 2500,
+        "cachedBytes": 32768,
+        "switchP95Ms": 1000
+      }
+    }
   },
   "ratchet": {
     "throttled-4x.switchP95Ms": 350,

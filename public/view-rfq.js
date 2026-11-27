@@ -10,11 +10,14 @@
 // once - and the RFQ, quote and PO point at each other.
 // BLD-041: native ES module loaded with import() by the authorized view
 // dispatcher. Shared services resolve from the classic app shell.
-import { documentSearchLink } from './view-document-links.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { documentSearchLink } = await import('./view-document-links.js' + new URL(import.meta.url).search);
 
 const loadTxnScreen = () => import('./txn-screen.js' + new URL(import.meta.url).search);
 let selectedRFQId = '';
 let rfqDraftLines = [];
+// 297.1: a new build waits while an RFQ has lines not yet saved.
+globalThis.holdUpdateWhile?.('rfq', () => rfqDraftLines.length > 0);
 let rfqEditingId = '';
 let rfqCompare = null;
 // 147.2: an item box finds by Design ID, Combination ID or barcode; a buying

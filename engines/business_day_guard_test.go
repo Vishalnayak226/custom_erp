@@ -19,8 +19,11 @@ func TestNoServerClockDays(t *testing.T) {
 	}{
 		{regexp.MustCompile(`time\.Now\(\)\.Format\("2006-01-02"\)`), `engines.BusinessToday()`},
 		{regexp.MustCompile(`\bCURRENT_DATE\b`), `public.erp_today()`},
-		{regexp.MustCompile(`(created_at|updated_at|posted_at)\s*(>=|>|<=|<)\s*\(?\$(\d+|%d)::date`), `public.erp_day_start($N::date) (and $N::date + 1 for the end)`},
-		{regexp.MustCompile(`(created_at|updated_at|posted_at)\)?::date`), `public.erp_local_date(col)`},
+		// Any *_at column (printed_at, closed_at, expires_at, ...), not only the
+		// three document stamps: item 295.3 found the label log on UTC days.
+		{regexp.MustCompile(`\b\w+_at\s*(>=|>|<=|<)\s*\(?\$(\d+|%d)::date`), `public.erp_day_start($N::date) (and $N::date + 1 for the end)`},
+		{regexp.MustCompile(`\b\w+_at\)?::date`), `public.erp_local_date(col)`},
+		{regexp.MustCompile(`\bLOCALTIMESTAMP::date`), `public.erp_today()`},
 	}
 	var found []string
 	for _, dir := range []string{".", filepath.Join("..", "internal", "server")} {

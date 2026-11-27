@@ -238,7 +238,7 @@ async function renderSettings(container) {
     `<table>
        <thead><tr><th>GSTIN</th><th>Legal entity</th><th>Provider</th><th>E-invoicing</th><th>Auto-submit</th><th>Turnover</th><th>Types</th><th>Rules</th><th>Connection</th><th></th></tr></thead>
        <tbody>${profiles.length === 0
-         ? `<tr><td colspan="10" class="s-306094">No GSTIN is set up. Use <b>+ New GSTIN</b> for each GSTIN that must e-invoice (turnover above ₹5 crore).</td></tr>`
+         ? `<tr><td colspan="10" class="s-306094">No GSTINs yet.</td></tr>`
          : profiles.map(p => `<tr>
              <td class="s-72126d">${esc(p.gstin)}</td><td>${esc(p.legal_entity)}</td>
              <td>${esc(p.provider === 'fake' ? 'Test provider' : p.provider)}${p.credential_set ? ' · credentials stored' : ''}</td>

@@ -20,6 +20,9 @@ func refusalHint(code, text, catalogue string) string {
 		return "Cancel or reverse it instead of deleting it."
 	case strings.Contains(t, "return location") || strings.Contains(t, "return_location") || strings.Contains(t, "auto-routed"):
 		return "Choose the return location."
+	case strings.Contains(t, "given in exchange") || strings.Contains(t, "the exchange needs"):
+		// 267.2: an exchange item that is inactive or not free to sell.
+		return "Pick another item to give in exchange, or leave the box blank to refund it."
 	case strings.Contains(t, "already exists") || strings.Contains(t, "already used") || strings.Contains(t, "already in use") || strings.Contains(t, "already registered"):
 		return "Open the existing record, or use a different value."
 	}

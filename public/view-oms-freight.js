@@ -1,4 +1,5 @@
-// Ask 169, items 73.4.2.6 and 73.4.2.7: OMS -> Freight (oms:freight).
+// Ask 169, items 73.4.2.6 and 73.4.2.7: OMS -> Carrier claims (oms:freight) and
+// OMS -> Freight invoices (oms:freight-invoices), one page each since 288.2.
 // Carrier claims for a lost, damaged or short shipment (Open -> Filed ->
 // Settled, or Rejected), and the carrier's freight invoice checked AWB by AWB
 // against what each booking was quoted. Invoice lines come in through the
@@ -109,7 +110,7 @@ function claimRows(claims) {
 }
 
 function lineRows(lines) {
-  if (!lines.length) return '<tr><td colspan="8" class="text-center text-muted">No invoice lines. Import the carrier\'s invoice.</td></tr>';
+  if (!lines.length) return '<tr><td colspan="8" class="text-center text-muted">No invoice lines.</td></tr>';
   const sorted = [...lines].sort((a, b) => LINE_ORDER.indexOf(lineStatus(a)) - LINE_ORDER.indexOf(lineStatus(b)));
   return sorted.map(l => {
     const st = lineStatus(l);
@@ -140,10 +141,11 @@ function lineSummary(lines) {
   return chips.join(' ');
 }
 
-export async function renderOMSFreightView(container) {
+export async function renderOMSFreightView(container, part = 'claims') {
   await import('./txn-screen.js' + Q); // its stylesheet carries .page-section-bar
-  const canClaims = canReadDoctype('CarrierClaim');
-  const canLines = canReadDoctype('FreightInvoiceLine');
+  const canClaims = part === 'claims' && canReadDoctype('CarrierClaim');
+  const canLines = part === 'invoices' && canReadDoctype('FreightInvoiceLine');
+  const againLines = () => renderView('oms:freight-invoices');
   const [claims, lines] = await Promise.all([
     canClaims ? getJSON('/api/v1/doc/CarrierClaim?limit=500', []) : [],
     canLines ? getJSON('/api/v1/doc/FreightInvoiceLine?limit=500', []) : [],
@@ -151,8 +153,8 @@ export async function renderOMSFreightView(container) {
 
   const bar = document.createElement('div');
   bar.className = 'page-section-bar';
-  bar.innerHTML = `<h1 class="page-title">Freight</h1><span class="page-section-actions"><button type="button" class="btn btn-outline" data-freight-refresh>Refresh</button></span>`;
-  bar.querySelector('[data-freight-refresh]').addEventListener('click', again);
+  bar.innerHTML = `<h1 class="page-title">${part === 'invoices' ? 'Freight invoices' : 'Carrier claims'}</h1><span class="page-section-actions"><button type="button" class="btn btn-outline" data-freight-refresh>Refresh</button></span>`;
+  bar.querySelector('[data-freight-refresh]').addEventListener('click', part === 'invoices' ? againLines : again);
   container.appendChild(bar);
 
   if (canClaims) {
@@ -190,12 +192,12 @@ export async function renderOMSFreightView(container) {
       const r = await post('/api/v1/oms/freight/reconcile', {}, 'Reconcile did not run.');
       if (!r) return;
       showToast(r.checked ? `${r.checked} checked: ${r.matched} matched, ${r.overcharged + r.undercharged} off, ${r.duplicate} duplicate, ${r.no_booking} no booking.` : 'Nothing new to check.');
-      again();
+      againLines();
     });
     container.appendChild(panel);
   }
 
   if (!canClaims && !canLines) {
-    container.insertAdjacentHTML('beforeend', '<p class="text-muted">Your role cannot see freight.</p>');
+    container.insertAdjacentHTML('beforeend', `<p class="text-muted">Your role cannot see ${part === 'invoices' ? 'freight invoices' : 'carrier claims'}.</p>`);
   }
 }

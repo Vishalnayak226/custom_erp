@@ -33,7 +33,10 @@ const VQ = new URL(import.meta.url).search;
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
 const KINDS = [['number', 'Number'], ['bar', 'Bar'], ['stacked', 'Stacked bar'], ['line', 'Line'], ['donut', 'Donut'], ['table', 'Table'], ['pivot', 'Pivot (rows × columns)']];
 const RANGES = [['today', 'Today'], ['week', 'This week'], ['mtd', 'Month to date'], ['last30', 'Last 30 days'], ['month', 'Last month'], ['all', 'All dates'], ['custom', 'Choose dates']];
-const AGGS = [['sum', 'Total of'], ['avg', 'Average'], ['min', 'Lowest'], ['max', 'Highest'], ['count', 'Count of'], ['distinct', 'How many different']];
+const AGGS = [['sum', 'Total of'], ['avg', 'Average'], ['min', 'Lowest'], ['max', 'Highest'], ['count', 'Count of'], ['distinct', 'How many different'], ['pct', 'Share (%) of'], ['per', 'Per']];
+// 298.1: "Share (%) of" a as a % of b (both numbers); "Per" a per b (b a
+// grouping field: sales per bill).
+const TWO_FIELD = new Set(['pct', 'per']);
 
 let meta = null;
 let catalog = null;
@@ -214,8 +217,11 @@ function widgetBox(w, i, editing) {
 }
 
 async function paintWidgets(grid, cd, f, editing) {
+  // 307.1: filters changed while an older load ran - only the newest one draws.
+  const seq = grid._paintSeq = (grid._paintSeq || 0) + 1;
   const { renderChart } = await charts();
   const results = await runWidgets(cd, f);
+  if (grid._paintSeq !== seq) return null;
   results.forEach((r, i) => {
     const body = grid.querySelector(`[data-dash-body="${i}"]`);
     if (!body) return;
@@ -262,6 +268,7 @@ async function openDashboard(panel, id, { edit = false, draft = null } = {}) {
         : `<button type="button" class="btn btn-outline btn-sm" id="dash-refresh">Refresh</button>
            ${cd.can_edit ? '<button type="button" class="btn btn-outline btn-sm" id="dash-edit">Edit</button>' : ''}
            ${meta.can_build ? '<button type="button" class="btn btn-outline btn-sm" id="dash-copy">Copy</button>' : ''}
+           ${cd.ready_made && !cd.owner && meta.can_set_roles ? '<button type="button" class="btn btn-outline btn-sm" id="dash-roles">Who sees it</button>' : ''}
            <button type="button" class="btn btn-outline btn-sm" id="dash-pdf">PDF</button>
            ${cd.mine || (cd.can_edit && cd.owner) ? '<button type="button" class="btn btn-outline btn-sm" id="dash-mail">Email me this</button>' : ''}
            ${cd.mine ? '<button type="button" class="btn btn-outline btn-sm" id="dash-delete">Delete</button>' : ''}`}</div>
@@ -274,7 +281,7 @@ async function openDashboard(panel, id, { edit = false, draft = null } = {}) {
   const repaint = () => {
     grid.innerHTML = cd.widgets.map((w, i) => widgetBox(w, i, editing)).join('') || '<p class="dash-empty">No widgets yet - add one.</p>';
     wireGrid();
-    paintWidgets(grid, cd, f, editing).then(() => { const a = root.querySelector('#dash-asof'); if (a) a.textContent = `As of ${formatDateTime(new Date()).slice(-5)}.`; });
+    paintWidgets(grid, cd, f, editing).then(r => { const a = r && root.querySelector('#dash-asof'); if (a) a.textContent = `As of ${formatDateTime(new Date()).slice(-5)}.`; });
   };
   const wireGrid = () => {
     grid.querySelectorAll('[data-dash-move]').forEach(b => b.addEventListener('click', () => {
@@ -333,6 +340,7 @@ async function openDashboard(panel, id, { edit = false, draft = null } = {}) {
     if (w) { cd.widgets.push(w); repaint(); }
   });
   root.querySelector('#dash-share')?.addEventListener('click', () => openShareDialog(cd));
+  root.querySelector('#dash-roles')?.addEventListener('click', () => openReadyRolesDialog(cd));
   root.querySelector('#dash-cancel')?.addEventListener('click', () => (cd.id ? openDashboard(panel, cd.id) : renderDashboardsTab(panel)));
   root.querySelector('#dash-save')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
@@ -468,7 +476,8 @@ function openWidgetEditor(widget, f) {
           <div class="form-group"><span class="form-label">Show</span>${(q.measures || []).map((m, i) => `<div class="dash-editor-row">
             <select class="form-select" data-dwe-agg="${i}" aria-label="How">${opt(AGGS, m.agg)}</select>
             <select class="form-select" data-dwe-mfield="${i}" aria-label="Of">${m.agg === 'count' ? `<option value="">rows</option>` : ''}${opt(m.agg === 'count' || m.agg === 'distinct' ? cats.concat(nums) : nums, m.field)}</select>
-            ${i ? `<button type="button" class="action-btn" data-dwe-mdel="${i}" aria-label="Remove">✕</button>` : ''}</div>`).join('')}
+            ${TWO_FIELD.has(m.agg) ? `<select class="form-select" data-dwe-mof="${i}" aria-label="${m.agg === 'pct' ? 'Of the total of' : 'Per'}">${opt(m.agg === 'pct' ? nums.filter(x => x[0] !== m.field) : ds.fields.filter(x => x.type === 'category').map(x => [x.key, x.label]), m.of)}</select>` : ''}
+            ${i ?`<button type="button" class="action-btn" data-dwe-mdel="${i}" aria-label="Remove">✕</button>` : ''}</div>`).join('')}
             ${(q.measures || []).length < 3 && w.kind !== 'donut' && w.kind !== 'pivot' ? '<button type="button" class="action-btn" id="dwe-madd">+ Another figure</button>' : ''}</div>
           <div class="form-group"><span class="form-label">Only where</span>${(q.filters || []).map((x, i) => `<div class="dash-editor-row">
             <select class="form-select" data-dwe-ffield="${i}" aria-label="Field">${opt(cats.concat(nums), x.field)}</select>
@@ -503,8 +512,14 @@ function openWidgetEditor(widget, f) {
         const n = needGroups[w.kind] ?? 1;
         q.group_by = [v('dwe-g0')?.value, v('dwe-g1')?.value].filter(Boolean).slice(0, n);
         q.grain = v('dwe-grain')?.value || '';
-        q.measures = (q.measures || []).map((m, i) => ({ agg: box.querySelector(`[data-dwe-agg="${i}"]`)?.value || m.agg, field: box.querySelector(`[data-dwe-mfield="${i}"]`)?.value ?? m.field }));
-        q.measures.forEach(m => { if (m.agg !== 'count' && m.agg !== 'distinct' && !(datasetOf(q.dataset)?.fields || []).some(x => x.key === m.field && x.type === 'number')) m.field = (datasetOf(q.dataset)?.fields || []).find(x => x.type === 'number')?.key || ''; });
+        q.measures = (q.measures || []).map((m, i) => ({ agg: box.querySelector(`[data-dwe-agg="${i}"]`)?.value || m.agg, field: box.querySelector(`[data-dwe-mfield="${i}"]`)?.value ?? m.field, of: box.querySelector(`[data-dwe-mof="${i}"]`)?.value ?? m.of }));
+        const dsFields = datasetOf(q.dataset)?.fields || [];
+        q.measures.forEach(m => {
+          if (m.agg !== 'count' && m.agg !== 'distinct' && !dsFields.some(x => x.key === m.field && x.type === 'number')) m.field = dsFields.find(x => x.type === 'number')?.key || '';
+          if (!TWO_FIELD.has(m.agg)) { delete m.of; return; }
+          const fits = x => (m.agg === 'pct' ? x.type === 'number' && x.key !== m.field : x.type === 'category');
+          if (!dsFields.some(x => x.key === m.of && fits(x))) m.of = dsFields.find(fits)?.key || '';
+        });
         if (w.kind === 'donut' || w.kind === 'pivot') q.measures = q.measures.slice(0, 1);
         q.filters = (q.filters || []).map((x, i) => ({ field: box.querySelector(`[data-dwe-ffield="${i}"]`)?.value || x.field, op: box.querySelector(`[data-dwe-fop="${i}"]`)?.value || x.op, value: box.querySelector(`[data-dwe-fval="${i}"]`)?.value ?? x.value }));
         q.sort = v('dwe-sort')?.value || '';
@@ -581,12 +596,7 @@ function openWidgetEditor(widget, f) {
 
 async function openShareDialog(cd) {
   const stores = await loadMyStores();
-  let roles = [];
-  const res = await apiFetch('/api/v1/admin/roles').catch(() => null);
-  if (res && res.ok) {
-    const data = await res.json();
-    roles = (Array.isArray(data) ? data : data.roles || []).map(r => (typeof r === 'string' ? r : r.name || r.role)).filter(Boolean);
-  }
+  const roles = await loadRoleNames();
   const chips = (name, list, picked) => `<div class="dash-chips">${list.map(v => `<label><input type="checkbox" data-dsh-${name}="${esc(v.code || v)}"${picked.includes(v.code || v) ? ' checked' : ''}> ${esc(v.name || v)}</label>`).join('') || '<span class="dash-note">None to pick.</span>'}</div>`;
   dialog('Share and home', `<div class="dash-share">
       <div class="form-group"><label class="form-label" for="dsh-users">Users (their sign-in names, comma between)</label><input id="dsh-users" class="form-input" value="${esc((cd.share_users || []).join(', '))}"></div>
@@ -601,6 +611,33 @@ async function openShareDialog(cd) {
     cd.share_stores = picked('store');
     cd.home_roles = roles.length ? picked('home') : list('dsh-home');
     showToast('Sharing set - Save the dashboard to keep it.', { variant: 'info' });
+    return '';
+  } });
+}
+
+// 298.3: which roles see a ready-made dashboard. It is a setting
+// (reports.ready_dashboard_roles.<key>); none ticked means every role, as
+// before. Admins always see it.
+async function loadRoleNames() {
+  const res = await apiFetch('/api/v1/admin/roles').catch(() => null);
+  if (!res || !res.ok) return [];
+  const data = await res.json();
+  return (Array.isArray(data) ? data : data.roles || []).map(r => (typeof r === 'string' ? r : r.name || r.role)).filter(Boolean);
+}
+
+async function openReadyRolesDialog(cd) {
+  const key = `reports.ready_dashboard_roles.${cd.ready_made}`;
+  const [roles, sres] = await Promise.all([loadRoleNames(), apiFetch('/api/v1/admin/settings').catch(() => null)]);
+  if (!sres || !sres.ok) { await showApiError(sres, 'The setting could not be read.'); return; }
+  const current = ((await sres.json()).find(s => s.key === key)?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  const all = [...new Set(roles.concat(current))];
+  dialog(`Who sees ${cd.name}`, `<div class="dash-share">
+      <div class="form-group"><span class="form-label">Roles (none ticked: everyone)</span><div class="dash-chips">${all.map(r => `<label><input type="checkbox" data-drr-role="${esc(r)}"${current.some(c => c.toLowerCase() === r.toLowerCase()) ? ' checked' : ''}> ${esc(r)}</label>`).join('') || '<span class="dash-note">No roles found.</span>'}</div></div>
+    </div>`, null, { wide: false, ok: 'Save', onOk: async (b) => {
+    const picked = [...b.querySelectorAll('[data-drr-role]:checked')].map(i => i.getAttribute('data-drr-role'));
+    const res = await apiFetch('/api/v1/admin/settings', { method: 'PUT', body: JSON.stringify({ [key]: picked.join(',') }) });
+    if (!res || !res.ok) { await showApiError(res, 'The setting was not saved.'); return 'Not saved.'; }
+    showToast(picked.length ? `Shown to ${picked.join(', ')} and admins.` : 'Shown to everyone.', { variant: 'success' });
     return '';
   } });
 }
@@ -705,9 +742,79 @@ function scheduleDigest(cd) {
 
 // --- Home (91.3 + 100.3.2) ----------------------------------------------------
 
+// 276.18: today's numbers on Home, beside app.js's Approvals card. A tile
+// shows only when this role can open its list (the sidebar's own gates) and
+// its read answers; clicking it opens that list. Each reads an endpoint its
+// own screen already uses.
+const docCount = (doctype, field) => async v => {
+  const r = await apiFetch(`/api/v1/doc/${doctype}?${field}=${encodeURIComponent(v)}&limit=1&count=true`);
+  return r && r.ok ? Number(r.headers.get('X-Total-Count')) || 0 : null;
+};
+const HOME_TODAY = [
+  { menu: 'menu-pos-sales-history', label: 'Sales today', manager: true, get: async () => {
+    const r = await apiFetch('/api/v1/store-app/today?store=all');
+    if (!r || !r.ok) return null;
+    const t = (await r.json()).today || {};
+    return { val: formatMoney(t.sales || 0), note: `${formatNumber(t.bills || 0)} bill${t.bills === 1 ? '' : 's'}` };
+  } },
+  { menu: 'menu-purchase-orders', label: 'POs to receive', get: async () => {
+    const n = await Promise.all(['Approved', 'Partially Received'].map(docCount('PurchaseOrder', 'status')));
+    return n.includes(null) ? null : { val: formatNumber(n[0] + n[1]) };
+  } },
+  { menu: 'menu-grn', label: 'GRNs to price', get: async () => {
+    const r = await apiFetch('/api/v1/grn-steps');
+    if (!r || !r.ok) return null;
+    return { val: formatNumber(((await r.json()).rows || []).filter(x => x.tab === 'price').length) };
+  } },
+  { menu: 'menu-inventory-dashboard', label: 'Stock alerts', get: async () => {
+    const r = await apiFetch('/api/v1/store-app/low-stock');
+    if (!r || !r.ok) return null;
+    return { val: formatNumber(((await r.json()).items || []).length) };
+  } }
+];
+
+// 297.6: a revisit draws the tiles' last values at once and reads them again
+// behind (244.1's pattern for the approvals count). On a slow line every read
+// is a round trip, and Home's seven at once queue on the browser's six
+// connections. Kept only while this tab has written nothing and the sign-in is
+// the same; a read that fails behind keeps the value it had.
+let todayLast = null;
+
+async function mountHomeToday(row) {
+  if (!row) return;
+  const role = localStorage.getItem('erp_role') || '';
+  const manager = isAdminRoleName(role) || role === 'Store Manager'; // the Today read's own rule
+  const reachable = id => {
+    const el = document.getElementById(id);
+    return !!el && !el.closest('.perm-hidden, .module-hidden, .maturity-hidden') && isHomeActionVisible({ menuId: id });
+  };
+  const tiles = HOME_TODAY.filter(t => (!t.manager || manager) && reachable(t.menu));
+  const draw = values => {
+    row.querySelectorAll('.home-today-tile').forEach(c => c.remove());
+    tiles.forEach((t, i) => {
+      const v = values[i];
+      if (!v) return;
+      const card = row.appendChild(document.createElement('div'));
+      card.className = 'stat-card home-today-tile';
+      card.style.cursor = 'pointer';
+      card.innerHTML = `<div class="stat-info"><span class="stat-val">${esc(v.val)}</span><span class="stat-label">${esc(t.label)}${v.note ? ` · ${esc(v.note)}` : ''}</span></div>`;
+      makeClickable(card, () => document.getElementById(t.menu)?.click());
+    });
+  };
+  const seq = apiWriteSeq, tok = localStorage.getItem('erp_token'), key = tiles.map(t => t.menu).join();
+  const last = todayLast && todayLast.seq === seq && todayLast.tok === tok && todayLast.key === key ? todayLast : null;
+  if (last) draw(last.values);
+  const values = (await Promise.all(tiles.map(t => t.get().catch(() => null)))).map((v, i) => v || (last && last.values[i]) || null);
+  if (seq === apiWriteSeq) todayLast = { values, seq, tok, key };
+  if (!row.isConnected || (last && JSON.stringify(values) === JSON.stringify(last.values))) return;
+  draw(values);
+}
+
 // mountHomeExtras fills Home's slot under the title: an administrator's
 // "finish setting up" card, then the dashboard set as this role's home.
 export async function mountHomeExtras(host) {
+  // 276.18: app.js adds the stats row right after this slot, before this runs.
+  mountHomeToday(host.parentElement?.querySelector('.home-stats-row')).catch(() => {});
   if (isAdminRoleName(localStorage.getItem('erp_role'))) {
     const card = host.appendChild(document.createElement('div'));
     // 162.5: the card is Home's LCP element; paint it from its last-known state

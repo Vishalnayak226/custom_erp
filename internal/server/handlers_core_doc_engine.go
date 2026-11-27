@@ -98,6 +98,10 @@ func journalVoucherSaveAllowed(role string) bool {
 	return engines.HasFullAccess(role) || engines.RoleHasCapability(role, "finance.post")
 }
 
+// columnProfileRefusal answers a column layout this role may not change
+// (engines.ColumnProfileWriteAllowed, 276.2).
+const columnProfileRefusal = "You can change only your own columns. An admin or Store Manager sets the default for everyone."
+
 func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
@@ -451,6 +455,12 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				args = append(args, userID)
 				argIndex++
 			}
+			// 276.2: column layouts list the shared ones and the caller's own.
+			if doctype == engines.ReportColumnProfileDoctype && !engines.ColumnProfileManager(role) {
+				whereClause += fmt.Sprintf(" AND (data->>'scope' = 'Universal' OR data->>'owner' = $%d)", argIndex)
+				args = append(args, r.Header.Get("Resolved-Username"))
+				argIndex++
+			}
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
 			//
@@ -493,9 +503,20 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Unknown filter %q: not a field of %s", key, doctype))
 					return
 				}
-				whereClause += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
-				args = append(args, vals[0])
-				argIndex++
+				// 267.1: a repeated filter is any of its values
+				// (status=Requested&status=Approved) - still equality on the
+				// same field, one bound value each, at most maxListFilterValues.
+				if len(vals) > maxListFilterValues {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Filter %q has %d values; at most %d", key, len(vals), maxListFilterValues))
+					return
+				}
+				holders := make([]string, len(vals))
+				for i, v := range vals {
+					holders[i] = fmt.Sprintf("$%d", argIndex)
+					args = append(args, v)
+					argIndex++
+				}
+				whereClause += fmt.Sprintf(" AND data->>'%s' IN (%s)", key, strings.Join(holders, ", "))
 			}
 
 			// BLD-034: the free-text search box now filters in SQL, over every
@@ -596,6 +617,12 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 					args = append(args, renamed)
 					argIndex++
 				}
+				// Ask 272.1: the Design No finds the design's combinations.
+				if doctype == "Item" && searchClause != "FALSE" {
+					if arm := itemDesignNumberClause(schema, fields, hidden, searchQuery, &args, &argIndex); arm != "" {
+						searchClause = fmt.Sprintf("(%s OR %s)", searchClause, arm)
+					}
+				}
 				whereClause += " AND " + searchClause
 				if prefilter != "" {
 					estimateWhere, estimateArgs = baseWhere+" AND "+prefilter, args[:termArg]
@@ -663,7 +690,9 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				if estimateWhere == "" {
 					estimateWhere, estimateArgs = whereClause, args
 				}
+				release := db.BindContext(r.Context()) // 283.3: a count the user left stops in Postgres
 				totalCount, estimated, err := cappedListCount(schema, whereClause, args, estimateWhere, estimateArgs)
+				release()
 				if err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
@@ -691,7 +720,7 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 					offset = parsed
 				}
 			}
-			query := fmt.Sprintf("SELECT id, data, status, updated_at FROM %s.documents%s", schema, whereClause)
+			query := fmt.Sprintf("SELECT id, data, status, updated_at, version FROM %s.documents%s", schema, whereClause)
 			// Stage 47.10 (1): an exact id / code / barcode match leads.
 			orderLead := ""
 			if len(exactFirst) > 0 {
@@ -706,13 +735,23 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 			if syncOrder {
 				query += fmt.Sprintf(" ORDER BY updated_at, id LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 			} else if sortRecent {
-				query += fmt.Sprintf(" ORDER BY %supdated_at DESC LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
+				// 267.3: id breaks a tie. Records saved in one transaction
+				// share updated_at, and a sorted (not index-walked) plan
+				// returns tied rows in an order that differs by page, so a
+				// record could show twice and another never.
+				query += fmt.Sprintf(" ORDER BY %supdated_at DESC, id DESC LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
 			} else {
 				query += fmt.Sprintf(" ORDER BY %sid LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
 			}
 			args = append(args, limit, offset)
 
+			// 283.3: a list the user left stops in Postgres. lib/pq keeps
+			// watching r.Context() until the rows are closed, so the binding
+			// covers only this call and nothing below (the error log, the
+			// sensitive-read audit) runs under it.
+			release := db.BindContext(r.Context())
 			rows, err := db.DB.Query(query, args...)
+			release()
 			if err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
@@ -728,7 +767,8 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				var dataStr string
 				var status string
 				var updatedAt time.Time
-				if err := rows.Scan(&docID, &dataStr, &status, &updatedAt); err != nil {
+				var version int
+				if err := rows.Scan(&docID, &dataStr, &status, &updatedAt, &version); err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
 				}
@@ -743,6 +783,9 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				}
 				dataMap["id"] = docID
 				dataMap["status"] = status
+				// 290.3: as the single read does (24.10), so an edit made from a
+				// list row carries the version that row was read at.
+				dataMap["version"] = version
 				if sortRecent || syncOrder {
 					dataMap["updated_at"] = updatedAt.Format(time.RFC3339)
 				}
@@ -845,6 +888,10 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				rule := documentReadRule{doctype: doctype, role: role, location: location, supplierCode: supplierCode, scope: docScope}
 				if stored != nil && (!rule.visible(stored) || !engines.CreatorMayAccess(doctype, role, userID, storedCreator)) {
 					refuseAsNotFound(w, r, tenantID, userID, "update", doctype, writeTarget)
+					return
+				}
+				if doctype == engines.ReportColumnProfileDoctype && !engines.ColumnProfileWriteAllowed(role, r.Header.Get("Resolved-Username"), stored) {
+					writeAPIErrorGeneric(w, r, http.StatusForbidden, columnProfileRefusal)
 					return
 				}
 			}
@@ -1140,14 +1187,14 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// ReportColumnProfile (Stage 28.3): a Universal (shared) column profile
-		// can only be created or edited by privileged roles - Personal profiles
-		// are unrestricted. Enforced here at the generic-doc choke point so the
-		// client-side gate can't be bypassed by a hand-crafted request.
-		if doctype == "ReportColumnProfile" {
-			if scope, _ := payload["scope"].(string); scope == "Universal" && !engines.HasFullAccess(role) && role != "Store Manager" {
-				writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin or Store Manager can create or edit a Universal column profile")
-				return
-			}
+		// can only be created or edited by privileged roles. 276.2: and anyone
+		// else saves only a Personal profile under their own name (the stored
+		// one is checked where it is loaded, above). Enforced here at the
+		// generic-doc choke point so the client-side gate can't be bypassed by
+		// a hand-crafted request.
+		if doctype == engines.ReportColumnProfileDoctype && !engines.ColumnProfileWriteAllowed(role, r.Header.Get("Resolved-Username"), payload) {
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, columnProfileRefusal)
+			return
 		}
 
 		// 57.26(c): a journal voucher is a finance posting. Its own route
@@ -1535,17 +1582,22 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 			WHERE %s.documents.doctype = EXCLUDED.doctype
 			  AND ($6::int IS NULL OR %s.documents.version = $6)
 			  AND NOT $9::bool
-			  AND NOT ($10::bool AND %s.documents.deleted_at IS NULL)`, schema, schema, schema, schema, schema, schema)
-		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason), createOverGRN, createOverLive)
-		if err != nil {
-			if dup := engines.DuplicateKeyRefusal(tenantID, doctype, err); dup != nil { // 140.14.1
+			  AND NOT ($10::bool AND %s.documents.deleted_at IS NULL)
+			RETURNING version`, schema, schema, schema, schema, schema, schema)
+		// 290.3: the version this write made goes back in the answer, so a
+		// screen that saves again without reloading asks for that one. No row
+		// back means the WHERE above refused the write.
+		var savedVersion int
+		saveErr := db.DB.QueryRow(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason), createOverGRN, createOverLive).Scan(&savedVersion)
+		if saveErr != nil && saveErr != sql.ErrNoRows {
+			if dup := engines.DuplicateKeyRefusal(tenantID, doctype, saveErr); dup != nil { // 140.14.1
 				writeEngineError(w, r, dup, http.StatusConflict)
 				return
 			}
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, saveErr.Error())
 			return
 		}
-		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
+		if saveErr == sql.ErrNoRows {
 			if expectedVersion != nil {
 				writeAPIErrorGeneric(w, r, http.StatusConflict, "This document was modified by someone else since you last loaded it - please refresh and try again")
 			} else if createOverGRN {
@@ -1777,9 +1829,10 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 		// business outcome like "Paid" from this response. statusVal already
 		// tracks the value actually persisted above (including the Pending
 		// Approval reassignment just above when a re-approval-on-edit reset ran).
-		resp := map[string]string{
-			"status": statusVal,
-			"id":     docID,
+		resp := map[string]any{
+			"status":  statusVal,
+			"id":      docID,
+			"version": savedVersion, // 290.3
 		}
 		if grnNotes.DebitNoteID != "" {
 			resp["debit_note_id"] = grnNotes.DebitNoteID
@@ -1839,6 +1892,10 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				rule := documentReadRule{doctype: doctype, role: role, location: location, supplierCode: supplierCode, scope: docScope}
 				if stored != nil && !rule.visible(stored) {
 					refuseAsNotFound(w, r, tenantID, userID, "delete", doctype, id)
+					return
+				}
+				if doctype == engines.ReportColumnProfileDoctype && !engines.ColumnProfileWriteAllowed(role, r.Header.Get("Resolved-Username"), stored) {
+					writeAPIErrorGeneric(w, r, http.StatusForbidden, columnProfileRefusal)
 					return
 				}
 			}

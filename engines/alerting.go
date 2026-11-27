@@ -426,6 +426,7 @@ var backupAlertState = struct {
 func checkBackupAge(maxAge time.Duration) {
 	fresh := CheckBackupFreshness()
 	checkOffsiteBackupAge(fresh)
+	checkPITR()
 	if !fresh.Configured {
 		return
 	}
@@ -494,6 +495,78 @@ func checkOffsiteBackupAge(fresh BackupFreshness) {
 	offsiteAlertState.Unlock()
 	if shouldAlert {
 		SendOpsAlert("BACKUP_OFFSITE_STALE", "backup-monitor", message)
+	}
+}
+
+// Point-in-time recovery (item 290.2, deploy/pitr.sh). deploy/pitr.sh alerts
+// on its own failures, but not when it cannot run at all (removed, its key
+// file unreadable, cron gone), so the server watches the result too.
+const (
+	pitrBaseMaxAge = 8 * 24 * time.Hour // base backups run weekly
+	pitrAlertEvery = 6 * time.Hour
+)
+
+// PITRState is what the server can see of point-in-time recovery: the
+// 'pitr' rows deploy/pitr.sh writes to public.backup_runs, and Postgres's
+// own archiver counters.
+type PITRState struct {
+	BaseRuns   int       // base backups recorded, failed ones included; 0 = never set up here
+	BaseNewest time.Time // newest successful one; zero if none
+	ArchiveOn  bool
+	Failing    bool // the archiver's last attempt failed
+}
+
+// pitrAlerts returns the alerts due for a state, code to message. Like the
+// nightly messages, none names a host path or file (BLD-052).
+func pitrAlerts(st PITRState, now time.Time) map[string]string {
+	out := map[string]string{}
+	if st.ArchiveOn && st.Failing {
+		out["BACKUP_WAL_ARCHIVE_FAILED"] = "the database's change log is not being archived - point-in-time recovery has a gap from the failure on, and the log folder grows until the disk fills"
+	}
+	switch {
+	case st.BaseRuns == 0:
+	case st.BaseNewest.IsZero():
+		out["BACKUP_PITR_STALE"] = "no point-in-time base backup has completed - the archive cannot be replayed without one"
+	case now.Sub(st.BaseNewest) > pitrBaseMaxAge:
+		out["BACKUP_PITR_STALE"] = fmt.Sprintf("newest point-in-time base backup is %.0fh old (limit %s), taken %s - the weekly run is not completing", now.Sub(st.BaseNewest).Hours(), pitrBaseMaxAge, st.BaseNewest.UTC().Format(time.RFC3339))
+	}
+	return out
+}
+
+// ReadPITRState reads the state; a part that cannot be read stays zero (quiet).
+func ReadPITRState() PITRState {
+	var st PITRState
+	if db.DB == nil {
+		return st
+	}
+	var newest sql.NullTime
+	if db.DB.QueryRow(`SELECT COUNT(*), MAX(finished_at) FILTER (WHERE outcome = 'Success')
+		FROM public.backup_runs WHERE scope = 'pitr'`).Scan(&st.BaseRuns, &newest) == nil && newest.Valid {
+		st.BaseNewest = newest.Time
+	}
+	_ = db.DB.QueryRow(`SELECT current_setting('archive_mode') <> 'off',
+		COALESCE(last_failed_time > COALESCE(last_archived_time, '-infinity'::timestamptz), false)
+		FROM pg_stat_archiver`).Scan(&st.ArchiveOn, &st.Failing)
+	return st
+}
+
+var pitrAlertState = struct {
+	sync.Mutex
+	lastAlertAt map[string]time.Time
+}{lastAlertAt: map[string]time.Time{}}
+
+func checkPITR() {
+	for code, message := range pitrAlerts(ReadPITRState(), time.Now()) {
+		pitrAlertState.Lock()
+		last := pitrAlertState.lastAlertAt[code]
+		due := last.IsZero() || time.Since(last) > pitrAlertEvery
+		if due {
+			pitrAlertState.lastAlertAt[code] = time.Now()
+		}
+		pitrAlertState.Unlock()
+		if due {
+			SendOpsAlert(code, "backup-monitor", message)
+		}
 	}
 }
 

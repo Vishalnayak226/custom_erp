@@ -123,7 +123,7 @@ func RequirePOStoreState(tenantID string, po map[string]interface{}) error {
 		label = fmt.Sprintf("%s (%s)", label, c)
 	}
 	return &ValidationError{Code: POStoreNoStateCode, SubFor: "Store", Message: fmt.Sprintf(
-		"Store %s has no state - add its State on the store (or a GSTIN on its legal entity), then save the purchase order again", label)}
+		"Store %s has no state - add its State in Settings › Stores (or a GSTIN on its legal entity), then save the purchase order again", label)}
 }
 
 // RequirePOVendorState refuses a purchase order whose vendor has neither a

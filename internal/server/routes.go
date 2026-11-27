@@ -13,6 +13,7 @@ import (
 
 	"custom_erp/db"
 	"custom_erp/engines"
+	"custom_erp/internal/webasset"
 )
 
 // Run is the server's real entrypoint (called from cmd/server/main.go) - DB
@@ -1714,6 +1715,9 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/jobs", apiMiddleware(handleListJobs))
 	http.HandleFunc("POST /api/v1/jobs/{id}/retry", apiMiddleware(handleRetryJob))
 	http.HandleFunc("POST /api/v1/jobs/{id}/cancel", apiMiddleware(handleCancelJob))
+	// 297.3: the caller's own long tasks, for the top bar's tasks list.
+	http.HandleFunc("GET /api/v1/me/tasks", apiMiddleware(handleMyTasks))
+	http.HandleFunc("POST /api/v1/me/tasks/{id}/cancel", apiMiddleware(handleCancelMyTask))
 
 	// Stage 38.7: self-service sandbox tenant provisioning for integrators.
 	http.HandleFunc("POST /api/v1/admin/sandbox-tenants", apiMiddleware(handleProvisionSandboxTenant))
@@ -2000,7 +2004,9 @@ func registerRoutes() {
 	// index.html 404s instead of returning Go's generated file listing -
 	// public/components and public/profiles were both enumerable
 	// unauthenticated before this. See static_fileserver.go.
-	fs := http.FileServer(noDirectoryListing(http.Dir("./public")))
+	// 283.1: scripts and stylesheets go out without their comments; the files
+	// on disk keep them. See internal/webasset.
+	fs := http.FileServer(noDirectoryListing(webasset.FileSystem(http.Dir("./public"))))
 	http.Handle("/", onlyReadMethods(fs))
 	// 73.D.23: browsers ask for /favicon.ico on every page that names no icon
 	// (it 404'd); the icon is public/favicon.png.
@@ -2053,7 +2059,7 @@ func runHTTPServer(cancelWorkers context.CancelFunc) {
 	// asks for those first, and they never pass through apiMiddleware. It is
 	// inert unless TENANT_BASE_DOMAIN is set.
 	// 49.10.5: the connection bounds live in server_limits.go.
-	srv := newHTTPServer(host+":"+port, staticAssetCache(compressResponses(securityHeaders(tenantHostGate(apiMethodNotAllowed(http.DefaultServeMux))))))
+	srv := newHTTPServer(host+":"+port, staticAssetCache(appBuildHeader(compressResponses(securityHeaders(tenantHostGate(apiMethodNotAllowed(http.DefaultServeMux)))))))
 
 	// 24.15: graceful shutdown - SIGINT/SIGTERM stops accepting new
 	// connections, lets in-flight requests finish (bounded by the context

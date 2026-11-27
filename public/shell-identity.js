@@ -13,7 +13,7 @@ const TAGS = { development: 'Dev', staging: 'Staging', test: 'Test', uat: 'UAT' 
 // 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
 adoptCss('shell-identity-css', `
 .shell-env-badge { margin: 0 auto 12px; width: fit-content; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--warning-soft-bg); color: var(--warning-strong); }
-.header-company { margin: 0 16px 0 4px; min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-muted); }
+.header-company { margin: 0 16px 0 4px; min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--text-muted); }
 @media (max-width: 700px) { .header-company { display: none; } }
 .has-client-logo .brand-logo, .has-client-logo .brand-symbol { display: none !important; }
 .has-client-logo { gap: 24px; text-decoration: none; }
@@ -23,7 +23,7 @@ adoptCss('shell-identity-css', `
 .login-brand .client-logo { max-height: 64px; max-width: 280px; }
 .wo-by { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .wo-by::before { content: ''; width: 1px; height: 38px; background: var(--border-color); }
-.wo-by > span { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; line-height: 1.2; color: var(--text-muted); white-space: nowrap; }
+.wo-by > span { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.2; color: var(--text-muted); white-space: nowrap; }
 .wo-by img { height: 20px; width: auto; }
 .wo-logo { display: var(--logo-light-display); }
 .wo-logo-dark { display: var(--logo-dark-display); }

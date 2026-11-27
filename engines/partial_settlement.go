@@ -695,6 +695,105 @@ func payVendorInvoiceAmountTx(tx *sql.Tx, schema, tenantID, invoiceID, userID st
 	return res, after, nil
 }
 
+// SettlementPreview is what settling an invoice now would post, worked out by
+// the same engine the receipt or payment runs and posting nothing (264.4): the
+// Settle and Pay dialogs show it on a foreign-currency invoice before the user
+// confirms. Amount is in Currency; the functional amounts are what the GL
+// would carry. RealisedGainLoss is positive for a gain, negative for a loss.
+type SettlementPreview struct {
+	Foreign            bool    `json:"foreign"`
+	Currency           string  `json:"currency"`
+	FunctionalCurrency string  `json:"functional_currency"`
+	Amount             float64 `json:"amount"`
+	SettlementDate     string  `json:"settlement_date"`
+	Rate               float64 `json:"rate"`
+	RateSource         string  `json:"rate_source"`
+	FunctionalAmount   float64 `json:"functional_amount"`
+	CarryingAmount     float64 `json:"carrying_amount"`
+	RealisedGainLoss   float64 `json:"realised_gain_loss"`
+}
+
+// PreviewInvoiceSettlement answers "what would settling this invoice in full
+// on this date at this rate post?" for a SalesInvoice (a receipt) or a
+// VendorInvoice (a payment). It refuses what the settlement would refuse on
+// the same facts - the wrong status, a foreign invoice already part settled
+// (FIN-0518), no rate for the date or a bad one (FIN-0021), a date in a closed
+// period (FIN-0260) - so the dialog says so before anything is confirmed. It
+// reads without a lock and writes nothing; the settlement checks again under
+// its lock.
+func PreviewInvoiceSettlement(tenantID, doctype, invoiceID string, opts SettlementOptions) (SettlementPreview, error) {
+	var preview SettlementPreview
+	var amountField, historyField, openStatus, label string
+	switch doctype {
+	case "SalesInvoice":
+		amountField, historyField, openStatus, label = "total_amount", "settlements", "Approved", "sales invoice"
+	case "VendorInvoice":
+		amountField, historyField, openStatus, label = "invoice_amount", "payments", "Matched", "vendor invoice"
+	default:
+		return preview, fmt.Errorf("only a sales or vendor invoice can be settled")
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return preview, err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return preview, err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return preview, err
+	}
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema),
+		doctype, invoiceID).Scan(&dataStr, &status); err != nil {
+		return preview, fmt.Errorf("%s not found: %v", label, err)
+	}
+	if status != openStatus {
+		return preview, fmt.Errorf("only an open %s can be settled; %s is %s", label, invoiceID, status)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return preview, err
+	}
+	entries, err := readSettlementEntries(data, historyField)
+	if err != nil {
+		return preview, fmt.Errorf("%s %s has an unreadable payment history: %v", label, invoiceID, err)
+	}
+	position := documentFXPosition(tenantID, data, amountField)
+	if position.Foreign && len(entries) > 0 {
+		return preview, &ValidationError{Code: "FIN-0518", Message: fmt.Sprintf(
+			"%s %s is in %s, so it can only be settled in full (%.2f %s)", label, invoiceID, position.Currency, position.TransactionAmount, position.Currency)}
+	}
+	settlement, err := resolveSettlementFX(tenantID, position, doctype == "SalesInvoice", opts)
+	if err != nil {
+		return preview, err
+	}
+	if err := rejectIfCurrentPeriodClosed(tx, schema, doctype, invoiceID, settlement.PostingDate()); err != nil {
+		return preview, err
+	}
+	preview = SettlementPreview{
+		Foreign: position.Foreign, Currency: position.Currency, FunctionalCurrency: position.Functional,
+		SettlementDate: settlement.SettlementDate, Rate: settlement.SettlementRate, RateSource: settlement.RateSource,
+		CarryingAmount: float64(position.CarryingAmount), RealisedGainLoss: float64(settlement.RealisedGainLoss),
+	}
+	if position.Foreign {
+		preview.Amount = position.TransactionAmount
+		preview.FunctionalAmount = float64(settlement.SettlementAmount)
+		return preview, nil
+	}
+	// A functional-currency invoice: what is still open, at face value.
+	var open int64
+	if doctype == "SalesInvoice" {
+		open = int64(position.CarryingAmount)*100 - sumSettledPaise(entries)
+	} else {
+		_, open = vendorOpenLegs(data, position)
+	}
+	preview.Amount = PaiseToRupees(open)
+	preview.FunctionalAmount = preview.Amount
+	return preview, nil
+}
+
 // vendorInvoiceHasPayments reports whether any payment is recorded on a bill.
 func vendorInvoiceHasPayments(data map[string]interface{}) bool {
 	entries, err := readSettlementEntries(data, "payments")

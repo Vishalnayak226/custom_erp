@@ -201,12 +201,9 @@ func GetABCCycleCountPlan(tenantID, locationCode string, tierAIntervalDays, tier
 		Velocity float64
 	}
 	velocities := make([]skuVelocity, 0, len(skus))
+	sold, _ := SalesVelocityAt(tenantID, locationCode, 30) // 273.1: one read for every SKU
 	for _, sku := range skus {
-		v, err := CalculateSalesVelocity(tenantID, locationCode, sku, 30)
-		if err != nil {
-			v = 0
-		}
-		velocities = append(velocities, skuVelocity{Sku: sku, Velocity: v})
+		velocities = append(velocities, skuVelocity{Sku: sku, Velocity: sold[sku]})
 	}
 	sort.SliceStable(velocities, func(i, j int) bool { return velocities[i].Velocity > velocities[j].Velocity })
 
@@ -507,12 +504,9 @@ func GetCycleCountPlan(tenantID, locationCode string) ([]ABCCycleCountSuggestion
 		Velocity float64
 	}
 	velocities := make([]skuVelocity, 0, len(skus))
+	sold, _ := SalesVelocityAt(tenantID, locationCode, 30) // 273.1: one read for every SKU
 	for _, sku := range skus {
-		v, err := CalculateSalesVelocity(tenantID, locationCode, sku, 30)
-		if err != nil {
-			v = 0
-		}
-		velocities = append(velocities, skuVelocity{Sku: sku, Velocity: v})
+		velocities = append(velocities, skuVelocity{Sku: sku, Velocity: sold[sku]})
 	}
 	sort.SliceStable(velocities, func(i, j int) bool { return velocities[i].Velocity > velocities[j].Velocity })
 

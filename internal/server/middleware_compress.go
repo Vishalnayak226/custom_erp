@@ -186,6 +186,13 @@ func staticAssetCache(next http.Handler) http.Handler {
 		case r.URL.RawQuery != "" && strings.Contains(r.URL.RawQuery, "v="):
 			// Version-stamped: safe to treat as immutable for a year.
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		case strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css"):
+			// 297.1: an unversioned script or stylesheet (the API docs and
+			// catalog-share pages, or a stamp someone forgot) is checked on
+			// every load - a 304 when unchanged - so a deploy never needs a
+			// hard refresh. The app's own files all carry ?v= (the test in
+			// middleware_app_build_test.go fails on one that does not).
+			w.Header().Set("Cache-Control", "no-cache")
 		case isStaticAssetPath(path):
 			// Unversioned asset (an image, a font). An hour is long enough to
 			// cover a session's navigations, short enough that a forgotten

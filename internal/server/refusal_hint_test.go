@@ -6,12 +6,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"custom_erp/db"
 )
 
 // TestStage140144HintFollowsTheKindOfRefusal: GLOBAL-0002's "Correct the
 // field format." stays on a format error and is replaced by advice that fits
 // under a delete, already-exists, packed-order and return-routing refusal.
 func TestStage140144HintFollowsTheKindOfRefusal(t *testing.T) {
+	db.InitDB(testConnStr()) // the writers log each refusal; run alone, nothing else connects
 	const formatHint = "Correct the field format."
 	hintOf := func(write func(w http.ResponseWriter, r *http.Request)) string {
 		rec := httptest.NewRecorder()
@@ -37,6 +40,8 @@ func TestStage140144HintFollowsTheKindOfRefusal(t *testing.T) {
 		{"already exists", `"INV-1" already exists - open that record to change it, or use a different number.`, "existing record"},
 		{"packed order cancel", "Part of this order is already packed, so it cannot be cancelled", "raise a return"},
 		{"return routing", "return_location is required (no return location could be auto-routed for this request)", "return location"},
+		{"exchange not stocked", "exchange for R1: R2 is not stocked at HO, so it cannot be given in exchange", "give in exchange"},
+		{"exchange short", "exchange for R1: R2 has only 1 free to sell at HO; the exchange needs 2", "give in exchange"},
 	}
 	for _, k := range kinds {
 		for path, w := range map[string]func(http.ResponseWriter, *http.Request){"generic": generic(k.msg), "detail": detail(k.msg)} {

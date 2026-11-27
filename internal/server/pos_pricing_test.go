@@ -506,6 +506,83 @@ func TestPOSApprovalGateAddsLineAndBillDiscounts(t *testing.T) {
 	}
 }
 
+// Item 273.4: with "A sale below cost" set to ask the cashier, checkout stops
+// with POSOFF-1372 until the till confirms; set to wait for a manager, the
+// sale goes to the lowest POSCart slab's approver, and with no slab it is
+// refused (POSOFF-1373). The cart keeps the lines, never the cost.
+func TestPOSBelowCostGateAtCheckout(t *testing.T) {
+	f := newPOSPricingFixture(t, 1000) // 1000 with 18% GST is 847.46 before GST
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = data || '{"standard_cost": 900}' WHERE id = $1 AND doctype = 'Item'`, f.schema), f.sku); err != nil {
+		t.Fatalf("failed to raise the item's cost: %v", err)
+	}
+	prior := engines.GetSettingString("default", engines.SettingBelowCostSale)
+	t.Cleanup(func() { _ = engines.SetSetting("default", engines.SettingBelowCostSale, prior, "test") })
+	setRule := func(v string) {
+		t.Helper()
+		if err := engines.SetSetting("default", engines.SettingBelowCostSale, v, "test"); err != nil {
+			t.Fatalf("SetSetting: %v", err)
+		}
+	}
+	sale := func(cart string, confirmed bool) (int, map[string]interface{}) {
+		t.Helper()
+		return f.checkout(f.cashierToken, map[string]interface{}{
+			"cart_number": cart, "location": f.location, "payment_mode": "Cash", "below_cost_ok": confirmed,
+			"items": []map[string]interface{}{{"sku": f.sku, "qty": 1}},
+		})
+	}
+
+	setRule(engines.BelowCostWarn)
+	cart := "T2734WARN-" + f.suffix
+	status, resp := sale(cart, false)
+	if status != http.StatusConflict || resp["code"] != engines.BelowCostWarnCode {
+		t.Fatalf("a sale below cost should ask the cashier first; got HTTP %d %v", status, resp)
+	}
+	if detail, _ := resp["detail"].(string); !strings.Contains(detail, f.sku) || strings.Contains(detail, "900") {
+		t.Errorf("the cashier is told which item, never its cost: %q", detail)
+	}
+	if status, resp = sale(cart, true); status != http.StatusOK || resp["status"] != "completed" {
+		t.Fatalf("once the cashier confirms, the sale completes; got HTTP %d %v", status, resp)
+	}
+	stored := f.storedCart(cart)
+	lines, _ := stored["below_cost_lines"].([]interface{})
+	if len(lines) != 1 || stored["below_cost_rule"] != engines.BelowCostWarn {
+		t.Fatalf("the cart should record one line cleared by the cashier: %v / %v", stored["below_cost_lines"], stored["below_cost_rule"])
+	}
+	if line, _ := lines[0].(map[string]interface{}); line["sku"] != f.sku || line["sold_at"] != 847.46 || len(line) != 3 {
+		t.Errorf("the cart keeps SKU, qty and the price sold at (847.46), nothing else: %v", line)
+	}
+
+	setRule(engines.BelowCostApproval)
+	var slabs int
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT count(*) FROM %s.approval_rules WHERE doctype = 'POSCart'`, f.schema)).Scan(&slabs); err != nil {
+		t.Fatalf("count POSCart slabs: %v", err)
+	}
+	if slabs == 0 {
+		if status, resp := sale("T2734NONE-"+f.suffix, true); status != http.StatusConflict || resp["code"] != engines.BelowCostNoApproverCode {
+			t.Fatalf("with no approval rule there is no one to ask, so the sale is refused; got HTTP %d %v", status, resp)
+		}
+	}
+	res, err := db.DB.Exec(fmt.Sprintf(
+		`INSERT INTO %s.approval_rules (doctype, min_amount, max_amount, required_role) VALUES ('POSCart', 10, NULL, 'Store Manager') ON CONFLICT (doctype, min_amount) DO NOTHING`, f.schema))
+	if err != nil {
+		t.Fatalf("failed to seed the POSCart slab: %v", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		t.Cleanup(func() {
+			db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.approval_rules WHERE doctype = 'POSCart' AND min_amount = 10`, f.schema))
+		})
+	}
+	// The cashier's own confirmation does not clear a sale that needs a manager.
+	status, resp = sale("T2734APPR-"+f.suffix, true)
+	if status != http.StatusOK || resp["status"] != "pending_approval" {
+		t.Fatalf("a sale below cost should wait for a manager; got HTTP %d %v", status, resp)
+	}
+	if msg, _ := resp["message"].(string); !strings.Contains(msg, "below cost") || strings.Contains(msg, "Discount of") {
+		t.Errorf("the message should say an item is sold below cost (there is no discount): %q", msg)
+	}
+}
+
 // TestStage472PriceListPrecedenceAndSupersession covers "expired/superseded
 // price list" and the contract-vs-default precedence 47.2.1 specifies.
 func TestStage472PriceListPrecedenceAndSupersession(t *testing.T) {

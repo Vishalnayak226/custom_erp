@@ -95,6 +95,18 @@ type sensitiveFieldRule struct {
 	// anyone, so a document list or form must not carry it even to the top
 	// role. Tokens are minted and rotated by their own commands.
 	HiddenFromAll bool
+	// HolderCapability (278.2) also gives read and write to every role whose
+	// template holds this route capability, so the role allowed to run a
+	// job's routes can see and key that job's fields.
+	HolderCapability string
+}
+
+// ruleAllows reports a role's read and write on one rule, Super Admin aside.
+func ruleAllows(rule sensitiveFieldRule, role string) (read, write bool) {
+	if rule.HolderCapability != "" && RoleHasCapability(role, rule.HolderCapability) {
+		return true, true
+	}
+	return roleListAllows(rule.ReadRoles, role), roleListAllows(rule.WriteRoles, role)
 }
 
 // sensitiveFields is doctype -> fieldname -> rule.
@@ -108,10 +120,11 @@ type sensitiveFieldRule struct {
 // restricts for Cashier but which no doctype_fields row declares - is
 // covered here too.
 var sensitiveFields = map[string]map[string]sensitiveFieldRule{
-	// --- Payroll (Super Admin only, read and write) -------------------
+	// --- Payroll (Super Admin and hr.payroll holders, read and write) --
 	// Matches route_capabilities.go's "hr.payroll" capability exactly, so
 	// the run/post/disburse ROUTES and the payslip DATA agree. A-09's
-	// finding is precisely this pair being out of step.
+	// finding is precisely this pair being out of step; 278.2 gave the data
+	// to the same roles as the routes.
 	"Payslip": {
 		"gross_pay":      payrollRule("Payslip amounts identify an individual's pay"),
 		"net_pay":        payrollRule("Payslip amounts identify an individual's pay"),
@@ -153,10 +166,12 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 		"old_values": bankRule("May hold a vendor's old payment account"),
 		"new_values": bankRule("May hold a vendor's new payment account"),
 	},
+	// An employee's salary account is payroll's, so HR Manager keys it (278.2);
+	// the company's and vendors' accounts above stay Super Admin only.
 	"Employee": {
-		"bank_account_no": {Category: SensitiveCategoryPayroll, Why: "Employee salary account - payroll-grade personal data"},
-		"bank_ifsc":       {Category: SensitiveCategoryPayroll, Why: "Employee salary account - payroll-grade personal data"},
-		"cost_rate":       {Category: SensitiveCategoryPayroll, Why: "Employee hourly cost - individual compensation"},
+		"bank_account_no": payrollRule("Employee salary account - payroll-grade personal data"),
+		"bank_ifsc":       payrollRule("Employee salary account - payroll-grade personal data"),
+		"cost_rate":       payrollRule("Employee hourly cost - individual compensation"),
 	},
 
 	// --- Grievance (read Super Admin only; description writable by the
@@ -245,8 +260,10 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 // too, and Setup Operator. Super Admin and Admin hold every field anyway.
 var salesmanManagerRoles = []string{RoleStoreManager, "Store Supervisor", RoleSetupOperator}
 
+// payrollRule: Super Admin and every role whose template holds hr.payroll
+// (HR Manager) read and write it (278.2, ask 279); nobody else.
 func payrollRule(why string) sensitiveFieldRule {
-	return sensitiveFieldRule{Category: SensitiveCategoryPayroll, Why: why}
+	return sensitiveFieldRule{Category: SensitiveCategoryPayroll, HolderCapability: SensitiveCategoryPayroll, Why: why}
 }
 
 func bankRule(why string) sensitiveFieldRule {
@@ -313,8 +330,7 @@ func sensitiveFieldPolicy(role, doctype string) map[string]FieldPermission {
 			}
 			continue
 		}
-		read := roleListAllows(rule.ReadRoles, role)
-		write := roleListAllows(rule.WriteRoles, role)
+		read, write := ruleAllows(rule, role)
 		if read && write {
 			continue
 		}
@@ -402,8 +418,7 @@ func ExplainSensitiveFields(role, doctype string) []SensitiveFieldAccess {
 		if superAdmin && !rule.HiddenFromAll {
 			access.CanRead, access.CanWrite = true, true
 		} else {
-			access.CanRead = roleListAllows(rule.ReadRoles, role)
-			access.CanWrite = roleListAllows(rule.WriteRoles, role)
+			access.CanRead, access.CanWrite = ruleAllows(rule, role)
 		}
 		out = append(out, access)
 	}

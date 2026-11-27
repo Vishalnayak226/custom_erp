@@ -144,7 +144,7 @@ func StartItemTaxChangeWorker(ctx context.Context, interval time.Duration) {
 		if db.DB == nil {
 			return
 		}
-		schemas, err := listTenantSchemas()
+		schemas, err := sweepTenantSchemas()
 		if err != nil {
 			return
 		}

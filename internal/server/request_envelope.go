@@ -132,6 +132,15 @@ var envelopeRoutes = []envelopeRoute{
 	// Sticker designs carry their logos inside one string field.
 	{pattern: "/api/v1/doc/StickerTemplate", maxString: int(envelopeMaxBody)},
 	{pattern: "/api/v1/doc/StickerTemplate/*", maxString: int(envelopeMaxBody)},
+	// 267.1: the Returns work queue asks for a status group
+	// (?status=Requested&status=Approved&...); the list reads a repeated
+	// filter as any of its values. Every other list keeps one value per name.
+	{pattern: "/api/v1/doc/ReturnRequest", repeatableParams: []string{"status"}},
+	// 267.3: the same for the Material Issue, Delivery Challan and Job Work
+	// lists ("Returns due", "Open returns", "Out at job worker").
+	{pattern: "/api/v1/doc/MaterialIssue", repeatableParams: []string{"status"}},
+	{pattern: "/api/v1/doc/DeliveryChallan", repeatableParams: []string{"status"}},
+	{pattern: "/api/v1/doc/SubcontractOrder", repeatableParams: []string{"status"}},
 }
 
 type envelopePolicy struct {

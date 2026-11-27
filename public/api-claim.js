@@ -1,7 +1,8 @@
 // 205.19: the developer link page. Pressing the button makes the key once and
 // shows it once; reloading the page cannot show it again.
-import { esc } from './api-docs-viewer.js';
-import { renderKeyOnce } from './api-key-once.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { esc } = await import('./api-docs-viewer.js' + new URL(import.meta.url).search);
+const { renderKeyOnce } = await import('./api-key-once.js' + new URL(import.meta.url).search);
 
 const host = document.getElementById('claim-host');
 const token = new URLSearchParams(location.search).get('t') || '';

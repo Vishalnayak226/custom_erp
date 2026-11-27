@@ -49,7 +49,7 @@ sheet.replaceSync(`
   }
   .item {
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: 13.5px;
     color: var(--text-main);
     cursor: pointer;
     white-space: nowrap;

@@ -18,7 +18,7 @@ const PAST = '#past-names';
 
 adoptCss('data-healer-css', `
 .heal-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; margin: 0 0 8px;
-  background: var(--warning-bg, #fff4e5); color: var(--warning-text, #7a4a00); border-bottom: 1px solid var(--warning-border, #f0c36d); font-size: 13px; }
+  background: var(--warning-bg, #fff4e5); color: var(--warning-text, #7a4a00); border-bottom: 1px solid var(--warning-border, #f0c36d); font-size: 13.5px; }
 .heal-strip .btn { padding: 4px 12px; }
 .heal-panel { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 16px; padding: 12px 16px; margin-bottom: 12px; }
 .heal-alias-input { width: 100%; min-width: 9.5em; max-width: 220px; }
@@ -151,12 +151,14 @@ export async function renderDataHealerView(container) {
   if (past) { renderPastNames(container); return; }
   if (h) { await renderHealDetail(container, h, c); return; }
   const list = document.createElement('div');
+  // 277.1: Item is the checklist item (207.4), not an Item code - data-link-swept
+  // keeps the shared name sweep from looking it up (two 404s per draw).
   list.innerHTML = `<div class="page-section-bar"><h1 class="page-title">Data Healer</h1>${c.can_rename
     ? '<span class="page-section-actions"><button type="button" class="btn btn-secondary" data-heal-past>Past names</button></span>' : ''}</div>
     <div class="table-panel">` + (c.heals.length === 0 ? '<p class="text-muted heal-empty">Nothing to heal.</p>' : `
     <div class="table-wrapper"><table><thead><tr><th>Heal</th><th>Item</th><th>Status</th><th>Records</th><th>Done</th><th></th></tr></thead>
       <tbody>${c.heals.map((x, i) => `<tr>
-        <td>${esc(x.title)}</td><td>${esc(x.item)}</td><td>${esc(x.status)}</td>
+        <td>${esc(x.title)}</td><td data-link-swept="1">${esc(x.item)}</td><td>${esc(x.status)}</td>
         <td>${x.status === 'Waiting' ? num(x.count) + ' to heal' : num(x.fixed) + ' healed' + (x.typed ? ' · ' + num(x.typed) + ' typed' : '')}</td>
         <td>${x.done_at ? esc(String(x.done_at).slice(0, 10)) + ' · ' + esc(x.done_by) : ''}</td>
         <td>${x.status === 'Waiting' ? `<button type="button" class="action-btn" data-heal-i="${i}">${c.can_run ? 'Open' : 'View'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`) + '</div>';

@@ -406,3 +406,20 @@ func TestRepeatedQueryParam(t *testing.T) {
 		}
 	}
 }
+
+// 267.1 and 267.3: the work queues that ask for a status group may repeat
+// status; every other list, and a single record, keeps one value per name.
+func TestStatusGroupListsMayRepeatStatus(t *testing.T) {
+	for _, doctype := range []string{"ReturnRequest", "MaterialIssue", "DeliveryChallan", "SubcontractOrder"} {
+		p := envelopePolicyFor("/api/v1/doc/" + doctype)
+		if len(p.repeatableParams) != 1 || p.repeatableParams[0] != "status" {
+			t.Errorf("%s list: repeatable %v, want [status]", doctype, p.repeatableParams)
+		}
+		if p := envelopePolicyFor("/api/v1/doc/" + doctype + "/X-1"); len(p.repeatableParams) != 0 {
+			t.Errorf("%s record: repeatable %v, want none", doctype, p.repeatableParams)
+		}
+	}
+	if p := envelopePolicyFor("/api/v1/doc/PurchaseOrder"); len(p.repeatableParams) != 0 {
+		t.Errorf("PurchaseOrder list: repeatable %v, want none", p.repeatableParams)
+	}
+}

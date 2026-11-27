@@ -261,7 +261,7 @@ func StartPineLabsReconciliationWorker(ctx context.Context, interval time.Durati
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[PINELABS] Failed to list tenant schemas: %v", err)
 					continue

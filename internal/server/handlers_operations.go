@@ -642,9 +642,22 @@ func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		// whole-bill, approval-routed payment.
 		Amount    float64 `json:"amount"`
 		Reference string  `json:"reference"`
+		// 264.4: preview works out what a plain payment would post (rate, its
+		// source, base amount) and posts nothing - see handleSettleSalesInvoice.
+		Preview bool `json:"preview"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
+		return
+	}
+	if req.Preview && req.OverrideReason == "" {
+		preview, err := engines.PreviewInvoiceSettlement(tenantID, "VendorInvoice", req.InvoiceID,
+			engines.SettlementOptions{SettlementDate: strings.TrimSpace(req.SettlementDate), ExchangeRate: req.ExchangeRate})
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(preview)
 		return
 	}
 	if req.OverrideReason == "" && (req.Amount != 0 || strings.TrimSpace(req.Reference) != "") {
@@ -656,6 +669,7 @@ func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": res.Status, "invoice_id": req.InvoiceID, "amount_paid": res.Amount,
+			"functional_amount": res.FunctionalAmount,
 			"paid_amount": res.SettledAmount, "outstanding_amount": res.OutstandingAmount,
 			"reference": res.Reference, "replayed": res.Replayed,
 		})

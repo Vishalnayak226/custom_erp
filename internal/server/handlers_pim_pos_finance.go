@@ -358,7 +358,17 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"location_code": location, "ats": ats})
+		out := map[string]interface{}{"location_code": location, "ats": ats}
+		// Ask 272.2: describe=1 adds each SKU's Design No, for a role that may
+		// read items - the till's search list shows it.
+		if r.URL.Query().Get("describe") == "1" {
+			if ok, _ := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "Item", "read"); ok {
+				if designs, err := engines.DesignNumbersOf(tenantID, skus); err == nil {
+					out["design_no"] = designs
+				}
+			}
+		}
+		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
 
@@ -512,8 +522,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		PaymentReference string `json:"payment_reference"`
 		// SecondPayment (49.5.4): the cashier's answer that this slip repeats an
 		// earlier one on purpose. omitempty keeps an ordinary bill's digest as it was.
-		SecondPayment bool   `json:"second_payment,omitempty"`
-		SalesmanID    string `json:"salesman_id"`
+		SecondPayment bool `json:"second_payment,omitempty"`
+		// BelowCostOK (item 273.4): the cashier confirmed a sale below cost.
+		BelowCostOK bool   `json:"below_cost_ok,omitempty"`
+		SalesmanID  string `json:"salesman_id"`
 		// Remarks (ask 260.3): the cashier's note on the bill ("gift wrap",
 		// "deliver Sunday"), kept on the cart and printed on the bill.
 		// omitempty keeps a bill without one exactly as it was.
@@ -1078,6 +1090,42 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			gateDiscountPct = slabAmount
 		}
 	}
+	// Item 273.4: a line sold below its cost. Warn: the cashier confirms and
+	// the till sends below_cost_ok. Needs approval: the lowest POSCart slab's
+	// approver decides (raised to that slab's amount for the same reason as
+	// above); with no slab there is no one to ask, so the sale is refused.
+	// An offline sale replayed from POS > Offline Sales has already happened
+	// and is being checked by whoever validates it: it is only recorded.
+	belowCost := engines.BelowCostLines(tenantID, quote)
+	belowRule := engines.BelowCostRule(tenantID)
+	if belowRule != engines.BelowCostOff && req.OfflineSynced {
+		belowRule = engines.BelowCostOffline
+	}
+	if len(belowCost) > 0 {
+		switch belowRule {
+		case engines.BelowCostWarn:
+			if !req.BelowCostOK {
+				writeAPIErrorDetail(w, r, engines.BelowCostWarnCode, "", engines.BelowCostMessage(belowCost))
+				return
+			}
+		case engines.BelowCostApproval:
+			if requiredRole == "" {
+				var slabAmount float64
+				requiredRole, slabAmount, err = engines.LowestApproverRoleForDoctype(tenantID, "POSCart")
+				if err != nil {
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate discount approval rules")
+					return
+				}
+				if requiredRole == "" {
+					writeAPIErrorDetail(w, r, engines.BelowCostNoApproverCode, "", engines.BelowCostMessage(belowCost))
+					return
+				}
+				if slabAmount > gateDiscountPct {
+					gateDiscountPct = slabAmount
+				}
+			}
+		}
+	}
 	// Stage 85.E7: a cashier's discount over the limit that no manager will
 	// see (below every approval slab) needs the cashier's reason; one that
 	// goes to a manager is the manager's decision.
@@ -1164,6 +1212,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	storedPayload["reference_subtotal"] = quote.ReferenceSubtotal
 	storedPayload["manual_discount_pct"] = quote.ManualDiscountPct
 	storedPayload["has_unverified_price"] = quote.HasUnverifiedPrice
+	if len(belowCost) > 0 && belowRule != engines.BelowCostOff {
+		storedPayload["below_cost_lines"] = belowCost // 273.4: no cost on the cart
+		storedPayload["below_cost_rule"] = belowRule
+	}
 	if requiredRole != "" {
 		// Percentage, not rupees - see extractAmount's comment in engines/approval.go.
 		// 47.2.3: the server-measured figure, not req.DiscountPct - so the
@@ -1267,7 +1319,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			// have been raised to for the unverified-price case - a cashier
 			// told "Discount of 10.0% requires approval" on a cart with no
 			// discount on it would reasonably think the till was broken.
-			"message":       posApprovalMessage(measuredDiscountPct, requiredRole, quote.HasUnverifiedPrice),
+			"message":       posApprovalMessage(measuredDiscountPct, requiredRole, quote.HasUnverifiedPrice, len(belowCost) > 0 && belowRule == engines.BelowCostApproval),
 			"quote_version": quote.Version,
 			// Stage 85.E7: what the bill will come to once approved, for the
 			// frozen screen (it read 0.00).
@@ -1434,7 +1486,14 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 // over-threshold discount, and saying "Discount of 0.0% requires approval" -
 // which is what the old single-sentence message would print for it - is worse
 // than useless at a till.
-func posApprovalMessage(discountPct float64, requiredRole string, unverifiedPrice bool) string {
+func posApprovalMessage(discountPct float64, requiredRole string, unverifiedPrice, belowCost bool) string {
+	// Item 273.4: a sale below cost waits for the same approver.
+	if belowCost && !unverifiedPrice {
+		if discountPct > 0 {
+			return fmt.Sprintf("Discount of %.1f%% sells an item below cost and requires %s approval before this sale completes.", discountPct, requiredRole)
+		}
+		return fmt.Sprintf("An item is sold below cost. %s approval is required before this sale completes.", requiredRole)
+	}
 	if unverifiedPrice && discountPct <= 0 {
 		return fmt.Sprintf("This sale includes an item with no price on record, so its price cannot be verified. %s approval is required before it completes.", requiredRole)
 	}

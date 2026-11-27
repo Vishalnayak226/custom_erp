@@ -59,3 +59,64 @@
 .state-empty { --state-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><path d='M22 12h-6l-2 3h-4l-2-3H2'/><path d='M5.5 5h13L22 12v6H2v-6z'/></svg>"); }
 .state-error { --state-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><path d='M12 3 2 21h20z'/><path d='M12 10v5M12 18v.01'/></svg>"); }
 .state-denied { --state-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg>"); }
+
+/* 276.5: a list row's "⋯" menu (row-actions.js). A native popover, placed
+   by script under its button and hidden until placed, so it never flashes in
+   the middle of the window. Its rows are the user menu's (.account-popover-item). */
+.row-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 160px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  color: var(--text-main);
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+}
+.row-menu.row-menu-placed { opacity: 1; }
+.row-menu-item { padding: 7px 10px; white-space: nowrap; }
+.row-menu-btn { min-width: 28px; font-size: 18px; font-weight: 700; line-height: 1; }
+.row-menu-btn:has(+ .row-menu:popover-open) { color: var(--text-main); background-color: var(--surface-subtle); }
+td.row-actions-cell, .po-row-actions { white-space: nowrap; }
+
+/* 276.8: a short value (a code, name, date, amount or status) stays on one
+   line; long text still wraps. So do list headers (the shared list and each
+   list with a Columns button) and code cells (s-355794 is the monospace code). */
+.nowrap, #doc-table-wrapper th, table[data-cols-applied] th, #view-root td.s-355794 { white-space: nowrap; }
+
+/* 276.2: the Columns chooser (list-columns.js), a popover placed by script
+   under its button. */
+.col-chooser {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(300px, calc(100vw - 16px));
+  padding: 8px;
+  color: var(--text-main);
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+.col-chooser-list { max-height: min(420px, 60vh); overflow-y: auto; }
+.col-chooser-row { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
+.col-chooser-row label { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px; cursor: pointer; }
+.col-chooser-row .action-btn { min-width: 26px; padding: 2px 6px; }
+.col-chooser-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding-top: 8px; margin-top: 6px; border-top: 1px solid var(--border-color); }
+
+/* 276.9: an empty list is only as tall as its one row - styles.css lets the
+   last list panel fill the window, which left a large blank box. The
+   .table-wrapper step keeps this rule more specific than that one (152.5). */
+@media (min-width: 821px) and (min-height: 521px) {
+  #view-root .table-panel:has(> .table-wrapper tbody > tr:only-child > td[colspan], > div > .table-wrapper tbody > tr:only-child > td[colspan]) { flex: 0 0 auto; min-height: 0; }
+}
+
+/* 276.17: thin scrollbars in the theme colours, set once for every panel.
+   Edge, Chrome and Firefox read these two; Safari keeps its own overlay. */
+:root { scrollbar-color: color-mix(in srgb, var(--text-muted) 45%, transparent) transparent; }
+* { scrollbar-width: thin; }

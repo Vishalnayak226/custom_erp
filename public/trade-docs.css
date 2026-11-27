@@ -6,18 +6,18 @@
 /* ---- GRN: POs, vendor invoice, prices, totals ---- */
 .grn-po-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .grn-po-chips:empty { display: none; }
-.grn-po-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--primary-light); color: var(--text-main); font-size: 12.5px; font-family: var(--font-numeric, monospace); }
-.grn-po-chip-x { border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; border-radius: 50%; }
+.grn-po-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--primary-light); color: var(--text-main); font-size: 12px; font-family: var(--font-numeric, monospace); }
+.grn-po-chip-x { border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; border-radius: 50%; }
 .grn-po-chip-x:hover { color: var(--danger-color); }
 .grn-vendor-name { min-width: 160px; padding: 8px 0; font-weight: 600; }
 .grn-rate-input { width: 96px; }
 tr.grn-rate-diff td { background: var(--warning-soft-bg); }
-.grn-rate-delta { font-size: 11px; margin-top: 2px; }
+.grn-rate-delta { font-size: 12px; margin-top: 2px; }
 .grn-rate-delta.up { color: var(--danger-strong); }
 .grn-rate-delta.down { color: var(--success-strong); }
 /* Stage 94.14: the receipt's line table fits the panel without a sideways
    scroll - tight cells, wrapping headers, narrow qty boxes. */
-.txn-grid .grn-lines-table th { padding: 6px 5px; font-size: 11px; line-height: 1.25; white-space: normal; vertical-align: bottom; }
+.txn-grid .grn-lines-table th { padding: 6px 5px; font-size: 12px; line-height: 1.25; white-space: normal; vertical-align: bottom; }
 .txn-grid .grn-lines-table td { padding: 5px; vertical-align: top; }
 .txn-grid .grn-lines-table .form-input,
 .txn-grid .grn-lines-table .form-select { padding: 4px 6px; }
@@ -36,7 +36,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
    Part of the frozen top, so its height is capped and it scrolls on its own;
    the lines below keep their room. */
 .po-entry-attrs { flex: 0 1 auto; min-height: 56px; max-height: 42vh; overflow: auto; padding: 8px 12px; border: 1px solid var(--primary-color); border-radius: 8px; background: var(--panel-bg); }
-.po-entry-attrs-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; font-size: 12.5px; }
+.po-entry-attrs-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; font-size: 12px; }
 .po-design-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .po-design-row .form-group { margin-bottom: 0; }
 .po-design-mode { flex: 1; min-width: 240px; color: var(--text-muted); }
@@ -47,13 +47,13 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .po-entry-attrs .pod-variants select.form-input { min-width: 90px; }
 .po-entry-attrs .pod-add-attr { margin-top: 0; }
 .po-entry-attrs .pod-add-attr .form-input { width: 170px; padding: 4px 8px; }
-.pod-combos-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 13px; }
+.pod-combos-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 13.5px; }
 
 /* ---- Print dialog ---- */
 .td-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .td-dialog { background: var(--panel-bg); color: var(--text-main); border-radius: 12px; box-shadow: var(--shadow-lg); width: min(1100px, 100%); height: min(92vh, 100%); display: flex; flex-direction: column; overflow: hidden; }
 .td-dialog-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
-.td-dialog-head h2 { font-size: 16px; margin: 0; }
+.td-dialog-head h2 { font-size: 18px; margin: 0; }
 .td-dialog-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
 .td-dialog-controls .form-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .td-dialog-controls .form-input { min-width: 200px; }
@@ -112,7 +112,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 /* ---- Print Template Studio ---- */
 .pts-root { position: fixed; inset: 0; z-index: 2900; background: var(--bg-color); color: var(--text-main); display: grid; grid-template-rows: auto 1fr; }
 .pts-top { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border-color); background: var(--panel-bg); flex-wrap: wrap; }
-.pts-top .pts-name { font-size: 15px; font-weight: 700; border: 1px solid transparent; background: transparent; color: var(--text-main); padding: 4px 6px; border-radius: 6px; min-width: 220px; }
+.pts-top .pts-name { font-size: 14px; font-weight: 700; border: 1px solid transparent; background: transparent; color: var(--text-main); padding: 4px 6px; border-radius: 6px; min-width: 220px; }
 .pts-top .pts-name:hover, .pts-top .pts-name:focus { border-color: var(--border-color); outline: none; }
 .pts-chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--primary-light); }
 .pts-spacer { flex: 1; }
@@ -120,16 +120,16 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pts-left, .pts-right { background: var(--panel-bg); overflow: auto; min-height: 0; }
 .pts-left { border-right: 1px solid var(--border-color); padding: 10px; }
 .pts-right { border-left: 1px solid var(--border-color); padding: 12px; }
-.pts-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 12px 0 6px; }
+.pts-section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 12px 0 6px; }
 .pts-insert { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .pts-insert button { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: grab; text-align: left; }
 .pts-insert button:hover { border-color: var(--primary-color); }
 .pts-search { width: 100%; margin-bottom: 6px; }
 .pts-fields { display: flex; flex-direction: column; gap: 2px; }
-.pts-field-group { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin: 8px 0 2px; }
-.pts-field { font-size: 12.5px; padding: 4px 8px; border-radius: 6px; cursor: grab; user-select: none; display: flex; justify-content: space-between; gap: 6px; }
+.pts-field-group { font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 8px 0 2px; }
+.pts-field { font-size: 12px; padding: 4px 8px; border-radius: 6px; cursor: grab; user-select: none; display: flex; justify-content: space-between; gap: 6px; }
 .pts-field:hover { background: var(--primary-light); }
-.pts-field small { color: var(--text-muted); font-family: var(--font-numeric, monospace); font-size: 10.5px; }
+.pts-field small { color: var(--text-muted); font-family: var(--font-numeric, monospace); font-size: 12px; }
 .pts-stage { overflow: auto; background: var(--surface-subtle); position: relative; min-height: 0; }
 .pts-stage-inner { padding: 30px; display: inline-block; min-width: 100%; }
 .pts-canvas { position: relative; margin: 0 auto; box-shadow: var(--shadow-md); background: #fff; }
@@ -140,7 +140,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pts-hit:hover { outline: 1px solid rgba(37, 99, 235, .8); }
 .pts-hit.sel { outline: 2px solid #2563eb; background: rgba(37, 99, 235, .06); }
 .pts-hit.drop { outline: 2px dashed #16a34a; background: rgba(22, 163, 74, .08); }
-.pts-hit .pts-tag { position: absolute; left: 0; top: -16px; font-size: 10px; background: #2563eb; color: #fff; padding: 0 5px; border-radius: 3px; white-space: nowrap; display: none; }
+.pts-hit .pts-tag { position: absolute; left: 0; top: -16px; font-size: 12px; background: #2563eb; color: #fff; padding: 0 5px; border-radius: 3px; white-space: nowrap; display: none; }
 .pts-hit.sel .pts-tag { display: block; }
 .pts-handle { position: absolute; width: 9px; height: 9px; background: #fff; border: 1.5px solid #2563eb; border-radius: 2px; }
 .pts-handle[data-h="se"] { right: -5px; bottom: -5px; cursor: nwse-resize; }
@@ -160,7 +160,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pts-col { display: grid; grid-template-columns: 1fr 46px 26px 26px 26px; gap: 4px; align-items: center; font-size: 12px; }
 .pts-col input { padding: 3px 5px; font-size: 12px; }
 .pts-col button { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 5px; cursor: pointer; padding: 2px 0; }
-.pts-col .pts-col-key { grid-column: 1 / -1; font-size: 10.5px; color: var(--text-muted); font-family: var(--font-numeric, monospace); margin-top: -2px; }
+.pts-col .pts-col-key { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); font-family: var(--font-numeric, monospace); margin-top: -2px; }
 .pts-hint { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
 .pts-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .pts-card { border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; background: var(--panel-bg); display: flex; flex-direction: column; gap: 6px; }
@@ -217,7 +217,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
   background: none;
   color: var(--text-main);
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   text-align: left;
   cursor: pointer;
 }
@@ -250,11 +250,11 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .tdp-sub { font-size: 0.92em; color: inherit; line-height: 1.25; }
 .pts-col .pts-col-under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .pts-col-under .pts-chip button { border: 0; background: none; padding: 0 2px; cursor: pointer; }
-.pts-col-under select { flex: 1 1 120px; padding: 2px 4px; font-size: 11.5px; }
+.pts-col-under select { flex: 1 1 120px; padding: 2px 4px; font-size: 12px; }
 
 /* Stage 114.2: the PO lines grouped by design, the totals strip under them
    and the keyboard hints (the user's sample PO screen, not a copy). */
-.po-lines tr.po-design-head td { background: var(--bg-color); font-size: 12.5px; padding-top: 10px; padding-bottom: 6px; border-top: 2px solid var(--border-color); }
+.po-lines tr.po-design-head td { background: var(--bg-color); font-size: 12px; padding-top: 10px; padding-bottom: 6px; border-top: 2px solid var(--border-color); }
 
 /* Stage 126: Edit on a design heading; a picked item name reads as a value,
    not as a dimmed read-only box; a missing state asked in the supply banner. */
@@ -266,9 +266,9 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .po-strip-cell { flex: 1 1 120px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--panel-bg); font-size: 12px; color: var(--text-muted); }
 .po-strip-cell b { font-size: 14px; color: var(--text-main); font-variant-numeric: tabular-nums; }
 .po-strip-total { border-color: var(--primary-color); }
-.po-strip-total b { font-size: 16px; }
-.po-keys { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 0 2px; font-size: 11.5px; color: var(--text-muted); }
-.po-keys kbd { font: 11px Consolas, Monaco, monospace; padding: 1px 5px; border: 1px solid var(--border-color); border-bottom-width: 2px; border-radius: 4px; background: var(--panel-bg); color: var(--text-main); }
+.po-strip-total b { font-size: 18px; }
+.po-keys { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 0 2px; font-size: 12px; color: var(--text-muted); }
+.po-keys kbd { font: 12px Consolas, Monaco, monospace; padding: 1px 5px; border: 1px solid var(--border-color); border-bottom-width: 2px; border-radius: 4px; background: var(--panel-bg); color: var(--text-main); }
 .po-keys kbd:not(:first-child) { margin-left: 8px; }
 .po-actions { margin-left: auto; } /* the totals moved to the bottom strip (114.2) */
 

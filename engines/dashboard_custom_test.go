@@ -103,7 +103,7 @@ func TestStage1003CustomDashboards(t *testing.T) {
 
 	// The digest: a number and bars in HTML, the CSV beside it.
 	body, csvText, _ := CustomDashboardDigestContent(tenantID, ReadyMadeDashboards()[0], DatasetViewer{Role: "Admin", UserID: "admin"}, now)
-	if !strings.Contains(body, "<h3") || !strings.Contains(csvText, "## Sales") {
+	if !strings.Contains(body, "<h3") || !strings.Contains(csvText, "## Net sales") {
 		t.Errorf("the digest holds each widget: %.200s / %.200s", body, csvText)
 	}
 	if _, err := DatasetResultXLSX("Bills", DatasetResult{Columns: []DatasetColumn{{Key: "count", Label: "Count", Type: "number"}}, Rows: []map[string]interface{}{{"count": 3.0}}}); err != nil {

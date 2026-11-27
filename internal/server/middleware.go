@@ -591,6 +591,10 @@ func isImageReadPath(path string) bool {
 // (data->>'<key>'). Only plain identifiers are permitted - no quotes, operators, or whitespace.
 var safeFilterKeyRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,63}$`)
 
+// maxListFilterValues bounds a repeated list filter (267.1: status=A&status=B
+// matches either) - enough for any status group, never an open-ended IN list.
+const maxListFilterValues = 20
+
 // Pagination bounds for the generic document list endpoint. defaultListLimit applies
 // even when the caller passes no limit/offset at all, so the endpoint can never return
 // a truly unbounded result set; maxListLimit caps what a caller can explicitly request.

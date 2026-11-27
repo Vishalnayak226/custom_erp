@@ -306,9 +306,9 @@ func init() {
 		Columns: []ReportColumn{
 			{Key: "step", Label: "Step"}, {Key: "label", Label: "What is compared"},
 			{Key: "payslips", Label: "Payslips"},
-			{Key: "source_total", Label: "Source total", Sensitive: true},
-			{Key: "gl_total", Label: "Compared with", Sensitive: true},
-			{Key: "difference", Label: "Difference", Sensitive: true},
+			{Key: "source_total", Label: "Source total", Sensitive: true, PayrollSees: true},
+			{Key: "gl_total", Label: "Compared with", Sensitive: true, PayrollSees: true},
+			{Key: "difference", Label: "Difference", Sensitive: true, PayrollSees: true},
 			{Key: "status", Label: "Status"}, {Key: "note", Label: "Note"},
 		},
 		Params: []ReportParam{

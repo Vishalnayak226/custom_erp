@@ -45,9 +45,9 @@ function goPage(page) {
 
 async function renderDashboard(container) {
   const d = await getJSON('/api/v1/inventory/dashboard', null);
-  bar(container, 'Inventory Dashboard', '<button type="button" class="btn btn-outline" data-inv-refresh>Refresh</button>');
+  bar(container, 'Inventory home', '<button type="button" class="btn btn-outline" data-inv-refresh>Refresh</button>');
   container.querySelector('[data-inv-refresh]').addEventListener('click', () => renderView('inventory:dashboard'));
-  if (!d) { renderErrorPanel(container, 'Failed to load the inventory dashboard.', () => renderView('inventory:dashboard')); return; }
+  if (!d) { renderErrorPanel(container, 'Failed to load Inventory home.', () => renderView('inventory:dashboard')); return; }
   const showValue = !d.value_hidden;
   const pending = (d.pending_adjustments || []).length;
   const tiles = document.createElement('div');
@@ -156,9 +156,10 @@ async function renderLedger(container) {
     <tbody>${rows.length ? rows.map(r => {
       const q = num(r.qty);
       const moved = [r.from_location_id || r.from_status, r.to_location_id || r.to_status].filter(Boolean).join(' → ');
-      return `<tr><td>${when(r.created_at)}</td><td>${esc(r.item_id)}</td><td>${esc(r.warehouse_id)}</td>
+      // 276.8: the short values stay on one line.
+      return `<tr><td class="nowrap">${when(r.created_at)}</td><td class="nowrap">${esc(r.item_id)}</td><td class="nowrap">${esc(r.warehouse_id)}</td>
         <td class="num">${q > 0 ? fmtQty(q) : ''}</td><td class="num">${q < 0 ? fmtQty(-q) : ''}</td><td class="num">${fmtQty(r.running_balance)}</td>
-        <td>${esc(r.voucher_type)} <span class="text-muted">${esc(r.voucher_id || '')}</span></td><td>${esc(moved)}</td><td>${esc(r.user_id || '')}</td></tr>`;
+        <td>${esc(r.voucher_type)} <span class="text-muted">${esc(r.voucher_id || '')}</span></td><td class="nowrap">${esc(moved)}</td><td class="nowrap">${esc(r.user_id || '')}</td></tr>`;
     }).join('') : '<tr><td colspan="9" class="s-b4fdf8">No movement matches. Widen the dates or clear the filters.</td></tr>'}</tbody></table></div>
     ${total > rows.length ? `<div class="text-muted s-c7bd98"><button type="button" class="btn btn-outline" data-inv-l-newer ${ledgerOffset > 0 ? '' : 'disabled'}>Newer</button><span>${ledgerOffset + 1}-${ledgerOffset + rows.length} of ${total}</span><button type="button" class="btn btn-outline" data-inv-l-older ${ledgerOffset + rows.length < total ? '' : 'disabled'}>Older</button></div>` : ''}`;
   host.querySelector('[data-inv-l-newer]')?.addEventListener('click', () => { ledgerOffset = Math.max(0, ledgerOffset - LEDGER_LIMIT); renderView('inventory:ledger'); });
@@ -171,20 +172,21 @@ async function renderLedger(container) {
 // ---------------------------------------------------------------------------
 
 let mrpLines = [];
-let mrpSearch = '';
+let mrpList = null; // 267.3: the history's search and page
 
 async function renderMRPChanges(container) {
-  const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + Q);
-  const docs = await getJSON(`/api/v1/doc/MRPChange?sort=recent&limit=200${mrpSearch ? `&q=${encodeURIComponent(mrpSearch)}` : ''}`, null);
-  if (!docs) { renderErrorPanel(container, 'Failed to load MRP changes.', () => renderView('inventory:mrp')); return; }
+  const txn = await import('./txn-screen.js' + Q);
+  const { txnPagedSection, txnRestorePane, txnDone } = txn;
+  mrpList = mrpList || txn.txnListState();
+  const page = await txn.txnLoadList('MRPChange', mrpList);
+  if (page.error) { renderErrorPanel(container, page.error, () => renderView('inventory:mrp')); return; }
+  const docs = page.docs;
   const lines = (d) => { try { return typeof d.items === 'string' ? JSON.parse(d.items) : (d.items || []); } catch (_) { return []; } };
   const badge = { Applied: 'badge-success', Scheduled: 'badge-warning', Cancelled: 'badge-secondary', Draft: 'badge-secondary' };
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div class="s-8d8359">
-      <input type="search" class="form-input" data-mrp-search placeholder="Find an item's MRP history (code or name)" value="${esc(mrpSearch)}">
-      <button type="button" class="btn btn-outline" data-mrp-find>Find</button></div>
+  list.innerHTML = `${txn.txnListBar(mrpList, page, null, "Find an item's MRP history (code or name)")}
     <div class="table-wrapper"><table><thead><tr><th>Change</th><th>Effective from</th><th>Items (old → new MRP)</th><th>Reason</th><th>Status</th><th></th></tr></thead>
     <tbody>${docs.length ? docs.map(d => {
       const ls = lines(d);
@@ -193,7 +195,7 @@ async function renderMRPChanges(container) {
         <td>${esc(d.reason || '')}</td><td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span></td>
         <td>${d.status === 'Scheduled' ? `<button type="button" class="action-btn action-btn-danger" data-mrp-cancel="${esc(d.id)}">Cancel</button>` : ''}
             ${d.status === 'Applied' && ls.some(l => num(l.on_hand) > 0) ? `<button type="button" class="action-btn" data-mrp-stickers="${esc(d.id)}">Reprint stickers</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="6" class="s-b4fdf8">${mrpSearch ? 'No MRP change names that item.' : 'No MRP has been changed here yet. + New MRP Change starts one.'}</td></tr>`}</tbody></table></div>`;
+    }).join('') : `<tr><td colspan="6" class="s-b4fdf8">${mrpList.q ? 'No MRP change names that item.' : 'No MRP changes yet.'}</td></tr>`}</tbody></table></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
@@ -210,12 +212,11 @@ async function renderMRPChanges(container) {
     <div class="login-error hidden s-56f435" data-mrp-error></div>
     <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-mrp-save>Save MRP change</button></div>`;
 
-  const section = txnPagedSection({ id: 'mrp-screen', title: 'MRP Change', page: 'New MRP change', count: docs.length, newLabel: 'New MRP Change', form, list });
+  const section = txnPagedSection({ id: 'mrp-screen', title: 'MRP Change', page: 'New MRP change', count: txn.txnListCount(page), newLabel: 'New MRP Change', form, list });
   container.appendChild(section);
   txnRestorePane('mrp-screen');
 
-  list.querySelector('[data-mrp-find]').addEventListener('click', () => { mrpSearch = list.querySelector('[data-mrp-search]').value.trim(); renderView('inventory:mrp'); });
-  list.querySelector('[data-mrp-search]').addEventListener('keydown', e => { if (e.key === 'Enter') { mrpSearch = e.target.value.trim(); renderView('inventory:mrp'); } });
+  txn.txnWireListBar(list, mrpList, () => renderView('inventory:mrp'));
   list.querySelectorAll('[data-mrp-cancel]').forEach(b => b.addEventListener('click', async () => {
     if (!await showCustomConfirm('Cancel this MRP change? The items keep their current MRP.', 'Cancel MRP change')) return;
     const res = await apiFetch(`/api/v1/inventory/mrp-changes/${encodeURIComponent(b.dataset.mrpCancel)}/cancel`, { method: 'POST' });
@@ -301,20 +302,26 @@ async function renderMRPChanges(container) {
 // ---------------------------------------------------------------------------
 
 let adjLines = [];
+let adjList = null; // 267.3: the list's view, search and page
 
 async function renderAdjustments(container) {
-  const [{ txnPagedSection, txnRestorePane, txnDone, sessionStore }, rp] = await Promise.all([
-    import('./txn-screen.js' + Q), import('./reason-picker.js' + Q)]);
-  const [docs, reasons] = await Promise.all([
-    getJSON('/api/v1/doc/InventoryAdjustment?sort=recent&limit=200', null), rp.loadReasons('Inventory Adjustment')]);
-  if (!docs) { renderErrorPanel(container, 'Failed to load stock adjustments.', () => renderView('inventory:adjustments')); return; }
+  const [txn, rp] = await Promise.all([import('./txn-screen.js' + Q), import('./reason-picker.js' + Q)]);
+  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = txn;
+  adjList = adjList || txn.txnListState();
+  // 267.3: the work queue is paged on the server; each view is a status filter.
+  const adjViews = { all: {}, post: { status: 'Approved' }, approval: { status: 'Pending Approval' } };
+  const [page, reasons] = await Promise.all([
+    txn.txnLoadList('InventoryAdjustment', adjList, { filters: adjViews[adjList.view] || {} }), rp.loadReasons('Inventory Adjustment')]);
+  if (page.error) { renderErrorPanel(container, page.error, () => renderView('inventory:adjustments')); return; }
+  const docs = page.docs;
   const lines = (d) => { try { return typeof d.items === 'string' ? JSON.parse(d.items) : (d.items || []); } catch (_) { return []; } };
   const badge = { Posted: 'badge-success', 'Pending Approval': 'badge-warning', Approved: 'badge-warning', Rejected: 'badge-danger' };
   const codeOf = Object.fromEntries(docs.map(d => [d.id, d.code || d.id]));
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div class="table-wrapper"><table><thead><tr><th>Adjustment</th><th>Store</th><th>Items</th><th class="num">Added</th><th class="num">Taken off</th><th>Status</th><th></th></tr></thead>
+  list.innerHTML = `${txn.txnListBar(adjList, page, [['all', 'All adjustments'], ['post', 'To post'], ['approval', 'Waiting approval']])}
+    <div class="table-wrapper"><table><thead><tr><th>Adjustment</th><th>Store</th><th>Items</th><th class="num">Added</th><th class="num">Taken off</th><th>Status</th><th></th></tr></thead>
     <tbody>${docs.length ? docs.map(d => {
       const ls = lines(d);
       const problem = d.post_error || d.gl_error;
@@ -325,7 +332,7 @@ async function renderAdjustments(container) {
           ${d.reversal_of ? `<div class="text-muted s-6cb285">Reverses ${esc(codeOf[d.reversal_of] || d.reversal_of)}</div>` : ''}${d.reversed_by ? `<div class="text-muted s-6cb285">Reversed by ${esc(codeOf[d.reversed_by] || d.reversed_by)}</div>` : ''}</td>
         <td>${d.status === 'Approved' ? `<button type="button" class="action-btn" data-adj-post="${esc(d.id)}">Post</button>${/changed since|was \d+ when/.test(problem || '') ? ` <button type="button" class="action-btn" data-adj-post-now="${esc(d.id)}" title="Take the before quantities again from today's stock (store manager)">Post with current stock</button>` : ''}` : ''}
           ${d.status === 'Posted' && !d.reversed_by && !d.reversal_of ? `<button type="button" class="action-btn" data-adj-reverse="${esc(d.id)}">Reverse</button>` : ''}</td></tr>`;
-    }).join('') : '<tr><td colspan="7" class="s-b4fdf8">No stock has been adjusted here yet. + New Stock Adjustment starts one.</td></tr>'}</tbody></table></div>`;
+    }).join('') : `<tr><td colspan="7" class="s-b4fdf8">${adjList.view !== 'all' || adjList.q ? 'Nothing here in this view.' : 'No stock adjustments yet.'}</td></tr>`}</tbody></table></div>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
@@ -345,9 +352,10 @@ async function renderAdjustments(container) {
     <div data-adj-preview class="s-56f435"></div>
     <div class="s-20fcea"><button type="button" class="btn btn-outline" data-adj-preview-btn>Preview</button><button type="button" class="btn btn-primary" data-adj-save>Save adjustment</button></div>`;
 
-  container.appendChild(txnPagedSection({ id: 'adj-screen', title: 'Stock Adjustment', page: 'New stock adjustment', count: docs.length, newLabel: 'New Stock Adjustment', form, list }));
+  container.appendChild(txnPagedSection({ id: 'adj-screen', title: 'Stock Adjustment', page: 'New stock adjustment', count: txn.txnListCount(page), newLabel: 'New Stock Adjustment', form, list }));
   txnRestorePane('adj-screen');
   attachLinkTypeahead(form.querySelector('#adj-store'), 'Location', { keepCode: true });
+  txn.txnWireListBar(list, adjList, () => renderView('inventory:adjustments'));
   list.querySelectorAll('[data-adj-post]').forEach(b => b.addEventListener('click', async () => {
     const res = await apiFetch(`/api/v1/inventory/adjustments/${encodeURIComponent(b.dataset.adjPost)}/post`, { method: 'POST' });
     if (!res) return;
@@ -478,28 +486,30 @@ function reprintStickers(number, ls) {
 // ---------------------------------------------------------------------------
 
 let miLines = [];
-let miView = 'all';
+let miList = null; // 267.3: the list's view, search and page
 
 async function renderMaterials(container) {
-  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = await import('./txn-screen.js' + Q);
-  const docs = await getJSON('/api/v1/doc/MaterialIssue?sort=recent&limit=200', null);
-  if (!docs) { renderErrorPanel(container, 'Failed to load material requests.', () => renderView('inventory:materials')); return; }
+  const txn = await import('./txn-screen.js' + Q);
+  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = txn;
+  miList = miList || txn.txnListState();
+  const me = localStorage.getItem('erp_username') || '';
+  // My requests / Ready to issue / Return remaining (74.2.4's three screens) as
+  // one list's views - 267.3: each a filter the server applies before paging.
+  const views = { all: {}, mine: { requested_by: me }, issue: { status: 'Approved' }, back: { status: ['Issued', 'Partly Returned'] } };
+  const page = await txn.txnLoadList('MaterialIssue', miList, { filters: views[miList.view] || {} });
+  if (page.error) { renderErrorPanel(container, page.error, () => renderView('inventory:materials')); return; }
+  const docs = page.docs;
   const lines = (d) => { try { return typeof d.items === 'string' ? JSON.parse(d.items) : (d.items || []); } catch (_) { return []; } };
   const badge = { Issued: 'badge-success', Returned: 'badge-success', 'Partly Returned': 'badge-success', Approved: 'badge-warning', 'Pending Approval': 'badge-warning', Rejected: 'badge-danger' };
-  // My requests / Ready to issue / Return remaining (74.2.4's three screens) as one list's views.
-  const me = localStorage.getItem('erp_username') || '';
-  const views = { all: () => true, mine: d => d.requested_by === me, issue: d => d.status === 'Approved', back: d => d.status === 'Issued' || d.status === 'Partly Returned' };
-  const shown = docs.filter(views[miView] || views.all);
   // 162.2: a role that may only ask (Cashier) sees no Issue or Return button.
   // The store may issue: edit on MaterialIssue, or create on MaterialReturn (the server's rule).
   const mayReturn = canDo('create', 'MaterialReturn'), mayIssue = mayReturn || canUpdateDoctype('MaterialIssue');
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div class="s-761d3a"><select class="form-select s-2acaf3" data-mi-view aria-label="Show">
-      ${[['all', 'All requests'], ['mine', 'My requests'], ['issue', 'Ready to issue'], ['back', 'Return remaining']].map(([k, l]) => `<option value="${k}" ${k === miView ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+  list.innerHTML = `${txn.txnListBar(miList, page, [['all', 'All requests'], ['mine', 'My requests'], ['issue', 'Ready to issue'], ['back', 'Return remaining']])}
     <div class="table-wrapper"><table><thead><tr><th>Request</th><th>Store</th><th>Department</th><th>Items</th><th class="num">Value</th><th>Status</th><th></th></tr></thead>
-    <tbody>${shown.length ? shown.map(d => {
+    <tbody>${docs.length ? docs.map(d => {
       const ls = lines(d);
       return `<tr><td class="s-72126d">${esc(d.code || d.id)}</td><td>${esc(d.location)}</td>
         <td>${esc(d.department)}${d.cost_center ? `<div class="text-muted s-6cb285">${esc(d.cost_center)}</div>` : ''}<div class="text-muted s-6cb285">${esc(d.purpose)}</div></td>
@@ -507,7 +517,7 @@ async function renderMaterials(container) {
         <td class="num">${formatMoney(d.amount)}</td><td><span class="badge ${badge[d.status] || 'badge-secondary'}">${esc(d.status)}</span></td>
         <td>${mayIssue && d.status === 'Approved' ? `<button type="button" class="action-btn" data-mi-issue="${esc(d.id)}">Issue</button>` : ''}
           ${mayReturn && (d.status === 'Issued' || d.status === 'Partly Returned') ? `<button type="button" class="action-btn" data-mi-return="${esc(d.id)}">Return unused</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="7" class="s-b4fdf8">${docs.length ? 'Nothing here in this view.' : 'No material has been asked for yet. + New Material Request starts one.'}</td></tr>`}</tbody></table></div>
+    }).join('') : `<tr><td colspan="7" class="s-b4fdf8">${miList.view !== 'all' || miList.q ? 'Nothing here in this view.' : 'No material requests yet.'}</td></tr>`}</tbody></table></div>
     <div data-mi-return-pane class="s-d6f2af"></div>`;
 
   const form = document.createElement('div');
@@ -527,13 +537,13 @@ async function renderMaterials(container) {
     <div class="login-error hidden s-56f435" data-mi-error></div>
     <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-mi-save>Save request</button></div>`;
 
-  container.appendChild(txnPagedSection({ id: 'mi-screen', title: 'Material Issue', page: 'New material request', count: docs.length, newLabel: 'New Material Request', form, list }));
+  container.appendChild(txnPagedSection({ id: 'mi-screen', title: 'Material Issue', page: 'New material request', count: txn.txnListCount(page), newLabel: 'New Material Request', form, list }));
   txnRestorePane('mi-screen');
   attachLinkTypeahead(form.querySelector('#mi-store'), 'Location', { keepCode: true });
   attachLinkTypeahead(form.querySelector('#mi-dept'), 'Department', { keepCode: true });
   attachLinkTypeahead(form.querySelector('#mi-cc'), 'CostCenter', { keepCode: true });
 
-  list.querySelector('[data-mi-view]').addEventListener('change', e => { miView = e.target.value; renderView('inventory:materials'); });
+  txn.txnWireListBar(list, miList, () => renderView('inventory:materials'));
   list.querySelectorAll('[data-mi-issue]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
     const res = await apiFetch(`/api/v1/inventory/material-requests/${encodeURIComponent(b.dataset.miIssue)}/issue`, { method: 'POST' });
@@ -635,29 +645,36 @@ async function renderMaterials(container) {
 // ---------------------------------------------------------------------------
 
 let dcLines = [];
-let dcView = 'all';
+let dcList = null; // 267.3: the list's view, search and page
 const DC_PURPOSES = ['Job work', 'Repair', 'Exhibition', 'Sample', 'Returnable - other', 'Non-returnable', 'Other'];
 
 async function renderChallans(container) {
-  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = await import('./txn-screen.js' + Q);
-  const docs = await getJSON('/api/v1/doc/DeliveryChallan?sort=recent&limit=200', null);
-  if (!docs) { renderErrorPanel(container, 'Failed to load delivery challans.', () => renderView('inventory:challans')); return; }
+  const txn = await import('./txn-screen.js' + Q);
+  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = txn;
+  dcList = dcList || txn.txnListState();
   const parse = (v) => { try { return typeof v === 'string' ? JSON.parse(v || '[]') : (v || []); } catch (_) { return []; } };
   const open = (d) => parse(d.challan_balance).reduce((n, b) => n + (b.issued - b.returned - b.damaged - b.rejected - b.lost - b.kept), 0);
   const today = new Date().toISOString().slice(0, 10);
   const soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const due = (d) => parse(d.items).map(l => l.expected_return).filter(Boolean).sort()[0] || '';
   const out = (d) => d.status === 'Dispatched' || d.status === 'Partly Returned';
-  const views = { all: () => true, open: d => out(d) && open(d) > 0, soon: d => out(d) && open(d) > 0 && due(d) && due(d) <= soon,
-    exceptions: d => out(d) && ((due(d) && due(d) < today) || parse(d.challan_balance).some(b => b.damaged || b.rejected || b.lost)),
-    ewb: d => d.ewb_required === 'Yes' };
-  const shown = docs.filter(views[dcView] || views.all);
+  // 267.3: All and E-way bill are server filters, paged. Open, due-soon and
+  // exceptions depend on the lines' balance and dates, so they read every
+  // challan still out and narrow it here.
+  const served = { all: {}, ewb: { ewb_required: 'Yes' } };
+  const narrowed = { open: d => out(d) && open(d) > 0, soon: d => out(d) && open(d) > 0 && due(d) && due(d) <= soon,
+    exceptions: d => out(d) && ((due(d) && due(d) < today) || parse(d.challan_balance).some(b => b.damaged || b.rejected || b.lost)) };
+  const whole = !!narrowed[dcList.view];
+  const page = await txn.txnLoadList('DeliveryChallan', dcList,
+    { filters: whole ? { status: ['Dispatched', 'Partly Returned'] } : (served[dcList.view] || {}), whole });
+  if (page.error) { renderErrorPanel(container, page.error, () => renderView('inventory:challans')); return; }
+  const docs = page.docs;
+  const shown = whole ? docs.filter(narrowed[dcList.view]) : docs;
   const badge = { Dispatched: 'badge-warning', 'Partly Returned': 'badge-warning', Returned: 'badge-success', Closed: 'badge-secondary', Approved: 'badge-warning', 'Pending Approval': 'badge-warning', Cancelled: 'badge-danger', Rejected: 'badge-danger' };
   const list = document.createElement('div');
   list.className = 'table-panel';
   list.style.padding = '16px 20px';
-  list.innerHTML = `<div class="s-761d3a"><select class="form-select s-2acaf3" data-dc-view aria-label="Show">
-      ${[['all', 'All challans'], ['open', 'Open returns'], ['soon', 'Due back in 7 days'], ['exceptions', 'Exceptions'], ['ewb', 'E-way bill needed']].map(([k, l]) => `<option value="${k}" ${k === dcView ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+  list.innerHTML = `${txn.txnListBar(dcList, page, [['all', 'All challans'], ['open', 'Open returns'], ['soon', 'Due back in 7 days'], ['exceptions', 'Exceptions'], ['ewb', 'E-way bill needed']])}
     <div class="table-wrapper"><table><thead><tr><th>Challan</th><th>Purpose / party</th><th>Store</th><th>Items</th><th class="num">Value</th><th>Expected back</th><th>Status</th><th></th></tr></thead>
     <tbody>${shown.length ? shown.map(d => {
       const ls = parse(d.items);
@@ -674,7 +691,7 @@ async function renderChallans(container) {
           ${out(d) && d.returnable !== false && o > 0 ? `<button type="button" class="action-btn" data-dc-act="return" data-id="${esc(d.id)}">Receive return</button> <button type="button" class="action-btn" data-dc-act="writeoff" data-id="${esc(d.id)}">Write off</button> ` : ''}
           ${['Draft', 'Pending Approval', 'Approved'].includes(d.status) ? `<button type="button" class="action-btn action-btn-danger" data-dc-act="cancel" data-id="${esc(d.id)}">Cancel</button> ` : ''}
           ${d.status !== 'Draft' && d.status !== 'Cancelled' ? `<button type="button" class="action-btn" data-dc-act="print" data-id="${esc(d.id)}">Print</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="8" class="s-b4fdf8">${docs.length ? 'Nothing here in this view.' : 'No goods have gone out on a challan yet. + New Delivery Challan starts one.'}</td></tr>`}</tbody></table></div>
+    }).join('') : `<tr><td colspan="8" class="s-b4fdf8">${dcList.view !== 'all' || dcList.q ? 'Nothing here in this view.' : 'No delivery challans yet.'}</td></tr>`}</tbody></table></div>
     <div data-dc-pane class="s-d6f2af"></div>`;
 
   const form = document.createElement('div');
@@ -701,7 +718,7 @@ async function renderChallans(container) {
     <div class="login-error hidden s-56f435" data-dc-error></div>
     <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-dc-save>Save challan</button></div>`;
 
-  container.appendChild(txnPagedSection({ id: 'dc-screen', title: 'Delivery Challan', page: 'New delivery challan', count: docs.length, newLabel: 'New Delivery Challan', form, list }));
+  container.appendChild(txnPagedSection({ id: 'dc-screen', title: 'Delivery Challan', page: 'New delivery challan', count: txn.txnListCount(page, shown.length), newLabel: 'New Delivery Challan', form, list }));
   txnRestorePane('dc-screen');
   attachLinkTypeahead(form.querySelector('#dc-store'), 'Location', { keepCode: true });
   const purposeEl = form.querySelector('#dc-purpose');
@@ -716,7 +733,7 @@ async function renderChallans(container) {
     renderView('inventory:challans');
     return true;
   };
-  list.querySelector('[data-dc-view]').addEventListener('change', e => { dcView = e.target.value; renderView('inventory:challans'); });
+  txn.txnWireListBar(list, dcList, () => renderView('inventory:challans'));
   list.querySelectorAll('[data-dc-act]').forEach(b => b.addEventListener('click', async () => {
     const d = docs.find(x => x.id === b.dataset.id);
     const url = `/api/v1/inventory/challans/${encodeURIComponent(d.id)}`;

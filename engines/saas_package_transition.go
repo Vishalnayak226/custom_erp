@@ -272,6 +272,7 @@ func TransitionTenantPackages(tenantID string, packageKeys []string, actor, requ
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	forgetSweepView() // 283.2: background workers see the new modules on their next tick
 	LogAuditEvent(tenantID, actor, "saas.package_transition", "Applied", fmt.Sprintf("%v -> %v", before, after))
 	return &PackageTransition{RequestID: requestID, Status: "applied", Before: before, After: after}, nil
 }

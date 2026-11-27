@@ -19,14 +19,78 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **308** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **338** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-09-01 to 2026-10-19
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-01
+- [Part 2](release-notes-2.md) - 2026-09-06 to 2026-10-19
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-05
+
+## 2026-11-27
+
+**"What is open, no one is working start building next 10 itesm" - the Stores screen, print logs on local days, empty-list text cut, CRM Ready to send as its own page** *(engines/ + public/ + guides + KB, ask 309; not committed)*
+
+**"Paid algorithms course ($5); its terms forbid reuse- Is it required? I can get a book" / "& Above each and everypoint approved build it" - point-in-time recovery, the version check on every edit, and "How it works" pages in Help** *(deploy/ + engines/ + internal/server/ + public/ + KB + guides, ask 305; not committed)*
+
+**"Fix open items" - what ask 298 left open: a stale dashboard load, the emailed dashboard's read check and % format, the code map** *(engines/ + internal/server/ + public/ + guides, ask 307; not committed)*
+
+**"Not alllowing me to create new product type" / "I can't any product detail. I want to see everything expaned design number, comb id , color and all attrubute price" - a picker offers "+ Create" beside close matches, and the item grid keeps room for its lines** *(public/ + guides, asks 303 and 304; not committed)*
+
+**"I need proper dashbaord for each sales and all" / "Dasbord with number and visulation. It need control to whom it will be show at role level." - four ready-made sales dashboards on one all-channel dataset, and a role choice for every ready-made dashboard** *(engines/ + internal/server/ + public/ + guides, ask 298; not committed)*
+
+**"This is not looking good this hyper linke in PIMs make better" - PIM Home's setup path as numbered step tiles** *(public/, ask 302; not committed)*
+
+**"All recomened" - Home first in every module with tiles or queues, one job per page in Expenses and PIM My Work, and "one page, one job" in the constitution** *(public/ + guides + KB + CONTRIBUTING.md, ask 300 on ask 284; not committed)*
+
+**"Guide walk me through PO to bill. I will record it also." / "I need store master build that." - Guide's live purchase-to-sale walk on app, and a plan for a Stores screen** *(Guide in ~/dev-tools/guide + tracker, asks 295 and 301; not committed)*
+
+**"No dropdown should show like this. Go rhrough each page guide and tell them and If you can do with out guide also fine." - every suggestion box uses the app's own menu, not the browser's black popup** *(public/ + store app + user guide, ask 294; not committed)*
+
+**"How to create offer group?I should be naviagted from here. & Each naviagtion should open new tab right?" - the offer form links to the Product Group list in a new tab** *(public/ + admin guide + Guide, ask 296; not committed)*
+
+## 2026-11-26
+
+**"Build all of above" - columns each user chooses, one-line rows with a ⋯ menu, short empty lists, one type scale and Home tiles** *(lists + shell + styles + guides, ask 280; not committed)*
+
+**"Each and every page should behave like a river ... 10% to 1000%. No issue" - summary tiles keep words whole at any zoom; the fit suite now catches a broken word** *(public/ CSS + JS + Guide, ask 287; not committed)*
+
+**"Switch MFA to Report on app, write it to minn" - two-factor for sensitive actions now reports on both clients** *(production setting, ask 293; no code)*
+
+**"See what is usefule. Keep knowledge. We can use or build bring it" (three learning sites) - system design lessons kept, two gaps found** *(docs + tracker, ask 290; not committed)*
+
+**"the alert URL ... the offsite storage credentials and the second copies of the key files; the devices for 267.5; running the script that drops the 4 scratch databases; Build above" / "MFA ... Why required? Why disabled?" - scratch databases dropped; the rest needs the owner's accounts, devices or word** *(local Postgres + tracker, ask 291; not committed)*
+
+**"Can erp be made more lightweight and optimized" / "All recommended approved, build all and don't loose feature." - comments stripped as served, lighter idle workers, abandoned queries stop in Postgres** *(server + workers + db driver + guides, asks 283 and 285; not committed)*
+
+**"See telegram. Print quality is not premium. Make it more premium ... It should left aligned barcode text can be center. MRP and Item alias swap. & The Right side text alos one alignement" - a darker, crisper Seznik tag on one grid, and a way for saved templates to take it** *(sticker engine + studio + guides, ask 286; not committed)*
+
+**"OMS home required. Order will show only order. Its for all module. One page will have only one pages required field nothing else" - OMS Home, Orders as a plain list, PIM task counts on the PIM Dashboard** *(screens + guides, ask 284; not committed)*
+
+**"Healer done. Print stikcer from app" - one real sticker from app on the LD0801 after the Data Healer** *(Guide on app, ask 282; no code change)*
+
+**"278.1 ... Recommended (a) ... 278.2 ... Recommended (a) ... Build approved" - a new client's Accountant from its template; HR Manager reads and writes pay fields** *(roles + sensitive fields, ask 279; not committed)*
+
+**"Anything open which is buildable" / "Which are not build being build by other session" - open list checked; nothing buildable left without the owner, two items closed from GitHub evidence** *(tracker only, ask 281; not committed)*
+
+**"Built all of above approved all" - the exchange-price guard, production evidence and the cross-origin switch, and every Guide journey run by its own roles** *(returns engine + production + Guide, ask 278; not committed)*
+
+**"Guide walkthrough all screen and see if the all columns are visible properly in all the url" - column visibility and UI/UX walk of every screen on minn, findings filed for review** *(Guide on minn + QA record + tracker, ask 276; not committed)*
+
+**"Data headel fix. Fix loading issue identified." - Data Healer's Item column no longer looked up as items; Guide pacing ruled out for the minn "Loading..."** *(public/view-data-healer.js + tracker, ask 277; not committed)*
+
+**"Guide test agin and lets handover to minn owner" / "After feedback apply is not working" - minn's LD0801 at the new shift, and Fix from photo answers each press in its dialog** *(Guide on minn + print-check.js + guides, asks 270 and 275; not committed)*
+
+**"All approved recommedation" - sales velocity counts Sales Invoices, less their returns** *(engines + guides, ask 274; not committed)*
+
+**"Make the ERP great. Think out of box and see what can be imporved. Make best. Plan and implement." - move stock before buying, the last price on every PO line, a guard on selling below cost, and a faster velocity read** *(engines + planning/PO/till screens + guides, ask 273; not committed)*
+
+**"Upload the PO in mine then minn" - the client's 2nd purchase file received and moved to the store, ready to bill, on app and minn** *(data only through Guide, ask 271; no code change)*
+
+**"Allow billing in combination also. Search with design or combination and show barcode and select and do billl" - the till bills a combination found by its design no.** *(list search + availability + view-pos.js + guides, ask 272; not committed)*
 
 ## 2026-11-25
+
+**"Billing and Shipping add will be same as TOP store selection" - a new PO's addresses start as the top-bar store** *(view-procurement.js + guides, ask 268)*
 
 **"Push and deploy all if nothing is pending to build" - release 0.29.0 (9db21d3) deployed to app and minn** *(release scripts + securityscan + styles.css + one test, ask 265)*
 
@@ -523,30 +587,4 @@ From the user's Template rules, Print and Prefix Configurations screenshots. Ful
 **Stages 110-112 — goods receipt follows the PO's GST; plain-words Verify; sticker load, print on scan, Square/Ring cards** *(code)*
 
 From the user's GRN/PO, Verify and Sticker Printing screenshots. Full detail in checklist Stages 110-112.
-
-**Stage 109 — one click to release, one click to deploy, the server cleans itself; SSH bots blocked** *(tooling + server)*
-
-User: *"I want auto mechanism to do this ... a script or bot ... It should learn parallely with you doing in future ... Three action three click. 3rd one if can be done without me also fine."* Checklist Stage 109 (D1-D6).
-
-**Release 0.4.0 to app and minn** *(release)*
-
-**Stage 108 — The New Location form fills itself in; POS adds only an exact barcode** *(code + docs, NOT COMMITTED)*
-
-From the user's New Location and POS / Billing screenshots. New Location: Short Code suggested by one standard rule (JP Nagar → JPN), Facility Code the next number, Level and Sellable follow Type, Parent = the HO, Legal Entity and salesman Mandatory preselected; the server fills a blank Short / Facility Code on create; Level gains HO and Store (migration, shipped list only). POS: only an exact barcode / GTIN rings up directly, anything else lists the containing products to pick, on Enter or a pause in typing. Unit tests + Chromium checks; detail in micro_checklist 108.1-108.2. Open gap: receipt-date barcodes are not found by the POS search (pre-existing).
-
-**Release 0.3.0 to app and minn** *(release)*
-
-**Stage 101 — the CRM blueprint planned onto the ERP** *(docs, plan only, NOT COMMITTED)*
-
-User: *"Indepth CRM Module ... Understand it and plan it and put it in checklist and relevant places"*, with their 70-page *CRM Platform Business and Product Requirements* (38 modules, P0-P2, decision register D01-D12). It became the spec for Stage 101, opened that morning. Each module was checked against what the ERP already has: customers and merge, RFM / lifetime value, the loyalty ledger, offers / vouchers, campaigns with per-channel consent, notification delivery states, service tickets, privacy requests. What was missing became phases 101.1-101.12: customer page, consent ledger, segments, one send gate for every message, templates / senders / campaigns up to a pilot gate, journeys, feedback and a WhatsApp inbox, loyalty depth, clienteling, the business pipeline, reports. Not adopted: its stack, a separate commerce layer, shopper-app SDKs, ads / RCS / AI, and shared-phone profiles (85 D1 stands). Plan: `docs/product/crm-platform-plan-2026-10-19.md`. Nothing built; 101.0.2 waits on the user's decisions.
-
-**"Fix all": the report catalog built - 252 of the user's 290 reports (Stage 75.3.2, 75.3.5-75.3.7)** *(code + docs, NOT COMMITTED)*
-
-User: *"Fix all"* on the build run's leftovers. 75.2.8a (credit-note QR), 76.6 (re-code every master), the BLD020 skip and the manifest shipped in 0.2.0 (§257). The report catalog was unblocked - both spreadsheets were in `Downloads\MyBusiness\IT Solution\ERP\Reports` - and built after the release: `docs/specs/reports/catalog_reports.tsv` + `catalog_columns.tsv` (the spec, no sample data), `cmd/gencatalog` (spec → `engines/report_catalog_spec_generated.go`; `-coverage` → `docs/product/report-catalog-coverage.md`), one runner (`engines/report_catalog.go`, `_common.go`) and eight wiring files. **252 built** under the catalog's own modules with the catalog's exact columns (2,574 of 2,637 filled; the rest are fields the ERP does not record, blank); **38 wait** for modules that do not exist (Stage 74 challan / job work / MI-MR / wastage / damage / receipt note, 88.5.4 stock adjustment, bulk stock upload, e-way bill, leads, opportunities, feedback, recruitment). Control totals on eight of them (sales, stock valuation, four GST, AP / AR ageing tied to 2100 / 1300). Fixed on the way: masked gift card numbers, the Status select silently filtering (also the 75.3.4 builder), code columns renamed by the screen-wide name swap, the Reports menu order. Tests: `TestCatalogReportsRun`, three hand-worked figure tests (Wave A / B / C on throwaway tenants), control totals, wiring and the column-fidelity test. Browser on scratch :8161. Detail: checklist 75.3.2, 75.3.5, 75.3.6, 75.3.7.
-
-**Release 0.2.0 to app and minn** *(release)*
-
-**"Build all", steps 1-4 and the start of 5: Stage 94 goods receipt in steps, small fixes, clean-slate reset, media store, Stage 74 Wave 1** *(code + docs, NOT COMMITTED)*
-
-User: *"build all"* - everything open that is decided and not blocked on the user, leaving out work already in flight in other sessions; order recorded at the top of the checklist. **Stage 94** (D1-D10 approved 2026-10-18): a goods receipt is now saved in steps - Receive (vendor first, open-PO tick-list, received and invoice qty, invoice no / date / total required, duplicate invoice refused, scan-to-count) → Verify (GRN qty and price, rejected / damaged, Keep beyond the PO through a new `GRNExcessApproval` approval record or Return, invoice total must match its lines within ₹1) → Price check (previous purchase price → child GRNs /A New, /B Same, /C Changed) → MRP and post per child (stock at the GRN price, MRP on the batch, stickers per child) → Pay (part, mode, UTR, TDS) with Correct after posting (only the difference posts) and Post all when everything matches. The note is invoice total − what was received and verified: a debit note is applied to the auto-made vendor bill as a settlement line, a credit note posts its GST leg, so paying the bill clears 2100 / 1500 exactly (tested to the paisa). The till sells at the batch MRP on the shelf and asks when there are two (94.6, first-in-first-out from the store's receipts). PO design reuse is limited to the PO's vendor (94.13). New `grn_line` / `grn_line_change` tables and eight reports. Browser-walked on :8194 (price changed + debit note + part payment; correction; Keep held for approval; scan-to-count). **Step 2:** schedule workers claim a due run atomically (73.D.18); production's database time zone checked - UTC, so 73.D.19 needs no code; the 73.D.21 tests all pass, the schedule test no longer touches other rows, CI / promote get a test timeout; Inventory rows link to their stock ledger (73.B.7). **Step 3:** `tenantctl reset-data` (91.1-91.2) - a clean slate in one transaction: suspended client and a 24-hour backup required, every table classified (a test fails on an unclassified one), logins and evidence kept, numbering from 1; not run on app / minn (91.4 is the user's). **Step 4:** `MediaStore` (75.4.1) - product media, thumbnails, transform cache and attachments through one interface, local disk as before. Full `go test -p 1` of `./engines` (497 s) and `./internal/server` green. **Step 5 begun (Stage 74 Wave 1):** the number-series first-allocation race is one atomic upsert in `GenerateSequence` and the POS bill number (74.1.2); attachments turned on for GRN and Purchase Return with a shared panel (74.1.6); reason codes governed - nine new categories with dates, evidence and loss class, 30 starter codes, one check for every caller, a code beside every typed reason (GRN lines, purchase return, price override, reprint), a client setting to make codes mandatory, pickers and the R-TX-12 report; the master moved to Master Data (74.1.1). Paused there at the user's request, about 9% of the run's scope done; the next thread starts with 74.1.3. Details: checklist Stage 94, 73.B/73.D, 91, 75.4, 74.1.
 

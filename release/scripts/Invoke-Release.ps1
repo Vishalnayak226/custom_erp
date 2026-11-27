@@ -306,8 +306,9 @@ if ($publicChanged.Count) {
     if ($cur -eq $old) {
         $new = $cur + 1
         Write-Text $appPath ([regex]::Replace($app, $verRe, "const VIEW_MODULE_VERSION = '$new';"))
-        Write-Text $htmlPath ([regex]::Replace($html, 'app\.js\?v=\d+', "app.js?v=$new"))
-        Note "view modules ?v=$cur -> $new"
+        # 297.1: db.js moves with app.js (TestEveryAppScriptCarriesTheReleaseVersion).
+        Write-Text $htmlPath ([regex]::Replace($html, '/(app|db)\.js\?v=\d+', ('/$1.js?v=' + $new)))
+        Note "view modules, app.js and db.js ?v=$cur -> $new"
     } else { Note "view modules already at ?v=$cur (HEAD $old)" }
     if ($ship | Where-Object { $_.Path -eq 'public/styles.css' }) {
         $html = Read-Text $htmlPath
@@ -331,6 +332,24 @@ if ($publicChanged.Count) {
         $verRe = [regex]::Escape($shellJs) + '\?v=(\d+)'
         $q1 = [int]([regex]::Match($html, $verRe).Groups[1].Value); $q0 = [int]([regex]::Match($headHtml, $verRe).Groups[1].Value)
         if ($q1 -eq $q0) { Write-Text $htmlPath ([regex]::Replace($html, $verRe, "$shellJs`?v=$($q1 + 1)")); Note "$shellJs ?v=$q1 -> $($q1 + 1)" }
+    }
+    # 297.1: the store app (public/store/) has one stamp of its own: every ?v= in
+    # its page and scripts and its service worker's cache name (TestStoreAppStampsAgree).
+    # It stayed at 2 from 0.12.0 on, so phones kept that store.js through every
+    # later release. A change to it, or to sticker-engine.js it imports, bumps it.
+    if ($ship | Where-Object { $_.Path -like 'public/store/*' -or $_.Path -eq 'public/sticker-engine.js' }) {
+        $swRe = "const CACHE = 'store-app-v(\d+)';"
+        $s1 = [int]([regex]::Match((Read-Text (Join-Path $wt 'public/store/sw.js')), $swRe).Groups[1].Value)
+        $s0 = [int]([regex]::Match(((& git -C $wt show 'HEAD:public/store/sw.js') -join "`n"), $swRe).Groups[1].Value)
+        if ($s1 -eq $s0) {
+            $sNew = $s1 + 1
+            Get-ChildItem -LiteralPath (Join-Path $wt 'public/store') -File | Where-Object { $_.Extension -in '.js', '.html' } | ForEach-Object {
+                $t = Read-Text $_.FullName
+                $u = [regex]::Replace([regex]::Replace($t, '\?v=\d+', "?v=$sNew"), 'store-app-v\d+', "store-app-v$sNew")
+                if ($u -ne $t) { Write-Text $_.FullName $u }
+            }
+            Note "store app ?v=$s1 -> $sNew"
+        } else { Note "store app already at ?v=$s1 (HEAD $s0)" }
     }
 } else { Note 'no public/ change' }
 
@@ -422,7 +441,7 @@ $budgetBin = Join-Path (Join-Path $env:TEMP 'erp_release_budget') 'erp-server'
 function Test-BudgetReport([string]$text, [switch]$Binary) {
     if ($text -match '"status":\s*"over') {
         $over = [regex]::Matches($text, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
-        Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module, or condense comments in app.js / view-pos.js. binary_stripped_bytes is the stripped Linux server (NFR-COST-001): look for a new dependency or embedded file"
+        Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module. Comment lines do not count (the server drops them, 283.1); comments after code and /* */ blocks in scripts still do. binary_stripped_bytes is the stripped Linux server (NFR-COST-001): look for a new dependency or embedded file"
     }
     if ($text -notmatch '"cold_core_gzip_bytes"' -or ($Binary -and $text -notmatch '"binary_stripped_bytes"[^{}]*\{[^{}]*"status":\s*"within_budget"')) {
         Stop-Release "releasebudget gave no full report:`n$(($text -split "`n" | Select-Object -Last 15) -join "`n")"
@@ -669,7 +688,12 @@ if (-not $onGitHub) {
         $goJobs += Start-GoJob "compile $p tests" @('test', '-c', '-o', $exe, "./$p")
     }
 }
-$jsFiles = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.js' } | ForEach-Object Path) + @('public/app.js') | Select-Object -Unique
+# 285.2: every script in public/, not only the ones this release changed. A
+# broken string in view-attribute-library.js went out in 0.24.0 and stayed
+# broken through five releases because no later release touched that file.
+$jsFiles = @(Get-ChildItem -LiteralPath (Join-Path $wt 'public') -Recurse -File -Include '*.js', '*.mjs' |
+    ForEach-Object { $_.FullName.Substring($wt.Length).TrimStart('\', '/') })
+if ($jsFiles.Count -lt 100) { Stop-Release "node --check found only $($jsFiles.Count) scripts under public/" }
 foreach ($js in $jsFiles) { Invoke-Native -Exe 'node' -Arguments @('--check', (Join-Path $wt $js)) | Out-Null }
 Note "node --check: $($jsFiles.Count) file(s)"
 # 251.1: a browser module with its own node tests (public/*.test.mjs, e.g. the
@@ -1124,10 +1148,17 @@ foreach ($p in (Invoke-Git @('diff', '--name-only', $startHead, $newCommit))) {
 $cacheLines = @(
     @{ File = 'public/app.js'; Re = "const VIEW_MODULE_VERSION = '(\d+)';"; Fmt = "const VIEW_MODULE_VERSION = '{0}';" },
     @{ File = 'public/index.html'; Re = 'app\.js\?v=(\d+)'; Fmt = 'app.js?v={0}' },
+    @{ File = 'public/index.html'; Re = '/db\.js\?v=(\d+)'; Fmt = '/db.js?v={0}' },
     @{ File = 'public/index.html'; Re = 'styles\.css\?v=(\d+)'; Fmt = 'styles.css?v={0}' },
     @{ File = 'public/index.html'; Re = 'print-agent\.js\?v=(\d+)'; Fmt = 'print-agent.js?v={0}' },
     @{ File = 'public/index.html'; Re = 'theme-boot\.js\?v=(\d+)'; Fmt = 'theme-boot.js?v={0}' },
-    @{ File = 'public/index.html'; Re = 'erp-typeahead\.js\?v=(\d+)'; Fmt = 'erp-typeahead.js?v={0}' }
+    @{ File = 'public/index.html'; Re = 'erp-typeahead\.js\?v=(\d+)'; Fmt = 'erp-typeahead.js?v={0}' },
+    # 297.1: the store app's one stamp, in each file that carries it.
+    @{ File = 'public/store/index.html'; Re = '\?v=(\d+)'; Fmt = '?v={0}' },
+    @{ File = 'public/store/store.js'; Re = '\?v=(\d+)'; Fmt = '?v={0}' },
+    @{ File = 'public/store/store-floor.js'; Re = '\?v=(\d+)'; Fmt = '?v={0}' },
+    @{ File = 'public/store/sw.js'; Re = '\?v=(\d+)'; Fmt = '?v={0}' },
+    @{ File = 'public/store/sw.js'; Re = 'store-app-v(\d+)'; Fmt = 'store-app-v{0}' }
 )
 foreach ($c in $cacheLines) {
     $dst = Join-Path $repo $c.File; $src = Join-Path $wt $c.File
@@ -1149,7 +1180,13 @@ elseif ($onGitHub) {
     # 177.2: push the release commit to candidate/<version>, not main. release.yml tests that
     # exact commit and fast-forwards main to it only when every job passes. Deploy waits for that.
     $candidate = "candidate/$releaseVersion"
-    $push = Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'push', 'origin', "$($newCommit):refs/heads/$candidate") -AllowFail
+    # 265.8: GitHub answered one push with "Internal Server Error" and took the same push
+    # a minute later, so a refused push is tried three times before the release stops.
+    for ($try = 1; $try -le 3; $try++) {
+        $push = Invoke-Native -Exe 'git' -Arguments @('-C', $repo, 'push', 'origin', "$($newCommit):refs/heads/$candidate") -AllowFail
+        if ($LASTEXITCODE -eq 0) { break }
+        if ($try -lt 3) { Note "push to $candidate refused (try $try of 3), trying again in 30 s"; Start-Sleep -Seconds 30 }
+    }
     if ($LASTEXITCODE -ne 0) { $state.status = 'committed'; Stop-Release "push to $candidate failed:`n$(($push | Select-Object -Last 5) -join "`n")" }
     $state.status = 'committed'; $state.tests = 'github'; $state.candidate = $candidate
     Note "pushed to $candidate - GitHub now builds and tests it; main moves when every job passes"

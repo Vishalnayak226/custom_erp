@@ -2260,7 +2260,7 @@ func (b *bpRun) doPOs(pos []*bpPO) {
 				if err := engines.RequirePOVendorState(b.sw.c.tenantID, map[string]interface{}{"vendor": po.vendorID}); err != nil {
 					b.failPO(po, "the vendor has no state - add its State on the vendor in Wholeops, then upload again")
 				} else if err := engines.RequirePOStoreState(b.sw.c.tenantID, map[string]interface{}{"location": po.storeID}); err != nil {
-					b.failPO(po, "the store has no state - add its State on the store in Wholeops, then upload again")
+					b.failPO(po, "the store has no state - add its State in Settings › Stores, then upload again")
 				}
 			}
 			continue

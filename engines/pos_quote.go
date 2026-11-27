@@ -206,6 +206,9 @@ type QuoteLine struct {
 	BillShare float64 `json:"bill_share,omitempty"`
 	// NoPoints (Stage 146.2.3): this line cannot be paid with points.
 	NoPoints bool `json:"no_points,omitempty"`
+	// BelowCost (item 273.4): sold below its cost; set only while
+	// pos.below_cost_sale is on. The flag, never the cost. Not signed.
+	BelowCost bool `json:"below_cost,omitempty"`
 }
 
 // QuoteResult is the whole authoritative answer: what the receipt says, what
@@ -535,6 +538,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		return nil, err
 	}
 	result.GSTBreakdown = breakdown
+	markBelowCostLines(tenantID, result) // 273.4
 
 	result.Total = round2(result.Subtotal - result.OfferDiscount)
 	if result.Total < 0 {

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"custom_erp/engines"
 )
@@ -189,12 +190,25 @@ func handleSettleSalesInvoice(w http.ResponseWriter, r *http.Request) {
 		ExchangeRate   float64 `json:"exchange_rate"`
 		Amount         float64 `json:"amount"`
 		Reference      string  `json:"reference"`
+		// 264.4: preview works out the rate, its source and the base amount
+		// with the settlement's own engine and posts nothing, so the dialog can
+		// show them on a foreign-currency invoice before the user confirms.
+		Preview bool `json:"preview"`
 	}
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 	}
-	res, err := engines.SettleSalesInvoiceAmount(tenantID, invoiceID, userID, body.Amount, body.Reference,
-		engines.SettlementOptions{SettlementDate: body.SettlementDate, ExchangeRate: body.ExchangeRate})
+	opts := engines.SettlementOptions{SettlementDate: strings.TrimSpace(body.SettlementDate), ExchangeRate: body.ExchangeRate}
+	if body.Preview {
+		preview, err := engines.PreviewInvoiceSettlement(tenantID, "SalesInvoice", invoiceID, opts)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(preview)
+		return
+	}
+	res, err := engines.SettleSalesInvoiceAmount(tenantID, invoiceID, userID, body.Amount, body.Reference, opts)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

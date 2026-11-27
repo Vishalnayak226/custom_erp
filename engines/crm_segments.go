@@ -159,7 +159,7 @@ func (b *crmSQLBuilder) compileRule(r *CRMSegmentRule, depth int) (string, error
 	}
 	switch r.Field {
 	case "spend", "visits", "avg_bill", "returns", "points", "days_since", "customer_days":
-		col := map[string]string{"customer_days": "(LOCALTIMESTAMP::date - public.erp_local_date(cf.created_at))"}[r.Field]
+		col := map[string]string{"customer_days": "(public.erp_today() - public.erp_local_date(cf.created_at))"}[r.Field]
 		if col == "" {
 			col = "cf." + r.Field
 		}

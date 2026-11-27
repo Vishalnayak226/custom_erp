@@ -54,7 +54,10 @@ must never overload it. This comes before every article below.
 Every change keeps the server lightweight, the codebase future-proof and the implementation solid.
 
 - **No frontend framework or build step.** `public/` stays vanilla JS, CSS and HTML, served
-  directly from disk. No bundler, no transpiler, no npm.
+  directly from disk. No bundler, no transpiler, no npm. The server changes one thing on the
+  way out: it drops comments from `.js` and `.css` files (`internal/webasset`). A script loses
+  only the lines that hold nothing but a `//` comment; they become empty lines, so line numbers
+  still match. Code is never rewritten, and the files on disk keep every comment.
 - **No new third-party dependency** (Go module or JS library) unless there is truly no reasonable
   way to do it with the standard library or what is already vendored. A few extra lines of plain
   code are better than a dependency. If a dependency is truly needed, record it as an
@@ -215,6 +218,7 @@ These are the product owner's rules for every screen, dialog and panel:
 - **Title only.** No subtitle, and no how-to text under a title.
 - **Very short text.** Summaries are a few words on one line ("CRM · Store app"), never sentences.
 - **List first.** A module opens on its list; **New** opens its own page.
+- **One page, one job.** Each function is its own page with its own sidebar entry; a module's tiles and queues sit on its Home.
 - **No number spinners**, anywhere. Number fields stay `type=number` with the spinner hidden.
 - **Fits any window size and any browser zoom.**
 
@@ -263,6 +267,7 @@ These are the product owner's rules for every screen, dialog and panel:
 | Data-changing releases confirmed | Deploy click (explicit YES) | every deploy |
 | Old records catch up through a Heal, not at deploy | the pull request template asks; the Deploy click lists every data change before its YES | every change, every deploy |
 | Build without overloading the machine (first principle) | `GOFLAGS=-p=2` in the AI sessions' settings caps Go build parallelism; the rest is checked in review | every AI session's Go command |
+| The server only drops comments from `public/` scripts and stylesheets | `go test ./internal/webasset/` (every shipped file is read to the end, and a script changes only in emptied `//` lines); `node --check` on every script in `public/` | CI, release G8 and G10 |
 
 Some rules cannot be checked by a machine, such as reusing a pattern or keeping text short.
 Those are checked in review against this file.
@@ -283,3 +288,5 @@ Those are checked in review against this file.
 | 2026-11-11 | Article 3 and Article 5: every migration now sits in `db/migrations/`, and the layout guard rejects a `.sql` file in the `db/` root. Stage-named Go files, docs and scripts were renamed to Article 4 names; the old-to-new list is in [the rename record](docs/archive/renamed-files-2026-11-11.md). Approved by the owner ("Implement all", items 103.3 and 160.1). |
 | 2026-11-13 | First principle added before Article 1: build without overloading the shared machine (one heavy job at a time, build and test only what changed, few helper agents, stop what you start). Article 10 gained its row. Approved by the owner ("this first priciple for building in the project", item 172.1). |
 | 2026-11-16 | Article 5: records made before a change catch up through a Heal (Settings › Data Healer), never at deploy. Article 10 and the pull request template gained its check. Approved by the owner ("all ok", item 207.5, ask 216). |
+| 2026-11-26 | Article 1: `public/` is still served from disk with no build step, but the server drops comments from scripts and stylesheets as it sends them, about a fifth of what a browser downloads. Article 10 gained its row. Approved by the owner ("All recommended approved", item 283.1, ask 285). |
+| 2026-11-27 | Article 7: one page, one job. Each function is its own page with its own sidebar entry, and a module's tiles and queues sit on its Home. Approved by the owner ("All recomened", item 284.4, ask 300). |

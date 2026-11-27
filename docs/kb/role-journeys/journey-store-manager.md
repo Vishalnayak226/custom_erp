@@ -52,7 +52,7 @@ the backlog before opening it. Open an order, read the hold reason, fix the
 cause, click **Release hold**. Resolved several with the same cause? Tick them
 and release them together.
 
-**3. The four tiles** at the top of OMS → Orders are live counts and each
+**3. The four tiles** on OMS → Home are live counts and each
 opens the report behind it: integration exceptions, SLA breached, allocation
 pending, reconciliation variance. *Allocation pending* is the one that usually
 means "you are out of stock and do not know it yet".

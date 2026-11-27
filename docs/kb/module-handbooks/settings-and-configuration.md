@@ -16,8 +16,8 @@ superseded_by: none
 section: Module Handbooks
 order: 95
 summary: The Settings screens an admin runs the business with - settings, number series, labels, data checks, heals after a release, hooks, API keys, the plan and system health.
-screens: [configuration, dataquality, datahealer, prefix-configs, dynamic-labels, extension-hooks, extension-hook-log, api-access, subscription, system-status]
-screen_sections: [configuration=configuration, dataquality=data-quality, datahealer=data-healer, prefix-configs=prefix-configs-document-numbers, dynamic-labels=dynamic-labels, extension-hooks=extension-hooks, extension-hook-log=extension-hooks, api-access=api-access, subscription=subscription, system-status=system-status]
+screens: [configuration, stores, dataquality, datahealer, prefix-configs, dynamic-labels, extension-hooks, extension-hook-log, api-access, subscription, system-status]
+screen_sections: [configuration=configuration, stores=stores, dataquality=data-quality, datahealer=data-healer, prefix-configs=prefix-configs-document-numbers, dynamic-labels=dynamic-labels, extension-hooks=extension-hooks, extension-hook-log=extension-hooks, api-access=api-access, subscription=subscription, system-status=system-status]
 topic_type: how-to
 module: settings
 task: Run the business settings
@@ -57,6 +57,33 @@ and approval rules have their own handbook:
 
 A setting you never changed shows its default. **Credentials** and **Data
 governance** in the same menu open their own parts of this screen.
+
+## Stores
+
+> [!WHAT]
+> Every store, warehouse and HO in one list, each on its own page. These are
+> the same Location records as Setup → Location; there is no second list.
+
+> [!WHY]
+> A purchase order is refused when its billing store has no State and its
+> legal entity has no GSTIN or State (`PURCHA-4965`). The list flags those
+> stores **No State**, so they are fixed before anyone raises a PO there.
+
+> [!USECASE]
+> A buyer's PO at a new store is refused. The admin opens **Settings →
+> Stores**, picks the **No State** view, opens the store, chooses Karnataka
+> under **Address & GST** and clicks **Save store**. The PO now saves.
+
+> [!HOW]
+
+1. Open **Settings → Stores**.
+2. Click a store's code to open its page, or **New Store** to add one.
+3. Fill in the sections. **Legal entity** is required.
+4. Click **Save store**.
+
+A red **No State** marks a store a purchase order would refuse. *From legal
+entity* means the store takes its State from its legal entity. Opened from a
+purchase order (**Edit store** or **Open store**), saving goes back to it.
 
 ## Data quality
 
@@ -186,9 +213,10 @@ The change shows the next time a screen opens.
 2. Choose the hook point and record type, enter the `https://` address and a
    timeout, and click **Register Hook**.
 3. Click **View Log** to see a hook's last 100 calls.
-4. To give a developer a short-lived token, click **Issue Token**, pick the
-   record type and minutes (at most 1440), and copy it: it is shown once.
-5. To stop a hook, click **Delete**.
+4. To stop a hook, click **Delete**.
+5. To give a developer a short-lived token, open **Settings → Customize →
+   Extension tokens**, pick the record type and minutes (at most 1440), click
+   **Issue Token** and copy it: it is shown once.
 
 ## API access
 
@@ -260,7 +288,8 @@ chosen and paid with the platform owner. Full detail:
 
 1. Open **Settings → Monitoring → System Status**.
 2. Read **Latest Deployment by Environment**.
-3. Check **Backup & Restore Drill History** for a warning badge.
+3. Open **Settings → Monitoring → Backup history** and check for a warning
+   badge. **Deployment history** lists every deployment.
 
 The screen is read-only. Rows appear only when the deploy and backup scripts
 record them, so an empty table means the scripts have not run against this

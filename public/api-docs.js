@@ -1,5 +1,6 @@
 // 205.19: the shared docs page. Opens a link a key's owner shared: no login, no secret.
-import { renderApiDocs, esc } from './api-docs-viewer.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { renderApiDocs, esc } = await import('./api-docs-viewer.js' + new URL(import.meta.url).search);
 
 const host = document.getElementById('docs-host');
 const title = document.getElementById('docs-title');

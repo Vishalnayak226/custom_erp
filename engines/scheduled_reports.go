@@ -43,7 +43,7 @@ func StartScheduledReportWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("reports")
+				schemas, err := sweepTenantSchemas("reports")
 				if err != nil {
 					log.Printf("[SCHEDULED_REPORT] Failed to list tenant schemas: %v", err)
 					continue

@@ -15,6 +15,8 @@ const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.
 const assetExtras = await import('./view-asset-extras.js' + new URL(import.meta.url).search);
 
 async function renderAssetsView(container) {
+  // 288.2: leases are their own page (assets:leases).
+  if (currentViewTab === 'leases') return assetExtras.renderLeaseSection(container);
   const res = await apiFetch('/api/v1/assets/register');
   if (!res) return;
 
@@ -32,8 +34,7 @@ async function renderAssetsView(container) {
       </div>
       <div class="form-group s-50435f">
         <label class="form-label" for="asset-category">Category</label>
-        <input type="text" id="asset-category" class="form-input s-27652d" list="asset-category-list" autocomplete="off">
-        <datalist id="asset-category-list">${[...new Set(assets.map(a => a.category).filter(Boolean))].sort().map(c => `<option value="${escapeHTMLText(c)}">`).join('')}</datalist>
+        <input type="text" id="asset-category" class="form-input s-27652d" autocomplete="off">
       </div>
       <div class="form-group s-50435f">
         <label class="form-label" for="asset-cost">Cost</label>
@@ -73,7 +74,7 @@ async function renderAssetsView(container) {
       <tbody>
   `;
   html += assets.length === 0
-    ? `<tr><td colspan="9" class="s-306094">No assets yet. Click <b>+ New Asset</b> to add your first fixed asset, then <b>Capitalise</b> it here.</td></tr>`
+    ? `<tr><td colspan="9" class="s-306094">No assets yet.</td></tr>`
     : assets.map(a => `
         <tr>
           <td class="s-355794">${escapeHTMLText(a.code || a.id)}${a.source_grn ? `<div class="s-623b5e">${escapeHTMLText(a.item_code || '')} from GRN ${escapeHTMLText(a.source_grn)}</div>` : ''}</td>
@@ -98,6 +99,7 @@ async function renderAssetsView(container) {
   container.appendChild(txnPagedSection({ id: 'asset-screen', title: 'Fixed Assets', page: 'New asset (draft)', count: assets.length,
     newLabel: 'New Asset', form: formPanel, list: listPanel, extra: runButton }));
   txnRestorePane('asset-screen');
+  attachSuggestList(formPanel.querySelector('#asset-category'), [...new Set(assets.map(a => a.category).filter(Boolean))].sort()); // 294.1
   const runBtn = document.querySelector('#asset-screen [data-asset-run-depreciation]');
   if (runBtn) runBtn.addEventListener('click', () => guardAgainstDoubleSubmit(runBtn, 'Working...', runAssetDepreciation));
   listPanel.addEventListener('click', event => {
@@ -112,7 +114,6 @@ async function renderAssetsView(container) {
     else assetExtras.runAssetExtra(button.dataset.assetAction, asset, { openPanel: openAssetActionPanel, panelError: assetActionError, reload: () => renderView('assets') });
   });
 
-  await assetExtras.renderLeaseSection(container);
   document.getElementById('asset-create-btn').addEventListener('click', createAsset);
   attachLinkTypeahead(document.getElementById('asset-location'), 'Location');
   attachLinkTypeahead(document.getElementById('asset-custodian'), 'Employee');

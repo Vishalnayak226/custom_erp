@@ -91,7 +91,7 @@ async function renderJournalVouchersView(container) {
               : vouchers.map(v => `
                 <tr>
                   <td class="s-355794">${escapeHTMLText(v.voucher_number || v.id)}</td>
-                  <td>${escapeHTMLText(v.voucher_date || '')}</td>
+                  <td class="nowrap">${escapeHTMLText(v.voucher_date || '')}</td>
                   <td>${escapeHTMLText(v.narration || '')}</td>
                   <td class="num">${jvLineCount(v)}</td>
                   <td class="num">${formatNumber(v.total_amount || 0)}</td>
@@ -164,7 +164,6 @@ async function openJournalVoucherForm() {
         <input type="text" id="jv-department" class="form-input" autocomplete="off" placeholder="Optional">
       </div>
     </div>
-    <datalist id="jv-account-options">${accounts.map(a => `<option value="${escapeHTMLText(a.code)}">${escapeHTMLText(a.code + ' · ' + a.name)}</option>`).join('')}</datalist>
     <div class="txn-grid">
       <table>
         <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th><th></th></tr></thead>
@@ -191,7 +190,7 @@ function renderJournalVoucherLines() {
   body.innerHTML = jvLines.map((l, i) => `
     <tr>
       <td>
-        <input type="text" class="form-input s-30080b" list="jv-account-options" data-jv-line="${i}" data-jv-field="account" value="${escapeHTMLText(l.account)}" placeholder="Account code or name">
+        <input type="text" class="form-input s-30080b" data-jv-line="${i}" data-jv-field="account" value="${escapeHTMLText(l.account)}" placeholder="Account code or name">
         <div class="jv-account-name s-6e0fd9">${escapeHTMLText(jvAccountLabel(l.account))}</div>
       </td>
       <td class="num"><input type="number" class="form-input num s-27652d" min="0" step="0.01" data-jv-line="${i}" data-jv-field="debit" value="${escapeHTMLText(l.debit)}"></td>
@@ -203,6 +202,8 @@ function renderJournalVoucherLines() {
       ${JV_DETAIL_FIELDS.map(([k, label]) => `<input type="text" class="form-input s-0a9e77" autocomplete="off" placeholder="${label}" aria-label="${label}" data-jv-line="${i}" data-jv-field="${k}" value="${escapeHTMLText(l[k] || '')}">`).join('')}
     </div></td></tr>`).join('');
   JV_DETAIL_FIELDS.forEach(([k, , doctype]) => { if (doctype) body.querySelectorAll(`[data-jv-field="${k}"]`).forEach(el => attachLinkTypeahead(el, doctype, { noSetupHint: true })); });
+  const accountRows = (jvAccounts || []).map(a => ({ value: a.code, label: `${a.code} · ${a.name}` }));
+  body.querySelectorAll('[data-jv-field="account"]').forEach(el => attachSuggestList(el, accountRows)); // 294.1
   body.querySelectorAll('[data-jv-more]').forEach(btn => btn.addEventListener('click', () => body.querySelector(`[data-jv-detail="${btn.dataset.jvMore}"]`).classList.toggle('hidden')));
   body.querySelectorAll('[data-jv-field]').forEach(input => input.addEventListener('input', () => {
     const line = jvLines[Number(input.dataset.jvLine)];

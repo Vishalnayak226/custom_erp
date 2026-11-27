@@ -51,7 +51,7 @@ only the mix of a look-alike alphabet with another is refused.
 | `sort` | absent (id order) or `recent` (last change first) | 422 |
 | any other name | one equality on a field the doctype declares (or its `id` / `status`); the name must match `^[a-zA-Z_][a-zA-Z0-9_]{0,63}$` | 422 (an operator suffix such as `code__gt`, a column the doctype does not have, a name that is not a name) |
 | `q`, `q_fields`, `limit`, `offset`, `count` | as documented for the list | a non-numeric `limit` / `offset` falls back to the default |
-| a repeated parameter (`?code=a&code=b`) | - | 400 `GLOBAL-0307` (49.4.4a: ambiguous) |
+| a repeated parameter (`?code=a&code=b`) | only where the envelope route names it (`repeatableParams`): today `status` on the `ReturnRequest`, `MaterialIssue`, `DeliveryChallan` and `SubcontractOrder` lists, read as any of its values, at most 20 (267.1, 267.3) | 400 `GLOBAL-0307` (49.4.4a: ambiguous); 422 above 20 values |
 
 Values are always bound as parameters; a field name reaches SQL only after
 the allowlist above. `TestStage4946ListSortAndFilterAllowlist` pins each row.

@@ -356,7 +356,11 @@ func SetModuleEntitlement(tenantID string, moduleKey string, enabled bool, grant
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	forgetSweepView() // 283.2: background workers see the switch on their next tick
+	return nil
 }
 
 // ListModuleEntitlements returns the full module catalog joined with this

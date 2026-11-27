@@ -44,6 +44,79 @@ func TestPayrollFieldsAreSuperAdminOnly(t *testing.T) {
 	}
 }
 
+// 278.2 (ask 279, owner's answer (a)): the role that runs payroll keys and
+// reads what it pays - HR Manager, whose template holds hr.payroll - while
+// the company's and vendors' bank accounts stay Super Admin only, and the
+// payroll reconciliation's totals open to it too.
+func TestPayrollFieldsOpenToPayrollHolders(t *testing.T) {
+	const hr = "HR Manager"
+	if !RoleHasCapability(hr, SensitiveCategoryPayroll) {
+		t.Fatalf("%s's template no longer holds %s", hr, SensitiveCategoryPayroll)
+	}
+	for _, doctype := range SensitiveFieldDoctypes() {
+		for field, rule := range sensitiveFields[doctype] {
+			if rule.Category != SensitiveCategoryPayroll {
+				continue
+			}
+			if perm, restricted := sensitiveFieldPolicy(hr, doctype)[field]; restricted {
+				t.Errorf("%s.%s: %s got read=%v write=%v, want both", doctype, field, hr, perm.AllowRead, perm.AllowWrite)
+			}
+			for _, role := range []string{RoleCashier, RoleStoreManager, "Accountant", "Auditor", "Employee Self-Service"} {
+				if perm, restricted := sensitiveFieldPolicy(role, doctype)[field]; !restricted || perm.AllowRead || perm.AllowWrite {
+					t.Errorf("%s.%s: %s may use it (restricted=%v %+v)", doctype, field, role, restricted, perm)
+				}
+			}
+		}
+	}
+	for _, c := range []struct{ doctype, field string }{
+		{"BankAccount", "account_number"}, {"BankAccount", "ifsc_code"},
+		{"Vendor", "bank_account_number"}, {"Vendor", "bank_ifsc"},
+	} {
+		if perm, restricted := sensitiveFieldPolicy(hr, c.doctype)[c.field]; !restricted || perm.AllowRead || perm.AllowWrite {
+			t.Errorf("%s.%s: %s may use a company or vendor bank field (%+v)", c.doctype, c.field, hr, perm)
+		}
+	}
+	for _, row := range ExplainSensitiveFields(hr, "SalaryStructure") {
+		if !row.CanRead || !row.CanWrite {
+			t.Errorf("SalaryStructure.%s: %s explained as read=%v write=%v", row.Field, hr, row.CanRead, row.CanWrite)
+		}
+	}
+	def, ok := reportRegistry["payroll-reconciliation"]
+	if !ok {
+		t.Fatal("payroll-reconciliation report is not registered")
+	}
+	for _, c := range def.Columns {
+		if !c.Sensitive {
+			continue
+		}
+		if reportColumnMasked(c, hr) {
+			t.Errorf("payroll reconciliation's %s is masked for %s", c.Key, hr)
+		}
+		if !reportColumnMasked(c, RoleCashier) || !reportColumnMasked(c, "Accountant") {
+			t.Errorf("payroll reconciliation's %s is shown to Cashier or Accountant", c.Key)
+		}
+	}
+
+	// Through the write and read choke points, against the live tenant schema.
+	db.InitDB(testConnStr())
+	if err := RejectRestrictedFieldWrites("default", hr, "SalaryStructure", map[string]interface{}{"basic": 30000, "hra": 12000}); err != nil {
+		t.Errorf("%s cannot key a salary structure: %v", hr, err)
+	}
+	if err := RejectRestrictedFieldWrites("default", hr, "Employee", map[string]interface{}{"bank_account_no": "1234567890", "bank_ifsc": "HDFC0000001"}); err != nil {
+		t.Errorf("%s cannot key an employee's salary account: %v", hr, err)
+	}
+	if err := RejectRestrictedFieldWrites("default", hr, "Vendor", map[string]interface{}{"bank_ifsc": "HDFC0000001"}); err == nil {
+		t.Errorf("%s may change a vendor's bank account", hr)
+	}
+	filtered, err := FilterFieldsForRole("default", hr, "Payslip", map[string]interface{}{"code": "PS-HR", "net_pay": 42000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered["net_pay"] == nil {
+		t.Errorf("%s does not get Payslip.net_pay back", hr)
+	}
+}
+
 func TestBankAndSecretFieldsAreNotReadableBelowSuperAdmin(t *testing.T) {
 	cases := []struct{ doctype, field string }{
 		{"BankAccount", "account_number"},

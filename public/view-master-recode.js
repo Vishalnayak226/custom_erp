@@ -37,10 +37,19 @@ export async function renderMasterRecodePanel(host, doctype, label) {
 
   const panel = document.createElement('div');
   panel.className = 'table-panel master-recode';
-  panel.style.cssText = 'padding: 16px 20px; margin-bottom: 16px;';
   host.appendChild(panel);
 
+  // 276.11: first a one-line notice, so the list stays in view; Renumber
+  // opens the card below.
+  const notice = () => {
+    const n = plan.rows.length;
+    panel.style.cssText = 'padding: 6px 16px; margin-bottom: 12px;';
+    panel.innerHTML = `<div>${n} ${esc(label)} record${n === 1 ? '' : 's'} on an old code · <button type="button" class="btn btn-ghost btn-sm" data-mr-open>Renumber</button></div>`;
+    panel.querySelector('[data-mr-open]').addEventListener('click', paint);
+  };
+
   const paint = () => {
+    panel.style.cssText = 'padding: 16px 20px; margin-bottom: 16px;';
     const n = plan.rows.length;
     const backup = plan.backup || { ok: true };
     const lengths = [3, 4, 5, 6, 7, 8].map(d => `<option value="${d}" ${d === plan.length ? 'selected' : ''}>${d}</option>`).join('');
@@ -111,5 +120,5 @@ export async function renderMasterRecodePanel(host, doctype, label) {
       renderView('doctype-table');
     }));
   };
-  paint();
+  notice();
 }

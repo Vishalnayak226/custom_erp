@@ -92,6 +92,13 @@ button { cursor: pointer; }
 .signin h1 { text-align: center; font-size: 24px; margin: 0 0 24px; }
 .field { display: block; margin-bottom: 14px; }
 .field span { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+.name-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px; }
+.name-chip {
+  max-width: 100%; min-height: 36px; padding: 4px 14px;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--panel); color: var(--text);
+  font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.name-chip:active { background: var(--primary-soft); }
 .input, .textarea {
   width: 100%; min-height: 48px; padding: 10px 12px;
   border: 1px solid var(--border); border-radius: 10px; background: var(--panel);

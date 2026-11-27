@@ -58,27 +58,42 @@ func omsQueueRow(queue, orderID, refDoctype, refID, reason, nextAction string, s
 
 // omsQueueRowCap bounds each query behind a queue (134.6, 47.10.1): a queue
 // of more than this is a backlog to work from the top, not a page to load.
+// 267.3: each query orders by its since column before the cap, so the rows
+// kept are the oldest - the top of the backlog - not whichever the scan met.
 const omsQueueRowCap = 1000
 
 // OMSExceptionQueue returns one queue's rows, oldest first.
 func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error) {
+	rows, _, err := OMSExceptionQueueCapped(tenantID, queue)
+	return rows, err
+}
+
+// OMSExceptionQueueCapped is OMSExceptionQueue that also says whether a query
+// behind the queue reached omsQueueRowCap - the queue holds more than shown.
+func OMSExceptionQueueCapped(tenantID, queue string) ([]map[string]interface{}, bool, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var out []map[string]interface{}
+	capped := false
 	scan := func(query string, build func(scan func(...interface{}) error) (map[string]interface{}, error)) error {
-		rows, err := db.DB.Query(fmt.Sprintf("%s LIMIT %d", query, omsQueueRowCap))
+		rows, err := db.DB.Query(fmt.Sprintf("%s ORDER BY since LIMIT %d", query, omsQueueRowCap))
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
+		n := 0
 		for rows.Next() {
 			row, err := build(rows.Scan)
 			if err != nil {
 				return err
 			}
 			out = append(out, row)
+			n++
+		}
+		if n >= omsQueueRowCap {
+			capped = true
 		}
 		return rows.Err()
 	}
@@ -86,7 +101,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 	switch queue {
 	case "payment":
 		err = scan(fmt.Sprintf(`
-			SELECT id, COALESCE(data->>'payment_status',''), COALESCE(data->>'hold_reason',''), status, updated_at AT TIME ZONE current_setting('TimeZone')
+			SELECT id, COALESCE(data->>'payment_status',''), COALESCE(data->>'hold_reason',''), status, updated_at AT TIME ZONE current_setting('TimeZone') AS since
 			FROM %s.documents
 			WHERE doctype = 'SalesOrder' AND deleted_at IS NULL AND status IN %s
 			  AND (COALESCE(data->>'payment_status','') NOT IN ('Confirmed','Paid','Prepaid') OR data->>'hold_reason' = '%s')
@@ -106,7 +121,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 			})
 	case "carrier":
 		err = scan(fmt.Sprintf(`
-			SELECT t.id, COALESCE(t.data->>'order_id',''), t.updated_at AT TIME ZONE current_setting('TimeZone')
+			SELECT t.id, COALESCE(t.data->>'order_id',''), t.updated_at AT TIME ZONE current_setting('TimeZone') AS since
 			FROM %[1]s.documents t
 			WHERE t.doctype = 'FulfillmentTask' AND t.deleted_at IS NULL AND t.status = 'Packed'
 			  AND t.updated_at < CURRENT_TIMESTAMP - INTERVAL '%[2]d hours'
@@ -123,7 +138,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 			})
 		if err == nil {
 			err = scan(fmt.Sprintf(`
-				SELECT id, COALESCE(data->>'order_id',''), status, COALESCE(data->>'tracking_number',''), updated_at AT TIME ZONE current_setting('TimeZone')
+				SELECT id, COALESCE(data->>'order_id',''), status, COALESCE(data->>'tracking_number',''), updated_at AT TIME ZONE current_setting('TimeZone') AS since
 				FROM %s.documents
 				WHERE doctype = 'LogisticsBooking' AND deleted_at IS NULL AND status IN %s
 				  AND updated_at < CURRENT_TIMESTAMP - INTERVAL '%d hours'`, schema, omsLiveBookingStatusSQL, omsCarrierStalledHours),
@@ -143,7 +158,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 		}
 		if err == nil {
 			err = scan(fmt.Sprintf(`
-				SELECT b.id, COALESCE(b.data->>'order_id',''), b.updated_at AT TIME ZONE current_setting('TimeZone')
+				SELECT b.id, COALESCE(b.data->>'order_id',''), b.updated_at AT TIME ZONE current_setting('TimeZone') AS since
 				FROM %[1]s.documents b
 				WHERE b.doctype = 'LogisticsBooking' AND b.deleted_at IS NULL AND b.status = 'RTO'
 				  AND NOT EXISTS (SELECT 1 FROM %[1]s.documents r WHERE r.doctype = 'ReturnRequest' AND r.deleted_at IS NULL
@@ -160,7 +175,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 		}
 	case "return":
 		err = scan(fmt.Sprintf(`
-			SELECT r.id, `+omsReturnOrderExpr(schema, "r")+`, r.status, COALESCE(r.data->>'request_type',''), r.updated_at AT TIME ZONE current_setting('TimeZone')
+			SELECT r.id, `+omsReturnOrderExpr(schema, "r")+`, r.status, COALESCE(r.data->>'request_type',''), r.updated_at AT TIME ZONE current_setting('TimeZone') AS since
 			FROM %s.documents r
 			WHERE doctype = 'ReturnRequest' AND deleted_at IS NULL AND status IN %s
 			  AND updated_at < CURRENT_TIMESTAMP - INTERVAL '%d hours'`, schema, omsOpenReturnStatusesSQL, omsReturnStaleHours),
@@ -179,7 +194,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 			})
 		if err == nil {
 			err = scan(fmt.Sprintf(`
-				SELECT r.id, `+omsReturnOrderExpr(schema, "r")+`, r.status, r.updated_at AT TIME ZONE current_setting('TimeZone')
+				SELECT r.id, `+omsReturnOrderExpr(schema, "r")+`, r.status, r.updated_at AT TIME ZONE current_setting('TimeZone') AS since
 				FROM %s.documents r
 				WHERE doctype = 'RefundRequest' AND deleted_at IS NULL AND status IN ('Pending','Approved')
 				  AND updated_at < CURRENT_TIMESTAMP - INTERVAL '%d hours'`, schema, omsRefundStaleHours),
@@ -198,7 +213,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 		}
 	case "settlement":
 		err = scan(fmt.Sprintf(`
-			SELECT id, COALESCE(data->>'order_id',''), data->>'match_status', COALESCE((data->>'variance_amount')::numeric, 0), updated_at AT TIME ZONE current_setting('TimeZone')
+			SELECT id, COALESCE(data->>'order_id',''), data->>'match_status', COALESCE((data->>'variance_amount')::numeric, 0), updated_at AT TIME ZONE current_setting('TimeZone') AS since
 			FROM %s.documents
 			WHERE doctype = 'MarketplaceSettlementLine' AND deleted_at IS NULL AND data->>'match_status' IN ('Variance','Disputed')`, schema),
 			func(s func(...interface{}) error) (map[string]interface{}, error) {
@@ -232,7 +247,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 		}
 	case "channel":
 		err = scan(fmt.Sprintf(`
-			SELECT id, COALESCE(data->>'channel_change_pending', ''), COALESCE(data->>'channel', ''), updated_at AT TIME ZONE current_setting('TimeZone')
+			SELECT id, COALESCE(data->>'channel_change_pending', ''), COALESCE(data->>'channel', ''), updated_at AT TIME ZONE current_setting('TimeZone') AS since
 			FROM %s.documents
 			WHERE doctype = 'SalesOrder' AND deleted_at IS NULL AND COALESCE(data->>'channel_change_pending', '') <> ''`, schema),
 			func(s func(...interface{}) error) (map[string]interface{}, error) {
@@ -245,10 +260,10 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 					"Make the change on the order (or return it once shipped), then mark it done", since), nil
 			})
 	default:
-		return nil, &ValidationError{Code: "ORDERM-0464", SubFor: "queue", Message: fmt.Sprintf("unknown OMS queue %q", queue)}
+		return nil, false, &ValidationError{Code: "ORDERM-0464", SubFor: "queue", Message: fmt.Sprintf("unknown OMS queue %q", queue)}
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if out == nil {
 		out = []map[string]interface{}{}
@@ -256,7 +271,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i]["since"].(time.Time).Before(out[j]["since"].(time.Time))
 	})
-	return out, nil
+	return out, capped, nil
 }
 
 // OMSExceptionQueueCounts returns every queue with its row count. One queue
@@ -266,13 +281,13 @@ func OMSExceptionQueueCounts(tenantID string) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(OMSExceptionQueueDefs))
 	for _, def := range OMSExceptionQueueDefs {
 		entry := map[string]interface{}{"id": def.ID, "label": def.Label, "hint": def.Hint}
-		rows, err := OMSExceptionQueue(tenantID, def.ID)
+		rows, capped, err := OMSExceptionQueueCapped(tenantID, def.ID)
 		if err != nil {
 			entry["error"] = err.Error()
 			entry["count"] = 0
 		} else {
 			entry["count"] = len(rows)
-			entry["more"] = len(rows) >= omsQueueRowCap // the count stops at the cap
+			entry["more"] = capped // a query stopped at the cap: there are more
 		}
 		out = append(out, entry)
 	}

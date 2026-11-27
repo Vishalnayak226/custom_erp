@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 145 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 174 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -34,11 +34,11 @@ BLD-002: the 145 open checklist items reconciled into the business journeys they
 | JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 7 | 0 | 0 |
 | JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 37 | 2 | 34 |
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 5 | 0 | 5 |
-| Cross-journey acceptance and audits | - | - | 39 | 2 | 28 |
+| Cross-journey acceptance and audits | - | - | 38 | 1 | 28 |
 | Engineering housekeeping | - | - | 1 | 0 | 1 |
-| Unmapped - place these stages | - | - | 36 | 4 | 13 |
+| Unmapped - place these stages | - | - | 66 | 9 | 16 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (2), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 249 (1), Stage 251 (3), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (4), Stage 265 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (1), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 251 (1), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (3), Stage 265 (1), Stage 267 (4), Stage 269 (1), Stage 275 (2), Stage 276 (2), Stage 277 (1), Stage 285 (1), Stage 286 (3), Stage 288 (1), Stage 289 (3), Stage 290 (1), Stage 292 (4), Stage 295 (2), Stage 297 (9), Stage 308 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -164,7 +164,6 @@ BLD-002: the 145 open checklist items reconciled into the business journeys they
 - **50.19** Scoped release and customer handoff *(blocked)*
 - **134.11** Railway staging *(blocked)*
 - **50.15** Recovery, operations, privacy and security acceptance *(blocked)*
-- **50.11** Verification that can support a release *(decision)*
 - **74.U.1** Carry the BRD's §10 cases into the UAT run sheet as each module ships: *(blocked)*
 - **74.U.2** Add E2E-01..16 to 47.17.1's reference journeys and `docs/operations/uat_run_sheet.md`:
 - **47.17** Reference-journey assurance and release evidence pack *(blocked)*
@@ -185,10 +184,16 @@ BLD-002: the 145 open checklist items reconciled into the business journeys they
 ## Unmapped
 
 - **146.5.12** Typed product relationships *(blocked)*
+- **276.11** Vendors: renumber card pushes the list below the fold
 - **146.3.9** Weighing scale at pack *(blocked)*
-- **264.4** Settle / Pay on a foreign-currency invoice cannot say when the money moved or at what rate
 - **176.7** Finite capacity scheduling *(blocked)*
+- **297.8** The report catalog on a slow line *(decision)*
 - **143.6** Barcode print sorted: select the GRN and print *(blocked)*
+- **286.1** Premium print on the LD0801: darker, crisper strokes
+- **286.2** Seznik vertical × 3: one clean grid
+- **286.3** The saved Seznik templates take the new layout
+- **289.1** World-class text style in Sticker Studio
+- **267.5** Device and provider acceptance round *(blocked)*
 - **154.2** Fix: roll held straight, then Printer preset on Jewellery *(blocked)*
 - **154.5** Printer preset: Turn (°) - straighten a print that comes out tilted on the tag *(blocked)*
 - **184.1** A new sticker printer works without knowing its language *(blocked)*
@@ -196,27 +201,51 @@ BLD-002: the 145 open checklist items reconciled into the business journeys they
 - **203.1** Print asks once to install PrintBridge
 - **203.6** Code-signing certificate, so Windows does not warn at the first download
 - **212.1** "Did not print" in seconds when PrintBridge is down
-- **249.1** A print to an unplugged printer says "printed", then comes out later
-- **251.1** Fix alignment from a photo
 - **251.2** The first print on a printer asks how it came out
-- **251.3** Crack the owner's LD0801 with it
+- **269.1** LD0801: a blank line across the print
+- **275.2** Fix from photo: a greyed-out button says why
+- **275.3** 😀 says where it kept the answer
 - **255.1** Fix from photo: the photo stays in its box and the result is never off screen
 - **258.5** PrintBridge and QZ Tray on one computer
+- **289.2** Printer handover check: the studio and the LD0801 ready for the client
+- **289.3** Release, then close the LD0801 round
 - **213.1** Change the print for this one document before it prints
 - **213.5** One switch maps the rest *(decision)*
 - **146.5.1** Shopify gets the approved PIM content *(blocked)*
 - **146.4.1** A real Unicommerce integration *(blocked)*
 - **146.5.2** Marketplace templates from their own file, per category, with validation *(blocked)*
 - **185.3** Razorpay payment links *(blocked)*
+- **297.2** Imports of any size, in the background
+- **297.2.1** Resumable upload
+- **297.2.2** Streaming stage job
+- **297.2.3** Validate, preview, commit and reconcile at scale
+- **297.2.4** Browser upload with resume
+- **297.2.5** The 1-crore proof
+- **277.1** Data Healer: the Item column is not read as items
 - **162.17** MFA tiers: when to require? *(decision)*
-- **162.16** Cross-origin write check: when to enforce? *(decision)*
+- **267.7** Keep speed while the 267 items land
+- **297.4** Every transaction stays fast at 1 crore rows *(decision)*
+- **297.5** 1 lakh users *(decision)*
+- **288.3** Three screens whose split needs your call *(decision)*
+- **276.20** Look-and-feel direction ("aesthetic and futuristic") *(decision)*
 - **177.3** Deploy waits for the GitHub run *(blocked)*
 - **177.5** The click's own gates must take about a minute *(blocked)*
 - **234.6** G4 does not bump `theme-boot.js?v=`
 - **264.3** G7 stops on what ci.yml's `doclint -strict` stops on
+- **285.2** G8 runs `node --check` on every script in `public/`
 - **265.8** G13 tries a refused push three times
+- **308.1** Release and deploy once every session is done
+- **267.6** One evidence pack for what runs where *(blocked)*
+- **290.2** Point-in-time recovery: archive the write-ahead log *(blocked)*
+- **292.2** Last task: tidy every folder and the root *(decision)*
+- **292.3** Last task: code hygiene
+- **292.4** Three check rounds, then close
 - **254.1** Guide presses Sign In itself when Edge filled the saved login
 - **214.1** Guide `journey`: the whole store journey, watched and recorded at human speed
+- **295.1** Guide `journey` on app, PO to bill only, watched and recorded
+- **295.2** Hide Guide's badge on a walk
 - **143.3** The same file on minn *(decision)*
+- **267.4** One organisation cycle through the screens, by real roles
 - **264.1** Twelve KB pages past their review date turn ci.yml red
+- **292.1** Last task: streamline all documentation
 - **264.2** `ai_handover.md` is over its 150-line budget again

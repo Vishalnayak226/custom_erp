@@ -228,6 +228,89 @@ export function txnPagedSection({ id, title, page, count, newLabel, form, list, 
   return section;
 }
 
+// 267.3: a transaction screen's list, paged on the server - the Returns
+// pattern (267.1) shared. The view's filters, the search and the page go to
+// the server, so a record past the first page is found and the count is the
+// whole result, not one page. A view the browser must narrow further (a due
+// date inside the lines) reads its whole open set instead, up to
+// TXN_LIST_WHOLE, and says so when there is more.
+export const TXN_LIST_PAGE = 50;
+export const TXN_LIST_WHOLE = 500;
+
+// txnListState is one list's view, search and page. The view module keeps
+// it, so they outlast the re-render an action or a page step does.
+export function txnListState(view = 'all') { return { view, q: '', offset: 0 }; }
+
+// txnLoadList reads one page of doctype, newest first; whole reads the whole
+// set instead. filters are the view's server filters ({ status: [...] }); an
+// array matches any of its values. A failed load comes back as { error } -
+// never as an empty list.
+export async function txnLoadList(doctype, state, { filters = {}, whole = false } = {}) {
+  if (whole) state.offset = 0;
+  const params = new URLSearchParams({ sort: 'recent', limit: String(whole ? TXN_LIST_WHOLE : TXN_LIST_PAGE), offset: String(state.offset), count: 'true' });
+  Object.entries(filters).forEach(([k, v]) => [].concat(v).forEach(x => params.append(k, x)));
+  if (state.q) params.set('q', state.q);
+  const res = await window.apiFetch(`/api/v1/doc/${doctype}?${params}`);
+  if (!res || !res.ok) return { error: res ? await window.getErrorMessage(res, 'The list could not be loaded.') : 'The list could not be loaded.' };
+  const docs = await res.json();
+  // A step that closed the last row of a later page steps back a page.
+  if (!docs.length && state.offset > 0) {
+    state.offset = Math.max(0, state.offset - TXN_LIST_PAGE);
+    return txnLoadList(doctype, state, { filters, whole });
+  }
+  const counted = Number(res.headers.get('X-Total-Count'));
+  return { docs, whole, total: res.headers.has('X-Total-Count') && Number.isFinite(counted) ? counted : state.offset + docs.length,
+    estimated: res.headers.get('X-Total-Count-Estimated') === 'true' };
+}
+
+// txnListCount is the title's count: the whole result's, "about" one past
+// the counting limit, or - for a view the browser narrowed - the rows shown.
+export function txnListCount(page, shown) {
+  if (page.whole) return page.total > page.docs.length ? `${shown}+` : shown;
+  return page.estimated ? `about ${Number(page.total.toPrecision(2)).toLocaleString()}` : page.total;
+}
+
+// txnListBar is the row above a list: the view choice (views: [[key,
+// label], ...] or none), the search and the pager.
+export function txnListBar(state, page, views, placeholder = 'Search') {
+  const to = state.offset + page.docs.length;
+  const range = page.whole
+    ? (page.total > page.docs.length ? `Newest ${page.docs.length} of ${page.total} · search narrows` : '')
+    : (page.docs.length ? `${state.offset + 1}-${to} of ${txnListCount(page)}` : '');
+  const more = page.estimated ? page.docs.length === TXN_LIST_PAGE : to < page.total;
+  return `<div class="txn-list-bar">
+    ${views ? `<select class="form-select" data-txl-view aria-label="Show">${views.map(([k, l]) => `<option value="${esc(k)}"${k === state.view ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
+    <input type="search" class="form-input" data-txl-q value="${esc(state.q)}" placeholder="${esc(placeholder)}" aria-label="Search" autocomplete="off">
+    <span class="txn-list-range">${esc(range)}</span>
+    ${page.whole || (state.offset === 0 && !more) ? '' : `<span class="txn-list-pager"><button type="button" class="btn btn-outline btn-sm" data-txl-prev${state.offset === 0 ? ' disabled' : ''}>Previous</button><button type="button" class="btn btn-outline btn-sm" data-txl-next${more ? '' : ' disabled'}>Next</button></span>`}
+  </div>`;
+}
+
+// txnWireListBar makes the bar work. rerender draws the screen again; the
+// search applies on Enter (or its clear button) and keeps the cursor.
+export function txnWireListBar(list, state, rerender) {
+  list.querySelector('[data-txl-view]')?.addEventListener('change', e => { state.view = e.target.value; state.offset = 0; rerender(); });
+  const q = list.querySelector('[data-txl-q]');
+  if (q) {
+    const apply = () => {
+      if (q.value.trim() === state.q) return;
+      state.q = q.value.trim();
+      state.offset = 0;
+      state.refocus = true;
+      rerender();
+    };
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+    q.addEventListener('search', apply);
+    if (state.refocus) {
+      state.refocus = false;
+      q.focus();
+      q.setSelectionRange(q.value.length, q.value.length);
+    }
+  }
+  list.querySelector('[data-txl-prev]')?.addEventListener('click', () => { state.offset = Math.max(0, state.offset - TXN_LIST_PAGE); rerender(); });
+  list.querySelector('[data-txl-next]')?.addEventListener('click', () => { state.offset += TXN_LIST_PAGE; rerender(); });
+}
+
 // A view importing this module gets its stylesheet too, though its registry
 // entry may name none (HR, Expenses...); awaited, so it never paints unstyled.
 if (!document.querySelector('link[href*="txn-screen.css"]')) {

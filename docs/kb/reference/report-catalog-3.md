@@ -21,7 +21,7 @@ screens: [reports]
 # Report catalog (part 3)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **104** reports, from
+every category and explains how to run a report. It holds **105** reports, from
 Procurement to Stock Transfer.
 
 ## Contents
@@ -29,7 +29,7 @@ Procurement to Stock Transfer.
 - [Procurement](#procurement) - 27 reports
 - [Procurement & GRN](#procurement-grn) - 27 reports
 - [Quality](#quality) - 4 reports
-- [Sales](#sales) - 14 reports
+- [Sales](#sales) - 15 reports
 - [Sales & POS](#sales-pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
@@ -942,6 +942,19 @@ Procurement to Stock Transfer.
 - **To** (`to`) - date, optional
 
 **Columns:** Salesman · Bills · Sales
+
+**Drill-down:** no.
+
+### R1035 Sold below cost
+
+**Report id:** `sold-below-cost`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Bill · Store · Cashier · Item · Qty · Sold at (ex GST) · Cost *(sensitive)* · Loss *(sensitive)* · Cleared by
 
 **Drill-down:** no.
 

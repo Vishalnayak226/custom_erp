@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"custom_erp/internal/webasset"
+
 	_ "github.com/lib/pq"
 )
 
@@ -218,12 +220,21 @@ func setLimit(report *Report, name string, value, limit int64, note string) {
 	report.Metrics[name] = Metric{Value: value, Unit: "bytes", Limit: &limit, Status: status, Note: note}
 }
 
+// sumGzipFiles measures what the browser is sent: scripts and stylesheets
+// after the server drops their comments (item 283.1), the same
+// webasset.Strip the file server runs. A file Strip refuses is served, and so
+// measured, as it is on disk.
 func sumGzipFiles(root string, paths []string) (int64, error) {
 	var total int64
 	for _, relative := range paths {
 		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
 		if err != nil {
 			return 0, fmt.Errorf("read startup asset %s: %w", relative, err)
+		}
+		if webasset.Strippable(relative) {
+			if served, err := webasset.Strip(relative, body); err == nil {
+				body = served
+			}
 		}
 		var compressed bytes.Buffer
 		writer, err := gzip.NewWriterLevel(&compressed, gzip.BestCompression)

@@ -412,12 +412,12 @@ func StartPublishQueueWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("pim")
+				schemas, err := sweepTenantSchemas("pim")
 				if err != nil {
 					log.Printf("[PIM-PUBLISH] Failed to list tenant schemas: %v", err)
 					continue
 				}
-				for _, schema := range schemas {
+				for _, schema := range dueSchemas(schemas, "pim_publish_queue", publishQueueDueWhere) {
 					processPublishQueue(schema)
 				}
 			}
@@ -425,10 +425,14 @@ func StartPublishQueueWorker(ctx context.Context, interval time.Duration) {
 	}()
 }
 
+// publishQueueDueWhere is the rows a tick publishes; dueSchemas asks every
+// client the same question first (283.2).
+const publishQueueDueWhere = `status = 'Queued'`
+
 func processPublishQueue(schema string) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT job_id, item_code, channel_code FROM %s.pim_publish_queue
-		WHERE status = 'Queued' ORDER BY created_at LIMIT 10`, schema))
+		WHERE `+publishQueueDueWhere+` ORDER BY created_at LIMIT 10`, schema))
 	if err != nil {
 		return
 	}

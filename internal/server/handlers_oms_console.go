@@ -188,10 +188,11 @@ func handleOMSExceptionQueues(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"queues": engines.OMSExceptionQueueCounts(tenantID)})
 		return
 	}
-	rows, err := engines.OMSExceptionQueue(tenantID, queue)
+	rows, capped, err := engines.OMSExceptionQueueCapped(tenantID, queue)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"queue": queue, "rows": rows, "count": len(rows)})
+	// 267.3: more says the rows are the oldest of a longer queue.
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"queue": queue, "rows": rows, "count": len(rows), "more": capped})
 }

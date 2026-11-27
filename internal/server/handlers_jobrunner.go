@@ -4,6 +4,7 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 // Stage 38.6 - the async job runner's visibility/control surface. No extra
@@ -49,4 +50,39 @@ func handleCancelJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "cancelled"})
+}
+
+// 297.3: the signed-in user's own long tasks, for the top bar's tasks list.
+// A tab calls this every few seconds only while a task of its own runs.
+func handleMyTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := engines.ListMyTasks(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"tasks": tasks})
+}
+
+// handleCancelMyTask stops one of the caller's own tasks: a queued or running
+// job they started, or a report export (cancelled while queued, revoked
+// once run). Anyone else's task answers not found.
+func handleCancelMyTask(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID")
+	kind, id, _ := strings.Cut(r.PathValue("id"), ":")
+	var err error
+	status := "cancelled"
+	switch kind {
+	case "job":
+		err = engines.CancelMyJob(tenantID, userID, id)
+	case "export":
+		status, err = engines.CancelReportExportJob(tenantID, id, userID, "")
+		status = strings.ToLower(status)
+	default:
+		err = engines.ErrMyTaskNotFound
+	}
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
 }

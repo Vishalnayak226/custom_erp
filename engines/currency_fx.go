@@ -241,6 +241,11 @@ func resolveSettlementFX(tenantID string, position DocumentFXPosition, receivabl
 	}
 
 	switch {
+	case opts.ExchangeRate < 0 || math.IsNaN(opts.ExchangeRate) || math.IsInf(opts.ExchangeRate, 0):
+		// 264.4: a bank rate below zero was read as "none given" and the table
+		// rate posted in its place; it is refused instead, like a zero table rate.
+		return settlement, &ValidationError{Code: "FIN-0021", SubFor: "Exchange Rate",
+			Message: "settlement exchange rate must be a finite number greater than zero"}
 	case opts.ExchangeRate > 0:
 		settlement.SettlementRate = opts.ExchangeRate
 		settlement.RateSource = "Operator"

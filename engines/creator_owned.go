@@ -29,3 +29,28 @@ func CreatorMayAccess(doctype, role, userID, createdBy string) bool {
 	}
 	return userID != "" && createdBy == userID
 }
+
+// ReportColumnProfileDoctype is a saved column layout: a report's (Stage 28.3)
+// or a list's (276.2, report_id "list:<list>"). Scope Personal is one user's
+// own choice (owner = username); Universal is the default for everyone.
+const ReportColumnProfileDoctype = "ReportColumnProfile"
+
+// ColumnProfileManager reports whether role sets the default for everyone
+// and may change anyone's column layout: a full-access role or a Store Manager.
+func ColumnProfileManager(role string) bool {
+	return HasFullAccess(role) || role == RoleStoreManager
+}
+
+// ColumnProfileWriteAllowed (276.2) reports whether role, signed in as
+// username, may save or delete this column profile - checked on the stored
+// record and again on the record as sent. Every role keeps its own column
+// choices (RoleMayOnDoctype), so a role that does not manage them writes only
+// a Personal profile that is its own.
+func ColumnProfileWriteAllowed(role, username string, record map[string]interface{}) bool {
+	if ColumnProfileManager(role) || record == nil {
+		return true
+	}
+	scope, _ := record["scope"].(string)
+	owner, _ := record["owner"].(string)
+	return username != "" && scope != "Universal" && owner == username
+}

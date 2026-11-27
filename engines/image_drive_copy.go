@@ -153,7 +153,8 @@ func StartImageDriveCopy(tenantID, userID string) (string, error) {
 
 func runImageDriveCopyJob(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
 	tenantID, _ := job.Payload["tenant_id"].(string)
-	res, err := copyPhotosToImageDrive(ctx, tenantID, func(pct int) { _ = UpdateJobProgress(schema, job.ID, pct) })
+	// 297.3: rows done and the total, so the Tasks bar shows the time left.
+	res, err := copyPhotosToImageDrive(ctx, tenantID, func(done, total int) { _ = ReportJobProgress(schema, job.ID, int64(done), int64(total)) })
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +169,7 @@ type imageDriveCopyResult struct {
 // copyPhotosToImageDrive does the work of one run. A photo's own failure is
 // recorded and the run goes on; only a failure of the run itself (no drive,
 // the database) returns an error, and a retry resumes where it stopped.
-func copyPhotosToImageDrive(ctx context.Context, tenantID string, progress func(int)) (imageDriveCopyResult, error) {
+func copyPhotosToImageDrive(ctx context.Context, tenantID string, progress func(done, total int)) (imageDriveCopyResult, error) {
 	var res imageDriveCopyResult
 	drive, err := activeImageDrive(tenantID)
 	if err != nil {
@@ -212,7 +213,7 @@ func copyPhotosToImageDrive(ctx context.Context, tenantID string, progress func(
 			}
 		}
 		if progress != nil {
-			progress((i + 1) * 100 / len(ids))
+			progress(i+1, len(ids))
 		}
 	}
 	return res, nil

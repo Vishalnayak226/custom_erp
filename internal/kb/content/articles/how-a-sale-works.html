@@ -1,0 +1,42 @@
+<h1 id="how-a-sale-works">How a sale works <a class="kb-anchor" href="#how-a-sale-works" aria-label="Copy link to this section">#</a></h1>
+<p>One sale at the till, from opening the till to closing the day. Click <strong>Next</strong> or press the arrow keys. The lit box is where the step happens.</p>
+<pre><code class="language-steps">diagram: TILL=Till session, BILL=The bill, PAID=Payment, STOCK=Stock, BOOKS=The books, CLOSE=Day close
+links: TILL&gt;BILL, BILL&gt;PAID, PAID&gt;STOCK, PAID&gt;BOOKS, BOOKS&gt;CLOSE
+
+## Open the till
+The cashier opens a session on POS › POS / Billing and enters the cash in the drawer.
+Every bill rung up belongs to that session; with none open, billing is refused.
+Tip: One till has one cashier at a time.
+show: TILL
+
+## Ring up the bill
+Scan each item into the cart and look up the customer for loyalty points; offers apply by themselves.
+A cart changes neither stock nor the books.
+Tip: A code, a barcode or the internal id all find the same item.
+show: TILL&gt;BILL, BILL
+
+## Take payment
+Cash, card or UPI, and loyalty points can pay part of it.
+Complete Sale is one transaction: the next two steps happen together, or not at all.
+Tip: With the network down, a sale can queue on the till; it goes through once the network is back, and never twice.
+show: BILL&gt;PAID, PAID
+
+## Stock goes down
+The items leave the store&#39;s stock the moment the sale completes.
+Their cost moves from Inventory (1200) to Cost of Goods Sold (5100).
+Tip: An item never received and with no standard cost posts no cost line; finance sees it as a costing gap.
+show: PAID&gt;STOCK, STOCK
+
+## The books
+The money lands in Cash (1100), Card (1101) or UPI (1102), and the sale in Sales Revenue (4100).
+The GST part then moves out of revenue to the GST payable accounts, so revenue keeps only the taxable amount.
+Tip: Each journal carries the store&#39;s cost centre, so the store&#39;s P&amp;L needs no extra work.
+show: PAID&gt;BOOKS, BOOKS
+
+## Close the day
+Closing the session asks for the cash counted and shows the gap from what was expected.
+The Sales Register and the Cash Book in Reports are what the manager checks against the till.
+Tip: Keep the card and UPI totals to hand; the close may ask for them too.
+show: BOOKS&gt;CLOSE, CLOSE</code></pre>
+<h2 id="where-to-read-more">Where to read more <a class="kb-anchor" href="#where-to-read-more" aria-label="Copy link to this section">#</a></h2>
+<ul><li>Each screen, step by step: <a href="/help/pos-operations">Point of Sale</a>.</li><li>The accounts and the ledger: <a href="/help/finance-tax">Finance and tax</a>.</li><li>The other half of the business: <a href="/help/how-buying-works">How buying works</a>.</li></ul>

@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**463** reports across **28** categories, all reachable from
+**464** reports across **28** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -65,7 +65,7 @@ open the right page.
 - [Procurement](report-catalog-3.md#procurement) - 27 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
 - [Quality](report-catalog-3.md#quality) - 4 reports
-- [Sales](report-catalog-3.md#sales) - 14 reports
+- [Sales](report-catalog-3.md#sales) - 15 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
 - [Service](report-catalog-3.md#service) - 1 reports
 - [Stock Transfer](report-catalog-3.md#stock-transfer) - 9 reports

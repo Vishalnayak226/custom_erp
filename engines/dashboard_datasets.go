@@ -62,6 +62,45 @@ type DashboardDataset struct {
 	// stores are the expressions carrying the row's store code: a row is the
 	// viewer's when any of them is one of their stores.
 	stores []string
+	// parts (298.1), when set, are the sources joined with UNION ALL where
+	// from says {parts}. A viewer gets only the parts whose record types
+	// their role may read, so one dataset serves every channel without
+	// showing a channel the viewer could not open.
+	parts []datasetPart
+}
+
+// datasetPart is one source of a dataset made of parts: its SQL and the
+// record types a role must be able to read to see its rows.
+type datasetPart struct {
+	doctypes []string
+	sql      string
+}
+
+// ReadableBy says whether a role whose read check is canRead may chart d: its
+// record type, or for a dataset of parts, every record type of at least one
+// part. A nil canRead allows every type.
+func (d DashboardDataset) ReadableBy(canRead func(doctype string) bool) bool {
+	if canRead == nil {
+		return true
+	}
+	if len(d.parts) == 0 {
+		return canRead(d.Doctype)
+	}
+	for _, p := range d.parts {
+		if partReadable(p, canRead) {
+			return true
+		}
+	}
+	return false
+}
+
+func partReadable(p datasetPart, canRead func(string) bool) bool {
+	for _, dt := range p.doctypes {
+		if !canRead(dt) {
+			return false
+		}
+	}
+	return true
 }
 
 func dsF(key, label, typ, expr string) DatasetField {
@@ -356,7 +395,7 @@ func ListDashboardDatasets(role string, canRead func(doctype string) bool) []Das
 	seesMoney := RoleSeesMoney(role)
 	out := []DashboardDataset{}
 	for _, d := range dashboardDatasets {
-		if canRead != nil && !canRead(d.Doctype) {
+		if !d.ReadableBy(canRead) {
 			continue
 		}
 		c := d
@@ -378,10 +417,14 @@ func RoleSeesMoney(role string) bool {
 }
 
 // DatasetMeasure is one total: sum / count / avg / min / max / distinct of
-// a field ("" field with count = rows).
+// a field ("" field with count = rows). Two totals compare the field with Of
+// (298.1): pct is the field's sum as a percentage of Of's sum (margin %,
+// returns %), per is the field's sum for each different value of Of (sales
+// per bill).
 type DatasetMeasure struct {
 	Field string `json:"field"`
 	Agg   string `json:"agg"`
+	Of    string `json:"of,omitempty"`
 }
 
 // DatasetFilter narrows rows: eq / ne / in (a comma list) / contains on a
@@ -415,6 +458,7 @@ type DatasetColumn struct {
 	Label string `json:"label"`
 	Type  string `json:"type"`
 	Money bool   `json:"money,omitempty"`
+	Unit  string `json:"unit,omitempty"` // "%" for a pct total
 }
 
 // DatasetResult is a query's answer.
@@ -441,7 +485,7 @@ const (
 	datasetCacheMax     = 2000
 )
 
-var datasetAggs = map[string]string{"sum": "SUM", "count": "COUNT", "avg": "AVG", "min": "MIN", "max": "MAX", "distinct": "COUNT(DISTINCT"}
+var datasetAggs = map[string]string{"sum": "SUM", "count": "COUNT", "avg": "AVG", "min": "MIN", "max": "MAX", "distinct": "COUNT(DISTINCT", "pct": "SUM", "per": "SUM"}
 
 func datasetError(msg string) error {
 	return &ValidationError{Code: "REPORT-0988", Message: msg}
@@ -457,12 +501,40 @@ func (d DashboardDataset) field(key string) (DatasetField, bool) {
 }
 
 // MeasureKey is the result column a measure fills ("count" alone, else
-// agg_field).
+// agg_field, and agg_field_of for pct / per).
 func MeasureKey(m DatasetMeasure) string {
 	if m.Field == "" {
 		return m.Agg
 	}
+	if m.Of != "" {
+		return m.Agg + "_" + m.Field + "_" + m.Of
+	}
 	return m.Agg + "_" + m.Field
+}
+
+// measureLabel is what a total is called on a chart and in its contract.
+func (d DashboardDataset) measureLabel(m DatasetMeasure) string {
+	label := func(key string) string {
+		if f, ok := d.field(key); ok {
+			return f.Label
+		}
+		return key
+	}
+	// Only the first letter drops to lower case: "Sales with a cost (ex GST)"
+	// reads "sales with a cost (ex GST)"; a leading acronym (GST, SKU) stays.
+	lowerFirst := func(s string) string {
+		if len(s) > 1 && s[1] >= 'A' && s[1] <= 'Z' {
+			return s
+		}
+		return strings.ToLower(s[:min(1, len(s))]) + s[min(1, len(s)):]
+	}
+	switch m.Agg {
+	case "pct":
+		return label(m.Field) + " as % of " + lowerFirst(label(m.Of))
+	case "per":
+		return label(m.Field) + " per " + lowerFirst(label(m.Of))
+	}
+	return datasetMeasureLabel(m.Agg, label(m.Field))
 }
 
 type datasetCacheEntry struct {
@@ -482,6 +554,32 @@ func RunDatasetQuery(tenantID string, v DatasetViewer, q DatasetQuery) (DatasetR
 	if !ok {
 		return DatasetResult{}, datasetError(fmt.Sprintf("%q is not a dataset", q.Dataset))
 	}
+	// 307.2: the role's read check lives here, so the screen, the export and
+	// the emailed digest all pass it (the digest used to skip it). A dataset
+	// of parts (298.1) runs only the parts this role may read.
+	readable := map[string]bool{}
+	canRead := func(doctype string) bool {
+		if r, seen := readable[doctype]; seen {
+			return r
+		}
+		ok, err := RoleMayOnDoctype(tenantID, v.Role, doctype, "read")
+		readable[doctype] = err == nil && ok
+		return readable[doctype]
+	}
+	if !ds.ReadableBy(canRead) {
+		return DatasetResult{}, datasetError("your role may not read " + ds.Label)
+	}
+	partsKey := ""
+	if len(ds.parts) > 0 {
+		var sqls []string
+		for i, p := range ds.parts {
+			if partReadable(p, canRead) {
+				sqls = append(sqls, p.sql)
+				partsKey += fmt.Sprintf("%d,", i)
+			}
+		}
+		ds.from = strings.Replace(ds.from, "{parts}", "("+strings.Join(sqls, " UNION ALL ")+")", 1)
+	}
 	access, limited := reportStoreScope(tenantID, v.Role, v.UserID)
 	if q.Store != "" && limited && !access.Allows(q.Store) {
 		return DatasetResult{}, &ValidationError{Code: "REPORT-0987", SubFor: "Store", Message: fmt.Sprintf("store %s is not one of the stores you may see", q.Store)}
@@ -492,7 +590,7 @@ func RunDatasetQuery(tenantID string, v DatasetViewer, q DatasetQuery) (DatasetR
 		scopeKey = strings.Join(access.List(), ",")
 	}
 	raw, _ := json.Marshal(q)
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%v|%s", tenantID, scopeKey, seesMoney, raw)))
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%v|%s|%s", tenantID, scopeKey, seesMoney, partsKey, raw)))
 	key := hex.EncodeToString(sum[:])
 	datasetCacheMu.Lock()
 	if e, ok := datasetCache[key]; ok && time.Since(e.at) < datasetCacheTTL {
@@ -578,7 +676,7 @@ func runDatasetQuery(tenantID string, ds DashboardDataset, q DatasetQuery, limit
 	for i, m := range q.Measures {
 		agg, ok := datasetAggs[m.Agg]
 		if !ok {
-			return res, datasetError(fmt.Sprintf("%q is not a total (sum, count, avg, min, max, distinct)", m.Agg))
+			return res, datasetError(fmt.Sprintf("%q is not a total (sum, count, avg, min, max, distinct, pct, per)", m.Agg))
 		}
 		col := DatasetColumn{Key: MeasureKey(m), Type: "number"}
 		var e string
@@ -587,6 +685,35 @@ func runDatasetQuery(tenantID string, ds DashboardDataset, q DatasetQuery, limit
 			e, col.Label = "COUNT(*)", "Count"
 		case m.Field == "":
 			return res, datasetError(m.Agg + " needs a field")
+		case m.Agg == "pct" || m.Agg == "per":
+			fl, ok := ds.field(m.Field)
+			of, ok2 := ds.field(m.Of)
+			switch {
+			case !ok || fl.Type != "number":
+				return res, datasetError(fmt.Sprintf("%s needs a number field", m.Agg))
+			case !ok2:
+				return res, datasetError(fmt.Sprintf("%s needs a second field to compare with", m.Agg))
+			case m.Agg == "pct" && of.Type != "number":
+				return res, datasetError(of.Label + " is not a number, so nothing can be a % of it")
+			case m.Agg == "per" && of.Type != "category":
+				return res, datasetError("per needs a field to count, such as a bill; " + of.Label + " is not one")
+			}
+			col.Label = ds.measureLabel(m)
+			if m.Agg == "pct" {
+				col.Unit = "%"
+			} else {
+				col.Money = fl.Money
+			}
+			if (fl.Money || of.Money) && !seesMoney {
+				col.Money = true // so the screen says "hidden", not "-"
+				e = "NULL"       // D4: a share of money is money
+				break
+			}
+			if m.Agg == "pct" {
+				e = fmt.Sprintf("ROUND(100.0 * SUM(%s) / NULLIF(SUM(%s), 0), 2)", expr(fl.expr), expr(of.expr))
+			} else {
+				e = fmt.Sprintf("SUM(%s) / NULLIF(COUNT(DISTINCT %s), 0)", expr(fl.expr), expr(of.expr))
+			}
 		default:
 			fl, ok := ds.field(m.Field)
 			if !ok {

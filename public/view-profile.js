@@ -179,7 +179,7 @@ function buildRecoveryCodesNode(codes) {
   const wrap = document.createElement('div');
 
   const warning = document.createElement('p');
-  warning.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
+  warning.style.cssText = 'font-size: 13.5px; margin: 0 0 10px;';
   warning.textContent = 'Shown only once - save them. Old codes no longer work.';
   wrap.appendChild(warning);
 
@@ -235,12 +235,12 @@ function buildAuthenticatorSecretNode(secret) {
   const wrap = document.createElement('div');
 
   const intro = document.createElement('p');
-  intro.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
+  intro.style.cssText = 'font-size: 13.5px; margin: 0 0 10px;';
   intro.textContent = 'Add this code to your authenticator app.';
   wrap.appendChild(intro);
 
   const code = document.createElement('code');
-  code.style.cssText = 'display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; user-select: all;';
+  code.style.cssText = 'display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; font-size: 13.5px; user-select: all;';
   code.textContent = secret;
   wrap.appendChild(code);
 

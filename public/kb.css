@@ -33,6 +33,11 @@
   overflow-y: auto;
 }
 
+/* One column: a sticky list would cover the article as it scrolls past (290.4). */
+@media (max-width: 900px) {
+  .kb-sidebar { position: static; max-height: 45vh; }
+}
+
 .kb-search { position: relative; margin-bottom: 12px; }
 
 .kb-search-results {
@@ -60,7 +65,7 @@
 .kb-search-results a:last-child { border-bottom: none; }
 .kb-search-results a:hover { background: var(--primary-light); }
 .kb-search-results a span { display: block; font-size: 12px; color: var(--text-muted); }
-.kb-search-empty { padding: 10px 12px; font-size: 13px; color: var(--text-muted); }
+.kb-search-empty { padding: 10px 12px; font-size: 13.5px; color: var(--text-muted); }
 
 .kb-nav-section { margin-bottom: 16px; }
 
@@ -102,17 +107,17 @@
 .kb-nav-module > summary {
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-main);
 }
 .kb-nav-module > summary:hover { background: var(--primary-light); }
 .kb-nav-module > ul { padding-left: 10px; }
 .kb-nav-section .kb-nav-toc { margin: 2px 0 6px 10px; border-left: 1px solid var(--border-color); }
-.kb-nav-section .kb-nav-toc a { padding: 3px 8px; font-size: 12.5px; color: var(--text-muted); border-radius: 0 6px 6px 0; }
+.kb-nav-section .kb-nav-toc a { padding: 3px 8px; font-size: 12px; color: var(--text-muted); border-radius: 0 6px 6px 0; }
 .kb-nav-section .kb-nav-toc a.current { color: var(--primary-color); font-weight: 600; background: var(--primary-light); }
 
-.kb-breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+.kb-breadcrumb { font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px; }
 .kb-breadcrumb a { color: var(--primary-color); text-decoration: none; }
 .kb-breadcrumb span { margin: 0 4px; }
 
@@ -131,8 +136,8 @@
 
 .kb-body { line-height: 1.65; max-width: 78ch; }
 .kb-body h1 { font-size: 24px; margin: 0 0 16px; }
-.kb-body h2 { font-size: 19px; margin: 28px 0 10px; }
-.kb-body h3 { font-size: 16px; margin: 22px 0 8px; }
+.kb-body h2 { font-size: 18px; margin: 28px 0 10px; }
+.kb-body h3 { font-size: 14px; margin: 22px 0 8px; }
 .kb-body p { margin: 0 0 12px; }
 .kb-body ul, .kb-body ol { margin: 0 0 12px; padding-left: 22px; }
 .kb-body li { margin-bottom: 4px; }
@@ -142,7 +147,7 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 1px 5px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .kb-body pre {
@@ -235,7 +240,7 @@
   margin-top: 32px;
   padding-top: 16px;
   border-top: 1px solid var(--border-color);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .kb-feedback {
@@ -261,3 +266,36 @@
 .kb-drawer-container .kb-lesson-why,
 .kb-drawer-container .kb-lesson-usecase,
 .kb-drawer-container .kb-snap { display: none; }
+
+/* 290.4: the "How it works" step-through (view-help-steps.js). The box lit by
+   this step is accented, boxes from earlier steps stay plain, later ones fade. */
+.hs-player {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+.hs-player:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.hs-diagram { display: block; width: 100%; height: auto; margin: 0 auto 10px; }
+.hs-node rect { fill: var(--panel-bg); stroke: var(--border-hover); stroke-width: 1.5; }
+.hs-node text { fill: var(--text-main); font-size: 14px; text-anchor: middle; dominant-baseline: central; }
+.hs-node.on rect { fill: var(--primary-light); stroke: var(--primary-color); stroke-width: 2.5; }
+.hs-node.on text { font-weight: 600; }
+.hs-node.off { opacity: 0.35; }
+.hs-link { fill: none; stroke: var(--border-hover); stroke-width: 1.5; }
+.hs-link.on { stroke: var(--primary-color); stroke-width: 2.5; }
+.hs-link.off { opacity: 0.3; }
+.hs-head { fill: var(--border-hover); }
+.hs-head-on { fill: var(--primary-color); }
+.hs-node rect, .hs-node, .hs-link { transition: fill 0.2s, stroke 0.2s, opacity 0.2s; }
+.hs-count { margin: 0; color: var(--text-muted); font-size: 0.85rem; }
+.hs-title { margin: 2px 0 6px; font-weight: 600; font-size: 1.05rem; }
+.hs-text { margin: 0 0 8px; }
+.hs-tip { margin: 0 0 12px; padding: 8px 10px; background: var(--surface-subtle); border-left: 3px solid var(--primary-color); border-radius: 4px; }
+.hs-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.hs-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.hs-dot { width: 12px; height: 12px; padding: 0; border: 1px solid var(--primary-color); border-radius: 50%; background: transparent; cursor: pointer; }
+.hs-dot.current { background: var(--primary-color); }
+@media (prefers-reduced-motion: reduce) {
+  .hs-node rect, .hs-node, .hs-link { transition: none; }
+}

@@ -225,6 +225,36 @@ picture an article shows that is missing. The browser loads each one through
 the signed-in help API only when it scrolls into view. Regenerate with
 `pwsh docs/kb/update-kb.ps1`.
 
+### Step-through pages (290.4)
+
+A fenced block with the language `steps` plays as a step-through: a diagram
+that lights the box where each step happens, then the step's title, text and
+one tip, with Back / Next, dots and the arrow keys. `public/view-help-steps.js`
+loads only for an article that has one. One item per line:
+
+````markdown
+```steps
+diagram: PO=Purchase order, GRN=Goods receipt, STOCK=Stock
+links: PO>GRN, GRN>STOCK
+
+## Receive the goods
+Two short sentences: what happens, and what it changes.
+Tip: One tip.
+show: PO>GRN, GRN
+```
+````
+
+- `diagram:` the boxes in reading order, `ID=Label`; `links:` the arrows, `A>B`.
+  Columns follow the arrows; below 560 px the diagram runs top to bottom.
+- Each `## ` line starts a step. `show:` names the boxes and arrows the step
+  lights; those from earlier steps stay plain, later ones fade. Any other line
+  is the step's text.
+- Keep labels to about 16 characters, so they fit their box, and seven steps or fewer.
+- Write it only from what the build does, like a lesson. With scripts off,
+  and in a printed manual, the block reads as plain text.
+- The *How it works* pages under Getting Started (`how-buying-works.md`,
+  `how-a-sale-works.md`) are the examples.
+
 ## Curated manuals and screenshots
 
 The [manual portal](../user/manuals.md) links reading/print editions generated

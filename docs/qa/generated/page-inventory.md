@@ -11,10 +11,10 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 139 |
-| Screens in the shell registry | 79 |
-| File-to-route actions | 1290 |
-| Registered `/api` routes | 1131 |
+| Front-end files with screens or API calls | 142 |
+| Screens in the shell registry | 81 |
+| File-to-route actions | 1304 |
+| Registered `/api` routes | 1133 |
 | Routes no front-end file calls | 225 |
 | Calls matching no route | 4 |
 
@@ -125,6 +125,14 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/grn-steps/{id}/receive` | `handleGRNStepsReceive` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/grn-steps/{id}/verify` | `handleGRNStepsVerify` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/grn-steps/{id}` | `handleGRNStepsGet` | procurement | signed-in: procurement.default | every signed-in role |
+
+### `public/list-columns.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 
 ### `public/p/p.js`
 
@@ -385,6 +393,16 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/store-app/push` | `handleStoreAppPush` |  | signed-in: store_app.default | every signed-in role |
 | POST | `/api/v1/store-app/push` | `handleStoreAppPush` |  | signed-in: store_app.default | every signed-in role |
 
+### `public/task-progress.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/me/tasks/{id}/cancel` | `handleCancelMyTask` |  | signed-in: me.default | every signed-in role |
+| GET | `/api/v1/me/tasks` | `handleMyTasks` |  | signed-in: me.default | every signed-in role |
+| GET | `/api/v1/reports/export/{id}` | `handleGetReportExport` | reports | signed-in: reports.default | every signed-in role |
+
 ### `public/trade-docs.js`
 
 Owners: not in the plan's table. Live inspection: not recorded.
@@ -411,6 +429,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/stock-locations/txn-header` | `handleStockTxnHeader` |  | signed-in: inventory.default | every signed-in role |
 
 ### `public/view-admin.js`
@@ -740,6 +759,8 @@ Owners: M25, M26. Live inspection: not recorded.
 |---|---|---|---|---|---|
 | GET | `/api/v1/admin/roles` | `handleListRoles` |  | admin: admin.roles | Super Admin, Admin |
 | POST | `/api/v1/admin/roles` | `handleCreateRole` |  | admin: admin.roles | Super Admin, Admin |
+| GET | `/api/v1/admin/settings` | `handleGetSettings` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
+| PUT | `/api/v1/admin/settings` | `handleUpdateSettings` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
 | POST | `/api/v1/dashboards/custom/{id}/copy` | `handleCopyCustomDashboard` | reports | signed-in: reports.default | every signed-in role |
 | POST | `/api/v1/dashboards/custom/{id}/digest` | `handleScheduleDashboardDigest` | reports | signed-in: reports.default | every signed-in role |
 | DELETE | `/api/v1/dashboards/custom/{id}` | `handleCustomDashboard` | reports | signed-in: reports.default | every signed-in role |
@@ -750,9 +771,13 @@ Owners: M25, M26. Live inspection: not recorded.
 | POST | `/api/v1/dashboards/export` | `handleDashboardExport` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/dashboards/home` | `handleHomeDashboard` | reports | signed-in: reports.default | every signed-in role |
 | POST | `/api/v1/dashboards/query` | `handleDashboardQuery` | reports | signed-in: reports.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/grn-steps` | `handleGRNStepsInbox` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/me/stores` | `handleMyStores` |  | signed-in: me.default | every signed-in role |
 | GET | `/api/v1/reports/catalog` | `handleReportCatalog` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/reports/run/{id}` | `handleRunReport` | reports | signed-in: reports.default | every signed-in role |
+| GET | `/api/v1/store-app/low-stock` | `handleStoreAppLowStock` | inventory | signed-in: availability.default | every signed-in role |
+| GET | `/api/v1/store-app/today` | `handleStoreAppToday` | sales | signed-in: store_app.default | every signed-in role |
 
 ### `public/view-data-governance.js`
 
@@ -2038,6 +2063,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-service-desk.js`
 
+Screens: Service desk (`#/view/service-desk`; help: CRM & Loyalty, verified 2026-11-15).  
 Owners: M21–M24. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2134,6 +2160,17 @@ Owners: M07, M10, M20. Live inspection: not recorded.
 | POST | `/api/v1/admin/users/stores` | `handleUserStores` |  | admin: admin.users | Super Admin, Admin |
 | GET | `/api/v1/me/stores` | `handleMyStores` |  | signed-in: me.default | every signed-in role |
 | POST | `/api/v1/me/working-store` | `handleSwitchWorkingStore` |  | signed-in: me.default | every signed-in role |
+
+### `public/view-stores.js`
+
+Screens: Stores (`#/view/stores`; help: Settings and configuration, verified 2026-11-16).  
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 
 ### `public/view-subscription.js`
 
@@ -2247,7 +2284,7 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 ### `public/view-warehouse.js`
 
-Screens: Putaway (`#/view/putaway`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Warehouse Cockpit (`#/view/warehouse-cockpit`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Appointment Calendar (`#/view/appointment-calendar`; help: Dock appointments, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Yard Board (`#/view/yard-board`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; Trailer check-in and yard movement, verified 2026-09-09), Place Hold (`#/view/place-hold`; help: Place and release an inventory hold, verified 2026-10-18; Warehouse (WMS) - what each screen is for, verified 2026-10-18), RF Receiving (`#/view/rf-receiving`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Sortation (`#/view/sortation`; help: Sort orders into put-wall slots, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Loading Dock (`#/view/loading-dock`; help: Load cartons and record departure, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Bin Conditions (`#/view/bin-conditions`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Cycle Count (`#/view/cycle-count`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), License Plates (`#/view/lpn`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Bin Replenishment (`#/view/bin-replenishment`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Location Movement (`#/view/location-movement`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18), Wave Picking (`#/view/wave-picking`; help: Inventory & Warehouse Operations, verified 2026-11-15; Batch, Serial & Expiry Traceability, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Mobile Picking (`#/view/mobile-picking`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24).  
+Screens: Putaway (`#/view/putaway`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), WMS home (`#/view/warehouse-cockpit`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Appointment Calendar (`#/view/appointment-calendar`; help: Dock appointments, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Yard Board (`#/view/yard-board`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; Trailer check-in and yard movement, verified 2026-09-09), Place Hold (`#/view/place-hold`; help: Place and release an inventory hold, verified 2026-10-18; Warehouse (WMS) - what each screen is for, verified 2026-10-18), RF Receiving (`#/view/rf-receiving`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Sortation (`#/view/sortation`; help: Sort orders into put-wall slots, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Loading Dock (`#/view/loading-dock`; help: Load cartons and record departure, verified 2026-09-09; Warehouse (WMS) - what each screen is for, verified 2026-10-18), Bin Conditions (`#/view/bin-conditions`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Cycle Count (`#/view/cycle-count`; help: Inventory & Warehouse Operations, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), License Plates (`#/view/lpn`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Bin Replenishment (`#/view/bin-replenishment`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Location Movement (`#/view/location-movement`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18), Wave Picking (`#/view/wave-picking`; help: Inventory & Warehouse Operations, verified 2026-11-15; Batch, Serial & Expiry Traceability, verified 2026-11-15; Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24), Mobile Picking (`#/view/mobile-picking`; help: Warehouse (WMS) - what each screen is for, verified 2026-10-18; A day as a warehouse operator, verified 2026-11-24).  
 Owners: M08–M11. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -2326,11 +2363,11 @@ Owners: M08–M11. Live inspection: not recorded.
 | GET | `/api/v1/wms/labor/plan` | `handleLaborPlan` | wms | signed-in: wms.default | every signed-in role |
 | GET | `/api/v1/wms/labor/standard-preview` | `handleLaborStandardPreview` | wms | signed-in: wms.default | every signed-in role |
 
-No screen and no API call: `api-claim.js`, `api-docs-viewer.js`, `api-docs.js`, `api-key-once.js`, `charts.js`, `db.js`, `print-align.js`, `print-pdf.js`, `shell-nav.js`, `shell-steady.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-api-access-grid.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
+No screen and no API call: `api-claim.js`, `api-docs-viewer.js`, `api-docs.js`, `api-key-once.js`, `charts.js`, `db.js`, `print-align.js`, `print-pdf.js`, `row-actions.js`, `shell-nav.js`, `shell-steady.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-api-access-grid.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`, `view-help-steps.js`.
 
 ## Screens missing an owner or a help article
 
-13 of 79 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
+14 of 81 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
 
 | Screen | View | File | Owner | Help article |
 |---|---|---|---|---|
@@ -2345,6 +2382,7 @@ No screen and no API call: `api-claim.js`, `api-docs-viewer.js`, `api-docs.js`, 
 | Sales History | `sales-history` | `public/view-sales-history.js` | missing | yes |
 | Privacy approvals | `privacy-approvals` | `public/view-security-notify.js` | missing | yes |
 | Service entries | `service-entry` | `public/view-service-entry.js` | missing | yes |
+| Stores | `stores` | `public/view-stores.js` | missing | yes |
 | Subscription | `subscription` | `public/view-subscription.js` | missing | yes |
 | Supplier portal | `supplier-portal` | `public/view-supplier-portal.js` | missing | yes |
 
@@ -2412,12 +2450,12 @@ Settings → Configuration renders the settings registry by module, through the 
 | PIM / PIMS | 2 |
 | Platform | 30 |
 | Platform billing | 1 |
-| Point of Sale | 14 |
+| Point of Sale | 15 |
 | Printing | 6 |
 | Procurement | 23 |
-| Procurement & GRN | 15 |
+| Procurement & GRN | 16 |
 | Quality | 4 |
-| Reports | 1 |
+| Reports | 9 |
 | Sales | 3 |
 | Sales & Returns | 5 |
 | Security | 30 |

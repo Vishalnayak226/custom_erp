@@ -3,7 +3,7 @@ package engines
 // BLD-044 - the background worker inventory, held to the code. Every worker
 // internal/server/routes.go starts is listed here with the module that owns it;
 // the test reads each Start function and checks that a module-owned worker asks
-// listTenantSchemas for its module (so a client without that module costs it
+// sweepTenantSchemas for its module (so a client without that module costs it
 // nothing), and that a worker visiting every tenant runs on one server only.
 
 import (
@@ -91,6 +91,7 @@ type workerFacts struct {
 	leader     bool     // calls IsSchedulerLeader
 	tenantKeys []string // module keys passed to a tenant list; nil = no tenant loop
 	loops      bool
+	afresh     bool // calls listTenantSchemas instead of the shared sweepTenantSchemas view
 }
 
 func TestBLD044WorkerInventoryMatchesTheCode(t *testing.T) {
@@ -140,8 +141,9 @@ func TestBLD044WorkerInventoryMatchesTheCode(t *testing.T) {
 				switch id.Name {
 				case "IsSchedulerLeader":
 					w.leader = true
-				case "listTenantSchemas", "listRegisteredTenantSchemas":
+				case "listTenantSchemas", "listRegisteredTenantSchemas", "sweepTenantSchemas":
 					w.loops = true
+					w.afresh = w.afresh || id.Name == "listTenantSchemas"
 					for _, a := range call.Args {
 						if lit, ok := a.(*ast.BasicLit); ok {
 							s, _ := strconv.Unquote(lit.Value)
@@ -191,6 +193,9 @@ func TestBLD044WorkerInventoryMatchesTheCode(t *testing.T) {
 		}
 		if _, shared := claimSafeWorkers[name]; w.loops && !w.leader && !shared {
 			t.Errorf("%s visits every tenant but is not gated by IsSchedulerLeader - two servers would both do the work", name)
+		}
+		if w.afresh {
+			t.Errorf("%s lists clients with listTenantSchemas - a worker uses sweepTenantSchemas, the shared view (283.2)", name)
 		}
 		table.WriteString(name + " every " + w.interval + " module=" + owner + " leader=" + strconv.FormatBool(w.leader) + " keys=" + strings.Join(w.tenantKeys, ",") + "\n")
 	}

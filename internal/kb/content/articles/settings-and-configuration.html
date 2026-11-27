@@ -9,6 +9,15 @@
 </aside>
 <aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Configuration</strong>.</li><li>Pick the module on the left.</li><li>Change the values you need.</li><li>Click <strong>Save Changes</strong>.</li></ol></aside>
 <p>A setting you never changed shows its default. <strong>Credentials</strong> and <strong>Data governance</strong> in the same menu open their own parts of this screen.</p>
+<h2 id="stores">Stores <a class="kb-anchor" href="#stores" aria-label="Copy link to this section">#</a></h2>
+<aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>Every store, warehouse and HO in one list, each on its own page. These are the same Location records as Setup → Location; there is no second list.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-why" role="note"><p class="kb-admonition-title">Why it matters</p><p>A purchase order is refused when its billing store has no State and its legal entity has no GSTIN or State (<code>PURCHA-4965</code>). The list flags those stores <strong>No State</strong>, so they are fixed before anyone raises a PO there.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>A buyer&#39;s PO at a new store is refused. The admin opens <strong>Settings → Stores</strong>, picks the <strong>No State</strong> view, opens the store, chooses Karnataka under <strong>Address &amp; GST</strong> and clicks <strong>Save store</strong>. The PO now saves.</p>
+</aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Stores</strong>.</li><li>Click a store&#39;s code to open its page, or <strong>New Store</strong> to add one.</li><li>Fill in the sections. <strong>Legal entity</strong> is required.</li><li>Click <strong>Save store</strong>.</li></ol></aside>
+<p>A red <strong>No State</strong> marks a store a purchase order would refuse. <em>From legal entity</em> means the store takes its State from its legal entity. Opened from a purchase order (<strong>Edit store</strong> or <strong>Open store</strong>), saving goes back to it.</p>
 <h2 id="data-quality">Data quality <a class="kb-anchor" href="#data-quality" aria-label="Copy link to this section">#</a></h2>
 <aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>A queue of master-data problems: customers sharing a phone or email, vendors sharing a GSTIN or a name, items with the same name, and records with missing or wrong tax details.</p>
 </aside>
@@ -53,7 +62,7 @@
 </aside>
 <aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>A developer&#39;s app needs every new vendor. The Super Admin registers a hook on Vendor with the developer&#39;s <code>https://</code> address. Next day the developer says one vendor never arrived; <strong>View Log</strong> shows that call and the error their server sent back.</p>
 </aside>
-<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → Extension Hooks</strong>.</li><li>Choose the hook point and record type, enter the <code>https://</code> address and a timeout, and click <strong>Register Hook</strong>.</li><li>Click <strong>View Log</strong> to see a hook&#39;s last 100 calls.</li><li>To give a developer a short-lived token, click <strong>Issue Token</strong>, pick the record type and minutes (at most 1440), and copy it: it is shown once.</li><li>To stop a hook, click <strong>Delete</strong>.</li></ol></aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Customize → Extension Hooks</strong>.</li><li>Choose the hook point and record type, enter the <code>https://</code> address and a timeout, and click <strong>Register Hook</strong>.</li><li>Click <strong>View Log</strong> to see a hook&#39;s last 100 calls.</li><li>To stop a hook, click <strong>Delete</strong>.</li><li>To give a developer a short-lived token, open <strong>Settings → Customize → Extension tokens</strong>, pick the record type and minutes (at most 1440), click <strong>Issue Token</strong> and copy it: it is shown once.</li></ol></aside>
 <h2 id="api-access">API access <a class="kb-anchor" href="#api-access" aria-label="Copy link to this section">#</a></h2>
 <aside class="kb-admonition kb-lesson kb-lesson-what" role="note"><p class="kb-admonition-title">What it is</p><p>The keys an outside system uses to call the ERP&#39;s API: an API key or an OAuth client, each limited to the scopes it needs.</p>
 </aside>
@@ -79,5 +88,5 @@
 </aside>
 <aside class="kb-admonition kb-lesson kb-lesson-usecase" role="note"><p class="kb-admonition-title">Use case</p><p>Before a store opening the admin checks that the last restore drill is recent. It shows a warning badge, so they ask the operator to run one before the weekend.</p>
 </aside>
-<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Monitoring → System Status</strong>.</li><li>Read <strong>Latest Deployment by Environment</strong>.</li><li>Check <strong>Backup &amp; Restore Drill History</strong> for a warning badge.</li></ol></aside>
+<aside class="kb-admonition kb-lesson kb-lesson-how" role="note"><p class="kb-admonition-title">How to do it</p><ol><li>Open <strong>Settings → Monitoring → System Status</strong>.</li><li>Read <strong>Latest Deployment by Environment</strong>.</li><li>Open <strong>Settings → Monitoring → Backup history</strong> and check for a warning badge. <strong>Deployment history</strong> lists every deployment.</li></ol></aside>
 <p>The screen is read-only. Rows appear only when the deploy and backup scripts record them, so an empty table means the scripts have not run against this database.</p>

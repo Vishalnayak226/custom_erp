@@ -51,6 +51,12 @@ export const FONT_FAMILIES = [
   { id: 'Arial', label: 'Arial', css: 'Arial, Helvetica, sans-serif' },
   { id: 'Arial Narrow', label: 'Arial Narrow (condensed)', css: '"Arial Narrow", "Roboto Condensed", "Liberation Sans Narrow", Arial, sans-serif' },
   { id: 'Segoe UI', label: 'Segoe UI', css: '"Segoe UI", Roboto, Arial, sans-serif' },
+  // 289.1: fonts every Windows PC has that stay crisp in small print.
+  { id: 'Bahnschrift', label: 'Bahnschrift (DIN)', css: 'Bahnschrift, "DIN Alternate", "Segoe UI", Arial, sans-serif' },
+  { id: 'Bahnschrift Condensed', label: 'Bahnschrift Condensed', css: '"Bahnschrift Condensed", "Arial Narrow", "Roboto Condensed", Arial, sans-serif' },
+  { id: 'Calibri', label: 'Calibri', css: 'Calibri, Carlito, "Segoe UI", Arial, sans-serif' },
+  { id: 'Franklin Gothic Medium', label: 'Franklin Gothic', css: '"Franklin Gothic Medium", "Libre Franklin", Arial, sans-serif' },
+  { id: 'Palatino Linotype', label: 'Palatino (luxury serif)', css: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif' },
   { id: 'Verdana', label: 'Verdana (wide, very legible)', css: 'Verdana, Geneva, sans-serif' },
   { id: 'Tahoma', label: 'Tahoma', css: 'Tahoma, Verdana, sans-serif' },
   { id: 'Trebuchet MS', label: 'Trebuchet MS', css: '"Trebuchet MS", Arial, sans-serif' },
@@ -90,18 +96,27 @@ const RING_ELEMENTS = [
   { kind: 'text', field: 'sku', x_mm: 49.3, y_mm: 3.9, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 },
   { kind: 'text', field: 'polish', x_mm: 49.3, y_mm: 6.5, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 }
 ];
-// Stage 113.3: the Seznik 100 × 14.3 jewellery tag roll (Amazon B0FK2ZF5F8)
-// is the Ring tag's three parts across - barcode panel, text panel, tail -
-// on a taller tag, so its design is the Ring's stretched to fit. A sideways
-// text's font follows the width it stands in, the rest follow the height.
-const scaleElements = (els, sx, sy) => els.map(e => {
-  const r = v => Math.round(v * 10) / 10;
-  return Object.assign({}, e, {
-    x_mm: r(e.x_mm * sx), y_mm: r(e.y_mm * sy), w_mm: r(e.w_mm * sx), h_mm: r(e.h_mm * sy),
-    font_size_mm: r(e.font_size_mm * (e.rotation === 90 || e.rotation === 270 ? sx : sy))
-  });
-});
-const SEZNIK_ELEMENTS = scaleElements(RING_ELEMENTS, 100 / 97.6, 14.3 / 11.9);
+// Stage 113.3: the Seznik 100 × 14.3 jewellery tag roll (Amazon B0FK2ZF5F8):
+// a 65 mm flap, then the tail. 286.2 (the owner's marked photo): the flap on
+// one grid of four 3.1 mm rows. The brand stands at the left edge. The bars
+// sit at the left of their box with the digits centred under them; 31 mm
+// gives a 13-digit code two-dot bars on a 203 dpi printer. MRP is under the
+// barcode, the item name beside it. The two columns on the right close up,
+// so a blank colour leaves no hole at the top of its column. 289.1: one face,
+// Bahnschrift (Windows' DIN), in three weights: Bold brand (letter-spaced),
+// Bold MRP and name, Semibold details. Even two-dot strokes at 203 dpi.
+const SEZNIK_ELEMENTS = [
+  { kind: 'text', field: 'custom', text: 'Brand name', x_mm: 0.8, y_mm: 0.9, w_mm: 3.2, h_mm: 12.3, font_size_mm: 2.7, font_family: 'Bahnschrift', bold: true, tracking: 12, rotation: 270, align: 'center' },
+  { kind: 'barcode', field: 'barcode', x_mm: 5, y_mm: 1.4, w_mm: 31, h_mm: 8.4, symbology: 'code128', show_text: true, quiet_zone: false, font_size_mm: 2.4, font_family: 'Bahnschrift', bold: true, align: 'left' },
+  { kind: 'text', field: 'mrp', prefix: 'MRP: ', x_mm: 5, y_mm: 10.2, w_mm: 31, h_mm: 3, font_size_mm: 2.6, font_family: 'Bahnschrift', bold: true },
+  { kind: 'text', field: 'parent_product_code', x_mm: 38, y_mm: 0.9, w_mm: 12.5, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', weight: 600, bold: true, close_up: true },
+  { kind: 'text', field: 'color', x_mm: 38, y_mm: 4, w_mm: 12.5, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', weight: 600, bold: true, close_up: true },
+  { kind: 'text', field: 'size', prefix: 'S: ', x_mm: 38, y_mm: 7.1, w_mm: 12.5, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', weight: 600, bold: true, close_up: true },
+  { kind: 'text', field: 'gross_weight', prefix: 'W: ', x_mm: 51, y_mm: 0.9, w_mm: 12, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', weight: 600, bold: true, close_up: true },
+  { kind: 'text', field: 'sku', x_mm: 51, y_mm: 4, w_mm: 12, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', weight: 600, bold: true, close_up: true },
+  { kind: 'text', field: 'polish', x_mm: 51, y_mm: 7.1, w_mm: 12, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', weight: 600, bold: true, close_up: true },
+  { kind: 'text', field: 'name', x_mm: 38, y_mm: 10.2, w_mm: 25, h_mm: 3, font_size_mm: 2.5, font_family: 'Bahnschrift', bold: true }
+];
 
 // Stage 146.3.4b: a bin label - the bin code large, its Code 128, then the
 // store and zone - for Print labels on the Bin list and the Bin Generator.
@@ -311,7 +326,7 @@ export function newElementId() {
 // Elements are stored as compactly as possible: the server caps a single
 // document field (platform.field_max_length, 10,000 characters by default),
 // and a rich jewellery tag can carry two dozen elements.
-const ELEMENT_DEFAULTS = { rotation: 0, bold: false, italic: false, invert: false, locked: false, hidden: false, group: false, quiet_zone: false, show_text: false, fill: false };
+const ELEMENT_DEFAULTS = { rotation: 0, bold: false, italic: false, invert: false, locked: false, hidden: false, group: false, quiet_zone: false, show_text: false, fill: false, close_up: false, underline: false, strike: false, tracking: 0, stretch: 100, line_height: 1.15 };
 export function compactElement(el) {
   const out = {};
   for (const [k, v] of Object.entries(el)) {
@@ -396,6 +411,27 @@ export function unsavedDesigns(docs, use = 'item') {
 }
 export const isBinDesign = (doc) => READY_DESIGNS.some(d => d.use === 'bin' && isSavedDesign(doc, d));
 
+// 286.3: the ready design a saved template is a copy of, when its elements
+// are not the design's as it ships now (a later release redrew it); null
+// otherwise. The studio offers that layout; the user saves it. Words the
+// client typed (their brand over "Brand name") are theirs, not the layout's.
+const ownText = e => e.kind === 'text' && e.field === 'custom';
+const layoutKey = els => JSON.stringify(els.map(e => { const n = normaliseElement(e); const c = compactElement(n); delete c.id; if (ownText(n)) delete c.text; return c; }));
+export function newerDesignLayout(doc) {
+  const d = READY_DESIGNS.find(x => isSavedDesign(doc, x));
+  return d && layoutKey(doc.elements || []) !== layoutKey(d.elements) ? d : null;
+}
+// The design's elements for that saved copy, its own words kept in order.
+export function designLayoutFor(doc, d) {
+  const own = (doc.elements || []).map(normaliseElement).filter(ownText).map(e => e.text);
+  let i = 0;
+  return d.elements.map(e => {
+    const n = normaliseElement(Object.assign({}, e, { id: newElementId() }));
+    if (ownText(n) && i < own.length) n.text = own[i++];
+    return n;
+  });
+}
+
 // The record id of the design's saved template, saving it first if needed;
 // '' when it could not be saved (the error is already shown).
 export async function ensureDesignTemplate(designId) {
@@ -418,6 +454,25 @@ export async function ensureDesignTemplate(designId) {
   const body = await out.json().catch(() => ({}));
   window.showToast?.(`"${d.label}" saved as a template of your own.`, { variant: 'success' });
   return body.id || code;
+}
+
+// 289.1: text weight. A chosen weight wins; otherwise B means Bold.
+export const FONT_WEIGHTS = [
+  { v: 300, label: 'Light' }, { v: 400, label: 'Regular' }, { v: 500, label: 'Medium' },
+  { v: 600, label: 'Semibold' }, { v: 700, label: 'Bold' }, { v: 900, label: 'Black' }
+];
+export function textWeight(el) {
+  const w = Number(el.weight);
+  return w >= 100 && w <= 900 ? Math.round(w / 100) * 100 : el.bold ? 700 : 400;
+}
+
+// Case is applied to everything an element prints, its own words included.
+export function applyCase(s, el) {
+  if (!s || !el.transform) return s;
+  if (el.transform === 'upper') return s.toUpperCase();
+  if (el.transform === 'lower') return s.toLowerCase();
+  if (el.transform === 'title') return s.toLowerCase().replace(/(^|[\s\-\/(.])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+  return s;
 }
 
 export function fontCSS(id) {
@@ -462,8 +517,6 @@ function formatValue(v, el) {
         : (places === undefined ? s : n.toFixed(places));
     }
   }
-  if (el.transform === 'upper') s = s.toUpperCase();
-  else if (el.transform === 'lower') s = s.toLowerCase();
   return s;
 }
 
@@ -926,23 +979,23 @@ function withElementFrame(ctx, el, scale, snap, fn) {
 }
 
 function setFont(ctx, el, px, family) {
-  ctx.font = `${el.italic ? 'italic ' : ''}${el.bold ? '700' : '400'} ${px}px ${fontCSS(el.font_family || family)}`;
+  ctx.font = `${el.italic ? 'italic ' : ''}${textWeight(el)} ${px}px ${fontCSS(el.font_family || family)}`;
 }
 
-function wrapLines(ctx, text, maxW) {
+function wrapLines(text, maxW, width) {
   const out = [];
   for (const para of String(text).split('\n')) {
     const words = para.split(/(\s+)/);
     let line = '';
     for (const w of words) {
       const test = line + w;
-      if (line && ctx.measureText(test).width > maxW && w.trim()) {
+      if (line && width(test) > maxW && w.trim()) {
         out.push(line.trimEnd());
         line = w.trimStart();
         // A single word wider than the box is broken by characters.
-        while (ctx.measureText(line).width > maxW && line.length > 1) {
+        while (width(line) > maxW && line.length > 1) {
           let k = line.length - 1;
-          while (k > 1 && ctx.measureText(line.slice(0, k)).width > maxW) k--;
+          while (k > 1 && width(line.slice(0, k)) > maxW) k--;
           out.push(line.slice(0, k));
           line = line.slice(k);
         }
@@ -960,44 +1013,91 @@ function wrapLines(ctx, text, maxW) {
 // 26 mm box printed as a hairline). The box's height still wins.
 const MIN_TEXT_MM = 1.6;
 
-function cutToWidth(ctx, line, maxW) {
-  if (ctx.measureText(line).width <= maxW) return line;
+function cutToWidth(line, maxW, width) {
+  if (width(line) <= maxW) return line;
   let k = line.length;
-  while (k > 1 && ctx.measureText(line.slice(0, k).trimEnd() + '…').width > maxW) k--;
+  while (k > 1 && width(line.slice(0, k).trimEnd() + '…') > maxW) k--;
   return line.slice(0, k).trimEnd() + '…';
+}
+
+// 289.1: letter spacing (% of the size), character width (%) and line height
+// (× the size). A number outside its range falls back to the default.
+function styleNum(v, def, lo, hi) {
+  const n = Number(v);
+  return v === undefined || v === null || v === '' || !Number.isFinite(n) ? def : Math.min(hi, Math.max(lo, n));
+}
+
+// One line drawn letter-spaced and/or narrowed: each letter sits where the
+// font puts it (kerning kept) plus the spacing; the width scales x only.
+function fillStyledLine(ctx, line, left, y, sx, gap) {
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.translate(left, y);
+  ctx.scale(sx, 1);
+  if (!gap) ctx.fillText(line, 0, 0);
+  else {
+    let pre = '';
+    Array.from(line).forEach((c, i) => { ctx.fillText(c, ctx.measureText(pre).width + gap * i, 0); pre += c; });
+  }
+  ctx.restore();
 }
 
 function drawTextContent(ctx, el, text, iw, ih, scale, family, ink) {
   let px = Math.max(1, el.font_size_mm * scale);
+  const sx = styleNum(el.stretch, 100, 40, 250) / 100;
+  const em = styleNum(el.tracking, 0, -20, 80) / 100;
+  const lhK = styleNum(el.line_height, 1.15, 0.7, 3);
+  const plain = sx === 1 && em === 0;
+  const width = s => plain ? ctx.measureText(s).width : (ctx.measureText(s).width + em * px * Math.max(0, Array.from(s).length - 1)) * sx;
+  text = applyCase(text, el);
   setFont(ctx, el, px, family);
   let lines;
   if (el.fit === 'wrap') {
-    lines = wrapLines(ctx, text, iw);
+    lines = wrapLines(text, iw, width);
   } else {
     lines = String(text).split('\n');
     if (el.fit === 'shrink') {
-      const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
-      const lh = px * 1.15 * lines.length;
+      const widest = Math.max(...lines.map(width));
+      const lh = px * lhK * lines.length;
       const kh = Math.min(1, lh > 0 ? ih / lh : 1);
       const k = Math.min(kh, widest > 0 ? iw / widest : 1);
       if (k < 1) {
         const floor = Math.min(px * kh, MIN_TEXT_MM * scale);
         px = Math.max(1, floor, px * k * 0.995);
         setFont(ctx, el, px, family);
-        if (lines.some(l => ctx.measureText(l).width > iw)) lines = lines.map(l => cutToWidth(ctx, l, iw));
+        if (lines.some(l => width(l) > iw)) lines = lines.map(l => cutToWidth(l, iw, width));
       }
     }
   }
-  const lh = px * 1.15;
+  const lh = px * lhK;
   const blockH = lh * lines.length;
   let y0 = 0;
   if (el.valign === 'middle') y0 = (ih - blockH) / 2;
   else if (el.valign === 'bottom') y0 = ih - blockH;
   ctx.fillStyle = ink;
   ctx.textBaseline = 'middle';
-  ctx.textAlign = el.align === 'center' ? 'center' : el.align === 'right' ? 'right' : 'left';
   const x = el.align === 'center' ? iw / 2 : el.align === 'right' ? iw : 0;
-  lines.forEach((line, i) => ctx.fillText(line, x, y0 + lh * i + lh / 2));
+  const leftOf = w => el.align === 'center' ? x - w / 2 : el.align === 'right' ? x - w : x;
+  if (plain) {
+    ctx.textAlign = el.align === 'center' ? 'center' : el.align === 'right' ? 'right' : 'left';
+    lines.forEach((line, i) => ctx.fillText(line, x, y0 + lh * i + lh / 2));
+  } else {
+    lines.forEach((line, i) => fillStyledLine(ctx, line, leftOf(width(line)), y0 + lh * i + lh / 2, sx, em * px));
+  }
+  // Underline and strikethrough, measured off the font's own x so they sit
+  // right in any font; never thinner than about 1.5 printer dots.
+  if (el.underline || el.strike) {
+    const m = ctx.measureText('x');
+    const base = m.actualBoundingBoxDescent || px * 0.25, xTop = -(m.actualBoundingBoxAscent || px * 0.25);
+    const th = Math.max(px * (textWeight(el) >= 600 ? 0.09 : 0.07), scale * 0.18);
+    lines.forEach((line, i) => {
+      const w = width(line);
+      if (!w) return;
+      const cy = y0 + lh * i + lh / 2, left = leftOf(w);
+      if (el.underline) ctx.fillRect(left, cy + base + px * 0.1, w, th);
+      if (el.strike) ctx.fillRect(left, cy + (base + xTop) / 2 - th / 2, w, th);
+    });
+  }
 }
 
 // Linear barcode inside an element frame. Module width is computed in printer
@@ -1013,7 +1113,12 @@ function drawLinear(ctx, el, text, iw, ih, scale, dpm, snap, family, ink) {
   const mDots = Math.max(1, Math.floor(lenDots / total));
   const mw = (mDots / dpm) * scale;
   const barsW = mw * total;
-  let x0 = (iw - barsW) / 2 + p.quietL * mw;
+  // 286.2: the bars sit centred in their box (the default), or at its left or
+  // right edge; the digits stay centred under the bars. An EAN's first digit
+  // stands left of the bars, so a left-aligned EAN keeps room for it.
+  const free = iw - barsW;
+  let x0 = (el.align === 'left' ? 0 : el.align === 'right' ? free : free / 2) + p.quietL * mw;
+  if (el.align === 'left' && p.ean && el.show_text) x0 += Math.max(0, 7 - p.quietL) * mw;
   if (snap) x0 = Math.round(x0);
   const textPx = el.show_text ? Math.max(1, Math.min(ih * 0.28, (el.font_size_mm || 2.4) * scale)) : 0;
   const gap = el.show_text ? textPx * 0.15 : 0;
@@ -1030,7 +1135,9 @@ function drawLinear(ctx, el, text, iw, ih, scale, dpm, snap, family, ink) {
     i = j;
   }
   if (!el.show_text) return;
-  setFont(ctx, Object.assign({}, el, { bold: false }), textPx, family);
+  // 286.1: the digits print bold when the barcode says so (thin digits at
+  // 203 dpi read faint).
+  setFont(ctx, Object.assign({}, el, { italic: false }), textPx, family);
   ctx.textBaseline = 'bottom';
   if (p.ean) {
     ctx.textAlign = 'right';
@@ -1078,6 +1185,32 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+// 286.2: text fields marked close_up that share a left edge form a column
+// with no holes: each field that prints takes the next place down from the
+// column's top, so an item with no colour does not leave a gap above its
+// design number. Returns the new top (y_mm) of each field that moves.
+export function closeUpPlaces(elements, label) {
+  const cols = new Map();
+  for (const el of elements) {
+    if (!el.close_up || el.hidden || el.kind !== 'text' || el.rotation) continue;
+    const k = Math.round(el.x_mm * 10);
+    if (!cols.has(k)) cols.set(k, []);
+    cols.get(k).push(el);
+  }
+  const moved = new Map();
+  for (const col of cols.values()) {
+    if (col.length < 2) continue;
+    col.sort((a, b) => a.y_mm - b.y_mm);
+    let slot = 0;
+    for (const el of col) {
+      if (!elementText(el, label)) continue;
+      const top = col[slot++].y_mm;
+      if (top !== el.y_mm) moved.set(el, top);
+    }
+  }
+  return moved;
+}
+
 // Draws one label's elements onto ctx, with the label's top-left at the
 // current origin. opts: { scale: px per mm, dpi: printer dpi for barcode
 // geometry, snap: whole-pixel geometry (print), mono: thermal look,
@@ -1087,9 +1220,11 @@ export function drawLabel(ctx, t, label, opts) {
   const dpm = (opts.dpi || t.settings.dpi || 203) / MM_PER_INCH;
   const snap = !!opts.snap;
   const family = t.settings.font_family;
-  for (const el of t.elements) {
-    if (el.hidden) continue;
-    if (opts.skipIds && opts.skipIds.has(el.id)) continue;
+  const moved = closeUpPlaces(t.elements, label);
+  for (const own of t.elements) {
+    if (own.hidden) continue;
+    if (opts.skipIds && opts.skipIds.has(own.id)) continue;
+    const el = moved.has(own) ? Object.assign({}, own, { y_mm: moved.get(own) }) : own;
     withElementFrame(ctx, el, scale, snap, (iw, ih) => {
       let ink = '#000';
       if (el.invert && (el.kind === 'text' || el.kind === 'barcode' || el.kind === 'qr')) {
@@ -1213,7 +1348,18 @@ export function renderRowBitmap(t, labels, dpi) {
   return canvasToBits(ctx, wDots, hDots);
 }
 
-function canvasToBits(ctx, w, h) {
+// 286.1: Darkness (0-15) for a printer driven by its Windows driver. A TSPL
+// or ZPL printer takes it as the head's heat (DENSITY, ~SD); a driver printer
+// only gets the dots, so there it sets how much of a dot a letter's edge must
+// cover to print. Higher gives small text fuller strokes; 8 and blank keep the
+// even split. Bars sit on whole dots, so their widths never change.
+export function inkThreshold(density) {
+  const d = presetNum(density);
+  if (d === null) return 128;
+  return Math.round(Math.max(16, Math.min(240, 128 + (Math.max(0, Math.min(15, d)) - 8) * 14)));
+}
+
+function canvasToBits(ctx, w, h, threshold = 128) {
   const px = ctx.getImageData(0, 0, w, h).data;
   const bpr = Math.ceil(w / 8);
   const bits = new Uint8Array(bpr * h);
@@ -1221,7 +1367,7 @@ function canvasToBits(ctx, w, h) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      if (lum < 128) bits[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+      if (lum < threshold) bits[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
     }
   }
   return { width: w, height: h, bytesPerRow: bpr, bits };
@@ -1525,7 +1671,7 @@ function labelDots(t, label, dpi) {
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
   drawCell(ctx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: roll });
   if (roll) {
-    const bmp = canvasToBits(ctx, c.width, c.height);
+    const bmp = canvasToBits(ctx, c.width, c.height, inkThreshold(t.settings.density));
     const img = ctx.createImageData(c.width, c.height);
     for (let y = 0; y < c.height; y++) {
       for (let x = 0; x < c.width; x++) {
@@ -1969,7 +2115,7 @@ export function paintPreview(canvas, t, label, { scale, mono = false, dpi, asPri
     const octx = off.getContext('2d', { willReadFrequently: true });
     octx.fillStyle = '#fff'; octx.fillRect(0, 0, w, h);
     draw(octx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: true });
-    const bmp = canvasToBits(octx, w, h);
+    const bmp = canvasToBits(octx, w, h, inkThreshold(t.settings.density));
     const img = octx.createImageData(w, h);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {

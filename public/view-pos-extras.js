@@ -29,6 +29,8 @@ let till = null;
 // mode-toggle on the sale cart above, so a return in progress can never be
 // confused with or accidentally merged into an in-progress sale.
 let posReturnCart = []; // { sku, qty, unitPrice, remaining }
+// 297.1: a new build waits while a return has items in it.
+globalThis.holdUpdateWhile?.('pos-return', () => posReturnCart.length > 0);
 let posReturnEligibility = null;
 
 export function renderPOSReturnPanel(panel) {
@@ -328,15 +330,15 @@ async function submitPOSReturnInner() {
   posReturnEligibility = null;
   document.getElementById('pos-return-order-id').value = '';
   renderPOSReturnTable();
+  // Stage 55.5: say what the customer gets back and where the return goes
+  // next, and offer to take the cashier there. 267.12: by its number (SR/...).
+  const { back, number } = await describeReturnRefund(data.return_request_id);
   if (data.replayed) {
-    await showCustomAlert(`This return was already raised as ${data.return_request_id}. Nothing was duplicated.`, 'Return Raised');
+    await showCustomAlert(`This return was already raised as ${number}. Nothing was duplicated.`, 'Return Raised');
     return;
   }
-  // Stage 55.5: say what the customer gets back and where the return goes
-  // next, and offer to take the cashier there.
-  const back = await describeReturnRefund(data.return_request_id);
   const open = await showCustomConfirm(
-    `Return ${data.return_request_id} raised.${back ? ` When it is refunded the customer gets back ${back}.` : ''}` +
+    `Return ${number} raised.${back ? ` When it is refunded the customer gets back ${back}.` : ''}` +
     ' Next, on Returns: Approve, Receive Goods, Inspect, then Refund - no refund is paid until the goods have been inspected. Open Returns now?',
     'Return Raised');
   if (open) renderView('returns');
@@ -350,8 +352,11 @@ async function submitPOSReturnInner() {
 // the customer "Cash 900.00 and 270 points" before anything is approved.
 async function describeReturnRefund(returnID) {
   const res = await apiFetch(`/api/v1/doc/ReturnRequest/${encodeURIComponent(returnID)}`).catch(() => null);
-  if (!res || !res.ok) return '';
-  const doc = await res.json().catch(() => null);
+  const doc = res && res.ok ? await res.json().catch(() => null) : null;
+  return { back: returnRefundText(doc), number: (doc && doc.code) || returnID };
+}
+
+function returnRefundText(doc) {
   const tenders = {};
   let points = 0;
   let plain = 0;

@@ -1,7 +1,8 @@
 // 205.12 / 205.19: show a new key once. Copy, Download .env, ready snippets and
 // Test connection. Shared by the Created page (view-api-access.js) and the
 // developer claim page (api-claim.html), so it holds no app globals.
-import { esc, copyText, downloadText, snippets } from './api-docs-viewer.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { esc, copyText, downloadText, snippets } = await import('./api-docs-viewer.js' + new URL(import.meta.url).search);
 
 function codeBlock(text) {
   return `<div class="api-code"><pre>${esc(text)}</pre><button type="button" class="btn btn-outline btn-sm" data-copy>Copy</button></div>`;

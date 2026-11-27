@@ -106,8 +106,8 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 - **Bin Conditions**: change the condition of stock in a bin between Good, Damaged, QC-Hold and RTV. Anything other than Good stops being available to sell and is never picked. Moving it back to Good restores it.
 - **Bin Generator**: make many bins from aisle, rack, shelf and bin ranges, preview first, and print Code 128 bin labels. Running it again only adds the new bins.
 - **Place Hold**: hold a quantity of an item at a location (for example for a quality check). It stops that quantity being sold or reserved for new orders. **Holds** lists every hold and is read-only. To release one, raise a **Hold Release Request** and **Submit for Approval**. When a Store Manager approves it, the hold is released.
-- **LPN / Cartons / Pallets**: **Assign** records that stock in a bin sits in a carton or pallet (an LPN). **Look Up** shows what is in an LPN. This is a record only and moves no stock.
-- **Cycle Count**: count what is physically there (**Manage Count Lines**), then **Reconcile Session**. A line with no difference posts straight away. A large difference is sent for a blind recount, and other differences go to Approvals. Each variance needs a reason before it posts.
+- **LPN / Cartons / Pallets**: **Assign** records that stock in a bin sits in a carton or pallet (an LPN). **Look up an LPN** (its own page) shows what is in one. This is a record only and moves no stock.
+- **Cycle Count**: count what is physically there (**Count lines**), then **Reconcile Session**. A line with no difference posts straight away. A large difference is sent for a blind recount, and other differences go to Approvals. Each variance needs a reason before it posts.
 - **RF Lot & Serial**: besides **Put a lot away**, use **Issue a lot**, **Change a serial** and **Sweep expired lots** (which quarantines lots past their expiry date).
 
 ## Cycle Count
@@ -132,11 +132,11 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 
 > [!HOW]
 
-1. Open **WMS → Storage & Control → Cycle Count**. Under **ABC cycle-count
-   planner**, enter the location and click **Get Plan** to see what is due.
-2. Click **Manage Count Lines** and enter the counted quantity for each item
+1. Open **WMS → ABC count plan**, enter the location and click **Get Plan**
+   to see what is due.
+2. Open **Count lines** and enter the counted quantity for each item
    and bin in one count session.
-3. Enter that session in **Count Session** and click **Reconcile Session**.
+3. Open **Cycle Count** and enter that session in **Count Session** and click **Reconcile Session**.
 4. Click **Show lines** and choose a **Reason** for each difference.
 5. Once a difference is approved, click **Post** on its line. For a recount
    line, enter the quantity and click **Save recount**.
@@ -151,7 +151,7 @@ there are none, **Add one** opens that list.
 3. Pick on paper from the pick list, or press **Pick on a phone** (**Mobile Picking**): confirm each line, then **Mark N order(s) packed**. Orders that are short stay as they are.
 4. **Sortation / Put-Wall** (optional): record which order goes into which slot of a sort station.
 5. **Loading**: **Open New Load** for a dock door and trailer, scan the invoiced packages, then **Complete Load** (which runs your pre-ship checks), **Record Exchange & Depart**, and **Print Bill of Lading** if you need one.
-6. **Hand over** on **OMS → Ship** is the step that dispatches the tasks and takes the stock out of the location and its bins. Loading does not do this.
+6. **Hand over** on **OMS → Manifests** is the step that dispatches the tasks and takes the stock out of the location and its bins. Loading does not do this.
 
 ## Wave / Batch Picking
 
@@ -186,7 +186,7 @@ first (FEFO): pick the exact batch shown.
 
 ## Watching the floor
 
-- **Warehouse Cockpit**: one location's open tasks, exceptions, waves, inbound deliveries due, throughput and bin use, with **Labour** and **Warehouse Billing** as their own entries beside it. It changes no stock.
+- **Home**: one location's open tasks, exceptions, waves, inbound deliveries due, throughput and bin use, with **Labour plan**, **Labour standards** and **Warehouse Billing** as their own entries beside it. It changes no stock.
 - **Waves**: the list of every wave and its status. A status moves only one step forward at a time.
 - **Cross-Dock Plans**: say that a quantity of an item should go straight out to a destination. Putaway's **Stage Against Plan** uses the oldest open plan for that item and moves the stock into a cross-dock bin.
 
@@ -196,7 +196,7 @@ first (FEFO): pick the exact batch shown.
 |---|---|---|
 | Bin | Set up bins and their limits | No |
 | Putaway | Put received stock into bins | Bin stock |
-| Warehouse Cockpit | Watch one location's work | No |
+| Home | Watch one location's work | No |
 | Bin Conditions | Mark stock Good, Damaged, QC-Hold or RTV | Available to sell |
 | LPN / Cartons / Pallets | Record which carton or pallet holds stock | No |
 | Bin Replenishment | Refill pick bins from reserve bins | Bin stock |

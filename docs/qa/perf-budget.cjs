@@ -270,7 +270,7 @@ async function oneRun(browser, profile, token, args, cfg) {
   let n429 = 0;
   try {
     // COLD: empty cache.
-    let { page, api } = await openPage(context, profile, urls, errs);
+    let { page, api, cdp } = await openPage(context, profile, urls, errs);
     await page.goto(args.base + '/?r=1#/view/home', { waitUntil: 'load' });
     await viewReady(page, api);
     await sleep(1500);
@@ -280,7 +280,7 @@ async function oneRun(browser, profile, token, args, cfg) {
     n429 += api.n429;
     await page.close();
     // CACHED: same context (warm HTTP cache), a fresh page load.
-    ({ page, api } = await openPage(context, profile, urls, errs));
+    ({ page, api, cdp } = await openPage(context, profile, urls, errs));
     await page.goto(args.base + '/?r=1#/view/home', { waitUntil: 'load' });
     await viewReady(page, api);
     await sleep(1500);
@@ -315,9 +315,15 @@ async function oneRun(browser, profile, token, args, cfg) {
       sweep.push({ hash: h, dom: v.dom, overflowPx: v.overflow, unnamed: a.unnamed, unlabelled: a.unlabelled, noAlt: a.noAlt, dupIds: a.dupIds, contrast: a.contrast });
     }
     const tail = await page.evaluate(() => ({ shifts: window.__pb.shifts, longtasks: window.__pb.longtasks.map(x => x.d) }));
+    // 297.7: the tab's size after the whole session - its JS heap, and every
+    // node it still holds, shown or not - read after a garbage collection.
+    await cdp.send('Performance.enable');
+    await cdp.send('HeapProfiler.collectGarbage');
+    const pm = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
+    const memory = { heapMB: +(pm.JSHeapUsedSize / 1048576).toFixed(1), nodes: pm.Nodes, listeners: pm.JSEventListeners };
     n429 += api.n429;
     return {
-      cold, cached, inp,
+      cold, cached, inp, memory,
       switches: switches.filter(s => s.settled != null).map(s => ({ hash: s.hash, ms: r1(s.settled) })),
       sweep, cls: clsOf(tail.shifts), longTasks: { n: tail.longtasks.length, totalMs: Math.round(sum(tail.longtasks)), maxMs: Math.round(Math.max(0, ...tail.longtasks)) },
       errors: { http: errs.http, console: errs.console, page: errs.page, failed: errs.failed }, rateLimited: n429, apiUrls: [...urls],
@@ -373,6 +379,7 @@ function summarize(runs) {
     longTasksColdMaxMs: Math.max(...per(r => r.cold.longTasks.maxMs)), longTasksColdTotalMs: Math.round(pct(per(r => r.cold.longTasks.totalMs), 50)),
     longTasksRunMaxMs: Math.max(...per(r => r.longTasks.maxMs)),
     domNodesMax: Math.max(...runs.flatMap(r => [r.cold.dom, ...r.sweep.map(s => s.dom)])),
+    jsHeapMBMax: Math.max(...per(r => r.memory.heapMB)), tabNodesMax: Math.max(...per(r => r.memory.nodes)),
     httpErrors: Math.max(...per(r => r.errors.http.length + r.errors.failed.length)),
     consoleErrors: Math.max(...per(r => r.errors.console.length)),
     pageErrors: Math.max(...per(r => r.errors.page.length)),
@@ -435,7 +442,7 @@ async function main() {
         const r = await oneRun(browser, profile, tokens[ti++], args, cfg);
         r.apiUrls.forEach(u => urlSet.add(u));
         delete r.apiUrls; rs.push(r);
-        process.stderr.write(`[perf]   LCP ${Math.round(r.cold.lcpProd)} ms cold, bytes ${r.cold.bytes}/${r.cached.bytes}, INP ${r.inp.value && Math.round(r.inp.value)} ms, errors ${r.errors.http.length + r.errors.console.length + r.errors.page.length}\n`);
+        process.stderr.write(`[perf]   LCP ${Math.round(r.cold.lcpProd)} ms cold, bytes ${r.cold.bytes}/${r.cached.bytes}, INP ${r.inp.value && Math.round(r.inp.value)} ms, heap ${r.memory.heapMB} MB, nodes ${r.memory.nodes}, errors ${r.errors.http.length + r.errors.console.length + r.errors.page.length}\n`);
       }
       summaries[name] = summarize(rs);
       result.profiles[name] = { label: profile.label, summary: summaries[name], runs: rs };
@@ -455,7 +462,7 @@ async function main() {
     console.log(`  bytes cold ${s.coldBytes} / cached ${s.cachedBytes}; requests ${s.coldRequests}; LCP p75 ${s.lcpP75Ms} ms (with env banner ${s.lcpWithBannerP75Ms}); cached LCP p75 ${s.cachedLcpP75Ms}; FCP p75 ${s.fcpP75Ms}`);
     console.log(`  LCP element: ${s.lcpElement}`);
     console.log(`  INP p75 ${s.inpP75Ms} ms (${s.inpInteractions} interactions); view switch p50 ${s.switchP50Ms} / p95 ${s.switchP95Ms} ms; CLS max ${s.clsMax}`);
-    console.log(`  long tasks: cold max ${s.longTasksColdMaxMs} ms, cold total ${s.longTasksColdTotalMs} ms, run max ${s.longTasksRunMaxMs} ms; DOM nodes max ${s.domNodesMax}`);
+    console.log(`  long tasks: cold max ${s.longTasksColdMaxMs} ms, cold total ${s.longTasksColdTotalMs} ms, run max ${s.longTasksRunMaxMs} ms; DOM nodes max ${s.domNodesMax}; tab after the session ${s.jsHeapMBMax} MB heap, ${s.tabNodesMax} nodes`);
     console.log(`  errors: http ${s.httpErrors}, console ${s.consoleErrors}, page ${s.pageErrors}; overflowing views ${s.viewportOverflow}; unnamed controls ${s.unnamedControls}; unlabelled fields ${s.unlabelledFields}; img no alt ${s.imagesWithoutAlt}; duplicate ids ${s.duplicateIds}; low contrast ${s.lowContrast}; rate-limited ${s.rateLimited}`);
   }
   if (result.server) {

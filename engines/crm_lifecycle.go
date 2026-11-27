@@ -135,7 +135,7 @@ func crmFactsCTE(schema string, th CRMLifecycleThresholds, oneCustomer bool) str
 	         CASE WHEN COALESCE(a.visits, 0) > 0 THEN (COALESCE(a.gross, 0) - COALESCE(r.refunded, 0)) / a.visits END AS avg_bill,
 	         a.first_at, a.last_at, a.prev_at, COALESCE(a.last_store, '') AS last_store,
 	         COALESCE(p.points, 0) AS points, COALESCE(p.pending, 0) AS points_pending,
-	         CASE WHEN a.last_at IS NOT NULL THEN (LOCALTIMESTAMP::date - a.last_at::date) END AS days_since
+	         CASE WHEN a.last_at IS NOT NULL THEN (public.erp_today() - public.erp_local_date(a.last_at)) END AS days_since
 	    FROM %[1]s.documents cu
 	    LEFT JOIN agg a ON a.cid = cu.id LEFT JOIN rets r ON r.cid = cu.id LEFT JOIN pts p ON p.cid = cu.id
 	   WHERE cu.doctype = 'Customer' AND cu.deleted_at IS NULL AND cu.status <> 'Merged'
@@ -160,8 +160,8 @@ func crmLifecycleCaseSQL(f string, th CRMLifecycleThresholds) string {
 	return fmt.Sprintf(`(CASE WHEN %[1]s.visits = 0 THEN 'Never bought'
 	  WHEN %[1]s.days_since > %[4]d THEN 'Lapsed'
 	  WHEN %[1]s.days_since > %[3]d THEN 'At risk'
-	  WHEN %[1]s.prev_at IS NOT NULL AND (%[1]s.last_at::date - %[1]s.prev_at::date) > %[4]d THEN 'Reactivated'
-	  WHEN %[1]s.visits = 1 OR (LOCALTIMESTAMP::date - %[1]s.first_at::date) <= %[2]d THEN 'New'
+	  WHEN %[1]s.prev_at IS NOT NULL AND (public.erp_local_date(%[1]s.last_at) - public.erp_local_date(%[1]s.prev_at)) > %[4]d THEN 'Reactivated'
+	  WHEN %[1]s.visits = 1 OR (public.erp_today() - public.erp_local_date(%[1]s.first_at)) <= %[2]d THEN 'New'
 	  ELSE 'Active repeat' END)`, f, th.NewDays, th.ActiveDays, th.AtRiskDays)
 }
 

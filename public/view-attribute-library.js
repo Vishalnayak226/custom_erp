@@ -138,7 +138,7 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     root.querySelectorAll(`[data-al-section="${id}"] [data-al-pick]:not(:disabled)`).forEach(box => { box.checked = on; });
     count();
   }));
-  root.querySelector('[data-al-back]').addEventListener('click', () => renderView('control-panel'));
+  root.querySelector('[data-al-back]').addEventListener('click', () => renderView('control-panel:clients'));
   root.querySelector('[data-al-industry]').addEventListener('change', e => {
     container.innerHTML = '';
     renderAttributeLibrary(container, client, e.target.value);
@@ -169,9 +169,7 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     const c = await pv.json();
     const msg = `${c.to_add} rule(s) to add, ${c.already_there} already there, ${c.no_category} for categories ${name} does not have, ${c.no_attribute} for attributes it does not have, ${c.left_out} conditional or regulatory rows left out.`;
     if (c.to_add === 0) { await showCustomAlert(msg, 'Category rules'); btn.disabled = false; return; }
-    if (!await showCustomConfirm(msg + '
-
-Nothing already set is changed.', 'Add category rules')) { btn.disabled = false; return; }
+    if (!await showCustomConfirm(msg + '\n\nNothing already set is changed.', 'Add category rules')) { btn.disabled = false; return; }
     const r = await call(true);
     btn.disabled = false;
     if (!r) return;

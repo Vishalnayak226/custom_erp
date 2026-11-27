@@ -105,7 +105,7 @@ var dataClassifications = map[string]DataFlowClass{
 		Tier: TierRestricted, Privacy: PrivacySensitiveFinancial,
 		Purpose: "Run statutory payroll and reconcile it against filings", TenantScoped: true,
 		Source: "HR payroll run; admin-entered salary structure",
-		Consumers: "Super Admin only (engines/sensitive_fields.go payrollRule)",
+		Consumers: "Super Admin and roles whose template holds hr.payroll - HR Manager (engines/sensitive_fields.go payrollRule, 278.2)",
 		Masking: "Never returned to a role outside the read list; report columns marked ReportColumn.Sensitive",
 		Export: "Excluded from CSV/report export for any role outside the read list",
 		RetentionTrigger: "employment end", LegalHold: true,

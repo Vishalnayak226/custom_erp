@@ -698,7 +698,7 @@ func StartWebPushAlertWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[WEBPUSH] could not list clients: %v", err)
 					continue

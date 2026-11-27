@@ -18,6 +18,26 @@ export function chartColor(i) {
   return v || ['#4f6bed', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#9333ea', '#db2777', '#65a30d'][i % 8];
 }
 
+// 298: a name (a channel, a store, a category) keeps one colour on every
+// chart of the page, so Store is the same colour in the stacked bar and the
+// donut beside it; inside one chart no two names share a colour.
+const nameColour = new Map();
+function nameColours(names) {
+  const used = new Set();
+  const claimed = new Set(nameColour.values());
+  return names.map(n => {
+    const k = String(n);
+    let i = nameColour.get(k);
+    if (i === undefined || used.has(i)) {
+      const free = [0, 1, 2, 3, 4, 5, 6, 7].filter(j => !used.has(j));
+      i = free.find(j => !claimed.has(j)) ?? free[0] ?? used.size;
+      if (!nameColour.has(k)) { nameColour.set(k, i); claimed.add(i); }
+    }
+    used.add(i);
+    return chartColor(i);
+  });
+}
+
 function textColor(muted) {
   const v = getComputedStyle(tokenHost).getPropertyValue(muted ? '--text-muted' : '--text-main').trim();
   return v || (muted ? '#6b7280' : '#111827');
@@ -28,13 +48,14 @@ function textColor(muted) {
 export function fmtValue(v, col) {
   if (v === null || v === undefined) return col && col.money ? 'hidden' : '–';
   if (typeof v !== 'number') return String(v);
-  const n = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100;
+  if (col && col.unit === '%') return `${Math.round(v * 10) / 10}%`; // 298.1: a share
+  const n =Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100;
   const s = n.toLocaleString('en-IN');
   return col && col.money ? `₹${s}` : s;
 }
 
 function shortValue(v, col) {
-  if (typeof v !== 'number') return fmtValue(v, col);
+  if (typeof v !== 'number' || (col && col.unit === '%')) return fmtValue(v, col);
   const a = Math.abs(v);
   const s = a >= 1e7 ? `${(v / 1e7).toFixed(1)}Cr` : a >= 1e5 ? `${(v / 1e5).toFixed(1)}L` : a >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : fmtValue(v);
   return col && col.money ? `₹${s}` : s;
@@ -81,7 +102,11 @@ function drawNumber(host, result, measures) {
   const v = row[m.key];
   let change = '';
   const prev = result.previous && result.previous[m.key];
-  if (typeof v === 'number' && typeof prev === 'number' && prev !== 0) {
+  if (typeof v === 'number' && typeof prev === 'number' && m.unit === '%') {
+    // A share changes by points, not by a % of itself.
+    const pts = Math.round((v - prev) * 10) / 10;
+    change = `<div class="dash-change ${pts >= 0 ? 'up' : 'down'}" title="Before: ${esc(fmtValue(prev, m))}">${pts >= 0 ? '▲' : '▼'} ${Math.abs(pts)} points on the period before</div>`;
+  } else if (typeof v === 'number' && typeof prev === 'number' && prev !== 0) {
     const pct = Math.round((v - prev) / Math.abs(prev) * 1000) / 10;
     change = `<div class="dash-change ${pct >= 0 ? 'up' : 'down'}" title="Before: ${esc(fmtValue(prev, m))}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% on the period before</div>`;
   }
@@ -132,6 +157,8 @@ function drawBars(host, result, groups, measures, title, onPick, stacked) {
     series = measures.slice(0, 3).map(c => ({ key: c.key, label: c.label, col: c }));
     val = (c, s) => { const i = cats.indexOf(c); return { v: result.rows[i][s.key] || 0, i }; };
   }
+  // Series that are names (the second group) take their page colour; measures keep the palette order.
+  const colours = groups.length > 1 ? nameColours(series.map(s => s.label)) : series.map((s, i) => chartColor(i));
   const totals = cats.map(c => series.reduce((a, s) => a + Math.max(0, val(c, s).v), 0));
   const max = Math.max(1, ...(stacked ? totals : cats.flatMap(c => series.map(s => val(c, s).v))));
   // Side by side, money and counts each keep their own scale.
@@ -151,13 +178,13 @@ function drawBars(host, result, groups, measures, title, onPick, stacked) {
       const w = Math.max(0, v) / (mixed ? seriesMax(s) : max) * barW;
       const bh = stacked ? lane - 8 : (lane - 6) / per;
       const y = stacked ? y0 : y0 + si * bh;
-      svg += `<rect x="${stacked ? x : labelW}" y="${y}" width="${Math.max(w, v > 0 ? 1 : 0)}" height="${Math.max(bh - 2, 3)}" rx="2" fill="${chartColor(si)}"${i >= 0 ? ` data-pick="${i}"` : ''} data-series="${esc(s.key)}"><title>${esc(c)} · ${esc(s.label)}: ${esc(fmtValue(v, s.col))}</title></rect>`;
+      svg += `<rect x="${stacked ? x : labelW}" y="${y}" width="${Math.max(w, v > 0 ? 1 : 0)}" height="${Math.max(bh - 2, 3)}" rx="2" fill="${colours[si]}"${i >= 0 ? ` data-pick="${i}"` : ''} data-series="${esc(s.key)}"><title>${esc(c)} · ${esc(s.label)}: ${esc(fmtValue(v, s.col))}</title></rect>`;
       if (stacked) x += w;
     });
     const tv = stacked ? totals[ci] : val(c, series[0]).v;
     svg += `<text x="${W - 4}" y="${y0 + lane / 2 + 4}" text-anchor="end" font-size="12" fill="${textColor(true)}">${esc(shortValue(tv, series[0].col))}</text>`;
   });
-  const legend = series.length > 1 ? `<div class="dash-legend">${series.map((s, i) => `<span><i data-css="background:${chartColor(i)}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
+  const legend = series.length > 1 ? `<div class="dash-legend">${series.map((s, i) => `<span><i data-css="background:${colours[i]}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
   host.innerHTML = `<svg viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" role="img" aria-label="${esc(title)}">${svg}</svg>${legend}${srTable(result, title)}`;
   wirePicks(host, result.rows, onPick);
 }
@@ -200,6 +227,7 @@ function drawDonut(host, result, g, m, title, onPick) {
   const slices = top.map(r => ({ label: r[g.key], v: r[m.key], i: result.rows.indexOf(r) }));
   if (other > 0) slices.push({ label: 'Other', v: other, i: -1 });
   const total = slices.reduce((a, s) => a + s.v, 0);
+  const colours = nameColours(slices.map(s => s.label));
   const R = 80, r0 = 50, cx = 100, cy = 100;
   let a0 = -Math.PI / 2, svg = '';
   slices.forEach((s, k) => {
@@ -209,11 +237,11 @@ function drawDonut(host, result, g, m, title, onPick) {
     const d = slices.length === 1
       ? `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} L ${cx - 0.01} ${cy - r0} A ${r0} ${r0} 0 1 0 ${cx} ${cy - r0} Z`
       : `M ${p(a0, R)} A ${R} ${R} 0 ${large} 1 ${p(a1, R)} L ${p(a1, r0)} A ${r0} ${r0} 0 ${large} 0 ${p(a0, r0)} Z`;
-    svg += `<path d="${d}" fill="${chartColor(k)}"${s.i >= 0 ? ` data-pick="${s.i}"` : ''}><title>${esc(s.label)}: ${esc(fmtValue(s.v, m))} (${Math.round(s.v / total * 100)}%)</title></path>`;
+    svg += `<path d="${d}" fill="${colours[k]}"${s.i >= 0 ? ` data-pick="${s.i}"` : ''}><title>${esc(s.label)}: ${esc(fmtValue(s.v, m))} (${Math.round(s.v / total * 100)}%)</title></path>`;
     a0 = a1;
   });
   svg += `<text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="15" font-weight="600" pointer-events="none" fill="${textColor(false)}">${esc(shortValue(total, m))}</text>`;
   host.innerHTML = `<div class="dash-donut"><svg viewBox="0 0 200 200" role="img" aria-label="${esc(title)}">${svg}</svg>
-    <ul class="dash-legend dash-legend-list">${slices.map((s, k) => `<li><i data-css="background:${chartColor(k)}"></i>${esc(s.label)} <b>${Math.round(s.v / total * 100)}%</b></li>`).join('')}</ul></div>${srTable(result, title)}`;
+    <ul class="dash-legend dash-legend-list">${slices.map((s, k) => `<li><i data-css="background:${colours[k]}"></i>${esc(s.label)} <b>${Math.round(s.v / total * 100)}%</b></li>`).join('')}</ul></div>${srTable(result, title)}`;
   wirePicks(host, result.rows, onPick);
 }

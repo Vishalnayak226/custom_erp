@@ -43,7 +43,7 @@ async function renderTaskInboxView(container) {
   if (embeddedTitle) {
     const h2 = document.createElement('h2');
     h2.textContent = 'Approvals waiting for a decision';
-    h2.style.cssText = 'font-size:16px;margin:0;';
+    h2.style.cssText = 'font-size:18px;margin:0;';
     embeddedTitle.replaceWith(h2);
   }
 
@@ -99,9 +99,10 @@ function openInboxItem(item) {
     return;
   }
   if (item.view === 'oms') {
+    // 284.1: the exception queues live on OMS home.
     try { sessionStorage.setItem('erp_oms_open_queue', item.queue || ''); } catch (_) { /* storage off: the queue buttons are on the page */ }
-    setActiveMenu('menu-oms');
-    renderView('oms');
+    setActiveMenu('menu-oms-home');
+    renderView('oms:home');
     return;
   }
   if (item.view === 'dataquality') { renderView('dataquality'); return; }

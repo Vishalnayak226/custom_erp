@@ -571,7 +571,7 @@ body {
 }
 
 .account-popover-theme-label {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -661,11 +661,11 @@ body {
 
 .user-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .user-role {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -741,7 +741,6 @@ body {
 @media (max-width: 560px) {
   .header-actions { gap: 8px; }
   .header-actions > .btn + .btn { margin-left: 0; }
-  #sync-btn > span, #reset-btn > span { display: none; }
 }
 
 /* Page Containers */
@@ -880,25 +879,32 @@ body {
   background-color: var(--danger-hover);
 }
 
-/* Dashboard Stats Row */
+/* Dashboard Stats Row. min(220px, 100%): at very high zoom a column never asks
+   for more width than the row has (287.1). */
 .dashboard-stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
 
+/* 287.1 (user 2026-11-26: every page reflows "like a river" at any zoom): a
+   card's parts (label, value, note) sit side by side while they fit and wrap
+   onto the next line when they do not. Words stay whole: break-word splits one
+   only when it alone is wider than the card (a long code or address), where
+   "anywhere" let the row squeeze each part down to a letter ("Clie nts"). */
 .stat-card {
   background-color: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 20px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 6px 16px;
   box-shadow: var(--shadow-sm);
 }
-.stat-card > * { min-width: 0; overflow-wrap: anywhere; }
+.stat-card > * { min-width: 0; overflow-wrap: break-word; }
 
 .stat-info {
   display: flex;
@@ -913,7 +919,7 @@ body {
 }
 
 .stat-label {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
 }
 
@@ -974,13 +980,13 @@ body {
 #dashboard-add-tile-picker { width: 14rem; max-width: 100%; }
 
 .card-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-main);
 }
 
 .card-desc {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -1053,7 +1059,7 @@ body {
   align-items: center;
   gap: 10px;
   margin-left: auto;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
 }
 /* 200.2: ticked rows' actions float at the window's foot, so ticking a row never
@@ -1114,7 +1120,7 @@ th {
   top: 0;
   z-index: 16;
   padding: 10px 16px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1168,7 +1174,7 @@ tr:hover td {
   align-items: center;
   padding: 4px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1190,6 +1196,7 @@ tr:hover td {
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-muted);
+  font-size: 13.5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1438,7 +1445,7 @@ tr:hover td {
 .form-group[hidden] { display: none; }
 
 .form-label {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-main);
 }
@@ -1505,7 +1512,7 @@ tr:hover td {
 
 .typeahead-item {
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-main);
   cursor: pointer;
   white-space: nowrap;
@@ -1534,13 +1541,13 @@ tr:hover td {
 }
 
 .toggle-label {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-main);
 }
 
 .toggle-desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -1637,7 +1644,7 @@ input:checked + .slider:before {
   justify-content: space-between;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
 }
 
@@ -1652,6 +1659,7 @@ input:checked + .slider:before {
   border: 1px solid var(--border-color);
   background: var(--panel-bg);
   cursor: pointer;
+  font-size: 13.5px;
   font-weight: 500;
   transition: background-color var(--transition-fast) ease, border-color var(--transition-fast) ease, opacity var(--transition-fast) ease;
 }
@@ -1759,7 +1767,7 @@ pre {
 }
 
 .custom-dialog-header h3 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-main);
   margin: 0;
@@ -2099,7 +2107,7 @@ pre {
 }
 
 .login-error {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--danger-strong);
   background-color: var(--danger-soft-bg);
   border: 1px solid var(--danger-soft-border);
@@ -2118,7 +2126,7 @@ pre {
   gap: 10px;
   padding: 24px;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .view-loading-bar {
@@ -2170,7 +2178,7 @@ pre {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 13px;
+  font-size: 13.5px;
   letter-spacing: 0.04em;
   white-space: normal;
   user-select: all;
@@ -2208,14 +2216,14 @@ pre {
 }
 
 .toast-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   margin-bottom: 2px;
   color: var(--text-main);
 }
 
 .toast-message {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -2234,7 +2242,7 @@ pre {
   gap: 12px;
   padding: 10px 16px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 13.5px;
   margin-bottom: 16px;
 }
 
@@ -2262,7 +2270,7 @@ pre {
 }
 
 .page-banner-ref {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   opacity: 0.75;
   white-space: nowrap;
@@ -2272,7 +2280,7 @@ pre {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   color: inherit;
   opacity: 0.7;
@@ -2325,7 +2333,7 @@ pre {
   margin: 8px -12px -8px;
   padding: 8px 12px;
   border-top: 1px solid var(--border-color);
-  font-size: 13px;
+  font-size: 13.5px;
   overflow-wrap: anywhere;
 }
 
@@ -2336,6 +2344,15 @@ pre {
   text-decoration: none;
 }
 
+/* 303.1: the create row under results that only partly match the typed name. */
+.typeahead-item-create {
+  border-top: 1px solid var(--border-color);
+  color: var(--primary-color);
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* Grouped typeahead results (Stage 30.5.8) - the heading a Location picker
    renders above each run of Stores / Warehouses / HO, and the footer note a
    browse-on-focus menu renders when it hit its page size. Neither is a
@@ -2343,7 +2360,7 @@ pre {
    keyboard navigation still maps 1:1 onto the result list. */
 .typeahead-group {
   padding: 6px 12px 2px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2358,7 +2375,7 @@ pre {
 
 .typeahead-note {
   padding: 6px 12px 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   cursor: default;
   border-top: 1px solid var(--border-color);
@@ -2388,7 +2405,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .submenu-filter {
   width: 100%;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-family: var(--font-family);
   color: var(--text-main);
   background-color: var(--panel-bg);
@@ -2404,7 +2421,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .submenu-group-label {
   padding: 6px 12px;
   margin: 4px 0 2px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2432,7 +2449,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 .json-line-table th {
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2453,7 +2470,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 .json-line-table .form-input {
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .json-line-empty {
@@ -2552,7 +2569,7 @@ input.form-input.num {
 }
 
 .po-composer-head h2 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   margin: 0;
 }
@@ -2585,7 +2602,7 @@ input.form-input.num {
   margin-bottom: 18px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   background-color: var(--surface-subtle);
   transition: background-color var(--transition-med) var(--ease-out),
               border-color var(--transition-med) var(--ease-out);
@@ -2636,7 +2653,7 @@ input.form-input.num {
 
 .po-optional {
   font-weight: 400;
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -2656,7 +2673,7 @@ input.form-input.num {
    reads as "the system filled this in" without needing a legend. */
 .po-derived {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 13.5px;
   padding-top: 15px !important;
 }
 
@@ -2667,7 +2684,7 @@ input.form-input.num {
 
 .po-line-error {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--danger-color);
 }
@@ -2681,7 +2698,7 @@ input.form-input.num {
   height: 26px;
   margin-top: 4px;
   padding: 0;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1;
   color: var(--text-muted);
   background: transparent;
@@ -2708,7 +2725,7 @@ input.form-input.num {
 
 .po-totals {
   min-width: 260px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .po-total-row {
@@ -2724,7 +2741,7 @@ input.form-input.num {
   margin-top: 6px;
   padding-top: 8px;
   border-top: 1px solid var(--border-color);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-main);
 }
@@ -2732,7 +2749,7 @@ input.form-input.num {
 .po-total-mode,
 .po-total-hint {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -2755,7 +2772,7 @@ input.form-input.num {
 
 .po-sent-stamp {
   margin-top: 3px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -2776,7 +2793,7 @@ input.form-input.num {
 .field-format-note {
   min-height: 0;
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
 }
@@ -2966,7 +2983,7 @@ td.num {
 .oms-channel-ref {
   margin-top: 2px;
   font-family: var(--font-numeric);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   word-break: break-all;
 }
@@ -3110,7 +3127,7 @@ td .setup-hint.visible:not(.setup-hint-missing) { top: auto; bottom: 100%; }
   background: none;
   border: none;
   padding: 0 4px;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   color: inherit;
   cursor: pointer;
@@ -3125,7 +3142,7 @@ td .setup-hint.visible:not(.setup-hint-missing) { top: auto; bottom: 100%; }
   border-radius: 8px;
   background-color: var(--warning-soft-bg);
   color: var(--warning-strong);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.55;
 }
 
@@ -3166,7 +3183,7 @@ td .setup-hint.visible:not(.setup-hint-missing) { top: auto; bottom: 100%; }
   border-radius: 3px;
   background-color: var(--surface-subtle);
   font-family: var(--font-numeric);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* 35.2: shared by e-invoice, inbox, service desk; the rest is in oms.css. */
@@ -3180,7 +3197,7 @@ td .setup-hint.visible:not(.setup-hint-missing) { top: auto; bottom: 100%; }
 
 .oms-detail-empty {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 /* RF task shell (Stage 47.6.2): hides the app chrome while a task is open.
@@ -3395,7 +3412,7 @@ html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar > :n
   border: none;
   background: none;
   font-family: var(--font-family);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.4;
   letter-spacing: 0.01em;
   color: var(--text-muted);
@@ -3428,7 +3445,7 @@ html[data-boot~="app"] #login-screen.hidden ~ #app-root.hidden :is(.sidebar > :n
   background: var(--panel-bg);
   box-shadow: var(--shadow-md);
   font-family: var(--font-family);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
   white-space: nowrap;
 }
@@ -3474,33 +3491,33 @@ input[type="date"][data-date-picker="1"] {
 input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { display: none; }
 
 /* 49.4.3: classes that replace inline style attributes in the cold core (generated by hash of the declarations). */
-.s-02213e.s-02213e.s-02213e { font-size: 13px; color: var(--warning-strong); margin: 0 0 12px; }
+.s-02213e.s-02213e.s-02213e { font-size: 13.5px; color: var(--warning-strong); margin: 0 0 12px; }
 .s-0dcb5a.s-0dcb5a.s-0dcb5a { flex: 1; justify-content: center; }
-.s-0e284a.s-0e284a.s-0e284a { font-size: 20px; font-weight: 600; }
+.s-0e284a.s-0e284a.s-0e284a { font-size: 18px; font-weight: 600; }
 .s-16949d.s-16949d.s-16949d { margin-bottom: 8px; }
 .s-177edc.s-177edc.s-177edc { width: 100%; justify-content: center; margin-top: 8px; }
-.s-17d019.s-17d019.s-17d019 { font-size: 13px; color: var(--text-muted); margin: 0; }
+.s-17d019.s-17d019.s-17d019 { font-size: 13.5px; color: var(--text-muted); margin: 0; }
 .s-192902.s-192902.s-192902 { display: flex; flex-wrap: wrap; gap: 8px; }
 .s-1e0e35.s-1e0e35.s-1e0e35 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
 .s-290877.s-290877.s-290877 { display: flex; gap: 8px; margin-bottom: 12px; }
 .s-29b798.s-29b798.s-29b798 { margin-bottom: 16px; }
-.s-2c00de.s-2c00de.s-2c00de { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
-.s-32bdf9.s-32bdf9.s-32bdf9 { display:flex; gap:8px; align-items:center; margin:0 0 12px; font-size:13px; }
+.s-2c00de.s-2c00de.s-2c00de { font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px; }
+.s-32bdf9.s-32bdf9.s-32bdf9 { display:flex; gap:8px; align-items:center; margin:0 0 12px; font-size:13.5px; }
 .s-4c0544.s-4c0544.s-4c0544 { margin-top: 16px; }
 .s-50435f.s-50435f.s-50435f { margin-bottom: 0; }
 .s-5beb8f.s-5beb8f.s-5beb8f { margin-bottom: 12px; }
 .s-6928c9.s-6928c9.s-6928c9 { font-weight:600; margin-bottom:8px; }
 .s-7ac255.s-7ac255.s-7ac255 { padding-left:16px; margin-top:4px; }
 .s-7cc88f.s-7cc88f.s-7cc88f { margin-right: 6px; }
-.s-88ff60.s-88ff60.s-88ff60 { display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border-radius: 8px; font-size: 13px; }
+.s-88ff60.s-88ff60.s-88ff60 { display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border-radius: 8px; font-size: 13.5px; }
 .s-89dbb6.s-89dbb6.s-89dbb6 { display: flex; flex-direction: column; gap: 16px; }
 .s-8a77e5.s-8a77e5.s-8a77e5 { margin-top:8px; }
 .s-8cdcd8.s-8cdcd8.s-8cdcd8 { margin-left: 6px; }
 .s-8e87bc.s-8e87bc.s-8e87bc { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
 .s-96ad60.s-96ad60.s-96ad60 { margin-top:4px; }
 .s-97ed11.s-97ed11.s-97ed11 { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center; }
-.s-c0a222.s-c0a222.s-c0a222 { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; cursor: pointer; }
-.s-c80544.s-c80544.s-c80544 { font-size: 13px; color: var(--text-muted); margin: 0 0 12px; }
+.s-c0a222.s-c0a222.s-c0a222 { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13.5px; cursor: pointer; }
+.s-c80544.s-c80544.s-c80544 { font-size: 13.5px; color: var(--text-muted); margin: 0 0 12px; }
 .s-ca8dfa.s-ca8dfa.s-ca8dfa { display: flex; align-items: center; gap: 8px; }
 .s-d25a61.s-d25a61.s-d25a61 { width: 100%; margin-top: 12px; }
 .s-d55493.s-d55493.s-d55493 { font-weight:600; margin-top:12px; color:#ff4757; }
@@ -3528,12 +3545,15 @@ input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { di
 }
 
 /* 49.4.3: the bulk-import dialog's result box and Item-only template button. */
-.import-result-summary { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 13px; }
+.import-result-summary { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 13.5px; }
 .import-family-btn { margin-left: 6px; }
 
 /* 49.12.3: read-only mode strip (setReadOnlyBanner in app.js). Fixed at the
-   foot of the window and never takes a click, so it covers no control. */
-#read-only-banner {
+   foot of the window and never takes a click, so it covers no control.
+   297.6: the same strip while a call cut by a dropped line is sent again
+   (setNetRetryStrip), above the read-only one when both show. */
+#read-only-banner,
+#net-retry-strip {
   position: fixed;
   bottom: 12px;
   left: 50%;
@@ -3552,3 +3572,49 @@ input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { di
   text-overflow: ellipsis;
   pointer-events: none;
 }
+body:has(#read-only-banner) #net-retry-strip { bottom: 46px; }
+
+/* 297.3: the Tasks button (task-progress.js) - the user's own long tasks with
+   a bar each. The panel hangs under the top bar and never wider than the
+   window, so it fits a phone too. */
+.tasks-btn { position: relative; }
+.tasks-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background-color: var(--primary-color);
+  color: var(--on-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.tasks-panel {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 10px 12px;
+  z-index: 60;
+}
+.tasks-title { font-weight: 700; margin-bottom: 6px; }
+.task-row { padding: 8px 0; border-top: 1px solid var(--border-color); }
+.task-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.task-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.task-state { color: var(--text-muted); white-space: nowrap; }
+.task-failed .task-state { color: var(--danger-color); }
+.task-done .task-state { color: var(--success-color); }
+.task-row progress { display: block; width: 100%; height: 8px; margin-top: 6px; accent-color: var(--primary-color); }
+.task-foot { font-size: 12px; color: var(--text-muted); margin-top: 4px; overflow-wrap: anywhere; }
+.task-empty { font-size: 13px; color: var(--text-muted); }

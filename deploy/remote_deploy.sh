@@ -256,6 +256,13 @@ if wait_healthy "$DEPLOY_COMMIT"; then
       || echo "[WARN] the daily cleanup schedule was not installed (needs root)" >&2
     sudo -n bash "$REMOTE_DIR/deploy/server_cleanup.sh" 2>&1 | tail -n 1 || true
   fi
+  # Item 290.2: where point-in-time recovery is on, Postgres calls a copy of
+  # pitr.sh outside this folder; bring it, the key and the cron lines up to
+  # date. Never restarts anything, never turns it on. Not fatal.
+  if [ -f "$REMOTE_DIR/deploy/install_pitr.sh" ]; then
+    sudo -n bash "$REMOTE_DIR/deploy/install_pitr.sh" --refresh 2>&1 | grep -E 'PITR-|ERROR' \
+      || echo "[WARN] point-in-time recovery was not refreshed (needs root)" >&2
+  fi
   # Stage 109.11: the live systemd unit follows the repo's deploy/erp.service.
   # The installer does nothing when they match, and puts the old unit back by
   # itself if the ERP is not healthy on the new one - the deploy stands either way.

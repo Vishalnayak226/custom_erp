@@ -287,8 +287,8 @@
         ${message ? `<div class="msg msg-info" role="alert">${esc(message)}</div>` : ''}
         <div class="msg msg-error" id="pin-error" role="alert" hidden></div>
         <label class="field"><span>Your username</span>
-          <input class="input" id="pin-user" list="pin-names" autocapitalize="none" spellcheck="false" required></label>
-        <datalist id="pin-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+          <input class="input" id="pin-user" autocapitalize="none" spellcheck="false" required></label>
+        ${names.length > 1 ? `<div class="name-chips">${names.map(n => `<button type="button" class="name-chip" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
         <label class="field"><span>PIN</span>
           <input class="input pin-input" id="pin-code" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required></label>
         <button class="btn btn-primary btn-block" id="pin-submit" type="submit">Sign in</button>
@@ -298,6 +298,8 @@
     $('#pin-password').addEventListener('click', () => showSignIn('', true));
     const user = $('#pin-user');
     if (names.length === 1) user.value = names[0];
+    // 294.2: the names signed in here, as buttons (a <datalist> drew the browser's own popup).
+    main.querySelectorAll('.name-chip').forEach(b => b.addEventListener('click', () => { user.value = b.dataset.name; $('#pin-code').focus(); }));
     (user.value ? $('#pin-code') : user).focus();
     $('#pin-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1104,7 +1106,7 @@
     inspect: 'store-inspect.js',
   };
   const loadedModules = {};
-  const loadModule = (file) => loadedModules[file] || (loadedModules[file] = import(`./${file}?v=2`).catch((e) => { delete loadedModules[file]; throw e; }));
+  const loadModule = (file) => loadedModules[file] || (loadedModules[file] = import(`./${file}?v=3`).catch((e) => { delete loadedModules[file]; throw e; }));
 
   // ctx is what a module may use of the shell.
   const ctx = {

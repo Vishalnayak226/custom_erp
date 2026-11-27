@@ -71,7 +71,7 @@ Both print paths build the same header: the server-side ESC-POS/HTML rebuild (`e
 
 #### B.3.0.6 Refresh and Reset — what each one actually clears (Stage 53.17)
 
-These are the two buttons at the top right of the shell, and support calls go wrong when they are treated as the same button at two strengths. They are not.
+Support calls go wrong when these two are treated as the same button at two strengths. They are not. **Refresh** is the round-arrow icon at the top right of the shell. **Reset** is in the user menu at the bottom left, under **My Profile** (item 276.15 moved it there so it is not pressed by mistake).
 
 **Refresh** (`sync-btn`) re-fetches labels and the registered-doctype list, then re-renders. Nothing else is touched. It is the right answer to *"I renamed a field and cannot see it"*.
 
@@ -91,7 +91,7 @@ These are the two buttons at the top right of the shell, and support calls go wr
 - **It does not reset the theme.** A personal preference is not stale data.
 - **It refuses to run while offline POS sales are queued.** `erp_pos_offline_queue` holds *completed sales that have not reached the server*. They are not cache, and clearing them would destroy them, so Reset blocks with a message naming the count rather than proceeding — the same posture `closePOSSessionFlow` already takes. Let them sync, then Reset.
 
-> **Deploy note.** Lazy view modules are versioned by `VIEW_MODULE_VERSION` in `public/app.js`, which must be kept **in step with `index.html`'s `app.js?v=N`** on every release. Before Stage 53.17 the lazy modules had no cache-busting at all, so the shell could update while the screens a user actually looks at kept running the previous deploy's code. If you bump one, bump the other.
+> **Deploy note.** Lazy view modules are versioned by `VIEW_MODULE_VERSION` in `public/app.js`, which must be kept **in step with `index.html`'s `app.js?v=N` and `db.js?v=N`** on every release. Release gate G4 bumps all three. Before Stage 53.17 the lazy modules had no cache-busting at all, so the shell could update while the screens a user actually looks at kept running the previous deploy's code. A module loads another with its own `?v=` (`import('./x.js' + new URL(import.meta.url).search)`), never a static `import`, and a test fails on any unstamped script (297.1). Open tabs then reload themselves at the next safe moment (admin guide C.2.1).
 
 #### B.3.0.7 Stock locations — what sells, store by store (Stage 85.B)
 
@@ -169,7 +169,7 @@ In **Slabs**, steps are separated by `;` or new lines, each `from=value`; a valu
 
 **Get items**, **Exclude items** and each line of **Combo lists** take SKUs, barcodes and design numbers mixed.
 
-Set up a Product Group first under **Setup → PIM → PIM Product Group** if you want to target one. If a group is later deactivated or deleted, offers pointing at it simply stop applying (they never spread to the whole bill).
+Product Groups are made under **Setup → PIM → PIM Product Group**. From the offer form, pick **Product Group** in **Applies To** and press **New product group** under the group box: the Product Group list opens in a new tab, so the offer you are filling in stays as it is. Press **New** there, name the group, choose *Static* (add the products) or *Dynamic* (set its rules) and save. Back on the offer tab, click the group box again and the new group is in the list. If a group is later deactivated or deleted, offers pointing at it simply stop applying (they never spread to the whole bill).
 
 Everything else is an optional condition, and they all have to be true at once:
 
@@ -209,6 +209,14 @@ Three behaviours worth knowing before you design a promotion:
 GST is worked on what is left after all three. Each bill line stores its share of the bill discount, so the **Sales Register** (per bill), **Sales Itemwise Detail** and **Sales Discount Analysis** (per line) show **Item Discount**, **Offer Discount** and **Bill Discount** in their own columns. **Campaign Performance** and **Coupon / Voucher Usage Report** count offers and vouchers only, not the bill discount. Bills made before this change are split the same way from what they stored.
 
 A line override is checked against the price-override approval slab with a reason code (category *Price Override*). The bill discount needs a reason above **Discount needs a reason above** (Settings > Point of Sale). The approval slab judges the cashier's own discounts together: a 9% line cut plus a 9% bill discount is judged as the 17% it is, not as two 9%s under a 10% slab. Offers are the business's own and are left out.
+
+**A sale below cost** (Settings > Point of Sale; item 273.4). A line is below cost when one unit, after the cashier's price change and bill discount and without GST, is under the item's cost (moving average, else **Standard Cost**). Offers, vouchers, free gifts and items with no cost never count. The setting has three choices:
+
+- **Goes through** (the default): nothing is checked.
+- **Asks the cashier to confirm**: the till names the item and the cashier confirms before the sale completes.
+- **Waits for a manager's approval**: the sale goes to the approver of the lowest **POSCart** approval rule (**Settings → Approval Rules**), the queue a large discount already uses. With no such rule there is no one to ask, so the sale is refused (`POSOFF-1373`): add a rule or choose another option.
+
+An offline sale has already happened, so it is never stopped: it is recorded, and the manager who validates it on **POS → Offline Sales** sees it in the report. The till is told only which item is below cost, never the cost. **Reports → Sales → Sold below cost** lists every paid bill the check caught, with the booked cost and the loss. The cost and loss columns show to managers and finance only.
 
 
 **Issued vouchers at the till** (Stage 73.2.10). A **Voucher** (CRM → Voucher, or a bulk CSV of codes) is a code you hand out: *Flat* or *Percentage*, with **Max Uses**, an **Expiry Date**, and optionally **Restricted to Customer**, **Valid From** and **Where it can be used** (*Any*, *POS* or *Online* — blank is Any). A cashier types it into the till's **Coupon code** box; a code no Offer claims is looked up as a voucher, applied after the offers (one voucher per bill), shared across the lines like an offer so it reaches the GST and any later return the same way, and used up only when the sale posts. The panel tells the cashier why a voucher was refused. Max Uses is enforced under a row lock, so the last use cannot be spent twice.
@@ -292,7 +300,7 @@ Things to understand before you change one:
 - **Currency, UOM and HSN Code** are not numbered: their code *is* the value (`INR`, `PCS`, `7113`) and is typed on the form.
 - Codes issued before Stage 76 keep their long shape (`Vendor/HQ/2026/000006`) until an Admin renumbers them (below).
 
-**Renumbering old long codes (Stage 76.6 / 93.11).** When a master list (Vendor, Customer, Item and the rest) still holds records on an old long code, an Admin sees a panel at the top of that list: *"N … records are still on an old long code"*, with each record's old and new code. Other roles never see it, and it goes away once no record of that kind is left on a long code.
+**Renumbering old long codes (Stage 76.6 / 93.11).** When a master list (Vendor, Customer, Item and the rest) still holds records on an old long code, an Admin sees one line at the top of that list: *"N … records on an old code · Renumber"*. Click **Renumber** to open the panel, with each record's old and new code (item 276.11 keeps the list in view until then). Other roles never see it, and it goes away once no record of that kind is left on a long code.
 1. If the code format was never set, the panel asks for it once (**Prefix**, **Digits**, with the suggestion filled in). **Show the new codes** redraws the old → new list in that format.
 2. **Show what changes** lists every table and column that holds these codes, with its row count. Every record that points at a code is rewritten in the same step.
 3. **Item** codes carry a warning: barcode stickers and sales-channel listings that print the old code must be redone. Tick *I will reprint the stickers and update the channel listings* first.
@@ -478,6 +486,18 @@ Set the tenant's reporting currency under **Configuration → Finance → Functi
 
 - **Settlement date** — the date the money actually moved. Use it when a receipt is entered a few days late, so the rate quoted is the one that applied on the day, not today.
 - **Exchange rate** — the rate the bank actually gave you. A bank confirmation beats any rate table; without it the difference just hides in your cash account.
+
+**In the app (264.4).** **Settle** (Sales Invoice) and **Pay** (Vendor Invoice) ask for both on a foreign-currency document, then show a confirm screen before anything posts. It shows:
+
+- the rate, and its source: *bank's rate* for a typed rate, otherwise the rate-table entry's **Source**;
+- the amount in the functional currency;
+- the realised gain or loss.
+
+The same code that posts works the screen out. The app sends `"preview": true` on `POST /api/v1/finance/sales-invoice/{id}/settle` or `POST /api/v1/procurement/vendor-invoice/pay`. A preview posts nothing and needs the same rights as the posting. The app shows these refusals in the box and keeps what was typed:
+
+- no rate for the date, or a typed rate of zero or less: `FIN-0021`;
+- a date in a closed period: `FIN-0260`;
+- a part amount: `FIN-0518`.
 
 The system books the cash at the settlement rate, clears the receivable at what the ledger was carrying, and posts the difference as a **realised** gain or loss. Four accounts are used and they are deliberately kept apart:
 

@@ -32,7 +32,7 @@ const TRANSFER_STATUS_BADGE = {
 
 async function renderTransfersView(container) {
   if (currentViewTab === 'allocation') return (await import('./view-transfer-allocation.js' + new URL(import.meta.url).search)).renderTransferAllocationView(container); // 146.3.12
-  const res = await apiFetch('/api/v1/doc/TransferOrder');
+  const res = await apiFetch('/api/v1/doc/TransferOrder?sort=recent'); // 267.11: newest first, past 500 too
   if (!res) return;
   if (!res.ok) { renderErrorPanel(container, 'Failed to load transfer orders.', () => renderView('transfers')); return; }
   const transfers = await res.json();

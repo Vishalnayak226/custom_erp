@@ -42,7 +42,7 @@ and whether the books agree with the bank.
 | **Bank Reconciliation** | Making the statement and the ledger agree |
 | **Trial Balance**, **Chart of Accounts**, **Accounting Periods**, **Journal Vouchers** | The ledger itself, and the trial balance |
 | **E-Invoice (IRN)** | Registering invoices with the e-invoice portal |
-| **Work to review** | A start page: each of these, plus who posted what and the general journal |
+| **Home** | A start page: each of these, plus who posted what and the general journal |
 | **Approvals** | Anything routed to you for a decision |
 
 All of them are under **Financial Accounting**.
@@ -82,10 +82,12 @@ The invoice keeps the amount agreed in the customer's currency; the accounts
 record what that is worth in yours. Both numbers matter.
 
 **On settlement.** **Settle** on a sales invoice, or **Pay** on a vendor
-invoice, asks only for the amount and converts it at today's rate. So enter a
-receipt on the day the money arrives. If your bank gave a different rate, the
-difference shows in the **FX Gain/Loss Register** rather than vanishing; a bank
-integration can send the actual date and rate with the receipt instead.
+invoice, settles a foreign-currency invoice in full. It asks the **date the
+money moved** (today unless you change it) and, optionally, the **bank's
+rate**; left blank, the rate table's rate for that date is used. Before
+anything posts it shows the rate and where it came from, the amount in your
+currency and the exchange gain or loss; **Cancel** goes back to change them.
+A date in a closed period is refused.
 
 The gain or loss is recorded automatically. A $1,000 invoice raised at 83 and
 collected at 85 brings in ₹85,000 against ₹83,000 booked; that ₹2,000 is a

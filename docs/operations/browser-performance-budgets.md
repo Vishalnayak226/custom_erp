@@ -9,7 +9,7 @@ audience: [maintainers, operations-owner]
 applies_to: local scratch server only; never production
 authority: canonical
 confidentiality: internal
-last_verified: 2026-11-07
+last_verified: 2026-11-27
 review_by: 2026-12-26
 supersedes: none
 superseded_by: none
@@ -31,6 +31,27 @@ adds no dependency and never runs against a live site.
 | Cached view switch, p95 | 250 ms |
 | Server time per endpoint, p95 / p99 | 150 ms / 500 ms |
 | CLS, HTTP errors, console errors, page errors, horizontal overflow, controls without a name, fields without a label | 0.1, then 0 |
+| Tab size after the session: JS heap after a garbage collection, and every node the tab still holds | 12 MB, 10000 nodes |
+
+The tab size (297.7) is read at the end of the session through every main screen. Its ceiling
+is about twice the first measurement (2026-11-27: 5.8 MB and 6436 nodes on a desktop, 5.4 MB
+and 5295 on `phone-2g`), so a screen that keeps what it no longer shows fails the gate. The
+caches a feature needs stay: the POS offline queue, the session, saved filters, drafts, lookups
+and loaded screens. The item-code lookup cache holds at most 1000 codes.
+
+The `phone-2g` profile (297.6: 256 kbps down, 128 up, 400 ms latency, 4x slower CPU, a 360x740
+touch screen) has its own targets, each from a fixed rule rather than a measurement:
+
+| Measure on `phone-2g` | Budget | Rule |
+| --- | --- | --- |
+| LCP, cold load | 5000 ms | a first visit on 2G within 5 seconds |
+| LCP, revisit with a warm cache | 2500 ms | Core Web Vitals "good" |
+| Bytes on a revisit | 32768 | one second of a 256 kbps line |
+| Cached view switch, p95 | 1000 ms | the 1-second limit for an unbroken flow |
+| INP | 200 ms | the default |
+
+Measured 2026-11-27 (3 runs, scratch DB): cold LCP 4160-4168 ms, INP 64-80 ms, 211 KB on a
+first visit and 22 KB on a revisit.
 
 Cold and cached bytes, requests, FCP, long tasks and DOM nodes are measured and reported on
 every run. A budget is a target and is never edited to make a run pass. A known miss is recorded
@@ -49,7 +70,7 @@ every miss.
 
 ```powershell
 node docs/qa/perf-budget.cjs --base http://127.0.0.1:8740 --tokens tokens.txt `
-  --channel msedge --profiles desktop-cable,throttled-4x,phone-low --runs 3 --out perf.json
+  --channel msedge --profiles desktop-cable,throttled-4x,phone-low,phone-2g --runs 3 --out perf.json
 ```
 
 Add `--ratchet` for the release script's regression gate. The same run as a Guide suite:

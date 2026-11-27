@@ -98,13 +98,17 @@ The sidebar has **fifteen top-level entries**. Most are module groups: hover one
 **Lists stand still too.** On a list screen (Stock on Hand, any master list, the list a screen opens on) the list fills the window and scrolls inside its own panel; its headings, filters and pager, and everything above it, stay where they are. On a phone, or a window too short to hold it, the page scrolls as one instead. Setup forms and reading pages (Home, Configuration, Help) scroll as a page, as they need to.
 
 **Any window size, any zoom.** Make the browser window small, or zoom in or out (**Ctrl +** / **Ctrl −**, **Ctrl 0** to reset), and every screen rearranges itself rather than breaking:
-- **The top bar** moves its buttons onto a second row when they no longer fit. On a phone, **Refresh** and **Reset** show only their icons.
+- **The top bar** moves its buttons onto a second row when they no longer fit. **Refresh** is the round-arrow icon beside the store button. **Reset** (clears this browser's cached copies and unsaved work) is in the user menu at the bottom left, under **My Profile**.
+- **Summary tiles** at the top of a screen (Control Panel, Finance, Reports, System Status) keep every word whole. When a tile gets narrow, its figure and the note under it move onto the next line.
 - **A table wider than the window** scrolls sideways, usually inside its own panel and otherwise with the whole page. Nothing is cut off.
 - **A transaction screen in a short window** keeps its bar, header and at least a few item rows. The page scrolls to reach the rest, so the items are never squeezed out of sight.
+
+**Long tasks run while you work.** A large export, an import or a photo copy runs on the server, not in your browser. When you start one, a **Tasks** button (three lines, with a count) appears in the top bar. Click it to see each task with its bar, how many of how many are done (*1,200 of 5,000*) and the time left. Go to any other screen, or close the tab and sign in again later: the bar is still there. When a task ends, a message pops up (**Done** or **Failed**); click it to open the list. **Cancel** stops a task that is still running, **Download** gets an export's file and **Error file** gets the rows that did not go in. Finished tasks stay in the list for a day. The button shows only while you have a task.
 
 **Creating something and looking at what you've already made are two different pages** — the way Odoo, ERPNext and Zoho work. Every screen where you record something (Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Location Movement, Journal Vouchers, ASN, RFQ and its quotes, Expenses, Fixed Assets, Payment Proposals, Yard Board, Sticker Printing's Print tab, the manual order in OMS → Orders, Marketplace's settlements / bookings / manifests, Manufacturing's orders, and HR's Attendance, Leave, Payroll, Loans/Advances and My Requests):
 
 - **opens on the list** — what has been saved, newest work and its status, with the count beside the screen's name;
+- **long lists page and search the whole list.** Stock Adjustment, Material Issue, Delivery Challan, Job Work, MRP Change and Location Movement show 50 records at a time with **Previous** / **Next**. The count and the range above the list (*1-50 of 71*) are for the whole list, not the page. **Show** and the search box (type, then press Enter) look through every record, so an old one is found even when it is not on the first page. A view the screen works out itself (*Open returns*, *Due back in 7 days*, *Exceptions*) reads every open record at once. Past 500 it says *Newest 500 of N · search narrows*;
 - **+ New …** at the top right (for example **+ New Purchase Order**, **+ Mark Attendance**) opens the form as a page of its own, titled with a breadcrumb such as **Purchase Orders › New purchase order**;
 - the breadcrumb's first word, or your browser's **Back** button, returns to the list. Anything you half-typed is kept: **+ New** (or **Forward**) brings it back, until you save it or leave the screen;
 - **saving returns you to the list**, where the new record is now shown with its next steps (Submit, Approve, Post, Print…).
@@ -115,18 +119,18 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 |---|---|
 | **Home** | Opens directly. This is where you land when you first sign in — see "Home, your landing screen" below. |
 | **POS** | POS / Billing (§4) · POS Profiles · Offline Sync Review · Offline Queue Gaps · Offline Sales (§4.12) |
-| **Financial Accounting** | Approvals (§10), then **General ledger** (Work to review · Trial Balance · Chart of Accounts · Accounting Periods · Journal Vouchers) · **Payables** (Vendor Invoice · Payment Proposals · Debit Notes · Vendor Credit Notes) · **Receivables** (Sales Invoice · Customer Credit Notes · E-Invoice (IRN) · E-Invoice Settings) · **Bank** (Bank Reconciliation) |
-| **OMS** | Orders (§9A) · Pending Orders (§9A.8) · Pick (§9A.9) · Pack (§9A.10) · Ship (§9A.11) · Returns · Settlements (§9A.12) · Freight (§9A.12a). OMS's own configuration — channel connectors, SKU mapping, bundles and its lists — is **Setup → OMS → OMS settings** (§9A.13). |
-| **CRM** | CRM overview · Customers · Segments · Templates · Campaigns · Journeys · Messages · Inbox · Tickets · Feedback · Worklist · Pipeline · Settings · Vouchers · Service Tickets, then **Loyalty** (Customer Points · Tiers · Points Movement · Vouchers & Campaigns) |
-| **Reports** | **Dashboard** of live figures, then one entry per area — Sales, Procurement, Inventory, WMS, OMS, CRM, Finance, Manufacturing, PIM, HR and the rest. Point at an area and its reports open beside it (§9). **Schedules** is last. |
+| **Financial Accounting** | Home, Approvals (§10), then **General ledger** (Trial Balance · Chart of Accounts · Accounting Periods · Journal Vouchers) · **Payables** (Vendor Invoice · Payment Proposals · Debit Notes · Vendor Credit Notes) · **Receivables** (Sales Invoice · Customer Credit Notes · E-Invoice (IRN) · E-Invoice Settings) · **Bank** (Bank Reconciliation) |
+| **OMS** | Home (§9A) · Orders (§9A) · Pending Orders · On hold · Unsent answers (§9A.8) · Pick (§9A.9) · Pack (§9A.10) · Ship · Make manifest · Manifests · On the way (§9A.11) · Returns · Settlements · Settlement reconciliation (§9A.12) · Carrier claims · Freight invoices (§9A.12a). OMS's own configuration — channel connectors, SKU mapping, bundles and its lists — is **Setup → OMS → OMS settings** (§9A.13). |
+| **CRM** | Home · Customers · Segments · Templates · Campaigns · Journeys · Messages · Inbox · Tickets · Feedback · Referrals · Worklist · Pipeline · Settings · Vouchers · Service desk · Service Tickets, then **Loyalty** (Customer Points · Tiers · Points Movement · Voucher use · Campaign results) |
+| **Reports** | **Home** (live figures), then one entry per area — Sales, Procurement, Inventory, WMS, OMS, CRM, Finance, Manufacturing, PIM, HR and the rest. Point at an area and its reports open beside it (§9). **Schedules** is last. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · Gate Entry · **Purchase Return** (§6.5) · Vendors · RFQ / Quotes |
-| **Inventory** | Dashboard (§5.3) · Stock on Hand (§5) · Inventory Ledger (§5.4) · Stock Movement (§7) · Allocation · Stock Adjustment (§5.5) · MRP Change (§5.6) · Material Issue · Delivery Challans · Move Stock · Stock Locations · Locations by Store · Locations by Transaction · Sticker Printing (§7A) |
-| **WMS** | Warehouse Cockpit · Labour · Warehouse Billing, then three groups that each open beside it: **Inbound** (Appointment Calendar · Dock Doors · Yard Board · Trailers · RF Receiving · Putaway · Cross-Dock Plans) · **Storage & Control** (Bin · Bin Conditions · Bin Generator · LPN / Cartons / Pallets · Bin Replenishment · Location Movement · Cycle Count · RF Lot & Serial · Holds · Place Hold · Hold Release Requests) · **Outbound** (Waves · Wave / Batch Picking · Mobile Picking · Sortation / Put-Wall · Loading) |
-| **HRM** | My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets (§6.7) · Expenses |
+| **Inventory** | Home (§5.3) · Stock on Hand (§5) · Inventory Ledger (§5.4) · Stock Movement (§7) · Allocation · Stock Adjustment (§5.5) · MRP Change (§5.6) · Material Issue · Delivery Challans · Move Stock · Stock Locations · Locations by Store · Locations by Transaction · Sticker Printing (§7A) |
+| **WMS** | Home · Labour plan · Labour standards · Warehouse Billing, then three groups that each open beside it: **Inbound** (Appointment Calendar · Dock Doors · Yard Board · Trailers · RF Receiving · Putaway · Cross-Dock Plans) · **Storage & Control** (Bin · Bin Conditions · Bin Generator · LPN / Cartons / Pallets · Look up an LPN · Bin Replenishment · Location Movement · Cycle Count · ABC count plan · Count lines · RF Lot & Serial · Holds · Place Hold · Hold Release Requests) · **Outbound** (Waves · Wave / Batch Picking · Mobile Picking · Sortation / Put-Wall · Loading) |
+| **HRM** | Home (expense claim counts) · My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Tax & Benefits · PF ECR · Form 24Q · Salary arrears · Loans/Advances · Onboarding/Offboarding · Appraisals · Calibration · Rating spread · Training · Grievances · People analytics · Certificates expiring · Accept offer · Login from onboarding · Fixed Assets (§6.7) · Leases · Expenses |
 | **Manufacturing** | Production: Production Orders · Production Schedule · Job Work — Planning: MRP Suggestions · Supply Proposals — Quality: Quality Inspections · Certificates · Non-conformance — Maintenance: Maintenance Orders |
-| **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · Templates · Feeds · Design Values · Stewardship · Checklists · PIM Reports. PIM's setup lists (families, attributes, workflows, channel maps, import and export templates) are under **Setup → PIM**. |
+| **PIM** | Home · Workbench · My Work · Workflow runs · Media Library · Supplier Submissions · Catalogs · Templates · Feeds · Design Values · Stewardship · Checklists · PIM Reports. PIM's setup lists (families, attributes, workflows, channel maps, import and export templates) are under **Setup → PIM**. |
 | **Setup** | The module names; point at one and its reference lists open beside it (§8) |
-| **Settings** | Admin-only: Configuration · Credentials, then four groups that each open beside it: **Users & Access** (Users · Roles · Approval Rules) · **Customize** (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks) · **Monitoring** (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · System Status) · **Platform** (Control Panel · Tenant Entitlements · Tenant Usage · Data Console — platform operator) |
+| **Settings** | Admin-only: Configuration · Credentials, then four groups that each open beside it: **Users & Access** (Users · Roles · Approval Rules) · **Customize** (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks · Extension tokens) · **Monitoring** (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · System Status · Deployment history · Backup history) · **Platform** (Control Panel · Clients · Releases · Certificates · Slow queries · Query plan · Capability maturity · Tenant Entitlements · Tenant Usage · Data Console — platform operator) |
 
 On a phone, a group such as **Inbound** opens under its own row instead of beside it.
 
@@ -150,11 +154,20 @@ Home is where you land right after signing in (and the "Home" link at the top of
 - **Finish setting up** (administrators only) — how many setup steps are left and which one is next.
 - **Your role's dashboard** — the custom dashboard set as your role's Home (see **9.2 Custom dashboards** in the [reports and orders guide](user-guide-reports-and-orders.md)), with **Open in Dashboards** to work with it in full. If none is set, this part is simply absent.
 - **What's waiting on you** — a count of approvals needing your sign-off, when Approvals is something you use. Click it to open Approvals.
+- **Today's numbers**, beside it, for the screens your role uses. Click a tile to open its list.
+  - **Sales today**, with the number of bills, for all your stores. Administrators and Store Managers only.
+  - **POs to receive**: approved and part-received purchase orders.
+  - **GRNs to price**: goods receipts waiting at the Price step.
+  - **Stock alerts**: items running low at your working store, by the same rule as Inventory home. The tile opens it.
 - **Get started** — while your company is still setting things up, this names the first master record (a Vendor, an Item, a Location…) you need before the rest of the screen has anything to show, with a link straight to creating it.
 
 Home has no shortcut tiles and no list of recent records. To reach a screen, use the sidebar, or press **Ctrl+K** and pick from **Favourites** or type its name. To get back to a record you opened, press **Ctrl+K**: its **Recent** list holds the last screens, reports and documents you opened.
 
 From your second visit onward you land back on whichever screen you were last using instead of Home, so you can pick up where you left off — click **Home** in the sidebar any time you want to return to it on purpose. Refreshing the browser (F5) works the same way: you stay on the same screen, the menu stays scrolled where it was, and the page comes back at the same scroll position — also after you have read a Help article and moved on.
+
+**A new version reaches you by itself.** You never need a hard refresh. After an update, the ERP reloads at your next sidebar click, or while the tab sits unused. It waits while you are typing, saving, have a dialog open, or have lines on the till, a purchase order, an RFQ or a return. Offline sales, your sign-in, saved filters and drafts stay.
+
+**A dropped line does not lose your work.** If the connection drops, a strip at the bottom reads **Connection lost · retrying**. Screens that only show data load again by themselves once the line is back, and so do saves the ERP knows are safe to send twice (it sends them with the same key, so they post once). Any other save is never sent twice: you get a message, and you press Save again when the line is back. Screens you have opened once come back at once while their numbers refresh behind.
 
 **The store you are working at is at the top right**, beside Refresh. Everything you do — a sale, a purchase order, a transfer — is done at that store, and the lists you see are its records. If you have been given more than one store, click it and pick another (type to find it in a long list); the screen reloads for that store. With a till session open you cannot switch until you close it. Which stores you can pick is set by an administrator (Users → Stores, Roles → Stores).
 
@@ -167,7 +180,9 @@ From your second visit onward you land back on whichever screen you were last us
 - The **box at the very top of the window** (**Ctrl+K**) opens things. Type "purch" and it offers Purchase Order, Purchase Requisitions and the purchase reports; pick one and it takes you there. It also takes a short code (`PO`), a report number (`R1001`) or a full document number (§3A). It does not filter the list you are on.
 - The **box just above a table**, on a screen, filters *that table's records*. This is how you find a particular vendor, item or invoice.
 
-At the top right of most list screens there are **New** and **Bulk Import** buttons, and each row has **Copy**, **Edit** and **Delete** icons and a tick box (§3A.6). Any of these that your role can't use simply won't be shown.
+At the top right of most list screens there are **New** and **Bulk Import** buttons. Each row has a tick box (§3A.6), an **Edit** icon and, at the right end, a **⋯** button. Click **⋯** for the row's other actions, such as **Copy**, **History** and **Delete**. On Purchase Orders and Users, the one or two actions that suit the row's status (**Submit for Approval**, **Receive goods**, **Stores**) stay as buttons beside it. Any action your role can't use simply won't be shown.
+
+**Choosing a list's columns.** Most lists, including Purchase Orders, Users and the Chart of Accounts, have a **Columns** button above the table. Click it, tick the columns you want to see, and use the arrows to change their order. The list changes as you tick. Your choice is saved for you when you close the chooser (click **Done**, click elsewhere or press **Esc**). It does not change what anyone else sees. **Reset** puts the list back to the standard columns. Administrators and Store Managers also see **Save for everyone**: it sets the columns everyone sees until they choose their own.
 
 **Updating records with Bulk Import.** A row with an existing ID (or, for a master, its code) changes that record. Fill only the cells you want to change: a **blank cell keeps** what is saved. To empty a field, type `<clear>` in its cell.
 
@@ -190,6 +205,8 @@ A row number that is not one of the job's open failed rows is refused, so a row 
 
 
 **Pressing Save again after "Request Timed Out" (Stage 49.4.7a).** A journal voucher, a stock adjustment, a payroll run, a loan disbursement, a payment proposal's **Execute**, and at the till an advance or a gift card issue are sent with a one-time key. If the screen says the request timed out or the server could not be reached, press the same button again without changing anything: if the first one went through you get its result and nothing is entered twice; if it did not, it is entered now. *This is still being processed* means the first one is still running - wait a moment and look before pressing again. Change any field and it is a new entry.
+
+**"This document was modified by someone else since you last loaded it" (item 290.3).** Two people opened the same record and the other one saved first. Your save is refused so it cannot quietly undo their change. Note what you changed, refresh the page (the record now shows their edit), make your change again and save. This works on every screen that edits a record you opened from its list or its page. Saving the same record twice yourself, or two quick clicks, never gives this message.
 ---
 
 ## 3A. Keyboard Shortcuts and Quick Codes
@@ -259,7 +276,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 |---|---|---|
 | Go to | `HOME` | Home |
 | Go to | `INB` | My work and approvals |
-| Go to | `RPT` | Reports |
+| Go to | `RPT` | Reports home |
 | Go to | `RSC` | Report Schedules |
 | Go to | `HELP` | Knowledge Center |
 | Sales | `POS` | POS / Billing |
@@ -268,8 +285,11 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Sales | `OFG` | Offline Queue Gaps |
 | Sales | `OFS` | Offline Sales |
 | Sales | `SLH` | Sales History |
+| Sales | `OMH` | OMS home |
 | Sales | `SO` | Sales Order |
 | Sales | `PEND` | Pending Orders |
+| Sales | `OHLD` | On hold |
+| Sales | `UNS` | Unsent answers |
 | Sales | `SI` | Sales Invoice |
 | Sales | `SR` | Sales Return |
 | Sales | `CN` | Credit Note |
@@ -277,8 +297,10 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Sales | `EI` | E-Invoice (IRN) |
 | Sales | `EIS` | E-Invoice Settings |
 | Sales | `STL` | Settlements |
-| Sales | `FRT` | Freight |
-| CRM | `CRM` | CRM |
+| Sales | `STLR` | Settlement reconciliation |
+| Sales | `FRT` | Carrier claims |
+| Sales | `FINV` | Freight invoices |
+| CRM | `CRM` | CRM home |
 | CRM | `CUS` | Customers |
 | CRM | `SEG` | Segments |
 | CRM | `CTPL` | CRM Templates |
@@ -288,15 +310,19 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | CRM | `CINB` | CRM Inbox |
 | CRM | `TKT` | CRM Tickets |
 | CRM | `FBK` | Feedback |
+| CRM | `REF` | Referrals |
 | CRM | `WKL` | Worklist |
 | CRM | `PIPE` | Pipeline |
+| CRM | `RTS` | Ready to send |
 | CRM | `CRMS` | CRM Settings |
 | CRM | `VCH` | Vouchers |
+| CRM | `SDK` | Service desk |
 | CRM | `SVT` | Service Tickets |
 | CRM | `LOY` | Loyalty |
 | CRM | `TIER` | Loyalty Tiers |
 | CRM | `PTS` | Points Movement |
-| CRM | `LOF` | Loyalty Vouchers & Campaigns |
+| CRM | `LOF` | Loyalty voucher use |
+| CRM | `LCR` | Loyalty campaign results |
 | Buying | `PRQ` | Purchase Requisition |
 | Buying | `RFQ` | Request for Quotation |
 | Buying | `PO` | Purchase Order |
@@ -308,7 +334,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Buying | `PR` | Purchase Return |
 | Buying | `VI` | Vendor Invoice |
 | Buying | `VEN` | Vendors |
-| Stock | `INV` | Inventory Dashboard |
+| Stock | `INV` | Inventory home |
 | Stock | `SOH` | Stock on Hand |
 | Stock | `SL` | Inventory Ledger |
 | Stock | `TO` | Stock Movement (Transfer Order) |
@@ -322,10 +348,13 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Stock | `LOCS` | Locations by Store |
 | Stock | `LOCT` | Locations by Transaction |
 | Stock | `CC` | Cycle Count |
+| Stock | `ABC` | ABC count plan |
+| Stock | `CCL` | Count lines |
 | Stock | `STK` | Sticker Printing |
 | Stock | `ITM` | Items |
-| Warehouse | `WMS` | Warehouse Cockpit |
-| Warehouse | `LAB` | Labour |
+| Warehouse | `WMS` | WMS home |
+| Warehouse | `LAB` | Labour plan |
+| Warehouse | `LSTD` | Labour standards |
 | Warehouse | `WBIL` | Warehouse Billing |
 | Warehouse | `APT` | Appointment Calendar |
 | Warehouse | `DOCK` | Dock Doors |
@@ -338,6 +367,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Warehouse | `BINC` | Bin Conditions |
 | Warehouse | `BING` | Bin Generator |
 | Warehouse | `LPN` | LPN / Cartons / Pallets |
+| Warehouse | `LPNL` | Look up an LPN |
 | Warehouse | `REPL` | Bin Replenishment |
 | Warehouse | `LOCM` | Location Movement |
 | Warehouse | `RFL` | RF Lot & Serial |
@@ -348,11 +378,14 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Warehouse | `PICK` | Pick |
 | Warehouse | `PACK` | Pack |
 | Warehouse | `SHIP` | Ship |
+| Warehouse | `MKM` | Make manifest |
+| Warehouse | `MNF` | Manifests |
+| Warehouse | `OTW` | On the way |
 | Warehouse | `WAVE` | Wave / Batch Picking |
 | Warehouse | `MPK` | Mobile Picking |
 | Warehouse | `SORT` | Sortation / Put-Wall |
 | Warehouse | `LOAD` | Loading |
-| Money | `GL` | Work to review |
+| Money | `GL` | Finance home |
 | Money | `TB` | Trial Balance |
 | Money | `COA` | Chart of Accounts |
 | Money | `PER` | Accounting Periods |
@@ -362,6 +395,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Money | `BR` | Bank Reconciliation |
 | Money | `EXP` | Expense Claim |
 | Money | `FA` | Fixed Assets |
+| Money | `LSE` | Leases |
 | Making | `PRO` | Production Order |
 | Making | `PSC` | Production Schedule |
 | Making | `JW` | Job Work |
@@ -371,9 +405,10 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Making | `CERT` | Certificates |
 | Making | `NCR` | Non-conformance |
 | Making | `MNT` | Maintenance Orders |
-| Products | `PIM` | PIM Dashboard |
+| Products | `PIM` | PIM home |
 | Products | `PWB` | PIM Workbench |
 | Products | `PMW` | PIM My Work |
+| Products | `PWR` | PIM Workflow runs |
 | Products | `MED` | Media Library |
 | Products | `SUBM` | Supplier Submissions |
 | Products | `CTLG` | Catalogs |
@@ -387,6 +422,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Products | `CATR` | Category Rules |
 | Products | `CHK` | Checklists |
 | Products | `PRPT` | PIM Reports |
+| People | `HRH` | HRM home |
 | People | `HR` | HR |
 | People | `ATT` | Attendance |
 | People | `LV` | Leave |
@@ -394,14 +430,22 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | People | `PRL` | Payroll |
 | People | `PRX` | Payroll Export |
 | People | `PTAX` | Tax & Benefits |
+| People | `PFE` | PF ECR |
+| People | `TDSR` | Form 24Q |
+| People | `ARR` | Salary arrears |
 | People | `LOAN` | Loans / Advances |
 | People | `ONB` | Onboarding / Offboarding |
 | People | `APPR` | Appraisals |
 | People | `CAL` | Calibration |
+| People | `RSP` | Rating spread |
 | People | `TRN` | Training |
 | People | `GRV` | Grievances |
-| People | `EMP` | People |
+| People | `EMP` | People analytics |
+| People | `CEX` | Certificates expiring |
+| People | `AOF` | Accept offer |
+| People | `OBL` | Login from onboarding |
 | Admin | `CFG` | Configuration |
+| Admin | `STOR` | Stores |
 | Admin | `CRED` | Credentials |
 | Admin | `DGOV` | Data governance |
 | Admin | `DQ` | Data quality |
@@ -413,6 +457,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `LBL` | Dynamic Labels |
 | Admin | `SCHM` | Database Schema Design |
 | Admin | `HOOK` | Extension Hooks |
+| Admin | `XTOK` | Extension tokens |
 | Admin | `API` | API access |
 | Admin | `SUBS` | Subscription |
 | Admin | `LOG` | Activity Log |
@@ -422,7 +467,15 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `SEC` | Security Events |
 | Admin | `PRIV` | Privacy approvals |
 | Admin | `SYS` | System Status |
+| Admin | `DPH` | Deployment history |
+| Admin | `BKH` | Backup history |
 | Admin | `CP` | Control Panel |
+| Admin | `CPC` | Clients |
+| Admin | `CPR` | Releases |
+| Admin | `CPT` | Certificates |
+| Admin | `CPS` | Slow queries |
+| Admin | `CPQ` | Query plan |
+| Admin | `CPM` | Capability maturity |
 | Admin | `ENT` | Tenant Entitlements |
 | Admin | `USG` | Tenant Usage |
 | Admin | `DCON` | Data Console |

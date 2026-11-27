@@ -445,7 +445,7 @@ func StartLeaseWorker(ctx context.Context, interval time.Duration) {
 				if !IsSchedulerLeader() || db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("assets")
+				schemas, err := sweepTenantSchemas("assets")
 				if err != nil {
 					log.Printf("[LEASE] Failed to list tenant schemas: %v", err)
 					continue

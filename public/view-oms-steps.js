@@ -204,8 +204,6 @@ async function renderPending(container) {
     return decidePending(act, [id]);
   }));
   syncBulk();
-  await renderPushProblems(container);
-  await renderOnHold(container);
 }
 
 // 142.1: what a hold reason means to the person who has to clear it.
@@ -223,11 +221,14 @@ const holdWords = (code) => HOLD_WORDS[code] || (code ? String(code).replace(/_/
 // 142.1: the orders that arrived but could not be reserved - no stock, payment
 // pending, a bad address. Without this they were on OMS → Orders only, and a
 // channel order could "disappear" between arriving and being pickable.
+// 288.2: its own page (oms:on-hold), no longer under Pending Orders.
 async function renderOnHold(container) {
-  const result = await getJSON('/api/v1/oms/orders?status=On%20Hold&limit=200', null);
-  const rows = result ? (result.rows || []) : [];
-  if (!result || rows.length === 0) return;
+  await stepBar(container, 'On hold', 'on-hold');
   const host = panel(container);
+  const result = await getJSON('/api/v1/oms/orders?status=On%20Hold&limit=200', null);
+  if (!result) { renderErrorPanel(host, 'Failed to load orders on hold.', () => again('on-hold')); return; }
+  const rows = result.rows || [];
+  if (rows.length === 0) { host.innerHTML = '<p class="oms-step-empty">No order is on hold.</p>'; return; }
   host.innerHTML = `
     <div class="oms-console-head"><h2>On hold · ${rows.length}</h2>${rows.some(o => o.hold_reason === 'ALLOCATION_FAILED') ? '<button type="button" class="btn btn-outline btn-sm" data-backorders>Retry all waiting for stock</button>' : ''}</div>
     <div class="table-wrapper"><table>
@@ -254,7 +255,7 @@ async function renderOnHold(container) {
     e.target.disabled = false;
     if (r.error) { await showCustomAlert(r.error, 'Retry'); return; }
     showToast(`${r.released} reserved · ${r.waiting} still waiting`, { variant: r.released ? 'success' : 'info' });
-    if (r.released) again('pending');
+    if (r.released) again('on-hold');
   });
   host.querySelectorAll('[data-hold-act]').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.id;
@@ -265,8 +266,8 @@ async function renderOnHold(container) {
     btn.disabled = false;
     if (r.error) { await showCustomAlert(r.error, 'Retry'); return; }
     if (r.order_status === 'On Hold') { await showCustomAlert(`Still on hold: ${holdWords(r.hold_reason)}.`, 'Retry'); return; }
-    showToast('Reserved - the order is now in the list above.', { variant: 'success' });
-    again('pending');
+    showToast('Reserved - the order is now in Pending Orders.', { variant: 'success' });
+    again('on-hold');
   }));
 }
 
@@ -354,11 +355,14 @@ async function decidePending(act, ids) {
 }
 
 // The answers a channel did not get - a push that failed every retry, or a
-// channel with no credentials yet - each with a Retry.
+// channel with no credentials yet - each with a Retry. 288.2: its own page
+// (oms:unsent), no longer under Pending Orders.
 async function renderPushProblems(container) {
+  await stepBar(container, 'Unsent answers', 'unsent');
   const result = await getJSON('/api/v1/oms/orders?channel_push=problem&limit=100', null);
-  const rows = (result && result.rows) || [];
-  if (rows.length === 0) return;
+  if (!result) { renderErrorPanel(panel(container), 'Failed to load unsent answers.', () => again('unsent')); return; }
+  const rows = result.rows || [];
+  if (rows.length === 0) { panel(container, '<p class="oms-step-empty">Every channel has its answers.</p>'); return; }
   const host = panel(container, `<h2 class="oms-step-heading">Answers the channel did not get <span class="text-muted">(${rows.length})</span></h2>
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Channel</th><th>Answer</th><th>Push</th><th>Why</th><th></th></tr></thead>
@@ -373,7 +377,7 @@ async function renderPushProblems(container) {
     const why = r.error || Object.values(r.failed || {})[0];
     if (why) { await showCustomAlert(why, 'Retry'); return; }
     showToast('Queued again - the channel gets it on the next run.', { variant: 'success' });
-    again('pending');
+    again('unsent');
   }));
 }
 
@@ -814,157 +818,172 @@ function courierStepCells(b) {
   return { badges, buttons };
 }
 
-async function renderShip(container) {
-  await stepBar(container, 'Ship', 'ship');
+// 288.2: Ship stacked four jobs on one scroll; each is now its own page.
+// Ship books the courier, Make manifest groups the booked parcels (and prints
+// their labels), Manifests takes the gate pass and the hand-over, and On the
+// way tracks each parcel. One loader; each page reads only what it shows.
+const SHIP_PAGES = { ship: 'Ship', manifest: 'Make manifest', manifests: 'Manifests', tracking: 'On the way' };
+async function renderShip(container, part = 'ship') {
+  await stepBar(container, SHIP_PAGES[part], part);
+  const re = () => again(part);
+  const need = (...parts) => parts.includes(part);
   const [tasks, live, done, openM, recentM, passes, orders] = await Promise.all([
     // Packed only: both uses below need just those (a booked parcel's task
     // stays Packed until its manifest dispatches it), and the first 500 tasks
     // by id dropped newer packed parcels once a tenant passed 500 (186.3).
-    byStatus('FulfillmentTask', ['Packed']),
-    byStatus('LogisticsBooking', LIVE_BOOKING_STATES),
+    need('ship', 'manifest') ? byStatus('FulfillmentTask', ['Packed']) : [],
+    need('ship', 'manifest', 'tracking') ? byStatus('LogisticsBooking', LIVE_BOOKING_STATES) : [],
     // Delivered and returned only feed "the last 50", so the 50 changed last.
-    byStatus('LogisticsBooking', ['Delivered', 'RTO'], 'sort=recent&limit=50'),
-    byStatus('Manifest', ['Open']),
-    getJSON('/api/v1/doc/Manifest?sort=recent&limit=40', []),
-    getJSON('/api/v1/oms/gate-passes', []),
-    ordersByID()
+    need('tracking') ? byStatus('LogisticsBooking', ['Delivered', 'RTO'], 'sort=recent&limit=50') : [],
+    need('manifests') ? byStatus('Manifest', ['Open']) : [],
+    need('manifests') ? getJSON('/api/v1/doc/Manifest?sort=recent&limit=40', []) : [],
+    need('manifests') ? getJSON('/api/v1/oms/gate-passes', []) : [],
+    need('ship', 'manifest', 'tracking') ? ordersByID() : {}
   ]);
-  if (!tasks || !live) { renderErrorPanel(panel(container), 'Failed to load shipments.', () => again('ship')); return; }
+  if (!tasks || !live) { renderErrorPanel(panel(container), 'Failed to load shipments.', re); return; }
   const bookings = [...live, ...(done || []).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))];
   const manifests = [...(openM || []), ...(recentM || []).filter(m => m.status !== 'Open')];
   const taskByID = {};
   tasks.forEach(t => { taskByID[taskID(t)] = t; });
   const bookedTasks = new Set(bookings.filter(liveBooking).map(b => b.fulfillment_task_id));
 
-  // Order detail's "Book shipment" lands here with its order named.
-  let context = null;
-  try { context = JSON.parse(sessionStorage.getItem('erp_marketplace_booking_context') || 'null'); sessionStorage.removeItem('erp_marketplace_booking_context'); } catch (_) { context = null; }
+  if (part === 'ship') {
+    // Order detail's "Book shipment" lands here with its order named.
+    let context = null;
+    try { context = JSON.parse(sessionStorage.getItem('erp_marketplace_booking_context') || 'null'); sessionStorage.removeItem('erp_marketplace_booking_context'); } catch (_) { context = null; }
 
-  const toBook = tasks.filter(t => t.status === 'Packed' && !bookedTasks.has(taskID(t)));
-  const book = panel(container, `<h2 class="oms-step-heading">Book the courier <span class="text-muted">(${toBook.length})</span></h2>
-    <div class="table-wrapper"><table>
-      <thead><tr><th>Order</th><th>Location</th><th>Pincode</th><th>Courier</th><th></th></tr></thead>
-      <tbody>${toBook.length === 0 ? emptyRow(5, 'Every packed parcel has a courier.') : toBook.map(t => {
-        const id = taskID(t), o = orders[t.order_id];
-        const pin = context && context.fulfillment_task_id === id && context.destination_pincode ? context.destination_pincode : orderPincode(o);
-        return `<tr data-book-row="${esc(id)}"><td>${orderCell(t.order_id, o, id)}</td><td>${esc(t.location_code || '—')}</td>
-          <td><input class="form-input oms-input-sm" data-book-pin value="${esc(pin)}" aria-label="Destination pincode for ${esc(id)}"></td>
-          <td><input class="form-input oms-input-sm" data-book-carrier placeholder="Automatic" aria-label="Courier for ${esc(id)}"></td>
-          <td><button type="button" class="btn btn-primary btn-sm" data-book="${esc(id)}" data-order="${esc(t.order_id)}">Book</button></td></tr>`;
-      }).join('')}</tbody></table></div>`);
-  book.querySelectorAll('[data-book]').forEach(btn => btn.addEventListener('click', async () => {
-    const row = btn.closest('tr');
-    const pin = row.querySelector('[data-book-pin]').value.trim();
-    if (!pin) { await showCustomAlert('Enter the delivery pincode - the courier is chosen by it.', 'Book the courier'); return; }
-    btn.disabled = true;
-    const r = await post('/api/v1/marketplace/logistics/book', { order_id: btn.dataset.order, fulfillment_task_id: btn.dataset.book,
-      destination_pincode: pin, carrier: row.querySelector('[data-book-carrier]').value.trim() });
-    btn.disabled = false;
-    if (r.error) { await showCustomAlert(r.error, 'Book the courier'); return; }
-    showToast(`Booked as ${r.booking_id}. Print its label next.`, { variant: 'success' });
-    again('ship');
-  }));
-  // 57.26(h): the order's own task row, pincode filled, cursor in its Courier box.
-  if (context) {
-    const row = book.querySelector(`[data-book-row="${CSS.escape(context.fulfillment_task_id || '')}"]`);
-    row?.scrollIntoView({ block: 'center' });
-    row?.querySelector('[data-book-carrier]')?.focus({ preventScroll: true });
+    const toBook = tasks.filter(t => t.status === 'Packed' && !bookedTasks.has(taskID(t)));
+    const book = panel(container, `<h2 class="oms-step-heading">Book the courier <span class="text-muted">(${toBook.length})</span></h2>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Order</th><th>Location</th><th>Pincode</th><th>Courier</th><th></th></tr></thead>
+        <tbody>${toBook.length === 0 ? emptyRow(5, 'Every packed parcel has a courier.') : toBook.map(t => {
+          const id = taskID(t), o = orders[t.order_id];
+          const pin = context && context.fulfillment_task_id === id && context.destination_pincode ? context.destination_pincode : orderPincode(o);
+          return `<tr data-book-row="${esc(id)}"><td>${orderCell(t.order_id, o, id)}</td><td>${esc(t.location_code || '—')}</td>
+            <td><input class="form-input oms-input-sm" data-book-pin value="${esc(pin)}" aria-label="Destination pincode for ${esc(id)}"></td>
+            <td><input class="form-input oms-input-sm" data-book-carrier placeholder="Automatic" aria-label="Courier for ${esc(id)}"></td>
+            <td><button type="button" class="btn btn-primary btn-sm" data-book="${esc(id)}" data-order="${esc(t.order_id)}">Book</button></td></tr>`;
+        }).join('')}</tbody></table></div>`);
+    book.querySelectorAll('[data-book]').forEach(btn => btn.addEventListener('click', async () => {
+      const row = btn.closest('tr');
+      const pin = row.querySelector('[data-book-pin]').value.trim();
+      if (!pin) { await showCustomAlert('Enter the delivery pincode - the courier is chosen by it.', 'Book the courier'); return; }
+      btn.disabled = true;
+      const r = await post('/api/v1/marketplace/logistics/book', { order_id: btn.dataset.order, fulfillment_task_id: btn.dataset.book,
+        destination_pincode: pin, carrier: row.querySelector('[data-book-carrier]').value.trim() });
+      btn.disabled = false;
+      if (r.error) { await showCustomAlert(r.error, 'Book the courier'); return; }
+      showToast(`Booked as ${r.booking_id}. Print its label on Make manifest.`, { variant: 'success' });
+      re();
+    }));
+    // 57.26(h): the order's own task row, pincode filled, cursor in its Courier box.
+    if (context) {
+      const row = book.querySelector(`[data-book-row="${CSS.escape(context.fulfillment_task_id || '')}"]`);
+      row?.scrollIntoView({ block: 'center' });
+      row?.querySelector('[data-book-carrier]')?.focus({ preventScroll: true });
+    }
   }
 
-  // Booked parcels, grouped as a manifest groups them: one courier at one location.
-  const awaiting = bookings.filter(b => b.status === 'AWB Assigned' && !b.manifest_id);
-  const groups = {};
-  awaiting.forEach(b => {
-    const loc = (taskByID[b.fulfillment_task_id] || {}).location_code || '';
-    const key = `${b.carrier}\u0000${loc}`;
-    (groups[key] = groups[key] || { carrier: b.carrier, loc, rows: [] }).rows.push(b);
-  });
-  const manifestable = panel(container, `<h2 class="oms-step-heading">Booked - make the manifest <span class="text-muted">(${awaiting.length})</span></h2>
-    ${awaiting.length === 0 ? '<p class="oms-step-empty">No booked parcel is waiting for a manifest.</p>' : Object.values(groups).map(g => `
-      <div class="oms-ship-group">
-        <div class="oms-console-head"><h3>${esc(g.carrier || 'No courier')} at ${esc(g.loc || 'no location')} <span class="text-muted">(${g.rows.length})</span></h3>
-          ${g.loc ? `<button type="button" class="btn btn-primary btn-sm" data-manifest-carrier="${esc(g.carrier)}" data-manifest-loc="${esc(g.loc)}">Make manifest</button>` : '<span class="text-muted">Booked without a task - cannot be manifested</span>'}</div>
-        <div class="table-wrapper"><table><thead><tr><th>Booking</th><th>Order</th><th>AWB</th><th>Label</th><th></th></tr></thead>
-        <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}${courierStepCells(b).badges}</td>
-          <td>${b.label_generated_at ? '<span class="badge badge-success">Printed</span>' : '<span class="badge badge-warning">Not printed</span>'}</td>
-          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(bookingID(b))}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(bookingID(b))}">Resolve</button>` : ''}${courierStepCells(b).buttons}</td></tr>`).join('')}</tbody></table></div>
-      </div>`).join('')}`);
-  manifestable.querySelectorAll('[data-label-print]').forEach(btn => btn.addEventListener('click', async () => { await window.printShippingLabel(btn.dataset.labelPrint); }));
-  manifestable.querySelectorAll('[data-courier-resolve]').forEach(btn => btn.addEventListener('click', async () => {
-    const b = awaiting.find(x => bookingID(x) === btn.dataset.courierResolve);
-    if (b && await resolveCourierBooking(b)) again('ship');
-  }));
-  const stepBooking = (id) => awaiting.find(x => bookingID(x) === id);
-  manifestable.querySelectorAll('[data-courier-pickup]').forEach(btn => btn.addEventListener('click', async () => {
-    const b = stepBooking(btn.dataset.courierPickup);
-    if (b && await courierPickupBooking(b)) again('ship');
-  }));
-  manifestable.querySelectorAll('[data-courier-cancel]').forEach(btn => btn.addEventListener('click', async () => {
-    const b = stepBooking(btn.dataset.courierCancel);
-    if (b && await courierCancelBooking(b)) again('ship');
-  }));
-  manifestable.querySelectorAll('[data-courier-step-resolve]').forEach(btn => btn.addEventListener('click', async () => {
-    const b = stepBooking(btn.dataset.booking);
-    if (b && await resolveCourierStep(b, btn.dataset.courierStepResolve)) again('ship');
-  }));
-  manifestable.querySelectorAll('[data-manifest-carrier]').forEach(btn => btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    const r = await post('/api/v1/marketplace/logistics/manifest', { courier: btn.dataset.manifestCarrier, location_code: btn.dataset.manifestLoc });
-    btn.disabled = false;
-    if (r.error) { await showCustomAlert(r.error, 'Make manifest'); return; }
-    showToast(`Manifest ${r.manifest_id || ''} made.`, { variant: 'success' });
-    again('ship');
-  }));
+  if (part === 'manifest') {
+    // Booked parcels, grouped as a manifest groups them: one courier at one location.
+    const awaiting = bookings.filter(b => b.status === 'AWB Assigned' && !b.manifest_id);
+    const groups = {};
+    awaiting.forEach(b => {
+      const loc = (taskByID[b.fulfillment_task_id] || {}).location_code || '';
+      const key = `${b.carrier}\u0000${loc}`;
+      (groups[key] = groups[key] || { carrier: b.carrier, loc, rows: [] }).rows.push(b);
+    });
+    const manifestable = panel(container, `<h2 class="oms-step-heading">Booked - make the manifest <span class="text-muted">(${awaiting.length})</span></h2>
+      ${awaiting.length === 0 ? '<p class="oms-step-empty">No booked parcel is waiting for a manifest.</p>' : Object.values(groups).map(g => `
+        <div class="oms-ship-group">
+          <div class="oms-console-head"><h3>${esc(g.carrier || 'No courier')} at ${esc(g.loc || 'no location')} <span class="text-muted">(${g.rows.length})</span></h3>
+            ${g.loc ? `<button type="button" class="btn btn-primary btn-sm" data-manifest-carrier="${esc(g.carrier)}" data-manifest-loc="${esc(g.loc)}">Make manifest</button>` : '<span class="text-muted">Booked without a task - cannot be manifested</span>'}</div>
+          <div class="table-wrapper"><table><thead><tr><th>Booking</th><th>Order</th><th>AWB</th><th>Label</th><th></th></tr></thead>
+          <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}${courierStepCells(b).badges}</td>
+            <td>${b.label_generated_at ? '<span class="badge badge-success">Printed</span>' : '<span class="badge badge-warning">Not printed</span>'}</td>
+            <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(bookingID(b))}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(bookingID(b))}">Resolve</button>` : ''}${courierStepCells(b).buttons}</td></tr>`).join('')}</tbody></table></div>
+        </div>`).join('')}`);
+    manifestable.querySelectorAll('[data-label-print]').forEach(btn => btn.addEventListener('click', async () => { await window.printShippingLabel(btn.dataset.labelPrint); }));
+    manifestable.querySelectorAll('[data-courier-resolve]').forEach(btn => btn.addEventListener('click', async () => {
+      const b = awaiting.find(x => bookingID(x) === btn.dataset.courierResolve);
+      if (b && await resolveCourierBooking(b)) re();
+    }));
+    const stepBooking = (id) => awaiting.find(x => bookingID(x) === id);
+    manifestable.querySelectorAll('[data-courier-pickup]').forEach(btn => btn.addEventListener('click', async () => {
+      const b = stepBooking(btn.dataset.courierPickup);
+      if (b && await courierPickupBooking(b)) re();
+    }));
+    manifestable.querySelectorAll('[data-courier-cancel]').forEach(btn => btn.addEventListener('click', async () => {
+      const b = stepBooking(btn.dataset.courierCancel);
+      if (b && await courierCancelBooking(b)) re();
+    }));
+    manifestable.querySelectorAll('[data-courier-step-resolve]').forEach(btn => btn.addEventListener('click', async () => {
+      const b = stepBooking(btn.dataset.booking);
+      if (b && await resolveCourierStep(b, btn.dataset.courierStepResolve)) re();
+    }));
+    manifestable.querySelectorAll('[data-manifest-carrier]').forEach(btn => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const r = await post('/api/v1/marketplace/logistics/manifest', { courier: btn.dataset.manifestCarrier, location_code: btn.dataset.manifestLoc });
+      btn.disabled = false;
+      if (r.error) { await showCustomAlert(r.error, 'Make manifest'); return; }
+      showToast(`Manifest ${r.manifest_id || ''} made. Hand it over on Manifests.`, { variant: 'success' });
+      re();
+    }));
+  }
 
-  // Manifests: gate pass, then hand over.
-  const passFor = {};
-  (passes || []).filter(p => p.status !== 'Discarded').forEach(p => { if (p.manifest_id && !passFor[p.manifest_id]) passFor[p.manifest_id] = p; });
-  const openManifests = manifests.filter(m => m.status === 'Open');
-  const handed = manifests.filter(m => m.status !== 'Open').slice(0, 20); // newest first
-  const manifestRow = (m) => {
-    const id = m.code || m.id, gp = passFor[id];
-    const pass = gp ? `${esc(gp.status)} · ${esc(gp.vehicle_number || 'no vehicle')}${gp.status === 'Draft' ? ` <button type="button" class="action-btn" data-gp-issue="${esc(gp.id)}">Issue</button>` : ''}`
-      : (m.status === 'Open' ? `<button type="button" class="action-btn" data-gp-new="${esc(id)}" data-gp-loc="${esc(m.location_code || '')}">Gate pass</button>` : '—');
-    return `<tr><td class="oms-mono">${esc(id)}</td><td>${esc(m.courier || '')}</td><td>${esc(m.location_code || '')}</td><td class="num">${num(m.shipment_count)}</td><td>${pass}</td>
-      <td><span class="badge ${m.status === 'Open' ? 'badge-warning' : 'badge-success'}">${esc(m.status)}</span></td>
-      <td>${m.status === 'Open' ? `<button type="button" class="btn btn-primary btn-sm" data-handover="${esc(id)}">Hand over</button>` : ''}</td></tr>`;
-  };
-  const head = '<thead><tr><th>Manifest</th><th>Courier</th><th>Location</th><th class="num">Parcels</th><th>Gate pass</th><th>Status</th><th></th></tr></thead>';
-  const man = panel(container, `<h2 class="oms-step-heading">Manifests <span class="text-muted">(${openManifests.length} open)</span></h2>
-    <div class="table-wrapper"><table>${head}<tbody>${openManifests.length === 0 ? emptyRow(7, 'No open manifest.') : openManifests.map(manifestRow).join('')}</tbody></table></div>
-    ${handed.length ? `<details class="oms-related-docs"><summary>Handed over (last ${handed.length})</summary><div class="table-wrapper"><table>${head}<tbody>${handed.map(manifestRow).join('')}</tbody></table></div></details>` : ''}`);
-  man.querySelectorAll('[data-gp-new]').forEach(btn => btn.addEventListener('click', () => newGatePass(btn.dataset.gpNew, btn.dataset.gpLoc)));
-  man.querySelectorAll('[data-gp-issue]').forEach(btn => btn.addEventListener('click', async () => {
-    const r = await post(`/api/v1/oms/gate-passes/${encodeURIComponent(btn.dataset.gpIssue)}/issue`, {});
-    if (r.error) { await showCustomAlert(r.error, 'Gate pass'); return; }
-    again('ship');
-  }));
-  man.querySelectorAll('[data-handover]').forEach(btn => btn.addEventListener('click', () => handOver(btn.dataset.handover, passFor[btn.dataset.handover])));
+  if (part === 'manifests') {
+    // Manifests: gate pass, then hand over.
+    const passFor = {};
+    (passes || []).filter(p => p.status !== 'Discarded').forEach(p => { if (p.manifest_id && !passFor[p.manifest_id]) passFor[p.manifest_id] = p; });
+    const openManifests = manifests.filter(m => m.status === 'Open');
+    const handed = manifests.filter(m => m.status !== 'Open').slice(0, 20); // newest first
+    const manifestRow = (m) => {
+      const id = m.code || m.id, gp = passFor[id];
+      const pass = gp ? `${esc(gp.status)} · ${esc(gp.vehicle_number || 'no vehicle')}${gp.status === 'Draft' ? ` <button type="button" class="action-btn" data-gp-issue="${esc(gp.id)}">Issue</button>` : ''}`
+        : (m.status === 'Open' ? `<button type="button" class="action-btn" data-gp-new="${esc(id)}" data-gp-loc="${esc(m.location_code || '')}">Gate pass</button>` : '—');
+      return `<tr><td class="oms-mono">${esc(id)}</td><td>${esc(m.courier || '')}</td><td>${esc(m.location_code || '')}</td><td class="num">${num(m.shipment_count)}</td><td>${pass}</td>
+        <td><span class="badge ${m.status === 'Open' ? 'badge-warning' : 'badge-success'}">${esc(m.status)}</span></td>
+        <td>${m.status === 'Open' ? `<button type="button" class="btn btn-primary btn-sm" data-handover="${esc(id)}">Hand over</button>` : ''}</td></tr>`;
+    };
+    const head = '<thead><tr><th>Manifest</th><th>Courier</th><th>Location</th><th class="num">Parcels</th><th>Gate pass</th><th>Status</th><th></th></tr></thead>';
+    const man = panel(container, `<h2 class="oms-step-heading">Manifests <span class="text-muted">(${openManifests.length} open)</span></h2>
+      <div class="table-wrapper"><table>${head}<tbody>${openManifests.length === 0 ? emptyRow(7, 'No open manifest.') : openManifests.map(manifestRow).join('')}</tbody></table></div>
+      ${handed.length ? `<details class="oms-related-docs"><summary>Handed over (last ${handed.length})</summary><div class="table-wrapper"><table>${head}<tbody>${handed.map(manifestRow).join('')}</tbody></table></div></details>` : ''}`);
+    man.querySelectorAll('[data-gp-new]').forEach(btn => btn.addEventListener('click', () => newGatePass(btn.dataset.gpNew, btn.dataset.gpLoc)));
+    man.querySelectorAll('[data-gp-issue]').forEach(btn => btn.addEventListener('click', async () => {
+      const r = await post(`/api/v1/oms/gate-passes/${encodeURIComponent(btn.dataset.gpIssue)}/issue`, {});
+      if (r.error) { await showCustomAlert(r.error, 'Gate pass'); return; }
+      re();
+    }));
+    man.querySelectorAll('[data-handover]').forEach(btn => btn.addEventListener('click', () => handOver(btn.dataset.handover, passFor[btn.dataset.handover])));
+  }
 
-  // On the way: tracking until delivered or returned.
-  const moving = bookings.filter(b => ['Handed Over', 'In-Transit'].includes(b.status));
-  const closed = bookings.filter(b => ['Delivered', 'RTO'].includes(b.status)).slice(0, 50); // newest first
-  const trackRow = (b, actions) => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td>${esc(b.carrier || '')}</td><td class="oms-mono">${esc(b.awb_number || '')}</td>
-    <td><span class="badge ${b.status === 'RTO' ? 'badge-danger' : b.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${esc(b.status)}</span></td><td class="oms-step-actions">${actions}</td></tr>`;
-  const thead = '<thead><tr><th>Booking</th><th>Order</th><th>Courier</th><th>AWB</th><th>Status</th><th></th></tr></thead>';
-  const track = panel(container, `<h2 class="oms-step-heading">On the way <span class="text-muted">(${moving.length})</span></h2>
-    <div class="table-wrapper"><table>${thead}<tbody>${moving.length === 0 ? emptyRow(6, 'Nothing is with a courier right now.') : moving.map(b => trackRow(b,
-      `${b.status === 'Handed Over' ? `<button type="button" class="action-btn" data-track="In-Transit" data-id="${esc(bookingID(b))}">In transit</button>` : ''}
-       <button type="button" class="action-btn" data-track="Delivered" data-id="${esc(bookingID(b))}">Delivered</button>
-       <button type="button" class="action-btn action-btn-danger" data-rto="${esc(bookingID(b))}" data-ref="${esc(b.code || b.id)}">RTO</button>`)).join('')}</tbody></table></div>
-    ${closed.length ? `<details class="oms-related-docs"><summary>Delivered and returned (last ${closed.length})</summary><div class="table-wrapper"><table>${thead}<tbody>${closed.map(b => trackRow(b, '')).join('')}</tbody></table></div></details>` : ''}`);
-  track.querySelectorAll('[data-track]').forEach(btn => btn.addEventListener('click', async () => {
-    const r = await post('/api/v1/marketplace/logistics/tracking', { booking_id: btn.dataset.id, status: btn.dataset.track });
-    if (r.error) { await showCustomAlert(r.error, 'Tracking'); return; }
-    again('ship');
-  }));
-  track.querySelectorAll('[data-rto]').forEach(btn => btn.addEventListener('click', async () => {
-    const reason = await showCustomPrompt(`Why is the courier returning ${btn.dataset.ref} undelivered?`, '', 'Return to origin (RTO)');
-    if (!reason || !reason.trim()) return;
-    const r = await post('/api/v1/marketplace/logistics/rto', { booking_id: btn.dataset.rto, reason: reason.trim() });
-    if (r.error) { await showCustomAlert(r.error, 'RTO'); return; }
-    again('ship');
-  }));
+  if (part === 'tracking') {
+    // On the way: tracking until delivered or returned.
+    const moving = bookings.filter(b => ['Handed Over', 'In-Transit'].includes(b.status));
+    const closed = bookings.filter(b => ['Delivered', 'RTO'].includes(b.status)).slice(0, 50); // newest first
+    const trackRow = (b, actions) => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td>${esc(b.carrier || '')}</td><td class="oms-mono">${esc(b.awb_number || '')}</td>
+      <td><span class="badge ${b.status === 'RTO' ? 'badge-danger' : b.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${esc(b.status)}</span></td><td class="oms-step-actions">${actions}</td></tr>`;
+    const thead = '<thead><tr><th>Booking</th><th>Order</th><th>Courier</th><th>AWB</th><th>Status</th><th></th></tr></thead>';
+    const track = panel(container, `<h2 class="oms-step-heading">On the way <span class="text-muted">(${moving.length})</span></h2>
+      <div class="table-wrapper"><table>${thead}<tbody>${moving.length === 0 ? emptyRow(6, 'Nothing is with a courier right now.') : moving.map(b => trackRow(b,
+        `${b.status === 'Handed Over' ? `<button type="button" class="action-btn" data-track="In-Transit" data-id="${esc(bookingID(b))}">In transit</button>` : ''}
+         <button type="button" class="action-btn" data-track="Delivered" data-id="${esc(bookingID(b))}">Delivered</button>
+         <button type="button" class="action-btn action-btn-danger" data-rto="${esc(bookingID(b))}" data-ref="${esc(b.code || b.id)}">RTO</button>`)).join('')}</tbody></table></div>
+      ${closed.length ? `<details class="oms-related-docs"><summary>Delivered and returned (last ${closed.length})</summary><div class="table-wrapper"><table>${thead}<tbody>${closed.map(b => trackRow(b, '')).join('')}</tbody></table></div></details>` : ''}`);
+    track.querySelectorAll('[data-track]').forEach(btn => btn.addEventListener('click', async () => {
+      const r = await post('/api/v1/marketplace/logistics/tracking', { booking_id: btn.dataset.id, status: btn.dataset.track });
+      if (r.error) { await showCustomAlert(r.error, 'Tracking'); return; }
+      re();
+    }));
+    track.querySelectorAll('[data-rto]').forEach(btn => btn.addEventListener('click', async () => {
+      const reason = await showCustomPrompt(`Why is the courier returning ${btn.dataset.ref} undelivered?`, '', 'Return to origin (RTO)');
+      if (!reason || !reason.trim()) return;
+      const r = await post('/api/v1/marketplace/logistics/rto', { booking_id: btn.dataset.rto, reason: reason.trim() });
+      if (r.error) { await showCustomAlert(r.error, 'RTO'); return; }
+      re();
+    }));
+  }
 }
 
 // A gate pass is the vehicle's pass out of the gate (35.4.4): raised with the
@@ -982,7 +1001,7 @@ async function newGatePass(manifestID, locationCode) {
     const issued = await post(`/api/v1/oms/gate-passes/${encodeURIComponent(r.gate_pass_id)}/issue`, {});
     if (issued.error) await showCustomAlert(`Gate pass ${r.gate_pass_id} saved as Draft: ${issued.error}`, 'Gate pass');
   }
-  again('ship');
+  again('manifests');
 }
 
 async function handOver(manifestID, gatePass) {
@@ -996,10 +1015,11 @@ async function handOver(manifestID, gatePass) {
     if (done.error) showToast(`Handed over; gate pass ${gatePass.id} is still open: ${done.error}`, { variant: 'warning', duration: 9000 });
   }
   showToast(`Manifest ${manifestID} handed over.`, { variant: 'success' });
-  again('ship');
+  again('manifests');
 }
 
-const STEPS = { pending: renderPending, pick: renderPick, pack: renderPack, ship: renderShip };
+const STEPS = { pending: renderPending, 'on-hold': renderOnHold, unsent: renderPushProblems, pick: renderPick, pack: renderPack,
+  ship: (c) => renderShip(c, 'ship'), manifest: (c) => renderShip(c, 'manifest'), manifests: (c) => renderShip(c, 'manifests'), tracking: (c) => renderShip(c, 'tracking') };
 
 export function isOMSStep(tab) { return Object.prototype.hasOwnProperty.call(STEPS, tab); }
 

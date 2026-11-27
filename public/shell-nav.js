@@ -7,7 +7,7 @@
 
 // 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
 adoptCss('shell-nav-css', `
-.maturity-tag { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); white-space: nowrap; }
+.maturity-tag { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); white-space: nowrap; }
 .maturity-tag.maturity-experimental { background: var(--danger-soft-bg, var(--warning-soft-bg)); color: var(--danger-strong, var(--warning-strong)); }
 li.maturity-hidden { display: none !important; }`);
 

@@ -80,6 +80,9 @@ func handlePreviewPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			preview.Blocking = true
 		}
 	}
+	// Item 273.3: the vendor's last rate under each line. A hint only, so a
+	// failed lookup leaves the lines without it rather than failing the preview.
+	_ = engines.StampPOLastRates(tenantID, payload, &preview)
 	// Stage 65.8: the composer shows the chosen stores' Billing and Shipping
 	// address under their pickers - the same blocks the printed PO uses
 	// (LoadPrintStore), so the screen and the print cannot disagree.

@@ -332,7 +332,7 @@ func StartEInvoiceWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := sweepTenantSchemas()
 				if err != nil {
 					log.Printf("[EINVOICE] listing tenant schemas: %v", err)
 					continue

@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -30,12 +29,16 @@ func datasetReadable(r *http.Request) func(string) bool {
 
 // handleDashboardDatasets lists the datasets the caller may chart.
 func handleDashboardDatasets(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
 	build, _ := checkPermission(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Role"), "DashboardLayout", "create")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"datasets":    engines.ListDashboardDatasets(r.Header.Get("Resolved-Role"), datasetReadable(r)),
 		"can_build":   build,
 		"sees_money":  engines.RoleSeesMoney(r.Header.Get("Resolved-Role")),
 		"refresh_min": engines.GetSettingInt(r.Header.Get("Resolved-Tenant-ID"), "reports.dashboard_refresh_minutes"),
+		// 298.3: who may limit a ready-made dashboard to some roles (a
+		// setting, so the same right as changing settings).
+		"can_set_roles": r.Header.Get("Resolved-Purpose") != "extension" && (engines.HasFullAccess(role) || engines.RoleHasCapability(role, "admin.settings")),
 	})
 }
 
@@ -53,15 +56,9 @@ func handleDashboardQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	viewer := engines.DatasetViewer{Role: r.Header.Get("Resolved-Role"), UserID: r.Header.Get("Resolved-User-ID")}
-	readable := datasetReadable(r)
+	// 307.2: RunDatasetQuery itself refuses a dataset the role may not read
+	// (REPORT-0988), so the digest passes the same check as this screen.
 	run := func(q engines.DatasetQuery) (engines.DatasetResult, error) {
-		ds, ok := engines.DashboardDatasetByKey(q.Dataset)
-		if !ok {
-			return engines.DatasetResult{}, &engines.ValidationError{Code: "REPORT-0988", Message: fmt.Sprintf("%q is not a dataset", q.Dataset)}
-		}
-		if !readable(ds.Doctype) {
-			return engines.DatasetResult{}, &engines.ValidationError{Code: "REPORT-0988", Message: "your role may not read " + ds.Label}
-		}
 		return engines.RunDatasetQuery(tenantID, viewer, q)
 	}
 	if req.Query != nil {
@@ -176,7 +173,7 @@ func handleDashboardExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ds, ok := engines.DashboardDatasetByKey(req.Query.Dataset)
-	if !ok || !datasetReadable(r)(ds.Doctype) {
+	if !ok || !ds.ReadableBy(datasetReadable(r)) {
 		writeAPIError(w, r, "REPORT-0988", "")
 		return
 	}

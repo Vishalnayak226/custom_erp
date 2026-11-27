@@ -11,6 +11,10 @@
 // its own page (Stage 69).
 
 const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+// 276.7: Stores stays a button; the other actions go in a "⋯" menu, so a row is one line.
+const { rowMenu } = await import('./row-actions.js' + new URL(import.meta.url).search);
+// 276.2: each user chooses the list's columns.
+const { columnsButtonHTML, wireColumns } = await import('./list-columns.js' + new URL(import.meta.url).search);
 const storeModule = () => loadViewModule('/view-store.js?v=1');
 
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
@@ -91,35 +95,39 @@ export async function renderUsersView(container) {
   list.className = 'table-panel';
   list.innerHTML = `
     <table>
-      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th>Last sign-in</th><th class="row-actions-cell"></th></tr></thead>
       <tbody>${users.length === 0
         ? `<tr><td colspan="9" class="s-306094">No users yet.</td></tr>`
         : users.map(u => `
         <tr>
           <td class="s-eed0f8">${esc(u.username)}</td>
           <td>${esc(u.email || '')}</td>
-          <td>${esc(u.role)}</td>
-          <td>${esc(storeName(u.location_code))}</td>
-          <td>${u.department ? esc(deptName(u.department)) : (u.role === 'Supplier' ? '' : '<span class="badge badge-warning">Not set</span>')}${u.employee_id ? ' <span class="s-5872de">· from HR</span>' : ''}</td>
-          <td>${isAdminRoleName(u.role) ? 'All stores' : esc(store.storeAccessSummary(u.store_access, u.stores))}</td>
+          <td class="nowrap">${esc(u.role)}</td>
+          <td class="nowrap">${esc(storeName(u.location_code))}</td>
+          <td class="nowrap">${u.department ? esc(deptName(u.department)) : (u.role === 'Supplier' ? '' : '<span class="badge badge-warning">Not set</span>')}${u.employee_id ? ' <span class="s-5872de">· from HR</span>' : ''}</td>
+          <td class="nowrap">${isAdminRoleName(u.role) ? 'All stores' : esc(store.storeAccessSummary(u.store_access, u.stores))}</td>
           <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${esc(u.status)}</span></td>
           <td class="s-86abda"${u.last_sign_in_ip ? ` title="${esc(u.last_sign_in_ip)}"` : ''}>${esc(signInWhen(u.last_sign_in_at))}${u.last_sign_in_ip ? ` <span class="s-5872de">· ${esc(u.last_sign_in_ip)}</span>` : ''}</td>
-          <td>
+          <td class="row-actions-cell">
             <button class="action-btn" ${actionAttrs('editUserStores', [u.id, u.username])}>Stores</button>
-            ${u.role === 'Supplier' ? '' : `<button class="action-btn" ${actionAttrs('editUserDepartment', [u.id, u.username, u.department || '', u.employee_id || ''])}>Department</button>`}
-            <button class="action-btn" ${actionAttrs('resetUserMFA', [u.id, u.username])}>Reset 2FA</button>
-            <button class="action-btn" ${actionAttrs('resetUserPassword', [u.id, u.username])}>Reset Password</button>
-            ${u.role === 'Supplier' ? `<button class="action-btn" ${actionAttrs('setUserSupplier', [u.id, u.supplier_code || ''])}>Link Vendor</button>` : ''}
-            ${u.status === 'Active'
-              ? `<button class="action-btn action-btn-danger" ${actionAttrs('setUserStatus', [u.id, 'Inactive'])}>Deactivate</button>`
-              : `<button class="action-btn" ${actionAttrs('setUserStatus', [u.id, 'Active'])}>Reactivate</button>`}
+            ${rowMenu([
+              u.role !== 'Supplier' && { label: 'Department', act: ['editUserDepartment', [u.id, u.username, u.department || '', u.employee_id || '']] },
+              u.role === 'Supplier' && { label: 'Link Vendor', act: ['setUserSupplier', [u.id, u.supplier_code || '']] },
+              { label: 'Reset 2FA', act: ['resetUserMFA', [u.id, u.username]] },
+              { label: 'Reset Password', act: ['resetUserPassword', [u.id, u.username]] },
+              u.status === 'Active'
+                ? { label: 'Deactivate', danger: true, act: ['setUserStatus', [u.id, 'Inactive']] }
+                : { label: 'Reactivate', act: ['setUserStatus', [u.id, 'Active']] },
+            ])}
           </td>
         </tr>`).join('')}
       </tbody>
     </table>`;
 
-  container.appendChild(txnPagedSection({ id: 'users-screen', title: 'Users', page: 'New user', count: users.length, newLabel: 'New User', form, list }));
+  container.appendChild(txnPagedSection({ id: 'users-screen', title: 'Users', page: 'New user', count: users.length, newLabel: 'New User', form, list,
+    extra: columnsButtonHTML('users-columns-btn') }));
   txnRestorePane('users-screen');
+  wireColumns(list.querySelector('table'), document.getElementById('users-columns-btn'), 'users');
   document.getElementById('user-create-btn').addEventListener('click', createUser);
 }
 

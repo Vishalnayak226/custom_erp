@@ -154,6 +154,75 @@ func TestStage555aNewClientCashierIsTheTill(t *testing.T) {
 	}
 }
 
+// 278.1 (ask 279, owner's answer (a)): a new client's Accountant is its
+// template, so it adds fixed assets and bank statement lines and sends a
+// journal for approval, and keeps every grant the seed gave it. An existing
+// client's Accountant changes only through the plan, which takes nothing away.
+func TestStage2781NewClientAccountantIsItsTemplate(t *testing.T) {
+	db.InitDB(testConnStr())
+	const role = "Accountant"
+	before, err := StoredRoleGrants("default", role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newClient, schema := uniqueLifecycleTenant(t)
+	t.Cleanup(func() { dropLifecycleTenant(newClient, schema) })
+	if _, err := ProvisionTenantSchema(newClient, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	template, _ := RoleTemplateFor(role)
+	want, err := TemplateGrants(newClient, template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := StoredRoleGrants(newClient, role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(want) {
+		t.Errorf("a new client's Accountant holds %d grants, its template %d", len(got), len(want))
+	}
+	for doctype, level := range want {
+		if got[doctype] != level {
+			t.Errorf("a new client's Accountant holds %s at %s, its template %s", doctype, got[doctype], level)
+		}
+	}
+	for _, doctype := range []string{"Asset", "BankStatementLine", "JournalVoucher", "ExpenseClaim"} {
+		if got[doctype] != AccessManage {
+			t.Errorf("a new client's Accountant holds %s at %s, want manage", doctype, got[doctype])
+		}
+	}
+	// The shipped seed is what a new client copied before; nothing it gave is lost.
+	if len(before) != 35 || before["UserShortcut"] != AccessManage {
+		t.Logf("this database's Accountant is not the shipped seed (%d grants) - seed comparison skipped", len(before))
+	} else {
+		for doctype, level := range before {
+			if got[doctype] < level {
+				t.Errorf("a new client's Accountant holds %s at %s, the seed gave %s", doctype, got[doctype], level)
+			}
+		}
+		plan, err := PlanRoleTemplateMigration("default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range plan.Diffs {
+			if d.Role != role {
+				continue
+			}
+			for _, c := range append(append([]GrantChange{}, d.Tightened...), d.Removed...) {
+				t.Errorf("the plan would take the existing Accountant's %s to %s", c.Doctype, c.To)
+			}
+		}
+	}
+	after, err := StoredRoleGrants("default", role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Errorf("provisioning a new client changed the existing client's Accountant: %d grants, was %d", len(after), len(before))
+	}
+}
+
 // Stage 49.3.7a: an existing client's Store Manager keeps what it holds until
 // the owner applies the role-template plan, and the plan shows the change.
 func TestStage4937aExistingClientChangesOnlyThroughThePlan(t *testing.T) {

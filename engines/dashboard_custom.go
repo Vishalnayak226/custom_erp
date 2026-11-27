@@ -296,7 +296,9 @@ func ListCustomDashboards(tenantID, userID, username, role string) ([]CustomDash
 		return nil, err
 	}
 	for _, rm := range ReadyMadeDashboards() {
-		out = append(out, rm)
+		if readyMadeVisibleTo(tenantID, rm.ReadyMade, role) {
+			out = append(out, rm)
+		}
 	}
 	return out, nil
 }
@@ -306,7 +308,7 @@ func ListCustomDashboards(tenantID, userID, username, role string) ([]CustomDash
 func GetCustomDashboardFor(tenantID, userID, username, role, id string) (CustomDashboard, error) {
 	if strings.HasPrefix(id, readyMadePrefix) {
 		for _, rm := range ReadyMadeDashboards() {
-			if rm.ID == id {
+			if rm.ID == id && readyMadeVisibleTo(tenantID, rm.ReadyMade, role) {
 				return rm, nil
 			}
 		}
@@ -439,28 +441,17 @@ func dsSum(field string) DatasetMeasure { return DatasetMeasure{Field: field, Ag
 
 var countRows = DatasetMeasure{Agg: "count"}
 
-// ReadyMadeDashboards are the shipped ones: Sales, Stock, Buying, Customers
-// and Money. Each opens as it is and copies into an editable one of your own.
+// ReadyMadeDashboards are the shipped ones: All sales, Store sales, Online
+// sales and B2B sales (dashboard_sales.go, 298.2), then Stock, Buying,
+// Customers and Money. Each opens as it is and copies into an editable one
+// of your own; an admin may narrow who sees each (readyMadeVisibleTo).
 func ReadyMadeDashboards() []CustomDashboard {
 	mk := func(key, name string, f DashboardFilters, widgets ...DashboardWidget) CustomDashboard {
 		return CustomDashboard{ID: readyMadePrefix + key, Name: name, Owner: "", ReadyMade: key, Filters: f, Widgets: widgets,
 			ShareUsers: []string{}, ShareRoles: []string{}, ShareStores: []string{}, HomeRoles: []string{}}
 	}
 	mtd := DashboardFilters{Range: "mtd"}
-	return []CustomDashboard{
-		mk("sales", "Sales", mtd,
-			dsW("Sales", "number", 0, 0, 3, 1, DatasetQuery{Dataset: "pos_bills", Measures: []DatasetMeasure{dsSum("value")}, Compare: true}),
-			dsW("Bills", "number", 3, 0, 3, 1, DatasetQuery{Dataset: "pos_bills", Measures: []DatasetMeasure{countRows}, Compare: true}),
-			dsW("Average bill", "number", 6, 0, 3, 1, DatasetQuery{Dataset: "pos_bills", Measures: []DatasetMeasure{{Field: "value", Agg: "avg"}}, Compare: true}),
-			dsW("Items per bill", "number", 9, 0, 3, 1, DatasetQuery{Dataset: "pos_bills", Measures: []DatasetMeasure{{Field: "items", Agg: "avg"}}, Compare: true}),
-			dsW("Sales by day", "line", 0, 1, 8, 2, DatasetQuery{Dataset: "pos_bills", GroupBy: []string{"date"}, Grain: "day", Measures: []DatasetMeasure{dsSum("value")}, Limit: 92}),
-			dsW("Sales by store", "bar", 8, 1, 4, 2, DatasetQuery{Dataset: "pos_bills", GroupBy: []string{"store"}, Measures: []DatasetMeasure{dsSum("value")}, Limit: 12}),
-			dsW("Sales by category", "donut", 0, 3, 4, 2, DatasetQuery{Dataset: "sales_lines", GroupBy: []string{"category"}, Measures: []DatasetMeasure{dsSum("value")}, Limit: 8}),
-			dsW("Top salesmen", "bar", 4, 3, 4, 2, DatasetQuery{Dataset: "pos_bills", GroupBy: []string{"salesman"}, Measures: []DatasetMeasure{dsSum("value"), countRows}, Limit: 10}),
-			dsW("Sales by hour", "bar", 8, 3, 4, 2, DatasetQuery{Dataset: "pos_bills", GroupBy: []string{"hour"}, Measures: []DatasetMeasure{dsSum("value")}, Sort: "group", Limit: 24}),
-			dsW("Top items", "table", 0, 5, 6, 2, DatasetQuery{Dataset: "sales_lines", GroupBy: []string{"item"}, Measures: []DatasetMeasure{dsSum("qty"), dsSum("value")}, Limit: 15}),
-			dsW("Brand by store", "pivot", 6, 5, 6, 2, DatasetQuery{Dataset: "sales_lines", GroupBy: []string{"brand", "store"}, Measures: []DatasetMeasure{dsSum("value")}, Limit: 200}),
-		),
+	return append(salesReadyMades(mk), []CustomDashboard{
 		mk("stock", "Stock", DashboardFilters{},
 			dsW("Stock value (cost)", "number", 0, 0, 4, 1, DatasetQuery{Dataset: "stock_on_hand", Measures: []DatasetMeasure{dsSum("value")}}),
 			dsW("Units on hand", "number", 4, 0, 4, 1, DatasetQuery{Dataset: "stock_on_hand", Measures: []DatasetMeasure{dsSum("on_hand")}}),
@@ -503,11 +494,40 @@ func ReadyMadeDashboards() []CustomDashboard {
 			dsW("Expenses by category", "donut", 6, 1, 6, 2, DatasetQuery{Dataset: "expenses", GroupBy: []string{"category"}, Measures: []DatasetMeasure{dsSum("amount")}, Limit: 8}),
 			dsW("Accounts", "table", 0, 3, 12, 2, DatasetQuery{Dataset: "ledger", GroupBy: []string{"account"}, Measures: []DatasetMeasure{dsSum("debit"), dsSum("credit"), dsSum("net")}, Limit: 30}),
 		),
-	}
+	}...)
 }
 
 // SettingDashboardRefresh is how often an open dashboard reloads (D5).
 const SettingDashboardRefresh = "reports.dashboard_refresh_minutes"
+
+// 298.3 (user, 2026-11-27: "It need control to whom it will be show at role
+// level"): each ready-made dashboard has a setting naming the roles that see
+// it. Blank - the default - shows it to everyone, as before; the figures in
+// it are still cut by each viewer's record rights, stores and money rule.
+// Full-access roles always see every one, so an admin cannot hide one from
+// themselves.
+
+// SettingReadyDashboardRolesPrefix + a ready-made key is that dashboard's
+// role list (comma-separated).
+const SettingReadyDashboardRolesPrefix = "reports.ready_dashboard_roles."
+
+// ReadyMadeRoles is the roles a ready-made dashboard is limited to (none:
+// everyone sees it).
+func ReadyMadeRoles(tenantID, key string) []string {
+	var out []string
+	for _, r := range strings.Split(GetSettingString(tenantID, SettingReadyDashboardRolesPrefix+key), ",") {
+		if r = strings.TrimSpace(r); r != "" {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// readyMadeVisibleTo: may role see the ready-made dashboard key?
+func readyMadeVisibleTo(tenantID, key, role string) bool {
+	roles := ReadyMadeRoles(tenantID, key)
+	return len(roles) == 0 || HasFullAccess(role) || containsFold(roles, role) || containsFold(roles, CanonicalRole(role))
+}
 
 func init() {
 	RegisterSetting(SettingDefinition{
@@ -516,6 +536,13 @@ func init() {
 		Min: settingBound(1), Max: settingBound(120),
 		Description: "How often an open custom dashboard reloads its figures (Stage 100). Each result is also kept 60 seconds on the server, so many people opening one dashboard run it once.",
 	})
+	for _, rm := range ReadyMadeDashboards() {
+		RegisterSetting(SettingDefinition{
+			Key: SettingReadyDashboardRolesPrefix + rm.ReadyMade, Module: "Reports",
+			Label: "Who sees the " + rm.Name + " dashboard", Type: SettingTypeString, Default: "",
+			Description: "Roles that see the ready-made " + rm.Name + " dashboard, comma-separated. Blank: every role that may read its records. Admins always see it.",
+		})
+	}
 }
 
 // ScheduleCustomDashboardDigest emails a dashboard on a schedule (100.3.4):

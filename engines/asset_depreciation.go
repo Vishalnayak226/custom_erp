@@ -764,7 +764,7 @@ func StartAssetDepreciationScheduler(ctx context.Context, interval time.Duration
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("assets")
+				schemas, err := sweepTenantSchemas("assets")
 				if err != nil {
 					log.Printf("[ASSET-DEPRECIATION] cannot list tenant schemas: %v", err)
 					continue

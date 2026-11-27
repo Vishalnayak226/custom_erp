@@ -400,6 +400,7 @@ func InvalidateTenantLifecycleCache(tenantID string) {
 	delete(tenantGateCache, tenantID)
 	tenantGateMu.Unlock()
 	db.ForgetTenantSchema(tenantID) // 248.1
+	forgetSweepView()               // 283.2: background workers see it on their next tick
 }
 
 // tenantHasCachedGate reports whether this process still holds a gate decision

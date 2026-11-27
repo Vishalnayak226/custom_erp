@@ -14,7 +14,7 @@ adoptCss('view-pickers-css', `
 /* Inline quick-create (57.2) opens on top of a form that is already open. */
 .modal-overlay.quick-create-overlay { z-index: 120; }
 .quick-create-overlay .modal-footer { align-items: center; }
-.quick-create-overlay .quick-create-full { margin-right: auto; font-size: 12.5px; }
+.quick-create-overlay .quick-create-full { margin-right: auto; font-size: 12px; }
 
 .date-picker {
   position: fixed;
@@ -30,7 +30,7 @@ adoptCss('view-pickers-css', `
   transform: translateY(-4px) scale(0.98);
   transform-origin: top left;
   transition: opacity 0.14s ease, transform 0.14s ease;
-  font-size: 13px;
+  font-size: 13.5px;
   user-select: none;
 }
 .date-picker.open { opacity: 1; transform: none; }
@@ -41,12 +41,12 @@ adoptCss('view-pickers-css', `
 .date-picker button:disabled { cursor: not-allowed; opacity: 0.35; }
 .date-picker button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
 .date-picker .dp-header { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
-.date-picker .dp-nav { width: 32px; height: 32px; border-radius: 8px; font-size: 20px; line-height: 1; color: var(--text-muted); }
+.date-picker .dp-nav { width: 32px; height: 32px; border-radius: 8px; font-size: 18px; line-height: 1; color: var(--text-muted); }
 .date-picker .dp-nav:hover { background-color: var(--surface-subtle); color: var(--text-main); }
 .date-picker .dp-title { flex: 1; height: 32px; border-radius: 8px; font-weight: 600; }
 .date-picker .dp-title:hover { background-color: var(--surface-subtle); }
 .date-picker .dp-weekdays, .date-picker .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.date-picker .dp-weekdays span { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 4px 0; }
+.date-picker .dp-weekdays span { text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 4px 0; }
 .date-picker .dp-day { height: 36px; border-radius: 8px; font-variant-numeric: tabular-nums; transition: background-color 0.1s ease; }
 .date-picker .dp-day:hover:not(:disabled) { background-color: var(--surface-subtle); }
 .date-picker .dp-day.is-outside { color: var(--text-muted); opacity: 0.55; }
@@ -72,7 +72,7 @@ adoptCss('view-pickers-css', `
 /* Stage 80.1: the record form's named sections (Item). */
 #dynamic-modal-body .form-section { grid-column: 1 / -1; border-top: 1px solid var(--border-color); padding-top: 12px; }
 #dynamic-modal-body .form-section:first-of-type { border-top: 0; padding-top: 0; }
-.form-section > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 12px; }
+.form-section > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-size: 13.5px; font-weight: 700; color: var(--text-main); margin-bottom: 12px; }
 .form-section > summary::-webkit-details-marker { display: none; }
 .form-section > summary::before { content: '\\25B8'; color: var(--text-muted); transition: transform 0.12s ease; }
 .form-section[open] > summary::before { transform: rotate(90deg); }
@@ -94,8 +94,8 @@ adoptCss('view-pickers-css', `
 .variant-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; max-width: 560px; }
 /* Stage 81: an attribute's values as removable chips. */
 .value-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.value-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--panel-bg); font-size: 13px; }
-.value-chip button { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
+.value-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--panel-bg); font-size: 13.5px; }
+.value-chip button { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
 .value-chip button:hover { color: var(--danger-color); background: var(--surface-subtle); }
 .value-add { display: flex; gap: 8px; margin-top: 8px; max-width: 420px; }
 `);
@@ -971,32 +971,22 @@ function loadPinDirectory() {
 
 // attachCityPinLists: once a State is chosen, City offers that state's cities
 // and PIN Code the chosen city's PINs (or the whole state's). A list only
-// suggests - anything else can still be typed.
+// suggests - anything else can still be typed. 294.1: in the app's own menu,
+// read at each search, so a State or City change needs no refill.
 function attachCityPinLists(form) {
   const st = form.elements.state, city = form.elements.city, pin = form.elements.pincode;
   if (!st || st.tagName !== 'SELECT' || (!city && !pin)) return;
-  const listFor = (input) => {
-    if (!input) return null;
-    const dl = document.createElement('datalist');
-    dl.id = `${input.id || input.name}-list`;
-    input.setAttribute('list', dl.id);
-    input.after(dl);
-    return dl;
-  };
-  const cityList = listFor(city), pinList = listFor(pin);
-  const fill = (dl, values) => { if (dl) dl.innerHTML = values.map(v => `<option value="${escapeHTMLText(v)}">`).join(''); };
   let dir = {};
-  const fillPins = () => {
-    const cities = dir[st.value] || {};
+  const cities = () => dir[st.value] || {};
+  const pins = () => {
     const typed = String((city && city.value) || '').trim().toLowerCase();
-    const match = Object.keys(cities).find(c => c.toLowerCase() === typed);
-    fill(pinList, match ? cities[match].split(' ')
-      : [...new Set(Object.values(cities).flatMap(p => p.split(' ')))].sort());
+    const match = Object.keys(cities()).find(c => c.toLowerCase() === typed);
+    return match ? cities()[match].split(' ')
+      : [...new Set(Object.values(cities()).flatMap(p => p.split(' ')))].sort();
   };
-  const fillAll = () => { fill(cityList, Object.keys(dir[st.value] || {})); fillPins(); };
-  st.addEventListener('change', fillAll);
-  if (city) city.addEventListener('input', fillPins);
-  loadPinDirectory().then(d => { dir = d; fillAll(); });
+  if (city) attachSuggestList(city, () => Object.keys(cities()));
+  if (pin) attachSuggestList(pin, pins);
+  loadPinDirectory().then(d => { dir = d; });
 }
 
 // taxIdLabel: the field the product calls "gstin" is a TRN in the UAE, a VAT

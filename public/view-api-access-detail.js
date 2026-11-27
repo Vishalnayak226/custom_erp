@@ -1,8 +1,9 @@
 // 205.13 / 205.16 / 205.19 / 205.21: a key's detail page and the helpers the
 // API access list shares with it. Lazy module (loaded by view-api-access.js).
 // Routes: GET/PUT/POST/DELETE /api/v1/api-access/keys/{id}/... (plan, "Interfaces").
-import { buildModuleGrid } from './view-api-access-grid.js';
-import { copyText, downloadText } from './api-docs-viewer.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { buildModuleGrid } = await import('./view-api-access-grid.js' + new URL(import.meta.url).search);
+const { copyText, downloadText } = await import('./api-docs-viewer.js' + new URL(import.meta.url).search);
 
 export const BASE = '/api/v1/api-access';
 const esc = (s) => escapeHTMLText(s);

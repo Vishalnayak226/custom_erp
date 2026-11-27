@@ -481,7 +481,7 @@ func StartChannelSyncWorker(ctx context.Context, interval time.Duration) {
 				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
 					continue
 				}
-				schemas, err := listTenantSchemas("oms")
+				schemas, err := sweepTenantSchemas("oms")
 				if err != nil {
 					log.Printf("[CHANNEL-SYNC] list tenants: %v", err)
 					continue

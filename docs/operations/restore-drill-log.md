@@ -5,6 +5,8 @@ Append-only history of every restore drill run (manual or via `.\manage.ps1 rest
 - 2026-07-19T05:02:30Z (approx.) | backup=custom_erp_20260719T050230Z.dump | target=test/custom_erp_test | duration=~8s | tenants=2 doctype_meta=44 | verifier=manual (pre-automation) | result=PASS
 - 2026-07-20T18:04:13Z | backup=custom_erp_20260720T180402Z.dump.enc | target=test/custom_erp_test | duration=3.6s | tenants=2 doctype_meta=62 | verifier=automated (manage.ps1 restore-drill) | result=PASS
 - 2026-08-07T03:09:48Z | backup=custom_erp_20260805T020820Z.dump.enc | target=**production droplet** 139.59.17.16, scratch db erp_restore_drill_20260807030948 | rows documents=210/210 users=4/4 gl_postings=0/0 | verifier=deploy/restore_drill.sh | result=PASS
+- 2026-11-26T15:29:43Z | backup=custom_erp_20261126T020001Z.dump.enc (116 MB) | target=**production droplet**, scratch db dropped after | duration=25s | rows live/restored documents=18032/16909 users=4/4 gl_postings=403/391 | verifier=deploy/restore_drill.sh + erp-server -verify-restore (commit 9db21d3) | result=PASS
+- 2026-11-27T02:44:38Z | backup=point-in-time: base_20261127T024428Z + archived WAL, target minute 08:14:38 IST | target=**local scratch cluster** (Postgres 16.3, ports 5497/5498), S3 stub | rows live/restored drill_rows=50/200 (want 200) | verifier=deploy/pitr.sh drill (item 290.2) | result=PASS
 
 ## 2026-08-07 — first drill against the real production box (Stage 26.11.3)
 
@@ -86,3 +88,49 @@ The newest backup was then verified end-to-end rather than merely counted: `sha2
 ### Still open
 
 **Nothing alerts if the nightly backup fails.** The job appends to `/var/log/erp-backup.log` and that is all — `hypercare-plan.md`'s "two consecutive failed nightly backups" trigger still depends on a human looking. Note that an *empty* log is a distinct failure from an *error* in the log: a successful run appends one line per night, so no new line means the job never ran. Wiring this into the 20.2 alert webhook is the real fix and is not done. Off-box copies remain deliberately absent (no storage credentials) — losing the droplet still loses the backups with it.
+
+## 2026-11-26 — drill with the restored-copy check (item 267.6, ask 278)
+
+Run on the owner's "approved all", by Claude over ssh as root. The invocation above still holds, with two additions: the server binary is staged too (`/opt/erp` is not readable by `postgres`, and `ERP_BIN` must point at a copy), and `DRILL_EVIDENCE_FILE` points into the stage, then the evidence is copied back with `install -o erp -g erp -m 0640` to `/opt/erp/backups/restore-drill-evidence.json`, where the Deploy click reads it. The first attempt, as `sudo -u erp`, failed on `permission denied to create database`, as recorded on 2026-08-07; the app role was left without CREATEDB.
+
+### Result
+
+`DRILL PASSED`, 25 s from decrypt to a checked copy. `erp-server -verify-restore` on the restored copy:
+
+- migrations: every file applied, checksums match;
+- default: the ledger balances (29,397,565.00 each side); 1,757 signed audit rows and 751 checkpoints verify with the server's key; the stock-ledger reconciliation shows the same difference the live Reconciliation screen shows;
+- minn: the ledger balances (12,682,056.00); 1,744 signed rows and 62 checkpoints verify; all 22 reconciliations tie.
+
+The row counts differ from live because the backup is from 02:00 UTC and the drill ran at 15:29 UTC: live held 1,123 documents and 12 GL rows more.
+
+- **RTO** for the database on the host: 25 s for 116 MB.
+- **RPO:** up to 24 h (one backup a night at 02:00 UTC).
+
+### Cleanup and findings
+
+- The scratch database was dropped by the script, the staging folder removed, and `erp` stayed active (`/api/v1/health` 200). The live database was never written to.
+- `-verify-restore` creates the key files it expects when they are missing, so running it as `postgres` left three throwaway keys in `/var/lib/postgresql/.config/custom_erp/`. They were removed after checking their timestamps matched the drill.
+- **No off-box copy.** No `OFFSITE_S3_*` is set, so the backups and the key that opens them sit only on the droplet. This waits on the owner's storage account.
+- **Key files outside the backup:** `audit_archive_key.local` and `web_push_key.local` live on the host only. A copy belongs with the off-box backups.
+
+## 2026-11-27 — point-in-time recovery drill (item 290.2, ask 305)
+
+Run locally by Claude before point-in-time recovery reaches any server. Two scratch Postgres 16.3 clusters on a Windows laptop (Git Bash), an S3 stub for the off-box copy, and `deploy/pitr.sh` exactly as shipped. Production was not touched; PITR there waits on the owner running `install_pitr.sh`.
+
+### Result
+
+- **Base backup:** sealed, sized, checksummed and copied off-box; one `backup_runs` row each (`scope=pitr`, `Success`, offsite `Success`).
+- **The minute back:** 200 rows were written, the target minute noted, then 150 deleted (live: 50). `pitr.sh restore --to "<minute> +05:30"` stopped "before commit of transaction 735" and the copy on port 5498 held 200 rows, max id 200.
+- **Archive retry:** a segment sent twice with the same content is accepted (0); with different content it is refused (1), so a bad copy never overwrites a good one.
+- **Off-box sync:** two syncs in a row copy each file once (4 objects, then 4; manifest 4 lines).
+- **Refusals:** a non-empty target folder and a port already in use are both refused before anything starts.
+- **Prune:** with two kept, a third base backup removed the oldest and the segments only it needed.
+- **Status:** archiving on, segments counted, window and off-box count shown.
+- `go test -run TestPITRAlerts ./engines/`: the four alerts fire as designed.
+
+### Finding fixed during the drill
+
+The first run failed to restore: "the base backup would not open". `pg_basebackup` wrote the tar to standard output, and on Windows that output is text mode, so every newline inside `backup_label` became CR LF and the tar broke. `pitr.sh base` now writes into a private work folder (`-D <folder> -Ft -z`), seals `base.tar.gz` from there and removes the folder. A cluster with tablespaces is refused with a plain message. Linux was never affected, but the folder form is the same on both.
+
+- **RPO with PITR on:** up to five minutes on the host (`archive_timeout = 5min` from `install_pitr.sh`); the drill used one minute to run faster.
+- **RTO** for the drill database: under a minute from `restore` to a running copy; on the host it grows with the base backup size and the WAL to replay since it.

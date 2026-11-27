@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"math"
 	"mime/multipart"
 	"net/smtp"
 	"net/textproto"
@@ -97,10 +98,10 @@ func CustomDashboardDigestContent(tenantID string, cd CustomDashboard, v Dataset
 	return page.String(), csvAll.String(), total
 }
 
-func digestFormat(v interface{}, money bool) string {
+func digestFormat(v interface{}, c DatasetColumn) string {
 	switch x := v.(type) {
 	case nil:
-		if money {
+		if c.Money {
 			return "hidden"
 		}
 		return "-"
@@ -108,7 +109,10 @@ func digestFormat(v interface{}, money bool) string {
 		s := fmt.Sprintf("%.2f", x)
 		s = strings.TrimSuffix(strings.TrimSuffix(s, "0"), "0")
 		s = strings.TrimSuffix(s, ".")
-		if money {
+		if c.Unit == "%" { // 307.3: a share reads as one, as on the screen
+			return s + "%"
+		}
+		if c.Money {
 			return "Rs " + s
 		}
 		return s
@@ -135,17 +139,25 @@ func digestWidgetHTML(w DashboardWidget, res DatasetResult) string {
 			return `<p style="color:#6b7280;">No data.</p>`
 		}
 		val := res.Rows[0][m.Key]
-		fmt.Fprintf(&b, `<div style="font-size:28px;font-weight:bold;">%s</div>`, html.EscapeString(digestFormat(val, m.Money)))
+		fmt.Fprintf(&b, `<div style="font-size:28px;font-weight:bold;">%s</div>`, html.EscapeString(digestFormat(val, m)))
 		if res.Previous != nil {
 			cur, ok1 := val.(float64)
 			prev, ok2 := res.Previous[m.Key].(float64)
-			if ok1 && ok2 && prev != 0 {
+			if ok1 && ok2 && m.Unit == "%" {
+				// 307.3: a share changes by points, not by a % of itself.
+				pts := cur - prev
+				color, arrow := "#15803d", "&#9650;"
+				if pts < 0 {
+					color, arrow = "#b91c1c", "&#9660;"
+				}
+				fmt.Fprintf(&b, `<div style="color:%s;font-size:13px;">%s %.1f points on the period before</div>`, color, arrow, math.Abs(pts))
+			} else if ok1 && ok2 && prev != 0 {
 				pct := (cur - prev) / prev * 100
 				color, arrow := "#15803d", "&#9650;"
 				if pct < 0 {
 					color, arrow = "#b91c1c", "&#9660;"
 				}
-				fmt.Fprintf(&b, `<div style="color:%s;font-size:13px;">%s %.1f%% on the period before</div>`, color, arrow, pct)
+				fmt.Fprintf(&b, `<div style="color:%s;font-size:13px;">%s %.1f%% on the period before</div>`, color, arrow, math.Abs(pct))
 			}
 		}
 		return b.String()
@@ -163,7 +175,7 @@ func digestWidgetHTML(w DashboardWidget, res DatasetResult) string {
 			}
 			b.WriteString("<tr>")
 			for _, c := range res.Columns {
-				fmt.Fprintf(&b, `<td style="padding:4px 10px;border-bottom:1px solid #f3f4f6;">%s</td>`, html.EscapeString(digestFormat(r[c.Key], c.Money)))
+				fmt.Fprintf(&b, `<td style="padding:4px 10px;border-bottom:1px solid #f3f4f6;">%s</td>`, html.EscapeString(digestFormat(r[c.Key], c)))
 			}
 			b.WriteString("</tr>")
 		}
@@ -189,7 +201,7 @@ func digestWidgetHTML(w DashboardWidget, res DatasetResult) string {
 		fmt.Fprintf(&b, `<tr><td style="padding:3px 8px;white-space:nowrap;width:30%%;">%s</td>`+
 			`<td style="padding:3px 0;width:55%%;"><div style="background:#4f6bed;height:12px;width:%d%%;min-width:2px;border-radius:2px;"></div></td>`+
 			`<td style="padding:3px 8px;text-align:right;white-space:nowrap;">%s</td></tr>`,
-			html.EscapeString(fmt.Sprint(r[groups[0].Key])), pct, html.EscapeString(digestFormat(r[m.Key], m.Money)))
+			html.EscapeString(fmt.Sprint(r[groups[0].Key])), pct, html.EscapeString(digestFormat(r[m.Key], m)))
 	}
 	b.WriteString("</table>")
 	return b.String()

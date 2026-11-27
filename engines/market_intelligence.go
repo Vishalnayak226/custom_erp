@@ -312,7 +312,7 @@ func runCompetitorUndercutCycle() error {
 		return fmt.Errorf("failed to read last run time: %w", err)
 	}
 
-	schemas, err := listTenantSchemas()
+	schemas, err := sweepTenantSchemas()
 	if err != nil {
 		return fmt.Errorf("failed to list tenant schemas: %w", err)
 	}

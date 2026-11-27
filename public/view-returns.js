@@ -23,6 +23,9 @@ import('./trade-docs.js' + new URL(import.meta.url).search).catch(() => null);
 const RETURN_ACTIONS_BY_STATUS = {
   'Requested': ['approve', 'reject'],
   'Approved': ['reverse-pickup', 'receive', 'reject'],
+  // 267.1: a booked pickup still waits for the goods; the server receives
+  // from Approved or Pickup Scheduled, so the row offers Receive Goods.
+  'Pickup Scheduled': ['receive'],
   'Received': ['qc'],
   'QC Complete': ['refund'],
   'Closed': [],
@@ -34,8 +37,27 @@ const RETURN_DISPOSITIONS = ['Sellable', 'Damaged', 'Repairable', 'Missing', 'Wr
 // Stage 68: the transaction-screen bar's shared pieces, same version.
 const { txnContext, txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
+// 267.1: the work queue is paged on the server. Each filter is the status
+// group the list is asked for (a repeated status filter matches any of them);
+// Open is every status that still has a step to take.
+const RETURN_STATUS_GROUPS = {
+  open: Object.keys(RETURN_ACTIONS_BY_STATUS).filter(s => RETURN_ACTIONS_BY_STATUS[s].length),
+  all: [],
+  'Requested': ['Requested'],
+  'Approved': ['Approved', 'Pickup Scheduled'],
+  'Received': ['Received'],
+  'QC Complete': ['QC Complete']
+};
+const RETURNS_PAGE = 50;
+
 let returnsViewRows = [];
 let returnsViewFilter = 'open';
+let returnsViewSearch = '';
+let returnsViewOffset = 0;
+let returnsViewTotal = 0;
+let returnsViewEstimated = false;
+let returnsViewFailed = false;
+let returnsViewLoad = 0; // a newer load wins over a slower older one
 
 async function renderReturnsView(root) {
   // Stage 68: the frozen transaction layout (txn-screen.css) - the bar carries
@@ -56,6 +78,7 @@ async function renderReturnsView(root) {
           <option value="Received">Awaiting inspection</option>
           <option value="QC Complete">Awaiting refund</option>
         </select>
+        <input id="returns-search" class="form-input" type="search" placeholder="Search" aria-label="Search returns" autocomplete="off">
         <button class="btn btn-outline btn-sm" id="returns-refresh-btn" type="button">Refresh</button>
         <button class="btn btn-primary btn-sm" id="returns-new-btn" type="button">+ New Return</button>
       </div>
@@ -73,9 +96,39 @@ async function renderReturnsView(root) {
       </table>
       <div id="returns-empty" class="txn-empty"></div>
     </div>
+    <div class="s-493a8f txn-pager">
+      <span id="returns-range" class="s-3330ed"></span>
+      <button class="btn btn-outline btn-sm" id="returns-prev" type="button" disabled>Previous</button>
+      <button class="btn btn-outline btn-sm" id="returns-next" type="button" disabled>Next</button>
+    </div>
   `;
   root.appendChild(panel);
 
+  // 267.1: the filter and search stay as they were left; the page starts
+  // again at the first.
+  returnsViewOffset = 0;
+  const filterEl = document.getElementById('returns-filter');
+  const searchEl = document.getElementById('returns-search');
+  filterEl.value = returnsViewFilter;
+  if (filterEl.value !== returnsViewFilter) { returnsViewFilter = 'open'; filterEl.value = 'open'; }
+  searchEl.value = returnsViewSearch;
+  let searchTimer = null;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      returnsViewSearch = searchEl.value.trim();
+      returnsViewOffset = 0;
+      loadReturnsView();
+    }, 300);
+  });
+  document.getElementById('returns-prev').addEventListener('click', () => {
+    returnsViewOffset = Math.max(0, returnsViewOffset - RETURNS_PAGE);
+    loadReturnsView();
+  });
+  document.getElementById('returns-next').addEventListener('click', () => {
+    returnsViewOffset += RETURNS_PAGE;
+    loadReturnsView();
+  });
   document.getElementById('returns-refresh-btn').addEventListener('click', loadReturnsView);
   // Stage 55.5: a return is raised at the till, against the original bill -
   // + New Return opens the till on its Return tab.
@@ -83,31 +136,55 @@ async function renderReturnsView(root) {
     await renderView('pos');
     window.txnShowPane?.('pos-screen:return');
   });
-  document.getElementById('returns-filter').addEventListener('change', (e) => {
+  filterEl.addEventListener('change', (e) => {
     returnsViewFilter = e.target.value;
-    renderReturnsTable();
+    returnsViewOffset = 0;
+    loadReturnsView();
   });
   await loadReturnsView();
 }
 
 async function loadReturnsView() {
-  const errorEl = document.getElementById('returns-error');
-  if (errorEl) errorEl.classList.add('hidden');
+  const mine = ++returnsViewLoad;
   // Read through the ordinary generic doctype endpoint rather than a bespoke
   // list route: ReturnRequest is a registered doctype and already carries the
   // role/scope filtering every other document read gets, so a second endpoint
   // would be a second place for that filtering to drift.
-  const res = await apiFetch('/api/v1/doc/ReturnRequest?limit=200');
-  if (!res) return;
+  // 267.1: the status group, the search and the page go to the server, so a
+  // return past the first page is found and the count is the whole result.
+  const params = new URLSearchParams({ limit: String(RETURNS_PAGE), offset: String(returnsViewOffset), count: 'true' });
+  (RETURN_STATUS_GROUPS[returnsViewFilter] || []).forEach(s => params.append('status', s));
+  if (returnsViewSearch) params.set('q', returnsViewSearch);
+  const res = await apiFetch('/api/v1/doc/ReturnRequest?' + params.toString());
+  if (mine !== returnsViewLoad || !res) return;
+  const errorEl = document.getElementById('returns-error');
   if (!res.ok) {
+    const message = await getErrorMessage(res, 'Returns could not be loaded.');
+    if (mine !== returnsViewLoad) return;
+    // A failed load is said as such - never shown as "no returns".
+    returnsViewFailed = true;
+    returnsViewRows = [];
+    returnsViewTotal = 0;
     if (errorEl) {
-      errorEl.textContent = await getErrorMessage(res, 'Returns could not be loaded.');
+      errorEl.textContent = message;
       errorEl.classList.remove('hidden');
     }
+    renderReturnsTable();
     return;
   }
   const payload = await res.json();
+  if (mine !== returnsViewLoad) return;
   const docs = Array.isArray(payload) ? payload : (payload.data || payload.documents || []);
+  // A step that closed the last row of a later page steps back a page.
+  if (!docs.length && returnsViewOffset > 0) {
+    returnsViewOffset = Math.max(0, returnsViewOffset - RETURNS_PAGE);
+    return loadReturnsView();
+  }
+  const counted = Number(res.headers.get('X-Total-Count'));
+  returnsViewTotal = Number.isFinite(counted) && res.headers.has('X-Total-Count') ? counted : returnsViewOffset + docs.length;
+  returnsViewEstimated = res.headers.get('X-Total-Count-Estimated') === 'true';
+  returnsViewFailed = false;
+  if (errorEl) errorEl.classList.add('hidden');
   returnsViewRows = docs.map(d => {
     const data = d.data || d;
     return {
@@ -141,24 +218,32 @@ function renderReturnsTable() {
   if (!body) return;
   body.innerHTML = '';
 
-  const rows = returnsViewRows.filter(r => {
-    if (returnsViewFilter === 'all') return true;
-    if (returnsViewFilter === 'open') return r.status !== 'Closed' && r.status !== 'Rejected';
-    return r.status === returnsViewFilter;
-  });
+  // 267.1: the server has already filtered and paged; this is one page.
+  const rows = returnsViewRows;
+  const totalText = returnsViewEstimated ? `about ${Number(returnsViewTotal.toPrecision(2)).toLocaleString()}` : String(returnsViewTotal);
 
-  // Stage 68: the bar's summary for what is shown.
+  // Stage 68: the bar's summary - the whole result's count, and the refund
+  // of the rows on this page.
   const sumEl = document.getElementById('returns-sum');
   if (sumEl) {
     const refund = rows.reduce((n, r) => n + (r.refundEligible || 0), 0);
-    sumEl.innerHTML = `<span><b>${rows.length}</b> return${rows.length === 1 ? '' : 's'}</span><span class="txn-total" title="Refund eligible">${refund.toFixed(2)}</span>`;
+    sumEl.innerHTML = returnsViewFailed ? '' :
+      `<span><b>${totalText}</b> return${returnsViewTotal === 1 ? '' : 's'}</span><span class="txn-total" title="Refund eligible · this page">${refund.toFixed(2)}</span>`;
   }
 
   const emptyEl = document.getElementById('returns-empty');
   if (emptyEl) {
-    emptyEl.textContent = rows.length ? '' :
-      (returnsViewRows.length ? 'No returns match this filter.' : 'No returns have been raised yet.');
+    emptyEl.textContent = rows.length || returnsViewFailed ? '' :
+      (returnsViewFilter === 'all' && !returnsViewSearch ? 'No returns have been raised yet.' : 'No returns match this filter.');
   }
+
+  const rangeEl = document.getElementById('returns-range');
+  const prevEl = document.getElementById('returns-prev');
+  const nextEl = document.getElementById('returns-next');
+  const end = returnsViewOffset + rows.length;
+  if (rangeEl) rangeEl.textContent = rows.length ? `${returnsViewOffset + 1}-${end} of ${totalText}` : '';
+  if (prevEl) prevEl.disabled = returnsViewOffset === 0;
+  if (nextEl) nextEl.disabled = returnsViewEstimated ? rows.length < RETURNS_PAGE : end >= returnsViewTotal;
 
   rows.forEach(r => {
     const actions = RETURN_ACTIONS_BY_STATUS[r.status] || [];
@@ -275,42 +360,168 @@ async function openReturnQCDialog(row) {
   const { posFormDialog } = await import('./view-pos-extras.js' + new URL(import.meta.url).search);
   const names = await Promise.all(row.items.map(it => apiFetch(`/api/v1/doc/Item/${encodeURIComponent(it.sku)}`)
     .then(r => (r && r.ok ? r.json() : null)).then(d => (d && d.name) || it.sku, () => it.sku)));
+  // 267.2: what was entered, kept between tries - an exchange item that
+  // matches nothing, or a refusal (no stock to give), reopens the form as it
+  // was instead of throwing the inspection away.
+  let kept = null;
+  for (;;) {
+    const picked = await inspectReturnForm(posFormDialog, row, names, kept);
+    if (!picked) return;
+    kept = picked;
+    const problem = await resolveExchangeItems(picked.lines);
+    if (problem) {
+      await showCustomAlert(problem, 'Exchange');
+      continue;
+    }
+    const dispositions = {};
+    const exchanges = {};
+    picked.lines.forEach(p => {
+      dispositions[p.sku] = p.disposition;
+      if (p.code && RETURN_EXCHANGEABLE.includes(p.disposition)) exchanges[p.sku] = p.code;
+    });
+    const payload = { dispositions, ...picked.stockTo };
+    if (Object.keys(exchanges).length) payload.exchange_for = exchanges;
+    const res = await apiFetch(`/api/v1/returns/${encodeURIComponent(row.id)}/qc`, { method: 'POST', body: JSON.stringify(payload) });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'The inspection was not recorded.');
+      continue;
+    }
+    const result = await res.json().catch(() => ({}));
+    await showInspectionResult(result);
+    return;
+  }
+}
+
+// The dispositions that take the goods back - only those can be exchanged
+// (engines/returns.go refuses the rest).
+const RETURN_EXCHANGEABLE = ['Sellable', 'Repairable', 'Damaged'];
+
+// inspectReturnForm shows the inspection form, filled from kept when it is
+// reopened. Resolves { lines: [{ sku, disposition, code, text }], stockTo },
+// or null on cancel. code is the exchange item picked from the list; text is
+// what was typed or scanned, resolved on OK when nothing was picked.
+function inspectReturnForm(posFormDialog, row, names, kept) {
   const html = row.items.map((it, i) => `<div class="form-group">
       <label class="form-label" for="qc-disposition-${i}">${cfgEsc(names[i])} (${cfgEsc(it.sku)}) - ${Number(it.qty) || 0} unit(s)</label>
-      <select id="qc-disposition-${i}" class="form-input" data-qc-sku="${cfgEsc(it.sku)}">${RETURN_DISPOSITIONS.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
-      <input type="text" class="form-input s-fe7b49" data-qc-exchange="${cfgEsc(it.sku)}" aria-label="Exchange ${cfgEsc(names[i])} for (item code, optional)" placeholder="Exchange for item code (optional - blank refunds it)">
+      <select id="qc-disposition-${i}" class="form-input" data-qc-line="${i}">${RETURN_DISPOSITIONS.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
+      <input type="text" class="form-input s-fe7b49" data-qc-exchange="${i}" aria-label="Exchange ${cfgEsc(names[i])} for" placeholder="Exchange for: name or barcode (optional)">
+      <div class="s-3650c6" data-qc-exchange-sku="${i}"></div>
     </div>`).join('');
+  const title = `Inspect ${row.number}${row.originalOrderID ? ` · Bill ${row.originalOrderID}` : ''}`;
   // Stage 106.5: where the goods checked Sellable land, for this return only.
-  let stockTo = {};
-  const dialog = posFormDialog(`Inspect ${row.number}`,
-    'Sellable goes back to stock.',
-    txnStockFromTo('Sales Return') + html, (el) => {
-      stockTo = readStockFromTo(el);
-      return [...el.querySelectorAll('[data-qc-sku]')].map(s => ({
-        sku: s.dataset.qcSku, disposition: s.value,
-        exchange: (el.querySelector(`[data-qc-exchange="${CSS.escape(s.dataset.qcSku)}"]`) || {}).value || ''
-      }));
+  return posFormDialog(title, '', txnStockFromTo('Sales Return') + html, (el) => ({
+    stockTo: readStockFromTo(el),
+    lines: row.items.map((it, i) => {
+      const box = el.querySelector(`[data-qc-exchange="${i}"]`);
+      return {
+        sku: it.sku,
+        disposition: el.querySelector(`[data-qc-line="${i}"]`).value,
+        code: box.dataset.qcCode || '',
+        text: box.value.trim()
+      };
+    })
+  }), (el) => {
+    mountStockFromTo(el, row.returnLocation || '').then(() => {
+      Object.entries((kept && kept.stockTo) || {}).forEach(([side, v]) => {
+        const s = el.querySelector(`select[data-stock-side="${side}"]`);
+        if (s) s.value = v;
+      });
     });
-  mountStockFromTo(document.body, row.returnLocation || '');
-  const picked = await dialog;
-  if (!picked) return;
-  const dispositions = {};
-  const exchanges = {};
-  picked.forEach(p => {
-    dispositions[p.sku] = p.disposition;
-    if (p.exchange.trim() && ['Sellable', 'Repairable', 'Damaged'].includes(p.disposition)) exchanges[p.sku] = p.exchange.trim();
+    row.items.forEach((it, i) => {
+      const was = kept && kept.lines[i];
+      const select = el.querySelector(`[data-qc-line="${i}"]`);
+      const box = el.querySelector(`[data-qc-exchange="${i}"]`);
+      const sku = el.querySelector(`[data-qc-exchange-sku="${i}"]`);
+      if (was) select.value = was.disposition;
+      // Typed text goes back as typed, before the picker takes the box over.
+      if (was && !was.code) box.value = was.text;
+      // 267.2: the shared Item picker, by name as well as code or barcode -
+      // the PO's search (147.2).
+      attachLinkTypeahead(box, 'Item', {
+        filters: { q_fields: 'name,code,barcode,parent_product_code,family' },
+        labelFn: d => (d.name && d.code && d.name !== d.code ? `${d.name} · ${d.code}` : (d.name || d.code || d.id || '')),
+        noSetupHint: true
+      });
+      const commit = (code) => {
+        if (code) box.dataset.qcCode = code; else delete box.dataset.qcCode;
+        sku.textContent = code ? `SKU ${code}` : '';
+      };
+      if (was && was.code) { box.value = was.code; commit(was.code); }
+      // The picker's pick and its exact-match resolve send a scripted change;
+      // the browser's own change on leaving a typed box is not a pick.
+      box.addEventListener('change', (e) => { if (!e.isTrusted) commit(box.value); });
+      box.addEventListener('input', () => commit(''));
+      // A scan ends with Enter: with no row highlighted in the list, the
+      // scanned code or barcode is resolved straight away.
+      box.addEventListener('keydown', async (e) => {
+        if (e.key !== 'Enter' || box.dataset.qcCode) return;
+        const text = box.value.trim();
+        if (!text) return;
+        e.preventDefault();
+        const found = await findExchangeItem(text);
+        if (found.doc && box.value.trim() === text) {
+          box.value = found.doc.code;
+          commit(found.doc.code);
+          box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        } else if (found.problem) {
+          sku.textContent = found.problem;
+        }
+      });
+      const offerExchange = () => {
+        box.disabled = !RETURN_EXCHANGEABLE.includes(select.value);
+      };
+      select.addEventListener('change', offerExchange);
+      offerExchange();
+    });
   });
-  const payload = { dispositions, ...stockTo };
-  if (Object.keys(exchanges).length) payload.exchange_for = exchanges;
-  const result = await postReturnAction(`/api/v1/returns/${encodeURIComponent(row.id)}/qc`, payload);
-  if (!result) return;
+}
+
+// findExchangeItem finds the one item a typed or scanned text names - its
+// code, then its barcode, then its name, ignoring case. { doc } or { problem }.
+async function findExchangeItem(text) {
+  const res = await apiFetch(`/api/v1/doc/Item?q=${encodeURIComponent(text)}&q_fields=name,code,barcode&limit=50`);
+  if (!res || !res.ok) return { problem: `"${text}" could not be looked up.` };
+  const rows = await res.json().catch(() => []);
+  const lower = text.toLowerCase();
+  for (const field of ['code', 'barcode', 'name']) {
+    const hits = (Array.isArray(rows) ? rows : []).filter(d => d.code && String(d[field] || '').toLowerCase() === lower);
+    if (hits.length === 1) return { doc: hits[0] };
+    if (hits.length > 1) return { problem: `More than one item is called "${text}". Pick it from the list.` };
+  }
+  return { problem: `No item matches "${text}".` };
+}
+
+// resolveExchangeItems turns each exchange box that holds text but no picked
+// item into that item's code. Returns what is wrong, or '' when all resolve.
+async function resolveExchangeItems(lines) {
+  for (const line of lines) {
+    if (!RETURN_EXCHANGEABLE.includes(line.disposition)) continue;
+    if (!line.code && line.text) {
+      const found = await findExchangeItem(line.text);
+      if (found.problem) return found.problem;
+      line.code = found.doc.code;
+    }
+    if (line.code && line.code === line.sku) return `${line.sku} is the item coming back. Pick a different item to give in exchange, or leave the box blank to refund it.`;
+  }
+  return '';
+}
+
+async function showInspectionResult(result) {
   // Stage 55.5: the QC endpoint answers total_refund_eligible - this read a
   // total_refund that is never sent, so every inspection said "nothing is
   // refundable" while the refund waited under Refund.
   const refund = Number(result.total_refund_eligible) || 0;
+  // 267.12: name the refund by its number (RF/...), not its internal id.
+  let refundNo = result.refund_request_id || '';
+  if (refundNo) {
+    const r = await apiFetch(`/api/v1/doc/RefundRequest/${encodeURIComponent(refundNo)}`).catch(() => null);
+    const doc = r && r.ok ? await r.json().catch(() => null) : null;
+    if (doc && doc.code) refundNo = doc.code;
+  }
   await showCustomAlert(
-    refund > 0 || result.refund_request_id
-      ? `Inspection recorded. A refund of ${refund.toFixed(2)} is now pending approval${result.refund_request_id ? ` as ${result.refund_request_id}` : ''}.`
+    refund > 0 || refundNo
+      ? `Inspection recorded. A refund of ${refund.toFixed(2)} is now pending approval${refundNo ? ` as ${refundNo}` : ''}.`
       : 'Inspection recorded. Nothing on this return is refundable, so it is now closed.',
     'Inspection Complete');
 }

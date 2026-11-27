@@ -90,11 +90,7 @@ async function renderPrefixConfigsView(container) {
   try { wanted = sessionStorage.getItem('erp_prefix_for') || ''; sessionStorage.removeItem('erp_prefix_for'); } catch (_) { /* storage off */ }
   if (wanted) {
     if (state.prefixConfigs.some(c => c.doc_type === wanted)) window.editPrefixConfig(wanted);
-    else {
-      openEditPrefixModal(null);
-      const typeInput = document.getElementById('edit-prefix-doctype');
-      if (typeInput) { typeInput.value = wanted; previewEditPrefix(); }
-    }
+    else openEditPrefixModal(null, wanted);
   }
 }
 
@@ -367,8 +363,7 @@ function ensureEditPrefixModal() {
       <div class="modal-body s-64bd62">
         <div class="form-group">
           <label class="form-label" for="edit-prefix-doctype">Transaction</label>
-          <input type="text" class="form-input" id="edit-prefix-doctype" required placeholder="Pick a transaction or record type, e.g. Purchase order, Vendor" list="edit-prefix-doctype-list" autocomplete="off" data-act="previewEditPrefix" data-act-on="input">
-          <datalist id="edit-prefix-doctype-list"></datalist>
+          <input type="text" class="form-input" id="edit-prefix-doctype" required placeholder="Pick a transaction or record type, e.g. Purchase order, Vendor" autocomplete="off" data-act="previewEditPrefix" data-act-on="input">
           <div id="edit-prefix-kind-note" class="text-muted s-0ecbb3"></div>
         </div>
         <div class="s-abb3d2">
@@ -448,7 +443,7 @@ function ensureEditPrefixModal() {
 </div>`);
 }
 
-function openEditPrefixModal(c) {
+function openEditPrefixModal(c, presetType = '') {
   ensureEditPrefixModal();
   const modal = document.getElementById('edit-prefix-modal');
   if (!modal) return;
@@ -457,16 +452,15 @@ function openEditPrefixModal(c) {
   // the old default, ZZ/HO/26-27/00001, was itself refused).
   const s = c || { doc_type: '', prefix: '', separator: '/', padding_width: 4, suffix: '', reset_frequency: 'ANNUAL', include_store: true, active_status: true, store_overrides: {}, year_format: 'FY_COMPACT' };
   const docInput = document.getElementById('edit-prefix-doctype');
-  docInput.value = s.doc_type;
+  docInput.value = s.doc_type || presetType;
   docInput.readOnly = !isNew;
   // The transactions and record types a series can number, less the ones
   // that already have one (those open with their Edit button).
   const taken = new Set((state.prefixConfigs || []).map(x => x.doc_type));
-  document.getElementById('edit-prefix-doctype-list').innerHTML = isNew
-    ? seriesKnownKeys().filter(k => !taken.has(k)).map(k => ({ k, name: seriesDisplayName(k) }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(({ k, name }) => `<option value="${escapeHTMLText(k)}">${escapeHTMLText(name)}</option>`).join('')
-    : '';
+  attachSuggestList(docInput, isNew // 294.1
+    ? seriesKnownKeys().filter(k => !taken.has(k)).map(k => ({ value: k, label: seriesDisplayName(k) }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+    : []);
   document.getElementById('edit-prefix-title').textContent = isNew ? 'New Number Series' : 'Number Series - ' + seriesDisplayName(s.doc_type);
   document.getElementById('edit-prefix-prefix').value = s.prefix || '';
   // GST allows "/", "-" or none; an older series' other separator is shown
@@ -530,7 +524,8 @@ function openEditPrefixModal(c) {
   previewEditPrefix();
   modal.inert = false;
   modal.classList.add('open');
-  (isNew ? docInput : document.getElementById('edit-prefix-prefix')).focus();
+  // 294.1: an empty Transaction box opens on its list; a chosen one goes to Prefix.
+  (isNew && !docInput.value ? docInput : document.getElementById('edit-prefix-prefix')).focus();
 }
 
 function readEditPrefixForm() {
@@ -713,7 +708,7 @@ async function renderApprovalRulesView(container) {
       <table>
         <thead><tr><th>Doctype</th><th>Min Amount</th><th>Max Amount</th><th>Required Role</th><th class="s-54c2af">Actions</th></tr></thead>
         <tbody>
-          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" class="s-306094">No approval rules configured. Use <b>Save Rule</b> above to require approval for a record type &mdash; without a rule, documents skip maker-checker entirely.</td></tr>' : state.approvalRules.map(r => `
+          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" class="s-306094">No approval rules yet.</td></tr>' : state.approvalRules.map(r => `
             <tr>
               <td class="s-eed0f8" title="${escapeHTMLText(r.doctype)}">${escapeHTMLText(getDoctypeLabel(r.doctype))}</td>
               <td>${escapeHTMLText(String(r.min_amount))}</td>
@@ -954,6 +949,8 @@ window.deleteLabelReplacement = async function(orig) {
 // already established for this shape of screen (a small create-form panel
 // above a list table).
 async function renderExtensionHooksView(container) {
+  // 288.2: issuing a token is its own page (extension-hooks:tokens).
+  if (currentViewTab === 'tokens') return renderExtensionTokensView(container);
   const res = await apiFetch('/api/v1/admin/extension/hooks');
   if (!res) return;
 
@@ -1012,7 +1009,7 @@ async function renderExtensionHooksView(container) {
       <thead><tr><th>Hook Point</th><th>Doctype</th><th>Target URL</th><th>Enabled</th><th>Timeout</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
         ${hooks.length === 0
-          ? `<tr><td colspan="8" class="s-306094">No extension hooks registered yet. Use <b>Register Hook</b> above to let an external system subscribe to an event.</td></tr>`
+          ? `<tr><td colspan="8" class="s-306094">No extension hooks yet.</td></tr>`
           : hooks.map(h => `
             <tr>
               <td>${escapeHTMLText(h.hook_point)}${h.api_version ? ` <span class="text-muted">v${Number(h.api_version)}${h.api_sunset ? `, served until ${escapeHTMLText(h.api_sunset)}` : ''}</span>` : ''}</td>
@@ -1032,26 +1029,6 @@ async function renderExtensionHooksView(container) {
     </table>
   `;
   container.appendChild(panel);
-
-  const tokenPanel = document.createElement('div');
-  tokenPanel.className = 'table-panel';
-  tokenPanel.style.padding = '24px';
-  tokenPanel.innerHTML = `
-    <h2 class="s-79bd22">Issue an Extension Token</h2>
-    <div class="s-8a0cfa">
-      <div class="form-group s-50435f">
-        <label class="form-label" for="token-scope-doctype">Scope Doctype</label>
-        <input type="text" id="token-scope-doctype" class="form-input s-0fff9b" placeholder="e.g. Item">
-      </div>
-      <div class="form-group s-50435f">
-        <label class="form-label" for="token-ttl">TTL (minutes, max 1440)</label>
-        <input type="number" id="token-ttl" class="form-input s-da190a" value="60" min="1" max="1440">
-      </div>
-      <button class="btn btn-primary" id="token-issue-btn">Issue Token</button>
-    </div>
-    <div id="token-form-error" class="login-error hidden s-50435f"></div>
-  `;
-  container.appendChild(tokenPanel);
 
   document.getElementById('hook-register-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('hook-form-error');
@@ -1083,6 +1060,33 @@ async function renderExtensionHooksView(container) {
     );
     renderView('extension-hooks');
   });
+}
+
+// 288.2: Extension tokens - a short-lived token scoped to one doctype, for a
+// client's own developer. Split out of Extension Hooks onto its own page.
+function renderExtensionTokensView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = '<div class="page-title-section"><h1 class="page-title">Extension tokens</h1></div>';
+  container.appendChild(header);
+  const tokenPanel = document.createElement('div');
+  tokenPanel.className = 'table-panel';
+  tokenPanel.style.padding = '24px';
+  tokenPanel.innerHTML = `
+    <div class="s-8a0cfa">
+      <div class="form-group s-50435f">
+        <label class="form-label" for="token-scope-doctype">Scope Doctype</label>
+        <input type="text" id="token-scope-doctype" class="form-input s-0fff9b" placeholder="e.g. Item">
+      </div>
+      <div class="form-group s-50435f">
+        <label class="form-label" for="token-ttl">TTL (minutes, max 1440)</label>
+        <input type="number" id="token-ttl" class="form-input s-da190a" value="60" min="1" max="1440">
+      </div>
+      <button class="btn btn-primary" id="token-issue-btn">Issue Token</button>
+    </div>
+    <div id="token-form-error" class="login-error hidden s-50435f"></div>
+  `;
+  container.appendChild(tokenPanel);
 
   document.getElementById('token-issue-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('token-form-error');
@@ -1841,7 +1845,7 @@ async function renderConfigurationView(container) {
     // recovery once the modal is dismissed.
     const msg = await getErrorMessage(res, 'Failed to load configuration.');
     const err = document.createElement('p');
-    err.style.cssText = 'color:var(--danger-color); font-size:13px; margin-bottom:16px;';
+    err.style.cssText = 'color:var(--danger-color); font-size:13.5px; margin-bottom:16px;';
     err.textContent = msg + ' ';
     const retryBtn = document.createElement('button');
     retryBtn.className = 'btn btn-outline btn-sm';
@@ -2400,7 +2404,11 @@ async function saveConfiguration() {
 // backup-status endpoints (which already compute the DR-0213/DR-0214
 // overdue warnings off the Stage 17.10 error catalog) into one HR/Admin
 // screen. No new backend route or table.
+// 288.2: the two histories are their own pages (system-status:deployments,
+// system-status:backups); the status page keeps the cards and latest per environment.
 async function renderSystemStatusView(container) {
+  const tab = currentViewTab === 'deployments' || currentViewTab === 'backups' ? currentViewTab : '';
+  const view = tab ? `system-status:${tab}` : 'system-status';
   const [deployRes, backupRes, alertRes] = await Promise.all([
     apiFetch('/api/v1/ops/deployment-status'),
     apiFetch('/api/v1/ops/backup-status'),
@@ -2412,7 +2420,7 @@ async function renderSystemStatusView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">System Status</h1>
+      <h1 class="page-title">${tab === 'deployments' ? 'Deployment history' : tab === 'backups' ? 'Backup history' : 'System Status'}</h1>
     </div>
   `;
   container.appendChild(header);
@@ -2421,7 +2429,7 @@ async function renderSystemStatusView(container) {
   // if the connection itself failed (apiFetch already showed its own dialog,
   // but dismissing it landed on a permanently empty page).
   if (!deployRes || !backupRes) {
-    renderErrorPanel(container, 'Could not reach the server to load system status.', () => renderView('system-status'));
+    renderErrorPanel(container, 'Could not reach the server to load system status.', () => renderView(view));
     return;
   }
 
@@ -2436,7 +2444,7 @@ async function renderSystemStatusView(container) {
     // rather than a full renderErrorPanel takeover - but it used to have no
     // way back short of navigating away and back.
     const err = document.createElement('p');
-    err.style.cssText = 'color:var(--danger-color); font-size:13px; margin-bottom:16px;';
+    err.style.cssText = 'color:var(--danger-color); font-size:13.5px; margin-bottom:16px;';
     err.textContent = deployFailed && backupFailed
       ? 'Failed to load deployment and backup status.'
       : deployFailed ? 'Failed to load deployment status.' : 'Failed to load backup status.';
@@ -2444,7 +2452,7 @@ async function renderSystemStatusView(container) {
     retryBtn.className = 'btn btn-outline btn-sm';
     retryBtn.style.marginLeft = '8px';
     retryBtn.textContent = 'Try Again';
-    retryBtn.addEventListener('click', () => renderView('system-status'));
+    retryBtn.addEventListener('click', () => renderView(view));
     err.appendChild(retryBtn);
     container.appendChild(err);
   }
@@ -2458,7 +2466,7 @@ async function renderSystemStatusView(container) {
         <span class="s-c8e27a">${escapeHTMLText(w.code)}</span> ${escapeHTMLText(w.message)}
       </div>
     `).join('');
-    container.appendChild(banner);
+    if (tab !== 'deployments') container.appendChild(banner);
   }
 
   const envCount = Object.keys(deployData.latest_by_environment || {}).length;
@@ -2485,7 +2493,7 @@ async function renderSystemStatusView(container) {
       ${(alerting.unconfigured_variables || []).length ? `<div class="text-muted s-30e0ac">Set ${escapeHTMLText(alerting.unconfigured_variables.join(', '))} on the server - runbook: docs/operations/incident-runbook.md</div>` : ''}
     </div>` : ''}
   `;
-  container.appendChild(statsRow);
+  if (!tab) container.appendChild(statsRow);
 
   const envRows = Object.values(deployData.latest_by_environment || {});
   const envPanel = document.createElement('div');
@@ -2514,13 +2522,11 @@ async function renderSystemStatusView(container) {
       </table>
     </div>
   `;
-  container.appendChild(envPanel);
+  if (!tab) container.appendChild(envPanel);
 
   const historyPanel = document.createElement('div');
   historyPanel.className = 'table-panel';
-  historyPanel.style.marginTop = '20px';
   historyPanel.innerHTML = `
-    <h3 class="s-280765">Deployment History</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>Promoted By</th><th>Promoted At</th><th>Notes</th></tr></thead>
@@ -2539,13 +2545,11 @@ async function renderSystemStatusView(container) {
       </table>
     </div>
   `;
-  container.appendChild(historyPanel);
+  if (tab === 'deployments') container.appendChild(historyPanel);
 
   const backupPanel = document.createElement('div');
   backupPanel.className = 'table-panel';
-  backupPanel.style.marginTop = '20px';
   backupPanel.innerHTML = `
-    <h3 class="s-280765">Backup &amp; Restore Drill History</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr><th>Type</th><th>Environment</th><th>Status</th><th>Detail</th><th>Started</th><th>Finished</th></tr></thead>
@@ -2567,7 +2571,7 @@ async function renderSystemStatusView(container) {
       </table>
     </div>
   `;
-  container.appendChild(backupPanel);
+  if (tab === 'backups') container.appendChild(backupPanel);
 }
 
 // Tenant Entitlements admin screen (Stage 26.1.4). HR/Admin-only. Lets an
@@ -2721,7 +2725,7 @@ async function renderTenantEntitlementsView(container) {
           <table>
             <thead><tr><th>Module</th><th class="s-db4cf1">Status</th></tr></thead>
             <tbody>
-              ${modules.length === 0 ? '<tr><td colspan="2" class="s-306094">No modules registered. Use <b>Provision Tenant</b> above to grant this tenant its product modules.</td></tr>' : modules.map(m => `
+              ${modules.length === 0 ? '<tr><td colspan="2" class="s-306094">No modules yet.</td></tr>' : modules.map(m => `
                 <tr>
                   <td>${m.display_name}${m.is_core ? '<span class="badge badge-secondary s-5dd2a6">Always On</span>' : ''}</td>
                   <td>

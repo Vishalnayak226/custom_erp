@@ -1,4 +1,9 @@
-import { documentSearchLink } from './view-document-links.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+// 297.6: this module's helpers all start downloading now, side by side - awaited
+// one after another they cost a round trip each on a slow line. An import below
+// of the same address joins the download already under way.
+const siblingsReady = ['./view-document-links.js', './txn-screen.js', './row-actions.js', './list-columns.js'].map(f => import(f + new URL(import.meta.url).search));
+const { documentSearchLink } = await siblingsReady[0];
 
 // Stage 62/63: transaction prints, the print-template studio and this
 // screen's GRN/design styles live in trade-docs.js (+ trade-docs.css), loaded
@@ -8,7 +13,11 @@ const TRADE_DOCS_QUERY = new URL(import.meta.url).search;
 const tradeDocsReady = import('./trade-docs.js' + TRADE_DOCS_QUERY);
 // Stage 68: the transaction-screen bar's shared pieces, same version.
 const { txnContext, txnMoney, txnRestorePane, txnPageTitle, txnNewButton, txnDone, txnPageOf, txnOnPage, txnPagedSection,
-  txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + TRADE_DOCS_QUERY);
+  txnStockFromTo, mountStockFromTo, readStockFromTo, sessionStore } = await import('./txn-screen.js' + TRADE_DOCS_QUERY);
+// 276.5: a row's main action plus a "⋯" menu for the rest.
+const { rowMenu } = await import('./row-actions.js' + TRADE_DOCS_QUERY);
+// 276.2: each user chooses the list's columns.
+const { columnsButtonHTML, wireColumns } = await import('./list-columns.js' + TRADE_DOCS_QUERY);
 // Stage 94: goods receipt in steps - the page a receipt is worked on, loaded
 // when first opened, same version.
 const grnStepsModule = () => import('./grn-steps.js' + TRADE_DOCS_QUERY);
@@ -221,6 +230,8 @@ async function decideApprovalInner(doctype, documentId, decision) {
 // object - the same shape the API takes, so saving is a POST of this plus the
 // serialised lines and no field-by-field assembly.
 let poDraft = null;
+// 297.1: a new build waits while a PO is half typed (it outlives a screen change).
+globalThis.holdUpdateWhile?.('po', () => !!poDraft && (poDraft.lines?.length > 0 || !!poDraft.vendor || !!poDraft.entry?.sku));
 let poPreview = null;
 let poPreviewTimer = null;
 
@@ -454,7 +465,8 @@ async function renderPurchaseOrdersView(container) {
   const fetchOrders = async () => {
     const seq = apiWriteSeq;
     const tok = localStorage.getItem('erp_token');
-    const res = await apiFetch('/api/v1/doc/PurchaseOrder');
+    // 267.11: last change first - in id order a new PO sat below the first rows drawn, and past 500 never came.
+    const res = await apiFetch('/api/v1/doc/PurchaseOrder?sort=recent');
     if (!res) return null;
     const got = { ok: res.ok, orders: res.ok ? await res.json() : [] };
     got.key = JSON.stringify(got.orders);
@@ -479,6 +491,7 @@ let poListLast = null;
 function drawPOList(screen, orders, ordersLoadFailed) {
   screen.innerHTML = `<div class="txn-bar">${poPageHead(orders.length)}${txnContext()}
     <div class="txn-actions txn-landing-only">
+      ${columnsButtonHTML('po-columns-btn')}
       ${canCreateDoctype('PurchaseOrder') ? `<button type="button" class="btn btn-outline" ${actionAttrs('txnShowPane', ['po-composer:upload'])}>Upload from Excel</button>` : ''}
       <button type="button" class="btn btn-outline" ${actionAttrs('showPOOverdue', [])}>Overdue lines</button>
       <button type="button" class="btn btn-primary" ${actionAttrs('newPurchaseOrder', [])}>+ New Purchase Order</button></div></div>`;
@@ -504,7 +517,7 @@ function drawPOList(screen, orders, ordersLoadFailed) {
           <th class="num">Taxable</th>
           <th class="num">Grand Total</th>
           <th>Status</th>
-          <th>Actions</th>
+          <th class="row-actions-cell" data-col-fixed>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -533,24 +546,26 @@ function drawPOList(screen, orders, ordersLoadFailed) {
       <tr>
         <td class="s-355794">${copyableCell(poNumber, poNumber)}</td>
         <td>${[po.source_requisition_id, ...String(po.source_requisition_ids || '').split(',')].map(s => String(s || '').trim()).filter((s, i, a) => s && a.indexOf(s) === i).map(s => documentSearchLink('PurchaseRequisition', s)).join(' ') || documentSearchLink('PurchaseRequisition', '')}</td>
-        <td>${escapeHTMLText(po.vendor || '')}</td>
-        <td data-link-doctype="Location" data-link-ref="${escapeHTMLText(po.location || '')}">${escapeHTMLText(po.location || '')}</td>
-        <td>${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
-        <td class="num">${formatMoney(po.total_amount)}</td>
-        <td class="num">${po.grand_total != null ? formatMoney(po.grand_total) : '<span class="text-muted">&mdash;</span>'}</td>
+        <td class="nowrap">${escapeHTMLText(po.vendor || '')}</td>
+        <td class="nowrap" data-link-doctype="Location" data-link-ref="${escapeHTMLText(po.location || '')}">${escapeHTMLText(po.location || '')}</td>
+        <td class="nowrap">${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
+        <td class="num nowrap">${formatMoney(po.total_amount)}</td>
+        <td class="num nowrap">${po.grand_total != null ? formatMoney(po.grand_total) : '<span class="text-muted">&mdash;</span>'}</td>
         <td><span class="badge ${statusBadge}">${escapeHTMLText(po.status || '')}</span>${sent}</td>
-        <td class="po-row-actions">
+        <td class="po-row-actions row-actions-cell">
           ${po.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('submitPOForApproval', [po.id])}>Submit for Approval</button>` : ''}
           ${po.status === 'Approved' ? (po.po_kind === 'Service' ? `<button class="action-btn" ${actionAttrs('startServiceEntryFromPO', [po.id])}>Service entry</button>` : `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>`) : ''}
-          ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('showPOBalance', [po.id])}>Balance</button>` : ''}
-          ${live ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
-          ${canCreateDoctype('PurchaseOrder') ? `<button class="action-btn" title="A new PO with the same vendor, terms and lines" ${actionAttrs('copyPurchaseOrder', [po.id])}>Copy</button>` : ''}
-          <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
-          ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('stickersForPO', [po.id])}>Stickers</button>` : ''}
-          ${po.status !== 'Cancelled' && lineCount > 0 ? `<button class="action-btn" ${actionAttrs('openPOImages', [po.id])}>Images</button>` : ''}
-          ${po.status !== 'Draft' && po.status !== 'Cancelled' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
-          ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('openPOVendorLink', [po.id, poNumber])}>Vendor link</button>` : ''}
-          ${canDeleteDoctype('PurchaseOrder') ? `<button class="action-btn action-btn-danger" ${actionAttrs('deletePurchaseOrder', [po.id, poNumber])}>Delete</button>` : ''}
+          ${rowMenu([
+            (po.status === 'Approved' || po.status === 'Closed') && { label: 'Balance', act: ['showPOBalance', [po.id]] },
+            live && { label: 'Edit', act: ['amendPurchaseOrder', [po.id]] },
+            canCreateDoctype('PurchaseOrder') && { label: 'Copy', title: 'A new PO with the same vendor, terms and lines', act: ['copyPurchaseOrder', [po.id]] },
+            { label: 'Print', act: ['printPurchaseOrder', [po.id]] },
+            (po.status === 'Approved' || po.status === 'Closed') && { label: 'Stickers', act: ['stickersForPO', [po.id]] },
+            po.status !== 'Cancelled' && lineCount > 0 && { label: 'Images', act: ['openPOImages', [po.id]] },
+            po.status !== 'Draft' && po.status !== 'Cancelled' && { label: 'Send to Vendor', act: ['sendPurchaseOrderToVendor', [po.id]] },
+            po.status === 'Approved' && { label: 'Vendor link', act: ['openPOVendorLink', [po.id, poNumber]] },
+            canDeleteDoctype('PurchaseOrder') && { label: 'Delete', danger: true, act: ['deletePurchaseOrder', [po.id, poNumber]] },
+          ])}
         </td>
       </tr>
     `;
@@ -561,6 +576,8 @@ function drawPOList(screen, orders, ordersLoadFailed) {
   panel.innerHTML = html;
   screen.appendChild(panel);
   drawRestOfRows(panel.querySelector('tbody'), orders.slice(LIST_FIRST_ROWS), rowHTML);
+  // The walk found Source requisition blank on every row: off unless chosen.
+  wireColumns(panel.querySelector('table'), screen.querySelector('#po-columns-btn'), 'purchase-orders', ['Source requisition']);
 }
 
 // Stage 95: a PO's Images page - its designs and Combination IDs with their
@@ -862,9 +879,23 @@ async function attachGRNBeforePOBox() {
   box.classList.remove('hidden');
 }
 
+// Ask 268 (user, 2026-11-25: "Billing and Shipping add will be same as TOP
+// store selection It will auto. User can override it."): a new PO's two
+// addresses start as the top-bar store. A box still holding that default
+// follows a store switch (the redraw comes through here); one the user
+// changed stays theirs. An edited PO keeps its own addresses.
+function applyPOStoreDefault(d) {
+  const store = d.id ? '' : sessionStore();
+  if (!store) return;
+  if (!d.location || d.location === d.storeDefault) d.location = store;
+  if (!d.target_warehouse || d.target_warehouse === d.storeDefault) d.target_warehouse = store;
+  d.storeDefault = store;
+}
+
 function renderPOComposer(panel) {
   const d = poDraft;
   const editing = !!d.id;
+  applyPOStoreDefault(d);
   // Stage 65.8 / 66: the frozen transaction layout (txn-screen.css) - one bar
   // (title, New / History, who and where, totals and tax, actions), the
   // header fields, the entry row, and the lines as the only scroller.
@@ -1131,8 +1162,9 @@ function renderPOComposer(panel) {
 
 // renderPOAddresses fills the line under Billing / Shipping address with the
 // chosen store's address from the store master, and Edit store - which opens
-// that store's own form and comes back here once it is saved (the address is
-// the store's, so it is corrected there, for every document that uses it).
+// that store's page in Settings › Stores and comes back here once it is saved
+// (the address is the store's, so it is corrected there, for every document
+// that uses it).
 function renderPOAddresses() {
   const d = poDraft;
   const fill = (elId, code, store, sameAsBilling) => {
@@ -1151,8 +1183,12 @@ function renderPOAddresses() {
   fill('po-ship-addr', d.target_warehouse, poPreview && poPreview.ship_to, !!d.location && d.target_warehouse === d.location);
 }
 
+// Item 301.5: the store's page in Settings › Stores (view-stores.js reads the
+// hand-off once). Saving there, or Back to PO, returns to this draft.
 window.editPOStore = function(code) {
-  openSetupDoctype('Location', code);
+  try { sessionStorage.setItem('erp-store-open', code); } catch (_) { openSetupDoctype('Location', code); return; }
+  setActiveMenu('menu-stores');
+  renderView('stores');
 };
 
 // poEntrySearch is the Add row's list: item names first (pick one to choose
@@ -1340,7 +1376,9 @@ function poLineNotes(p) {
   const t = (c, s) => (s ? `<div class="${c}">${escapeHTMLText(s)}</div>` : '');
   const meter = p.commit_qty > 0 ? `<progress class="po-meter" value="${Number(p.commit_used_qty) || 0}" max="${p.commit_qty}" title="${Number(p.commit_used_qty) || 0} of ${p.commit_qty}"></progress>`
     : p.commit_value > 0 ? `<progress class="po-meter" value="${Number(p.commit_used_value) || 0}" max="${p.commit_value}" title="${Number(p.commit_used_value) || 0} of ${p.commit_value}"></progress>` : '';
-  return t('po-line-note', p.rule_note) + t('po-line-note', p.discount_note) + meter;
+  // 273.3: the vendor's last rate (red above the setting) and a cheaper vendor's.
+  return t('po-line-note', p.rule_note) + t('po-line-note', p.discount_note)
+    + t(p.last_rate_alert ? 'po-line-error' : 'po-line-note', p.last_rate_note) + t('po-line-note', p.better_rate_note) + meter;
 }
 
 // poPackBox (Stage 148.35): packs and the price per pack, only for an item that
@@ -2220,7 +2258,8 @@ async function runPOPreview() {
   if (!d) return;
   const res = await apiFetch('/api/v1/procurement/purchase-order/preview', {
     method: 'POST',
-    body: JSON.stringify(poDraftPayload(d))
+    // 273.3: the PO being edited is not its own last rate.
+    body: JSON.stringify({ ...poDraftPayload(d), last_rate_exclude: d.id || '' })
   });
   if (!res) return;
   if (!res.ok) {
@@ -2349,8 +2388,8 @@ function renderPOStateAsks(el, pos) {
   el.className = `po-supply-banner ${asks.length ? 'po-supply-warn' : 'po-supply-idle'}`;
   el.innerHTML = asks.map((a, k) => canUpdateDoctype(a.doctype)
     ? `<span class="po-state-ask"><span><strong>${escapeHTMLText(a.name)}</strong> has no state &mdash; choose it, so the PO knows IGST or CGST + SGST:</span>
-        ${stateBox(k, a)}<button type="button" class="btn btn-primary btn-sm" data-po-state-save="${k}">Save to ${a.what}</button></span>`
-    : `<span class="po-state-ask"><span><strong>${escapeHTMLText(a.name)}</strong> has no state &mdash; ask an administrator to set it on the ${a.what}, so the PO knows IGST or CGST + SGST.</span></span>`).join('')
+        ${stateBox(k, a)}<button type="button" class="btn btn-primary btn-sm" data-po-state-save="${k}">Save to ${a.what}</button>${a.doctype === 'Location' ? ` <a href="#" class="empty-state-link" ${actionAttrs('editPOStore', [a.ref], { prevent: true })}>Open store</a>` : ''}</span>`
+    : `<span class="po-state-ask"><span><strong>${escapeHTMLText(a.name)}</strong> has no state &mdash; ask an administrator to set it on the ${a.doctype === 'Location' ? 'store in Settings › Stores' : a.what}, so the PO knows IGST or CGST + SGST.</span></span>`).join('')
     + (pick ? `<span>Pick ${pick} &mdash; the supply type is worked out from their states.</span>` : '')
     + (!asks.length && !pick ? `<span><strong>Supply type could not be worked out</strong> &mdash; ${escapeHTMLText(pos.reason || 'a state is missing')}.</span>` : '');
 
@@ -2477,8 +2516,22 @@ async function savePurchaseOrderInner() {
   const d = poDraft;
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
 
-  if (!d.vendor || !d.target_warehouse || !d.location) {
-    fail('Vendor, Billing address and Shipping address are all required.');
+  // Ask 268: a box left empty takes the top-bar store (Billing) or Billing
+  // (Shipping), shown in the boxes so a save that stops below reads true.
+  const typed = d.location + '|' + d.target_warehouse;
+  if (!d.location) d.location = sessionStore();
+  if (!d.target_warehouse) d.target_warehouse = d.location;
+  if (d.location + '|' + d.target_warehouse !== typed) {
+    const locEl = document.getElementById('po-location'), whEl = document.getElementById('po-warehouse');
+    if (locEl) locEl.value = d.location;
+    if (whEl) whEl.value = d.target_warehouse;
+    schedulePOPreview();
+  }
+
+  // Name only what is missing - the addresses are usually filled by now.
+  const missing = [!d.vendor && 'Vendor', !d.location && 'Billing address', !d.target_warehouse && 'Shipping address'].filter(Boolean);
+  if (missing.length) {
+    fail(`${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} required.`);
     return;
   }
   const payload = poDraftPayload(d);
@@ -2794,7 +2847,7 @@ let grnPOLineContext = {};
 let grnAskedFields = [];
 
 async function renderGRNWorkbenchView(container) {
-  const res = await apiFetch('/api/v1/doc/GRN');
+  const res = await apiFetch('/api/v1/doc/GRN?sort=recent'); // 267.11: newest first, past 500 too
   if (!res) return;
   if (!res.ok) { renderErrorPanel(container, 'Failed to load goods receipts.', () => renderView('grn')); return; }
   const grns = await res.json();
@@ -3066,7 +3119,7 @@ async function renderGRNWorkbenchView(container) {
   }
   // Newest first (the list API returns creation order), so a receipt just
   // posted - and the notes it raised - is the row at the top.
-  grns.slice().reverse().forEach(g => {
+  grns.forEach(g => {
     let lines = [];
     try { lines = JSON.parse(g.received_items || '[]'); } catch (e) { lines = []; }
     const receivedTotal = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);

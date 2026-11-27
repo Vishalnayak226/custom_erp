@@ -4,10 +4,11 @@
 // Created page (the key, shown once) and a key's Detail page are their own
 // pages; Docs is the viewer for the generated spec. Nothing here holds a
 // secret after the Created page. Routes: /api/v1/api-access/* (plan, "Interfaces").
-import { buildModuleGrid, summaryOf } from './view-api-access-grid.js';
-import { BASE, call, rowsOf, ago, statusBadge, chipsOf, attentionHTML, bindFix, mountShareDocs, renderKeyDetail } from './view-api-access-detail.js';
-import { renderApiDocs, esc } from './api-docs-viewer.js';
-import { renderKeyOnce } from './api-key-once.js';
+// 297.1: imported with this module's own ?v= (a static import carries none, so a release would not reach it).
+const { buildModuleGrid, summaryOf } = await import('./view-api-access-grid.js' + new URL(import.meta.url).search);
+const { BASE, call, rowsOf, ago, statusBadge, chipsOf, attentionHTML, bindFix, mountShareDocs, renderKeyDetail } = await import('./view-api-access-detail.js' + new URL(import.meta.url).search);
+const { renderApiDocs, esc } = await import('./api-docs-viewer.js' + new URL(import.meta.url).search);
+const { renderKeyOnce } = await import('./api-key-once.js' + new URL(import.meta.url).search);
 
 const SCREEN = 'api-access';
 const search = new URL(import.meta.url).search;
@@ -229,7 +230,7 @@ async function renderAPIAccessPanel(container) {
         <a class="btn btn-outline btn-sm" href="mailto:?subject=${encodeURIComponent('Your API key')}&body=${encodeURIComponent(full)}">Email</a></div>
         <div class="api-actions"><button type="button" class="btn btn-primary" data-done>Done</button></div>`;
       created.querySelector('[data-copy-link]').addEventListener('click', async () => {
-        const { copyText } = await import('./api-docs-viewer.js');
+        const { copyText } = await import('./api-docs-viewer.js' + search);
         showToast(await copyText(full) ? 'Copied.' : 'Select and copy.');
       });
       created.querySelector('[data-done]').addEventListener('click', () => { txnDone(SCREEN); refreshList(); });

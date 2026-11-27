@@ -30,7 +30,7 @@ function renderPIMShellHeader(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">PIM</h1>
+      <h1 class="page-title">${currentPIMTab === 'dashboard' ? 'PIM home' : 'PIM'}</h1>
     </div>
   `;
   container.appendChild(header);
@@ -52,6 +52,8 @@ async function renderPIMView(container) {
     await renderPIMReportsTab(container);
   } else if (currentPIMTab === 'my-work') {
     await renderPIMMyWorkTab(container);
+  } else if (currentPIMTab === 'workflow-runs') {
+    await renderPIMWorkflowRunsTab(container);
   } else if (currentPIMTab === 'media-library') {
     await renderPIMMediaLibraryTab(container);
   } else if (currentPIMTab === 'category-rules') {
@@ -69,31 +71,39 @@ async function renderPIMView(container) {
   }
 }
 
+// 302.1: the setup path as numbered step tiles (.pim-steps in view-inline.css).
+// The tile draws its own number, so the labels carry none.
 function renderPIMSetupPath(container) {
   const panel = document.createElement('section');
-  panel.className = 'table-panel';
-  panel.style.cssText = 'padding:16px;margin-bottom:16px';
+  panel.className = 'table-panel pim-setup';
   const title = document.createElement('h2');
+  title.className = 'pim-setup-title';
   title.textContent = 'Set up a product for publishing';
   panel.appendChild(title);
   const steps = [
-    ['1. Item (SKU, HSN and GST)', 'Item'],
-    ['2. Product Family', 'families'],
-    ['3. Attribute Definitions', 'attributes'],
-    ['4. Family Attributes', 'family-attributes'],
-    ['5. Assign the Item to its family', 'Item'],
-    ['6. Enrich content and media in Workbench', 'workbench'],
-    ['7. Check completeness and missing fields', 'reports'],
-    ['8. Configure channel mappings and validation', 'channels'],
-    ['9. Publish from Workbench when ready', 'workbench']
+    ['Item (SKU, HSN, GST)', 'Item'],
+    ['Product family', 'families'],
+    ['Attribute definitions', 'attributes'],
+    ['Family attributes', 'family-attributes'],
+    ['Assign item to family', 'Item'],
+    ['Enrich in Workbench', 'workbench'],
+    ['Check completeness', 'reports'],
+    ['Channel mappings', 'channels'],
+    ['Publish from Workbench', 'workbench']
   ];
   const list = document.createElement('ol');
-  list.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 20px;padding-left:24px';
-  steps.forEach(([label, target]) => {
+  list.className = 'pim-steps';
+  steps.forEach(([label, target], i) => {
     const item = document.createElement('li');
     const link = document.createElement('a');
+    link.className = 'pim-step';
     link.href = target === 'Item' ? '#/setup/Item' : '#/view/pim';
-    link.textContent = label;
+    const num = document.createElement('span');
+    num.className = 'pim-step-num';
+    num.textContent = String(i + 1);
+    const text = document.createElement('span');
+    text.textContent = label;
+    link.append(num, text);
     if (target !== 'Item') link.addEventListener('click', event => {
       event.preventDefault();
       openPIMTab(PIM_TABS.find(tab => tab.id === target));
@@ -296,7 +306,7 @@ async function renderPIMMediaLibraryTab(container) {
 
 async function renderPIMDashboardTab(container) {
   const res = await apiFetch('/api/v1/pim/dashboard');
-  if (!res || !res.ok) { renderErrorPanel(container, 'Unable to load the PIM dashboard.', () => renderView('pim')); return; }
+  if (!res || !res.ok) { renderErrorPanel(container, 'Unable to load PIM home.', () => renderView('pim')); return; }
   const stats = await res.json();
   const cards = [
     ['total_products', 'Products', 'workbench'], ['incomplete_products', 'Incomplete', 'workbench'],
@@ -307,6 +317,7 @@ async function renderPIMDashboardTab(container) {
   const panel = document.createElement('div'); panel.className = 'table-panel';
   panel.innerHTML = `<div class="s-34d8d3">${cards.map(([key, label, target]) => `<button class="table-panel pim-dashboard-card s-d5a21b" data-pim-dashboard-target="${target}"><div class="text-muted s-6cb285">${label}</div><div class="s-de7088">${stats[key] ?? 0}</div></button>`).join('')}</div>`;
   container.appendChild(panel);
+  await renderPIMDashboardTaskCards(panel.firstElementChild);
   panel.querySelectorAll('[data-pim-dashboard-target]').forEach(card => card.addEventListener('click', () => {
     const target = card.getAttribute('data-pim-dashboard-target');
     if (target === 'content') { currentDoctype = 'ProductContent'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); return; }
@@ -407,12 +418,13 @@ function pimTaskQuery() {
 
 async function renderPIMMyWorkTab(container) {
   pimMyWorkState.selected.clear();
+  const { txnPagedSection, txnRestorePane } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
+  // 284.2: the task count tiles sit on PIM home (one page, one job).
   panel.innerHTML = `
-    <div class="dashboard-stats-row" id="pim-task-tiles"></div>
     <div class="table-controls s-f10932">
       <div class="form-group s-116966">
         <label class="form-label" for="pim-task-assignee">Assignee</label>
@@ -452,35 +464,24 @@ async function renderPIMMyWorkTab(container) {
       <button class="btn btn-outline btn-sm" id="pim-task-bulk-comment">Add comment</button>
     </div>
     <div class="table-wrapper s-56f435" id="pim-task-table"></div>`;
-  container.appendChild(panel);
 
   const templatePanel = document.createElement('div');
   templatePanel.className = 'table-panel';
-  templatePanel.style.cssText = 'padding:24px;margin-top:24px;';
+  templatePanel.style.padding = '24px';
   templatePanel.innerHTML = `
-    <h2 class="s-8406f1">Run a task template</h2>
     <div class="table-controls s-f10932">
       <div class="form-group s-116966"><label class="form-label" for="pim-template-select">Template</label><select class="form-select" id="pim-template-select"></select></div>
       <div class="form-group s-116966"><label class="form-label" for="pim-template-group">Product group</label><select class="form-select" id="pim-template-group"></select></div>
       <button class="btn btn-primary s-d6f2af" id="pim-template-run">Create tasks</button>
     </div>
     <div id="pim-template-result" class="s-56f435"></div>`;
-  container.appendChild(templatePanel);
+  // 284.2 (ask 300, one page, one job): the list is the page; Run a task
+  // template is a page of its own behind its button, and Workflow runs is its
+  // own PIM page (pim:workflow-runs).
+  container.appendChild(txnPagedSection({ id: 'pim-my-work', title: 'My Work', page: 'Run a task template', heading: 'h2',
+    newLabel: 'Run a task template', form: templatePanel, list: panel }));
+  txnRestorePane('pim-my-work');
 
-  const workflowPanel = document.createElement('div');
-  workflowPanel.className = 'table-panel';
-  workflowPanel.style.cssText = 'padding:24px;margin-top:24px;';
-  workflowPanel.innerHTML = `
-    <h2 class="s-8406f1">Workflow runs</h2>
-    <div class="table-controls s-f10932">
-      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
-      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
-      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-ref">Product / group</label><input class="form-input" id="pim-workflow-ref" placeholder="Item code"></div>
-      <button class="btn btn-primary s-d6f2af" id="pim-workflow-start">Start run</button>
-      <div class="form-group s-116966"><label class="form-label" for="pim-run-status">Show</label><select class="form-select" id="pim-run-status"><option value="Running">Running</option><option value="Paused">Paused</option><option value="">All</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div>
-    </div>
-    <div class="table-wrapper s-56f435" id="pim-run-table"></div>`;
-  container.appendChild(workflowPanel);
 
   const f = pimMyWorkState.filter;
   const bind = (id, key, isCheckbox) => {
@@ -505,19 +506,35 @@ async function renderPIMMyWorkTab(container) {
   panel.querySelector('#pim-task-bulk-comment').addEventListener('click', () => runPIMTaskBulk('comment'));
 
   templatePanel.querySelector('#pim-template-run').addEventListener('click', runPIMTaskTemplate);
+
+  // The reads are independent, so they go out together rather than in
+  // sequence - the inbox is opened dozens of times a day.
+  await Promise.all([loadPIMAssignableUsers(), loadPIMTaskTemplates(), loadPIMTasks()]);
+}
+
+// 284.2 (ask 300): Workflow runs, its own PIM page - start a run, see the runs.
+async function renderPIMWorkflowRunsTab(container) {
+  const workflowPanel = document.createElement('div');
+  workflowPanel.className = 'table-panel';
+  workflowPanel.style.padding = '24px';
+  workflowPanel.innerHTML = `
+    <h2 class="s-8406f1">Workflow runs</h2>
+    <div class="table-controls s-f10932">
+      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
+      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-ref">Product / group</label><input class="form-input" id="pim-workflow-ref" placeholder="Item code"></div>
+      <button class="btn btn-primary s-d6f2af" id="pim-workflow-start">Start run</button>
+      <div class="form-group s-116966"><label class="form-label" for="pim-run-status">Show</label><select class="form-select" id="pim-run-status"><option value="Running">Running</option><option value="Paused">Paused</option><option value="">All</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div>
+    </div>
+    <div class="table-wrapper s-56f435" id="pim-run-table"></div>`;
+  container.appendChild(workflowPanel);
   workflowPanel.querySelector('#pim-workflow-start').addEventListener('click', startPIMWorkflowRun);
   workflowPanel.querySelector('#pim-run-status').addEventListener('change', loadPIMWorkflowRuns);
   workflowPanel.querySelector('#pim-workflow-target').addEventListener('change', e => {
     workflowPanel.querySelector('#pim-workflow-ref').placeholder =
       e.target.value === 'group' ? 'Product group id or code' : 'Item code';
   });
-
-  // The four reads are independent, so they go out together rather than in
-  // sequence - the inbox is opened dozens of times a day.
-  await Promise.all([
-    loadPIMAssignableUsers(), loadPIMTaskTemplates(), loadPIMWorkflowDefinitions(),
-    loadPIMTasks(), loadPIMWorkflowRuns()
-  ]);
+  await Promise.all([loadPIMWorkflowDefinitions(), loadPIMWorkflowRuns()]);
 }
 
 async function loadPIMAssignableUsers() {
@@ -581,30 +598,35 @@ async function loadPIMTasks() {
   if (!res.ok) { await showApiError(res, 'Failed to load tasks.'); host.innerHTML = ''; return; }
   const result = await res.json();
   pimMyWorkState.lastResult = result;
-  renderPIMTaskTiles(result);
   renderPIMTaskTable(result);
   updatePIMTaskBulkBar();
 }
 
-function renderPIMTaskTiles(result) {
-  const host = document.getElementById('pim-task-tiles');
-  if (!host) return;
-  const tally = result.status_tally || {};
-  const overdue = (result.tasks || []).filter(t => t.overdue).length;
-  const tiles = [
-    ['Open', tally['Open'] || 0],
-    ['In Progress', tally['In Progress'] || 0],
-    ['Blocked', tally['Blocked'] || 0],
-    // Counted from the page rather than the whole filtered set, and labelled
-    // so - the tally the server returns is per status, and inventing a
-    // whole-set overdue number the server did not send would be a guess.
-    ['Overdue on this page', overdue]
+// 284.2 (user 2026-11-26, "one page, one job"): my task counts are cards on the
+// PIM home, not tiles above the My work list. The status counts are the
+// server's whole-set tally; overdue is the total of an only-overdue query, so
+// both count every task, not one page of them. A card opens My work filtered.
+async function renderPIMDashboardTaskCards(grid) {
+  const [allRes, overdueRes] = await Promise.all([
+    apiFetch('/api/v1/pim/tasks?assignee=me&limit=1'),
+    apiFetch('/api/v1/pim/tasks?assignee=me&only_overdue=1&limit=1')
+  ]);
+  if (!grid || !allRes || !allRes.ok) return; // no task access: no task cards
+  const tally = (await allRes.json()).status_tally || {};
+  const overdue = overdueRes && overdueRes.ok ? ((await overdueRes.json()).total || 0) : 0;
+  const cards = [
+    ['Open', 'My open tasks', tally['Open'] || 0],
+    ['In Progress', 'My tasks in progress', tally['In Progress'] || 0],
+    ['Blocked', 'My blocked tasks', tally['Blocked'] || 0],
+    ['overdue', 'My overdue tasks', overdue]
   ];
-  host.innerHTML = tiles.map(([label, count]) => `
-    <div class="stat-card">
-      <span class="stat-label">${escapeHTMLText(label)}</span>
-      <span class="stat-val">${count}</span>
-    </div>`).join('');
+  grid.insertAdjacentHTML('beforeend', cards.map(([key, label, count]) => `<button class="table-panel pim-dashboard-card s-d5a21b" data-pim-task-card="${key}"><div class="text-muted s-6cb285">${label}</div><div class="s-de7088">${count}</div></button>`).join(''));
+  grid.querySelectorAll('[data-pim-task-card]').forEach(card => card.addEventListener('click', () => {
+    const key = card.dataset.pimTaskCard;
+    Object.assign(pimMyWorkState.filter, { assignee: 'me', status: key === 'overdue' ? '' : key, task_type: '', priority: '', only_overdue: key === 'overdue' });
+    setActiveMenu('menu-pim-my-work');
+    renderView('pim:my-work');
+  }));
 }
 
 function pimTaskStatusBadge(task) {
@@ -2000,4 +2022,4 @@ async function submitPIMContent(itemCode) {
 // trips (limit/offset/q on the existing list endpoint), keyed by page+
 // search so the SWR cache below can't hand back the wrong page.
 
-export { renderPIMShellHeader, renderPIMView, renderPIMMediaLibraryTab, renderPIMDashboardTab, pimTaskQuery, renderPIMMyWorkTab, loadPIMAssignableUsers, loadPIMTaskTemplates, loadPIMWorkflowDefinitions, loadPIMTasks, renderPIMTaskTiles, pimTaskStatusBadge, renderPIMTaskTable, renderPIMDetailPanel, openPIMImportTemplateRun, updatePIMTaskBulkBar, runPIMTaskAction, runPIMTaskBulk, openPIMTaskDetail, runPIMTaskTemplate, startPIMWorkflowRun, loadPIMWorkflowRuns, renderPIMReportsTab, renderPIMWorkbenchTab, renderPIMRelatedProducts, runPIMContentAssist, renderPIMMediaGallery, uploadPIMMedia, renderPIMPublishSection, previewPIMPublish, renderPIMContentHistory, publishPIMItem, savePIMAttributeValue, pimContentPayload, savePIMContent, submitPIMContent };
+export { renderPIMShellHeader, renderPIMView, renderPIMMediaLibraryTab, renderPIMDashboardTab, pimTaskQuery, renderPIMMyWorkTab, loadPIMAssignableUsers, loadPIMTaskTemplates, loadPIMWorkflowDefinitions, loadPIMTasks, pimTaskStatusBadge, renderPIMTaskTable, renderPIMDetailPanel, openPIMImportTemplateRun, updatePIMTaskBulkBar, runPIMTaskAction, runPIMTaskBulk, openPIMTaskDetail, runPIMTaskTemplate, startPIMWorkflowRun, loadPIMWorkflowRuns, renderPIMReportsTab, renderPIMWorkbenchTab, renderPIMRelatedProducts, runPIMContentAssist, renderPIMMediaGallery, uploadPIMMedia, renderPIMPublishSection, previewPIMPublish, renderPIMContentHistory, publishPIMItem, savePIMAttributeValue, pimContentPayload, savePIMContent, submitPIMContent };

@@ -17,22 +17,29 @@ async function getJSON(url, fallback) {
 }
 
 let jwLines = [];
-let jwView = 'all';
+let jwList = null; // 267.3: the list's view, search and page
 
 const parse = (v) => { try { return typeof v === 'string' ? JSON.parse(v || '[]') : (v || []); } catch (_) { return []; } };
 const open = (b) => b.outward - b.accepted - b.rejected - b.loss;
 const openW = (b, i) => Math.round(((b.out_w || [])[i] - (b.back_w || [])[i] - (b.loss_w || [])[i]) * 100) / 100 || 0;
 
 export async function renderJobWorkTab(container) {
-  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = await import('./txn-screen.js' + Q);
-  const docs = await getJSON('/api/v1/doc/SubcontractOrder?sort=recent&limit=200', null);
-  if (!docs) { renderErrorPanel(container, 'Failed to load job work orders.', () => renderView('manufacturing:subcontracting')); return; }
+  const txn = await import('./txn-screen.js' + Q);
+  const { txnPagedSection, txnRestorePane, txnDone, sessionStore } = txn;
+  jwList = jwList || txn.txnListState();
   const today = new Date().toISOString().slice(0, 10);
   const soon = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
   const isOut = (d) => d.status === 'Sent' || d.status === 'Partly Received';
-  const views = { all: () => true, send: d => d.status === 'Draft' || d.status === 'Challan Pending', out: isOut,
-    exceptions: d => isOut(d) && ((d.due_date && d.due_date < today) || (d.statutory_due && d.statutory_due <= soon) || parse(d.jw_balance).some(b => b.pending_loss > 0)) };
-  const shown = docs.filter(views[jwView] || views.all);
+  // 267.3: the views are server filters, paged; Exceptions depends on dates
+  // and the lines' balance, so it reads every order still out and narrows here.
+  const outStatus = { status: ['Sent', 'Partly Received'] };
+  const served = { all: {}, send: { status: ['Draft', 'Challan Pending'] }, out: outStatus };
+  const exceptions = d => isOut(d) && ((d.due_date && d.due_date < today) || (d.statutory_due && d.statutory_due <= soon) || parse(d.jw_balance).some(b => b.pending_loss > 0));
+  const whole = jwList.view === 'exceptions';
+  const page = await txn.txnLoadList('SubcontractOrder', jwList, { filters: whole ? outStatus : (served[jwList.view] || {}), whole });
+  if (page.error) { renderErrorPanel(container, page.error, () => renderView('manufacturing:subcontracting')); return; }
+  const docs = page.docs;
+  const shown = whole ? docs.filter(exceptions) : docs;
   const badge = { Sent: 'badge-warning', 'Partly Received': 'badge-warning', Received: 'badge-success', Draft: 'badge-secondary', 'Challan Pending': 'badge-warning', Cancelled: 'badge-danger' };
   const list = document.createElement('div');
   list.className = 'table-panel';
@@ -48,8 +55,7 @@ export async function renderJobWorkTab(container) {
       <div class="text-muted s-6cb285">Sent ${fmt(b.outward)} · accepted ${fmt(b.accepted)} · rejected ${fmt(b.rejected)} · loss ${fmt(b.loss)}${b.pending_loss ? ` <span class="badge badge-warning" title="Waiting for approval">+${fmt(b.pending_loss)}</span>` : ''}
         · <strong>still out ${fmt(open(b))}</strong>${(b.out_w || []).some(Boolean) ? ` · net / fine wt out ${openW(b, 1)} / ${openW(b, 2)}` : ''}</div></div>`).join('');
   };
-  list.innerHTML = `<div class="s-761d3a"><select class="form-select s-2acaf3" data-jw-view aria-label="Show">
-      ${[['all', 'All orders'], ['send', 'To send'], ['out', 'With job workers'], ['exceptions', 'Exceptions']].map(([k, l]) => `<option value="${k}" ${k === jwView ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+  list.innerHTML = `${txn.txnListBar(jwList, page, [['all', 'All orders'], ['send', 'To send'], ['out', 'With job workers'], ['exceptions', 'Exceptions']])}
     <div class="table-wrapper"><table><thead><tr><th>Order</th><th>Job worker</th><th>Lines</th><th>Due back</th><th>Status</th><th></th></tr></thead>
     <tbody>${shown.length ? shown.map(d => {
       const late = isOut(d) && d.due_date && d.due_date < today;
@@ -65,7 +71,7 @@ export async function renderJobWorkTab(container) {
           ${d.status === 'Sent' && !d.challan_id ? `<button type="button" class="action-btn" data-jw-act="legacy" data-id="${esc(d.id)}" title="Sent before job work lines: receive the output in one go">Receive</button> ` : ''}
           ${bal.some(b => b.accepted > 0) ? `<button type="button" class="action-btn" data-jw-act="charge" data-id="${esc(d.id)}">Book bill</button> ` : ''}
           ${d.challan_id ? `<button type="button" class="action-btn" data-jw-act="print" data-id="${esc(d.id)}">Print challan</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="6" class="s-b4fdf8">${docs.length ? 'Nothing here in this view.' : 'No job work yet. + New Job Work Order starts one.'}</td></tr>`}</tbody></table></div>
+    }).join('') : `<tr><td colspan="6" class="s-b4fdf8">${jwList.view !== 'all' || jwList.q ? 'Nothing here in this view.' : 'No job work yet.'}</td></tr>`}</tbody></table></div>
     <div data-jw-pane class="s-d6f2af"></div>`;
 
   const form = document.createElement('div');
@@ -83,7 +89,7 @@ export async function renderJobWorkTab(container) {
     <div class="login-error hidden s-56f435" data-jw-error></div>
     <div class="s-1b0f49"><button type="button" class="btn btn-primary" data-jw-save>Save order</button></div>`;
 
-  container.appendChild(txnPagedSection({ id: 'jw-screen', title: 'Job Work', page: 'New job work order', count: docs.length, newLabel: 'New Job Work Order', form, list }));
+  container.appendChild(txnPagedSection({ id: 'jw-screen', title: 'Job Work', page: 'New job work order', count: txn.txnListCount(page, shown.length), newLabel: 'New Job Work Order', form, list }));
   txnRestorePane('jw-screen');
   attachLinkTypeahead(form.querySelector('#jw-vendor'), 'Vendor', { keepCode: true });
   attachLinkTypeahead(form.querySelector('#jw-store'), 'Location', { keepCode: true });
@@ -97,7 +103,7 @@ export async function renderJobWorkTab(container) {
     showToast(outcome.order_status === 'Challan Pending' ? 'The challan waits for approval - send again once it is approved.' : okMsg, { variant: 'success' });
     renderView('manufacturing:subcontracting');
   };
-  list.querySelector('[data-jw-view]').addEventListener('change', e => { jwView = e.target.value; renderView('manufacturing:subcontracting'); });
+  txn.txnWireListBar(list, jwList, () => renderView('manufacturing:subcontracting'));
   list.querySelectorAll('[data-jw-act]').forEach(b => b.addEventListener('click', async () => {
     const d = docs.find(x => x.id === b.dataset.id);
     const act = b.dataset.jwAct;

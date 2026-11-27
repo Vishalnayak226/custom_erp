@@ -128,18 +128,22 @@ func StartReportExportWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("reports")
+				schemas, err := sweepTenantSchemas("reports")
 				if err != nil {
 					log.Printf("[REPORT_EXPORT] Failed to list tenant schemas: %v", err)
 					continue
 				}
-				for _, schema := range schemas {
+				for _, schema := range dueSchemas(schemas, "documents", reportExportDueWhere) {
 					processReportExportJobs(ctx, schema)
 				}
 			}
 		}
 	}()
 }
+
+// reportExportDueWhere is the export jobs a tick runs; dueSchemas asks every
+// client the same question first (283.2).
+const reportExportDueWhere = `doctype = 'ReportExportJob' AND status = 'Pending'`
 
 // BLD-046: takes the worker's ctx so a shutting-down process abandons an
 // in-flight run instead of finishing one whose result nobody will collect.
@@ -161,7 +165,7 @@ func processReportExportJobs(ctx context.Context, schema string) {
 		return
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'ReportExportJob' AND status = 'Pending' ORDER BY created_at LIMIT $1`, schema),
+		`SELECT id, data FROM %s.documents WHERE `+reportExportDueWhere+` ORDER BY created_at LIMIT $1`, schema),
 		asyncReportWorkerBatchSize)
 	if err != nil {
 		LogBackgroundJobError("REPORT_EXPORT", "query", schema, err)

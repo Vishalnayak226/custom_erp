@@ -78,6 +78,72 @@ func fieldsSearchClause(fields []string, termArg int, args *[]interface{}, argIn
 	return fmt.Sprintf("(%s) ILIKE $%d", strings.Join(parts, " || "+searchFieldSepSQL+" || "), termArg)
 }
 
+// maxDesignNumberMatches caps the designs one item search expands into.
+const maxDesignNumberMatches = 10
+
+// itemDesignNumberClause (ask 272.1, user 2026-11-26: "Search with design or
+// combination and show barcode and select and do bill"): the Design No on a
+// tag and on Stock on Hand is the design's design_number, which lives on the
+// design (ProductFamily), not on its combinations - so an Item search never
+// matched it where it differs from the Design ID. This finds the designs whose
+// number holds the term and matches their combinations by the design field
+// they carry. Only a design field the search covers and the role may read is
+// matched, as with any other field. Each arm is a containment test the data
+// GIN index answers, so a big master's search stays index-led. "" when no
+// design matches.
+func itemDesignNumberClause(schema string, fields []string, hidden map[string]bool, term string, args *[]interface{}, argIndex *int) string {
+	term = strings.TrimSpace(term)
+	if utf8.RuneCountInString(term) < 2 {
+		return ""
+	}
+	searched := map[string]bool{}
+	for _, f := range fields {
+		searched[f] = true
+	}
+	var designFields []string
+	for _, f := range []string{"family", "parent_product_code"} {
+		if !hidden[f] && (fields == nil || searched[f]) {
+			designFields = append(designFields, f)
+		}
+	}
+	if len(designFields) == 0 {
+		return ""
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, COALESCE(data->>'code', '') FROM %s.documents
+		WHERE doctype = 'ProductFamily' AND deleted_at IS NULL AND data->>'design_number' ILIKE $1
+		ORDER BY lower(data->>'design_number') = lower($2) DESC, id LIMIT %d`, schema, maxDesignNumberMatches), "%"+term+"%", term)
+	if err != nil {
+		return "" // the search still runs on the item's own fields
+	}
+	defer rows.Close()
+	var refs []string
+	seen := map[string]bool{}
+	for rows.Next() {
+		var id, code string
+		if rows.Scan(&id, &code) != nil {
+			continue
+		}
+		for _, ref := range []string{id, code} {
+			if ref != "" && !seen[ref] {
+				seen[ref] = true
+				refs = append(refs, ref)
+			}
+		}
+	}
+	if rows.Err() != nil || len(refs) == 0 {
+		return ""
+	}
+	var arms []string
+	for _, ref := range refs {
+		*args = append(*args, ref)
+		for _, f := range designFields {
+			arms = append(arms, fmt.Sprintf("data @> jsonb_build_object('%s', $%d::text)", f, *argIndex))
+		}
+		*argIndex++
+	}
+	return "(" + strings.Join(arms, " OR ") + ")"
+}
+
 // masterSearchPrefilter is the indexed expression for a search over fields,
 // or "" when the index cannot serve it: not a big master, a field the
 // expression lacks, or a term too short to have a trigram. The pre-filter

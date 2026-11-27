@@ -1,7 +1,7 @@
 <h1 id="report-catalog-part-3">Report catalog (part 3) <a class="kb-anchor" href="#report-catalog-part-3" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>104</strong> reports, from Procurement to Stock Transfer.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>105</strong> reports, from Procurement to Stock Transfer.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#procurement">Procurement</a> - 27 reports</li><li><a href="#procurement-grn">Procurement &amp; GRN</a> - 27 reports</li><li><a href="#quality">Quality</a> - 4 reports</li><li><a href="#sales">Sales</a> - 14 reports</li><li><a href="#sales-pos">Sales &amp; POS</a> - 22 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#stock-transfer">Stock Transfer</a> - 9 reports</li></ul>
+<ul><li><a href="#procurement">Procurement</a> - 27 reports</li><li><a href="#procurement-grn">Procurement &amp; GRN</a> - 27 reports</li><li><a href="#quality">Quality</a> - 4 reports</li><li><a href="#sales">Sales</a> - 15 reports</li><li><a href="#sales-pos">Sales &amp; POS</a> - 22 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#stock-transfer">Stock Transfer</a> - 9 reports</li></ul>
 <h2 id="procurement">Procurement <a class="kb-anchor" href="#procurement" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r2060-back-orders">R2060 Back orders <a class="kb-anchor" href="#r2060-back-orders" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>backorder-list</code></p>
@@ -405,6 +405,12 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Salesman · Bills · Sales</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r1035-sold-below-cost">R1035 Sold below cost <a class="kb-anchor" href="#r1035-sold-below-cost" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>sold-below-cost</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Date · Bill · Store · Cashier · Item · Qty · Sold at (ex GST) · Cost <em>(sensitive)</em> · Loss <em>(sensitive)</em> · Cleared by</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r3090-summary-invoice-groups">R3090 Summary invoice groups <a class="kb-anchor" href="#r3090-summary-invoice-groups" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>summary-invoice-groups</code></p>

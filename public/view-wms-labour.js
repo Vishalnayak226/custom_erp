@@ -1,4 +1,5 @@
-// Labour & billing (Stage 55.8) - Warehouse Cockpit → Labour / Billing.
+// Labour & billing (Stage 55.8) - WMS → Labour plan, Labour standards (two
+// pages since 288.2) and Warehouse Billing.
 //
 // Labour: the plan (open warehouse tasks turned into hours and headcount, with
 // tasks that have no standard counted as uncovered rather than guessed), each
@@ -38,9 +39,7 @@ async function renderLabourTab(container, location) {
   const plan = document.createElement('div');
   plan.className = 'table-panel';
   plan.style.padding = '20px';
-  plan.style.marginBottom = '16px';
   plan.innerHTML = `
-    <h2 class="s-9f8437">Labour plan</h2>
     <div class="s-608a43">
       <div class="form-group s-50435f"><label class="form-label" for="lp-start">From</label><input type="date" id="lp-start" class="form-input" value="${today()}"></div>
       <div class="form-group s-50435f"><label class="form-label" for="lp-end">To</label><input type="date" id="lp-end" class="form-input" value="${today()}"></div>
@@ -62,14 +61,16 @@ async function renderLabourTab(container, location) {
         <td class="num">${num(p.planned_hours, 3)}</td><td class="num">${num(p.available_hours_per_worker, 2)}</td><td class="num"><b>${p.forecast_headcount}</b></td></tr>`).join('')}</tbody></table></div>
       <p class="s-d52848">Tasks under <b>No standard</b> are not in the hours.</p>`;
   });
+}
 
+// 288.2: the standards are their own page (warehouse-cockpit:standards).
+async function renderStandardsTab(container) {
   const [standards, operations] = await Promise.all([listOf('LaborStandard'), listOf('LaborOperation')]);
   const std = document.createElement('div');
   std.className = 'table-panel';
   std.style.padding = '20px';
   std.innerHTML = `
     <div class="s-85be8b">
-      <h2 class="s-1c0c36">Labour standards</h2>
       <button class="btn btn-primary" id="ls-new" type="button">+ New labour standard</button>
     </div>
     ${standards.length === 0 ? '<p class="s-aeec17">No labour standards yet.</p>' : `<div class="s-987eb2"><table>
@@ -185,7 +186,7 @@ function openStandardWizard(operations) {
     }
     close();
     showToast(`Labour standard ${v('lw-code')} saved.`, { variant: 'success' });
-    renderView('warehouse-cockpit:labour');
+    renderView('warehouse-cockpit:standards');
   }));
 }
 
@@ -248,4 +249,4 @@ async function loadBillingReview(panel) {
   });
 }
 
-export { renderLabourTab, renderBillingTab, previewStandard, openStandardWizard, loadBillingReview };
+export { renderLabourTab, renderStandardsTab, renderBillingTab, previewStandard, openStandardWizard, loadBillingReview };

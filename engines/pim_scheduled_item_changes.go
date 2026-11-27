@@ -237,7 +237,7 @@ func StartScheduledItemChangeWorker(ctx context.Context, interval time.Duration)
 		if db.DB == nil {
 			return
 		}
-		schemas, err := listTenantSchemas("pim")
+		schemas, err := sweepTenantSchemas("pim")
 		if err != nil {
 			return
 		}

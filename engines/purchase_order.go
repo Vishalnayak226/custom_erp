@@ -90,6 +90,18 @@ type POLinePreview struct {
 	// Attributes are the line's Colour / Size... values, keyed by the
 	// AttributeColumns codes (Stage 87).
 	Attributes map[string]string `json:"attributes,omitempty"`
+	// Item 273.3: this vendor's last rate for the item and a cheaper vendor's,
+	// in this PO's GST mode. Only the PO screen's preview fills them
+	// (StampPOLastRates).
+	LastRate       float64 `json:"last_rate,omitempty"`
+	LastRatePO     string  `json:"last_rate_po,omitempty"`
+	LastRateDate   string  `json:"last_rate_date,omitempty"`
+	LastRateUpPct  float64 `json:"last_rate_up_pct,omitempty"`
+	LastRateAlert  bool    `json:"last_rate_alert,omitempty"`
+	LastRateNote   string  `json:"last_rate_note,omitempty"`
+	BetterRate     float64 `json:"better_rate,omitempty"`
+	BetterVendor   string  `json:"better_vendor,omitempty"`
+	BetterRateNote string  `json:"better_rate_note,omitempty"`
 }
 
 // POPreview is everything the PO screen needs to render totals live, and

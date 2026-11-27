@@ -104,7 +104,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 |---|---|---|
 | Go to | `HOME` | Home |
 | Go to | `INB` | My work and approvals |
-| Go to | `RPT` | Reports |
+| Go to | `RPT` | Reports home |
 | Go to | `RSC` | Report Schedules |
 | Go to | `HELP` | Knowledge Center |
 | Sales | `POS` | POS / Billing |
@@ -113,8 +113,11 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Sales | `OFG` | Offline Queue Gaps |
 | Sales | `OFS` | Offline Sales |
 | Sales | `SLH` | Sales History |
+| Sales | `OMH` | OMS home |
 | Sales | `SO` | Sales Order |
 | Sales | `PEND` | Pending Orders |
+| Sales | `OHLD` | On hold |
+| Sales | `UNS` | Unsent answers |
 | Sales | `SI` | Sales Invoice |
 | Sales | `SR` | Sales Return |
 | Sales | `CN` | Credit Note |
@@ -122,8 +125,10 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Sales | `EI` | E-Invoice (IRN) |
 | Sales | `EIS` | E-Invoice Settings |
 | Sales | `STL` | Settlements |
-| Sales | `FRT` | Freight |
-| CRM | `CRM` | CRM |
+| Sales | `STLR` | Settlement reconciliation |
+| Sales | `FRT` | Carrier claims |
+| Sales | `FINV` | Freight invoices |
+| CRM | `CRM` | CRM home |
 | CRM | `CUS` | Customers |
 | CRM | `SEG` | Segments |
 | CRM | `CTPL` | CRM Templates |
@@ -133,15 +138,19 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | CRM | `CINB` | CRM Inbox |
 | CRM | `TKT` | CRM Tickets |
 | CRM | `FBK` | Feedback |
+| CRM | `REF` | Referrals |
 | CRM | `WKL` | Worklist |
 | CRM | `PIPE` | Pipeline |
+| CRM | `RTS` | Ready to send |
 | CRM | `CRMS` | CRM Settings |
 | CRM | `VCH` | Vouchers |
+| CRM | `SDK` | Service desk |
 | CRM | `SVT` | Service Tickets |
 | CRM | `LOY` | Loyalty |
 | CRM | `TIER` | Loyalty Tiers |
 | CRM | `PTS` | Points Movement |
-| CRM | `LOF` | Loyalty Vouchers & Campaigns |
+| CRM | `LOF` | Loyalty voucher use |
+| CRM | `LCR` | Loyalty campaign results |
 | Buying | `PRQ` | Purchase Requisition |
 | Buying | `RFQ` | Request for Quotation |
 | Buying | `PO` | Purchase Order |
@@ -153,7 +162,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Buying | `PR` | Purchase Return |
 | Buying | `VI` | Vendor Invoice |
 | Buying | `VEN` | Vendors |
-| Stock | `INV` | Inventory Dashboard |
+| Stock | `INV` | Inventory home |
 | Stock | `SOH` | Stock on Hand |
 | Stock | `SL` | Inventory Ledger |
 | Stock | `TO` | Stock Movement (Transfer Order) |
@@ -167,10 +176,13 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Stock | `LOCS` | Locations by Store |
 | Stock | `LOCT` | Locations by Transaction |
 | Stock | `CC` | Cycle Count |
+| Stock | `ABC` | ABC count plan |
+| Stock | `CCL` | Count lines |
 | Stock | `STK` | Sticker Printing |
 | Stock | `ITM` | Items |
-| Warehouse | `WMS` | Warehouse Cockpit |
-| Warehouse | `LAB` | Labour |
+| Warehouse | `WMS` | WMS home |
+| Warehouse | `LAB` | Labour plan |
+| Warehouse | `LSTD` | Labour standards |
 | Warehouse | `WBIL` | Warehouse Billing |
 | Warehouse | `APT` | Appointment Calendar |
 | Warehouse | `DOCK` | Dock Doors |
@@ -183,6 +195,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Warehouse | `BINC` | Bin Conditions |
 | Warehouse | `BING` | Bin Generator |
 | Warehouse | `LPN` | LPN / Cartons / Pallets |
+| Warehouse | `LPNL` | Look up an LPN |
 | Warehouse | `REPL` | Bin Replenishment |
 | Warehouse | `LOCM` | Location Movement |
 | Warehouse | `RFL` | RF Lot & Serial |
@@ -193,11 +206,14 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Warehouse | `PICK` | Pick |
 | Warehouse | `PACK` | Pack |
 | Warehouse | `SHIP` | Ship |
+| Warehouse | `MKM` | Make manifest |
+| Warehouse | `MNF` | Manifests |
+| Warehouse | `OTW` | On the way |
 | Warehouse | `WAVE` | Wave / Batch Picking |
 | Warehouse | `MPK` | Mobile Picking |
 | Warehouse | `SORT` | Sortation / Put-Wall |
 | Warehouse | `LOAD` | Loading |
-| Money | `GL` | Work to review |
+| Money | `GL` | Finance home |
 | Money | `TB` | Trial Balance |
 | Money | `COA` | Chart of Accounts |
 | Money | `PER` | Accounting Periods |
@@ -207,6 +223,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Money | `BR` | Bank Reconciliation |
 | Money | `EXP` | Expense Claim |
 | Money | `FA` | Fixed Assets |
+| Money | `LSE` | Leases |
 | Making | `PRO` | Production Order |
 | Making | `PSC` | Production Schedule |
 | Making | `JW` | Job Work |
@@ -216,9 +233,10 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Making | `CERT` | Certificates |
 | Making | `NCR` | Non-conformance |
 | Making | `MNT` | Maintenance Orders |
-| Products | `PIM` | PIM Dashboard |
+| Products | `PIM` | PIM home |
 | Products | `PWB` | PIM Workbench |
 | Products | `PMW` | PIM My Work |
+| Products | `PWR` | PIM Workflow runs |
 | Products | `MED` | Media Library |
 | Products | `SUBM` | Supplier Submissions |
 | Products | `CTLG` | Catalogs |
@@ -232,6 +250,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Products | `CATR` | Category Rules |
 | Products | `CHK` | Checklists |
 | Products | `PRPT` | PIM Reports |
+| People | `HRH` | HRM home |
 | People | `HR` | HR |
 | People | `ATT` | Attendance |
 | People | `LV` | Leave |
@@ -239,14 +258,22 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | People | `PRL` | Payroll |
 | People | `PRX` | Payroll Export |
 | People | `PTAX` | Tax & Benefits |
+| People | `PFE` | PF ECR |
+| People | `TDSR` | Form 24Q |
+| People | `ARR` | Salary arrears |
 | People | `LOAN` | Loans / Advances |
 | People | `ONB` | Onboarding / Offboarding |
 | People | `APPR` | Appraisals |
 | People | `CAL` | Calibration |
+| People | `RSP` | Rating spread |
 | People | `TRN` | Training |
 | People | `GRV` | Grievances |
-| People | `EMP` | People |
+| People | `EMP` | People analytics |
+| People | `CEX` | Certificates expiring |
+| People | `AOF` | Accept offer |
+| People | `OBL` | Login from onboarding |
 | Admin | `CFG` | Configuration |
+| Admin | `STOR` | Stores |
 | Admin | `CRED` | Credentials |
 | Admin | `DGOV` | Data governance |
 | Admin | `DQ` | Data quality |
@@ -258,6 +285,7 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `LBL` | Dynamic Labels |
 | Admin | `SCHM` | Database Schema Design |
 | Admin | `HOOK` | Extension Hooks |
+| Admin | `XTOK` | Extension tokens |
 | Admin | `API` | API access |
 | Admin | `SUBS` | Subscription |
 | Admin | `LOG` | Activity Log |
@@ -267,7 +295,15 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `SEC` | Security Events |
 | Admin | `PRIV` | Privacy approvals |
 | Admin | `SYS` | System Status |
+| Admin | `DPH` | Deployment history |
+| Admin | `BKH` | Backup history |
 | Admin | `CP` | Control Panel |
+| Admin | `CPC` | Clients |
+| Admin | `CPR` | Releases |
+| Admin | `CPT` | Certificates |
+| Admin | `CPS` | Slow queries |
+| Admin | `CPQ` | Query plan |
+| Admin | `CPM` | Capability maturity |
 | Admin | `ENT` | Tenant Entitlements |
 | Admin | `USG` | Tenant Usage |
 | Admin | `DCON` | Data Console |

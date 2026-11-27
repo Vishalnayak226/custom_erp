@@ -836,11 +836,9 @@ func GetDynamicPickFaceSuggestions(tenantID, locationCode string, coverageDays i
 		return nil, err
 	}
 	var out []DynamicPickFaceSuggestion
+	velocities, _ := SalesVelocityAt(tenantID, locationCode, 30) // 273.1: one read for every rule
 	for _, rule := range rules {
-		velocity, err := CalculateSalesVelocity(tenantID, locationCode, rule.Sku, 30)
-		if err != nil {
-			velocity = 0
-		}
+		velocity := velocities[rule.Sku]
 		suggestedMin := int(math.Ceil(velocity * float64(coverageDays)))
 		suggestedMax := suggestedMin * 2
 		if suggestedMin == rule.MinQty && suggestedMax == rule.MaxQty {

@@ -1,8 +1,8 @@
 {
   "product": "PrintBridge",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "file": "printbridge-setup.exe",
-  "size": 2969782,
-  "sha256": "61707446185cd99837af6e099133df0732621e449a2519da6ce615911068e650",
-  "signature": "8uRX8D9So/Z2FeH7p7f5AZ4joOmRspaltqVVcWJOp7/buz3rh6FbFPkxYyLxJXE14or5ukKxJzqz1GclacUVDw=="
+  "size": 2972815,
+  "sha256": "7aa3ae067a38a89f785258e14e9869f630158ebbba639703dbf5973447767afc",
+  "signature": "ZtaMb9gqxI5BdQn9tFHaYf+vcON4OP0UIQr12Hx15PDXHBmnl+EvS4a7dS0Be1SXOOF40Hz5CuxKjBrtJK7zAw=="
 }

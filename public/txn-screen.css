@@ -45,6 +45,9 @@
 
 .txn-screen > * { flex-shrink: 0; }
 
+/* 267.1: a pager row under the grid keeps clear of the bottom edge. */
+.txn-screen > .txn-pager { padding-bottom: 10px; }
+
 /* --- Row 1: the bar -------------------------------------------------------- */
 .txn-bar {
   display: flex;
@@ -56,7 +59,7 @@
 
 .txn-title {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   letter-spacing: 0;
   white-space: nowrap;
 }
@@ -92,7 +95,7 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 2px 16px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -102,7 +105,7 @@
 .txn-sum .txn-total {
   padding-left: 14px;
   border-left: 1px solid var(--border-color);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-main);
 }
@@ -115,6 +118,17 @@
 }
 
 .txn-actions .login-error { margin: 0; max-width: 360px; }
+
+/* 267.3: a paged list's row - view, search, range, pager - wraps on a narrow window. */
+.txn-list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.txn-list-bar .form-select { width: auto; max-width: 100%; }
+.txn-list-bar input[type="search"].form-input { flex: 1 1 200px; max-width: 320px; }
+.txn-list-range { color: var(--text-muted, #64748b); font-size: 13.5px; }
+.txn-list-pager { display: inline-flex; gap: 6px; margin-left: auto; }
+
+/* 267.1: a filter or search box in the bar is a box's width, not the row's. */
+.txn-actions select.form-input { width: auto; max-width: 100%; }
+.txn-actions input[type="search"].form-input { width: 200px; max-width: 100%; }
 
 .txn-tabs {
   display: inline-flex;
@@ -133,7 +147,7 @@
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -162,7 +176,7 @@
 .txn-screen .form-input,
 .txn-screen .form-select {
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .txn-screen .btn { padding: 6px 14px; }
@@ -217,9 +231,12 @@
 .txn-hint:empty { display: none; }
 
 /* --- The grid: the only thing that scrolls --------------------------------- */
+/* 304.1: the floor holds the column header, a design heading and three lines
+   (47 + 47 + 3 x 43 on a PO). At 120px a short window showed the header and
+   "Design D01054" only, the line under it cut off; now the page scrolls first. */
 .txn-grid {
   flex: 1 1 0;
-  min-height: 120px;
+  min-height: 232px;
   margin: 0 -14px;
   overflow: auto;
   border-top: 1px solid var(--border-color);
@@ -315,7 +332,7 @@
   margin-bottom: 12px;
 }
 
-.page-section-bar h2 { margin: 0; font-size: 16px; }
+.page-section-bar h2 { margin: 0; font-size: 18px; }
 
 .page-section-actions {
   display: inline-flex;
@@ -326,6 +343,11 @@
 }
 
 .page-section-bar .page-title { margin: 0; }
+
+/* 276.14: filters in a section bar keep their own width, so they sit on one
+   line and wrap only on a narrow window (a form field is 100% wide). */
+.page-section-actions > :is(.form-input, .form-select) { width: auto; max-width: 100%; }
+.page-section-actions > input[type=search] { width: 18em; }
 
 /* --- POS ------------------------------------------------------------------- */
 /* The bill total and Complete Sale belong to a sale in progress, not to a
@@ -379,7 +401,7 @@
 
 .txn-screen .pos-scan-input {
   padding: 8px 12px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 /* Ask 215.2/215.4: the buyer GSTIN, its B2B line (opens the buyer's details)
@@ -404,6 +426,29 @@
   border: 1px solid var(--border-color);
   border-radius: 6px;
 }
+
+/* Ask 272.2: the till's matches, one combination per row. */
+.pos-result-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.pos-result-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-bg);
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.pos-result-table th,
+.pos-result-table td { padding: 8px 12px; border-bottom: 1px solid var(--border-color); }
+.pos-result-table td { white-space: nowrap; }
+.pos-result-table .pos-result-name { white-space: normal; font-weight: 600; min-width: 140px; }
+.pos-result-table .pos-result-code { font-family: Consolas, Monaco, monospace; }
+.pos-result-table .pos-result-num { text-align: right; }
+.pos-result-table tbody tr { cursor: pointer; }
+.pos-result-table tbody tr:hover td { background: var(--surface-subtle); }
+.pos-result-table tbody tr.is-active td { background: var(--primary-light); }
+.pos-result-table tbody tr.is-active td:first-child { box-shadow: inset 3px 0 0 var(--primary-color); }
 
 /* Stage 85.E4: a bill found by the Return search, one row each. */
 .pos-search-result {
@@ -439,7 +484,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 /* Phones and very short windows: a frozen frame would leave the grid no room,
@@ -452,12 +497,12 @@
 
 /* Stage 94: goods receipt in steps (grn-steps.js). */
 .gs-page { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 4px 16px 12px; }
-.gs-stepper { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.gs-stepper { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
 .gs-step { color: var(--text-muted); }
 .gs-step.gs-done { color: var(--success-color, #1a7f37); }
 .gs-step.gs-now { color: var(--text-color); font-weight: 700; }
 .gs-step.gs-viewing { text-decoration: underline; text-underline-offset: 4px; }
-.gs-facts, .gs-totals, .gs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13px; }
+.gs-facts, .gs-totals, .gs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13.5px; }
 .gs-totals { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--surface-color, var(--bg-color)); }
 .gs-status { margin-left: auto; color: var(--text-muted); }
 .gs-ok { color: var(--success-color, #1a7f37); }
@@ -466,7 +511,7 @@
 /* Stage 110.3: the box the invoice check asks to look at. */
 .gs-fix, input[data-fix] { outline: 2px solid var(--warning-color, #b26a00); outline-offset: 1px; background: var(--warning-soft-bg, #fff4e0); }
 .gs-invoice-check .btn { flex: 0 0 auto; }
-.gs-item div { font-size: 11.5px; }
+.gs-item div { font-size: 12px; }
 .gs-num { width: 90px; }
 .gs-text { min-width: 120px; margin-top: 4px; }
 .gs-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -474,27 +519,27 @@
 .gs-form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .gs-form-row .form-group { margin-bottom: 0; }
 .gs-wide { flex: 1 1 320px; }
-.gs-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.gs-check { display: flex; align-items: center; gap: 6px; font-size: 13.5px; }
 .gs-child { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .gs-child-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .gs-child-head h3 { margin: 0; font-size: 14px; }
-.gs-effect { font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
-.gs-log summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+.gs-effect { font-size: 13.5px; display: flex; flex-direction: column; gap: 4px; }
+.gs-log summary { cursor: pointer; font-size: 13.5px; color: var(--text-muted); }
 .gs-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.gs-tab { border: 1px solid var(--border-color); background: transparent; color: var(--text-color); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.gs-tab { border: 1px solid var(--border-color); background: transparent; color: var(--text-color); border-radius: 999px; padding: 4px 12px; font-size: 13.5px; cursor: pointer; }
 .gs-tab.active { border-color: var(--primary-color); color: var(--primary-color); font-weight: 600; }
-.grn-open-pos { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.grn-open-pos { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
 .grn-open-pos label { display: flex; gap: 8px; align-items: center; }
 .grn-all-title { font-size: 14px; margin: 14px 12px 6px; }
 /* Stage 74.1.6: a document's attached files (attachments-panel.js). */
-.att-panel { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.att-panel { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .att-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .att-add input[type=file] { width: 260px; }
 .att-preview-img { max-width: 100%; max-height: 520px; margin-top: 6px; border: 1px solid var(--border-color); }
 #grn-inbox .gs-tabs { padding: 0 12px; }
 
 /* Stage 148.6 / 148.7: PO line rule, discount note and commitment meter. */
-.po-line-note { font-size: 11px; color: var(--text-muted, #666); margin-top: 2px; }
+.po-line-note { font-size: 12px; color: var(--text-muted, #666); margin-top: 2px; }
 .po-meter { display: block; width: 100%; height: 6px; margin-top: 3px; }
 .po-lines input.num { min-width: 58px; padding-left: 6px; padding-right: 6px; }
 .txn-grid .po-lines th, .txn-grid .po-lines td { padding-left: 6px; padding-right: 6px; }

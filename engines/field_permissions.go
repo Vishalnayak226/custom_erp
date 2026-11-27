@@ -201,6 +201,12 @@ func RoleMayOnDoctype(tenantID, role, doctype, action string) (bool, error) {
 	if doctype == UserShortcutDoctype && role != "" {
 		return true, nil
 	}
+	// 276.2: every role chooses its own list and report columns. Safe because
+	// a role that does not manage column profiles reads the shared ones and its
+	// own, and changes only its own (ColumnProfileWriteAllowed).
+	if doctype == ReportColumnProfileDoctype && role != "" {
+		return true, nil
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return false, err

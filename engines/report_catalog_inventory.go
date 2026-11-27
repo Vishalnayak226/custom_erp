@@ -444,11 +444,11 @@ func stickerRows(tenantID, schema string, p map[string]string) ([]*catRow, error
 	var args []interface{}
 	if v := p["from"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND printed_at >= $%d::date", len(args))
+		q += fmt.Sprintf(" AND printed_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if v := p["to"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND printed_at < $%d::date + 1", len(args))
+		q += fmt.Sprintf(" AND printed_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	rows, err := dbQuery(q+" ORDER BY printed_at DESC LIMIT 20000", args...)
 	if err != nil {

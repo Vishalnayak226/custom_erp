@@ -4,31 +4,33 @@
 .oms-queue-buttons .badge { margin-left: 4px; }
 #oms-queue-rows:not(:empty) { margin-top: 12px; }
 .oms-next-step { margin: 12px 0; padding: 10px 14px; border-left: 4px solid var(--primary-color); background: var(--primary-light); border-radius: 6px; }
-.oms-timeline-detail { font-size: 12px; overflow-wrap: anywhere; }
+/* 287.3: break-word, not anywhere - in a table cell "anywhere" let the column shrink to one
+   letter ("act ive"); break-word splits only a run wider than the cell. */
+.oms-timeline-detail { font-size: 12px; overflow-wrap: break-word; }
 .oms-related-docs { margin-top: 16px; }
 .oms-related-docs > summary { cursor: pointer; font-weight: 600; }
 .oms-add-line-row { display: grid; grid-template-columns: auto 1fr auto 90px auto 120px; gap: 8px; align-items: center; margin-bottom: 12px; }
 @media (max-width: 640px) { .oms-add-line-row { grid-template-columns: 1fr; } }
 /* Stage 88.2 - the OMS step pages (view-oms-steps.js) and OMS settings. */
 .oms-step-panel { padding: 16px 20px; margin-bottom: 20px; }
-.oms-step-heading { font-size: 16px; margin: 0 0 10px; }
+.oms-step-heading { font-size: 18px; margin: 0 0 10px; }
 h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
 .oms-step-empty { text-align: center; color: var(--text-muted); padding: 20px; }
-.oms-step-note { margin: 10px 0 0; font-size: 13px; }
+.oms-step-note { margin: 10px 0 0; font-size: 13.5px; }
 .oms-step-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .oms-mono { font-family: monospace; }
 .oms-scan-panel { padding: 16px 20px; margin-bottom: 20px; border-left: 4px solid var(--primary-color); }
-.oms-scan-panel h2 { font-size: 16px; margin: 0; }
+.oms-scan-panel h2 { font-size: 18px; margin: 0; }
 .oms-scan-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; max-width: 640px; }
-.oms-scan-row .form-input { flex: 1 1 160px; min-width: 0; min-height: 44px; font-size: 16px; }
+.oms-scan-row .form-input { flex: 1 1 160px; min-width: 0; min-height: 44px; font-size: 18px; }
 .oms-scan-row .oms-input-sm { flex: 0 0 90px; } /* 197.1: the Qty beside a typed SKU */
-.oms-scan-msg { min-height: 20px; font-size: 13px; margin-bottom: 8px; }
+.oms-scan-msg { min-height: 20px; font-size: 13.5px; margin-bottom: 8px; }
 .oms-scan-bad { color: var(--danger-strong); font-weight: 600; }
 .oms-line-done td { color: var(--text-muted); }
 .oms-pack-finish { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .oms-pack-finish > [data-pack-result] { flex-basis: 100%; }
-.oms-pack-docs { display: flex; gap: 6px; align-items: center; font-size: 13px; }
-.oms-pack-steps { margin: 4px 0 8px 18px; padding: 0; font-size: 13px; }
+.oms-pack-docs { display: flex; gap: 6px; align-items: center; font-size: 13.5px; }
+.oms-pack-steps { margin: 4px 0 8px 18px; padding: 0; font-size: 13.5px; }
 .oms-ship-group { margin-bottom: 16px; }
 .oms-ship-group h3 { font-size: 14px; margin: 0; }
 .oms-input-sm { width: 110px; }
@@ -62,6 +64,8 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   flex: 1;
 }
 
+/* 284.1: Orders has no heading inside its panel - the saved views sit right. */
+.oms-console-head.oms-console-head-end { justify-content: flex-end; }
 .oms-console-head {
   display: flex;
   justify-content: space-between;
@@ -97,7 +101,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -107,7 +111,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   min-width: 150px;
   text-transform: none;
   letter-spacing: normal;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text);
 }
 
@@ -122,7 +126,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
 }
 
 .oms-tile-error {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -170,13 +174,13 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
 
 .oms-hold-reason {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .oms-expedite {
   margin-top: 4px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .oms-pager {
@@ -185,7 +189,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   align-items: center;
   gap: 12px;
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 /* The order detail. Wider than the default modal because it carries nine
@@ -211,7 +215,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
 
 .oms-detail-heading {
   margin: 20px 0 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -222,7 +226,7 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
   align-items: center;
   gap: 4px;
   margin-left: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 

@@ -347,22 +347,23 @@ the picking/packing basics this handbook focuses on.
 
 > [!HOW]
 
-1. On **WMS → Cycle Count**, click **Manage Count Lines** and enter, or **Bulk
-   Import**, the counted quantities for one Count Session.
-2. Enter the **Count Session** and click **Reconcile Session**. Lines with no
+1. On **WMS → Count lines**, enter, or **Bulk Import**, the counted
+   quantities for one Count Session.
+2. On **WMS → Cycle Count**, enter the **Count Session** and click **Reconcile Session**. Lines with no
    difference post; any other difference goes for approval.
 3. For a line with a difference, enter its **Line ID** and a **Reason Code**,
    click **Set Variance Reason**, then **Retry Post**.
 4. If a count looks wrong, click **Recount** for a blind second count.
 
-**WMS → Cycle Count** is a five-panel screen, and each panel is a distinct
+Cycle counting is three pages since 288.2: **Count lines**, **Cycle Count**
+(reconcile, reasons and recounts) and **ABC count plan**. Each is a distinct
 step of the same workflow — this is also the *only* mechanism in the app
 for adjusting stock quantities (see Stock Adjustments below).
 
 **1. Enter counted quantities.** Count lines are a `CycleCountLine`
 document (fields: **Count Session**, **Location**, **Bin** (optional),
 **SKU**, **Counted Qty** — all except Bin required), entered the same way
-any other bulk line-item load happens in this app: **Manage Count Lines**
+any other bulk line-item load happens in this app: **Count lines**
 opens the generic doctype table for `CycleCountLine`, where **Bulk Import**
 takes a CSV. There's no bespoke count-entry form.
 
@@ -395,7 +396,7 @@ session/location/bin/SKU with **no counted or system quantity carried
 over** — the second counter is blind to both the first count and the
 system's own number. Enter its value on that line and click **Save recount**.
 
-**5. ABC cycle-count planner.** Enter a **Location** and click **Get Plan**
+**5. ABC count plan** (its own page). Enter a **Location** and click **Get Plan**
 (`GET /api/v1/wms/cycle-count/abc-plan`, `GetABCCycleCountPlan`) to see
 every SKU on hand there classified into an **A/B/C velocity tier** (top 20%
 of SKUs by 30-day sales velocity are A, next 30% are B, the rest C — a SKU
@@ -591,9 +592,9 @@ choose the reason, and either leave the rest in transit or close it as lost.
 | `STOCKT-0113` | Attempted to close a transfer before its receipt is complete. |
 | `TRN-0259` | Received quantity doesn't match dispatched quantity, and no shortage/damage reason was given — the Receive dialog prompts for one automatically on a short line. |
 
-## Warehouse Cockpit
+## WMS home
 
-**WMS → Warehouse Cockpit** (`GET /api/v1/wms/cockpit?location_code=...`)
+**WMS → Home** (`GET /api/v1/wms/cockpit?location_code=...`)
 is the one-screen operational dashboard for a location — enter a Location
 and **Refresh**:
 

@@ -162,7 +162,7 @@ func printReprintAudit(tenantID string, p map[string]string) ([]map[string]inter
 		       COALESCE((ARRAY_AGG(printed_by ORDER BY printed_at DESC) FILTER (WHERE is_reprint OR print_action = 'Reprint'))[1], ''),
 		       COUNT(*) FILTER (WHERE COALESCE(approved_by, '') <> ''),
 		       COUNT(*) FILTER (WHERE (is_reprint OR print_action = 'Reprint') AND COALESCE(reprint_reason, '') = '')
-		FROM %s.print_job_log WHERE doctype IS NOT NULL AND ($1 = '' OR printed_at >= $1::date) AND ($2 = '' OR printed_at < $2::date + 1)
+		FROM %s.print_job_log WHERE doctype IS NOT NULL AND ($1 = '' OR printed_at >= public.erp_day_start($1::date)) AND ($2 = '' OR printed_at < public.erp_day_start($2::date + 1))
 		GROUP BY 1, 2 HAVING COUNT(*) FILTER (WHERE is_reprint OR print_action = 'Reprint') > 0
 		ORDER BY 4 DESC LIMIT 20001`, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {

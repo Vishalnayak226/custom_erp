@@ -193,17 +193,17 @@ Sidebar: **Settings** → **Extension Hooks**. For a client's own hired develope
 2. The table lists every registered hook with whether it's **Enabled**, its timeout, and who created it when.
 3. **View Log** opens that hook's **Hook Call Log** — the most recent 100 calls, with what was sent and what came back. This is the first place to look when a developer says "the webhook isn't firing". Each call names who the save acts for (`actor`: the signed-in user, or `system:<worker>` for background work). A save that names no one calls no before-save hook and is refused.
 4. **Delete** removes a hook after confirmation.
-5. **Issue Token** mints a scoped token for an external caller: pick the **Scope Doctype** and a **TTL** in minutes (maximum 1440, i.e. one day). **The token is shown once.** Copy it then; it cannot be retrieved afterwards.
+5. **Settings → Extension tokens** (its own page since 288.2): **Issue Token** mints a scoped token for an external caller: pick the **Scope Doctype** and a **TTL** in minutes (maximum 1440, i.e. one day). **The token is shown once.** Copy it then; it cannot be retrieved afterwards.
 
 > Keep TTLs short and scopes narrow. A scoped token is not a user account — it has no user row behind it, so the live user-state re-check that protects normal sessions does not apply to it. Revoking one means deleting its hook.
 
 ### A.10 System Status — deployment and backup health
 
-Sidebar: **Settings** → **System Status**. Read-only.
+Sidebar: **Settings** → **Monitoring** → **System Status**, **Deployment history** and **Backup history** (three pages since 288.2). Read-only.
 
-1. **Latest Deployment by Environment** — one row per environment with build status, git commit, app version, who promoted it and when. Use it to answer "what is actually running on staging right now?" without SSH.
+1. **System Status** — the summary cards, then **Latest Deployment by Environment**: one row per environment with build status, git commit, app version, who promoted it and when. Use it to answer "what is actually running on staging right now?" without SSH.
 2. **Deployment history** — the same, over time.
-3. **Backup / restore runs** — including the **last restore drill** date, badged as a warning once it goes stale. A backup nobody has ever restored is not a backup; this row is there to make that visible.
+3. **Backup history** — backup and restore runs, including the **last restore drill** date, badged as a warning once it goes stale. A backup nobody has ever restored is not a backup; this row is there to make that visible.
 
 Rows appear here because a promote/deploy script recorded them. An empty table means the scripts haven't run against this database, not that nothing is deployed.
 
@@ -266,7 +266,7 @@ Maker flow: **Procurement → Purchase Requisitions** (user-sop.md §15A). Creat
 
 - Maker flow: user-sop.md §27.2 (Workbench tab → item detail panel → Content → Submit for Approval).
 - **Default routing**: any amount → **Super Admin** (ProductContent has no meaningful rupee amount to band on, so it's a single flat rule).
-- Checker flow: same Approvals screen, or jump straight to the underlying `ProductContent` record list from the PIM Dashboard tab's "Pending approval" card.
+- Checker flow: same Approvals screen, or jump straight to the underlying `ProductContent` record list from PIM home's "Pending approval" card.
 
 ### B.8 Vendor Invoice override-payment approval
 

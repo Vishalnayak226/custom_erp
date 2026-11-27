@@ -4,7 +4,7 @@
 let currentReportTab = 'exec-dashboard';
 
 const REPORT_TABS = [
-  { id: 'exec-dashboard', label: 'Dashboard' },
+  { id: 'exec-dashboard', label: 'Home' },
   { id: 'dashboards', label: 'Custom dashboards' }, // Stage 100 (view-dashboards.js)
   { id: 'payables-ageing', label: 'Payables Ageing' },
   { id: 'receivables-ageing', label: 'Receivables Ageing' },
@@ -50,7 +50,7 @@ async function renderReportsView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Reports</h1>
+      <h1 class="page-title">${currentReportTab === 'exec-dashboard' ? 'Reports home' : 'Reports'}</h1>
     </div>
   `;
   container.appendChild(header);
@@ -349,18 +349,21 @@ let inventorySearchQuery = '';
 // and removes. The choice is the user's own UserShortcut (Stage 139's shape),
 // so it follows them to any computer.
 const STOCK_COLUMNS_TARGET = 'inventory:stock';
-const STOCK_ITEM_COLUMNS = [
+// 276.4: Store (when the top bar shows every store), On hand and Available to
+// sell come right after Item, so the numbers are on screen at 1366 px; the
+// attribute columns follow, then the rest of the quantities.
+const STOCK_LEAD_COLUMNS = [
   { key: 'design_no', label: 'Design No' },
   { key: 'sku', label: 'Combination ID' },
   { key: 'barcode', label: 'Barcode' },
   { key: 'item_name', label: 'Item' },
-  { key: 'full_name', label: 'Full name', off: true },
-  { key: 'category', label: 'Category', off: true }
-];
-const STOCK_QTY_COLUMNS = [
   { key: 'location_code', label: 'Store' },
   { key: 'on_hand', label: 'On hand', num: true, title: 'Book stock before reservations and holds' },
   { key: 'available_to_sell', label: 'Available to sell', num: true, title: 'Matches the reservation admission calculation' },
+  { key: 'full_name', label: 'Full name', off: true },
+  { key: 'category', label: 'Category', off: true }
+];
+const STOCK_REST_COLUMNS = [
   { key: 'reserved', label: 'Reserved', num: true },
   { key: 'hold_qty', label: 'Held', num: true },
   { key: 'breakdown', label: 'Why unavailable' }
@@ -489,11 +492,11 @@ async function renderInventoryView(container) {
     }
   });
 
-  // The columns: the item's, one per attribute, then the quantities. Store
-  // starts hidden when the top bar has picked one.
-  const allColumns = () => [...STOCK_ITEM_COLUMNS,
+  // The columns: the item's and the main quantities, one per attribute, then
+  // the rest. Store starts hidden when the top bar has picked one.
+  const allColumns = () => [...STOCK_LEAD_COLUMNS,
     ...(data.attributes || []).map(a => ({ key: `attr:${a.code}`, label: a.label || a.code, attr: a.code })),
-    ...STOCK_QTY_COLUMNS];
+    ...STOCK_REST_COLUMNS];
   const visible = c => (prefs.cols[c.key] !== undefined ? !!prefs.cols[c.key] : c.key === 'location_code' ? !data.store : !c.off);
 
   // Only the table body redraws on each keystroke - the search input itself
@@ -791,6 +794,7 @@ async function renderReportCatalogPanel(panel) {
   document.getElementById('rc-columns-btn').addEventListener('click', toggleReportColumnsPanel);
   document.getElementById('rc-save-filter-btn').addEventListener('click', saveReportCatalogFilter);
   document.getElementById('rc-export-btn').addEventListener('click', exportReportCatalogReport);
+  watchReportExport(document.getElementById('rc-export-status')); // 297.3: an export still running shows its bar again
   document.getElementById('rc-saved-filter').addEventListener('change', (e) => {
     applyReportCatalogSavedFilter(e.target.value);
   });
@@ -1526,36 +1530,53 @@ async function exportReportCatalogReport() {
     return;
   }
   const job = await res.json();
-  statusEl.innerHTML = `<p>Export queued (job ${escapeHTMLText(job.id)})... waiting for it to complete. <button class="action-btn" id="rc-export-cancel-btn">Cancel</button></p>`;
-  document.getElementById('rc-export-cancel-btn')?.addEventListener('click', async () => {
-    const r = await apiFetch(`/api/v1/reports/export/${encodeURIComponent(job.id)}/cancel`, { method: 'POST', body: '{}' });
-    if (r && !r.ok) await showApiError(r, 'The export could not be cancelled.');
-  });
-  pollReportExportJob(job.id, statusEl);
+  // 297.3: the export runs under the Tasks button; the user can leave this
+  // screen and the bar carries on there, and here again on coming back.
+  trackTask(`export:${job.id}`, `Export · ${def.label}`);
+  watchReportExport(statusEl, job.id);
 }
 
-async function pollReportExportJob(jobId, statusEl) {
-  const res = await apiFetch(`/api/v1/reports/export/${jobId}`);
-  if (!res) return;
-  if (!res.ok) {
-    statusEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Export job lookup failed.'))}</p>`;
+// 297.3: this screen's export bar, fed by the Tasks button's own poll - no
+// second poll of its own. With no job id it shows any export still running,
+// which is how the bar comes back when the user returns to Reports.
+let reportExportUnwatch = () => {};
+function watchReportExport(statusEl, jobId = '') {
+  reportExportUnwatch();
+  const id = jobId ? `export:${jobId}` : '';
+  let shown = '';
+  reportExportUnwatch = watchTasks(tasks => {
+    if (!statusEl.isConnected) { reportExportUnwatch(); return; }
+    const t = id ? tasks.find(x => x.id === id) : tasks.find(x => x.kind === 'export' && (x.state === 'queued' || x.state === 'running'));
+    if (!t || shown === `${t.id}:${t.state}`) return;
+    shown = `${t.id}:${t.state}`;
+    pollReportExportJob(t, statusEl);
+  });
+}
+
+// Draws one export task's state (the name stays for the module's exports).
+async function pollReportExportJob(t, statusEl) {
+  const jobId = t.id.slice('export:'.length);
+  if (t.state === 'queued' || t.state === 'running') {
+    statusEl.innerHTML = `<p>${escapeHTMLText(t.label || 'Export')} <progress max="100" aria-label="Export"></progress> <button class="action-btn" id="rc-export-cancel-btn">Cancel</button></p>`;
+    document.getElementById('rc-export-cancel-btn')?.addEventListener('click', async () => {
+      const r = await apiFetch(`/api/v1/reports/export/${encodeURIComponent(jobId)}/cancel`, { method: 'POST', body: '{}' });
+      if (r && !r.ok) await showApiError(r, 'The export could not be cancelled.');
+    });
     return;
   }
-  const job = await res.json();
-  if (job.status === 'Pending') {
-    setTimeout(() => pollReportExportJob(jobId, statusEl), 2000);
-    return;
-  }
-  if (job.status === 'Failed') {
+  if (t.state === 'failed') {
+    // The export's own answer carries its REPORT- code and message.
+    const res = await apiFetch(`/api/v1/reports/export/${encodeURIComponent(jobId)}`);
+    const job = res && res.ok ? await res.json() : {};
     statusEl.innerHTML = `<p class="login-error">Export failed${job.message ? `: ${escapeHTMLText(job.message)}` : '.'} Narrow the filters and export again.</p>`;
     return;
   }
-  if (job.status === 'Cancelled' || job.status === 'Revoked') {
-    statusEl.innerHTML = `<p>Export ${job.status === 'Revoked' ? 'revoked' : 'cancelled'}.</p>`;
+  if (t.state === 'cancelled') {
+    statusEl.innerHTML = '<p>Export cancelled.</p>';
     return;
   }
   statusEl.innerHTML = `<p><button class="action-btn" id="rc-download-btn">Download CSV</button></p>`;
-  document.getElementById('rc-download-btn').addEventListener('click', () => downloadReportExportCSV(jobId, reportCatalogSelectedId));
+  document.getElementById('rc-download-btn').addEventListener('click', () => downloadReportExportCSV(jobId, t.type || reportCatalogSelectedId));
 }
 
 // This endpoint requires the same Bearer-token auth as every other API call

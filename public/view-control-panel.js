@@ -6,8 +6,25 @@
 // each row opens with that client already chosen. Stage 65.6 adds the two the
 // page makes itself: Pause/Resume and the free trial (POST .../status, .../trial).
 //
+// 288.1 (ask 288): one page per job. Each is "control-panel:<page>" with its
+// own Settings › Platform entry (the Stage 155 pattern); the bare view is the
+// four tiles, and a tile opens its page.
+//
 // BLD-041: native ES module, loaded on first authorized view visit; shared app
 // services (apiFetch, escapeHTMLText, renderView...) resolve from the shell.
+
+const CP_PAGES = {
+  home: ['menu-control-panel', 'Control Panel'],
+  clients: ['menu-cp-clients', 'Clients'],
+  releases: ['menu-cp-releases', 'Releases'],
+  certificates: ['menu-cp-certificates', 'Certificates'],
+  queries: ['menu-cp-queries', 'Slow queries'],
+  plan: ['menu-cp-plan', 'Query plan'],
+  maturity: ['menu-cp-maturity', 'Capability maturity'],
+};
+const go = (pg) => renderView(pg === 'home' ? 'control-panel' : `control-panel:${pg}`);
+// A Slow queries row hands its statement to the Query plan page.
+let planDraft = '';
 
 const when = (v) => {
   if (!v) return '<span class="text-muted">&mdash;</span>';
@@ -71,16 +88,19 @@ function lifecycleActions(c, i, own) {
 const plainDay = (v) => formatDateTime(v, true);
 
 async function renderControlPanelView(container) {
+  const pg = CP_PAGES[currentViewTab] ? currentViewTab : 'home';
+  currentViewTab = pg === 'home' ? '' : pg;
+  setActiveMenu(CP_PAGES[pg][0]);
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Control Panel</h1>
+      <h1 class="page-title">${CP_PAGES[pg][1]}</h1>
     </div>
     <button class="btn btn-outline" id="cp-refresh" type="button">Refresh</button>
   `;
   container.appendChild(header);
-  document.getElementById('cp-refresh').addEventListener('click', () => renderView('control-panel'));
+  header.querySelector('#cp-refresh').addEventListener('click', () => go(pg));
 
   const res = await apiFetch('/api/v1/platform/control-panel');
   if (!res) return;
@@ -92,10 +112,15 @@ async function renderControlPanelView(container) {
     return;
   }
   if (!res.ok) {
-    renderErrorPanel(container, 'Failed to load the control panel.', () => renderView('control-panel'));
+    renderErrorPanel(container, 'Failed to load the control panel.', () => go(pg));
     return;
   }
   const cp = await res.json();
+  ({ home: drawHome, clients: drawClients, releases: drawReleases, certificates: drawCertificates, queries: drawQueries, plan: drawPlan, maturity: drawMaturity })[pg](container, cp, () => go(pg));
+}
+
+// The bare view: four tiles; three of them open their page.
+function drawHome(container, cp) {
   const clients = cp.clients || [];
   const live = clients.filter(c => !c.is_sandbox);
   const onTrial = live.filter(c => c.trial_ends_at && !c.trial_ended).length;
@@ -107,17 +132,17 @@ async function renderControlPanelView(container) {
   const stats = document.createElement('div');
   stats.className = 'dashboard-stats-row';
   stats.innerHTML = `
-    <div class="stat-card">
+    <div class="stat-card" data-cp-tile="releases" title="Open Releases">
       <span class="stat-label">Running release</span>
       <span class="stat-val">${escapeHTMLText(b.version || '—')}</span>
       <div class="text-muted s-dde55e">${escapeHTMLText(b.git_commit || '')} &middot; ${b.release_date ? day(b.release_date) : 'dev build'} &middot; ${escapeHTMLText(cp.environment || '')}</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" data-cp-tile="clients" title="Open Clients">
       <span class="stat-label">Clients</span>
       <span class="stat-val">${live.length}</span>
       <div class="text-muted s-dde55e">${onTrial} on trial &middot; ${paused} paused &middot; ${clients.length - live.length} sandbox &middot; ${clients.filter(c => c.problem).length} with a problem</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" data-cp-tile="certificates" title="Open Certificates">
       <span class="stat-label">Hosted at</span>
       <span class="stat-val s-4ff818">${escapeHTMLText(cp.base_domain || 'one address')}</span>
       <div class="text-muted s-dde55e">${cp.base_domain ? 'one address per client' : 'TENANT_BASE_DOMAIN unset'}</div>
@@ -129,11 +154,14 @@ async function renderControlPanelView(container) {
     </div>
   `;
   container.appendChild(stats);
+  stats.querySelectorAll('[data-cp-tile]').forEach(card => makeClickable(card, () => go(card.dataset.cpTile)));
+}
 
+function drawClients(container, cp, reload) {
+  const clients = cp.clients || [];
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
-    <h3 class="s-f9a835">Clients</h3>
     <div class="table-wrapper">
       <table>
         <thead><tr>
@@ -171,133 +199,6 @@ async function renderControlPanelView(container) {
     </div>
   `;
   container.appendChild(panel);
-
-  const rel = document.createElement('div');
-  rel.className = 'table-panel';
-  const deps = cp.deployments || [];
-  rel.innerHTML = `
-    <h3 class="s-f9a835">Releases</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead><tr><th>When</th><th>Environment</th><th>Version</th><th>Commit</th><th>By</th><th>Status</th><th>What changed</th></tr></thead>
-        <tbody>
-          ${deps.length === 0 ? `<tr><td colspan="7" class="s-5872de">No release recorded in the ledger yet. Running now: <b>${escapeHTMLText(b.version || '')}</b> (${escapeHTMLText(b.git_commit || '')}).</td></tr>` : ''}
-          ${deps.map(d => `<tr><td>${when(d.promoted_at)}</td><td>${escapeHTMLText(d.environment)}</td><td>${escapeHTMLText(d.app_version)}</td><td class="s-72126d">${escapeHTMLText(d.git_commit)}</td><td>${escapeHTMLText(d.promoted_by)}</td><td>${escapeHTMLText(d.status)}</td><td class="s-8cadba">${escapeHTMLText(d.notes || '')}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  container.appendChild(rel);
-
-  // Stage 49.11.7: each public address's certificate, as the server last saw it.
-  const certs = cp.certificates || [];
-  const cert = document.createElement('div');
-  cert.className = 'table-panel';
-  cert.innerHTML = `
-    <h3 class="s-f9a835">Certificates</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead><tr><th>Address</th><th>Expires</th><th class="num">Days left</th><th>Issuer</th><th>Checked</th></tr></thead>
-        <tbody>
-          ${certs.length === 0 ? `<tr><td colspan="5" class="s-5872de">${escapeHTMLText(cp.certificates_note || 'No address checked.')}</td></tr>` : ''}
-          ${certs.map(c => {
-            const bad = c.expiring || !c.not_after;
-            return `<tr><td>${escapeHTMLText(c.host)}${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
-              <td>${day(c.not_after)}</td>
-              <td class="num">${c.not_after ? `<span class="${bad ? 'u-bad u-fw6' : ''}">${c.days_left}</span>` : '<span class="text-muted">&mdash;</span>'}</td>
-              <td>${escapeHTMLText(c.issuer || '')}</td><td>${when(c.checked_at)}</td></tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  container.appendChild(cert);
-
-  // Stage 47.9.3: the heaviest statement shapes (no values), buffers and the change since the saved baseline.
-  const sq = cp.slow_queries || {};
-  const sqRows = sq.by_total || [];
-  const sqBuf = sq.buffers;
-  const sqBase = sq.baseline;
-  const sqEl = document.createElement('div');
-  sqEl.className = 'table-panel';
-  sqEl.innerHTML = `
-    <div class="s-d9eeed">
-      <h3 class="s-b3b643">Slow queries</h3>
-      <span class="s-8cadba">${escapeHTMLText(sq.source || '')}${sqBuf ? ` · buffer hit ${sqBuf.hit_ratio.toFixed(1)}%` : ''}${sqBase ? ` · baseline ${escapeHTMLText(formatDateTime(sqBase.saved_at))}` : ''}</span>
-      <button class="btn btn-outline" id="cp-save-baseline" type="button">Save as baseline</button>
-    </div>
-    <div class="table-wrapper">
-      <table>
-        <thead><tr><th>Statement</th><th class="num">Calls</th><th class="num">Mean ms</th><th class="num">Max ms</th><th class="num">Total ms</th><th class="num">Buffers</th><th class="num">Change</th></tr></thead>
-        <tbody>
-          ${sqRows.length === 0 ? '<tr><td colspan="7" class="s-5872de">None.</td></tr>' : ''}
-          ${sqRows.map(q => `<tr><td class="s-cf38ca" data-cp-plan-sql="${escapeHTMLText(q.query)}">${escapeHTMLText(q.query)}</td>
-            <td class="num">${q.calls}</td><td class="num">${Math.round(q.mean_ms)}</td><td class="num">${Math.round(q.max_ms)}</td><td class="num">${Math.round(q.total_ms)}</td>
-            <td class="num">${q.shared_blocks ? q.shared_blocks : '<span class="text-muted">&mdash;</span>'}</td>
-            <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span class="${q.change_pct > 20 ? 'u-bad u-fw6' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-    <div class="s-d9eeed">
-      <h3 class="s-b3b643">Query plan</h3>
-      <select class="form-input" id="cp-plan-client" aria-label="Client">
-        ${clients.map(c => `<option value="${escapeHTMLText(c.tenant_id)}"${c.tenant_id === cp.operator_tenant ? ' selected' : ''}>${escapeHTMLText(c.name || c.tenant_id)}</option>`).join('')}
-      </select>
-      <button class="btn btn-outline" id="cp-plan-run" type="button">Explain</button>
-    </div>
-    <div class="s-644e5e">
-      <textarea class="form-input s-41f41e s-fc459a" id="cp-plan-sql" rows="4" maxlength="20000" placeholder="SELECT ..." aria-label="Statement"></textarea>
-      <pre id="cp-plan-out" hidden></pre>
-    </div>
-  `;
-  container.appendChild(sqEl);
-  sqEl.querySelector('#cp-save-baseline').addEventListener('click', async () => {
-    const r = await apiFetch('/api/v1/platform/query-baseline', { method: 'POST', body: '{}' });
-    if (!r) return;
-    if (!r.ok) { await showApiError(r, 'Could not save the baseline'); return; }
-    renderView('control-panel');
-  });
-  // Stage 47.9.3d: EXPLAIN (ANALYZE, BUFFERS) for one read-only SELECT; a statement row fills the box.
-  const planSql = sqEl.querySelector('#cp-plan-sql');
-  const planOut = sqEl.querySelector('#cp-plan-out');
-  sqEl.querySelectorAll('[data-cp-plan-sql]').forEach(td => td.addEventListener('click', () => {
-    planSql.value = td.dataset.cpPlanSql;
-    planSql.focus();
-  }));
-  const planRun = sqEl.querySelector('#cp-plan-run');
-  planRun.addEventListener('click', async () => {
-    const client = sqEl.querySelector('#cp-plan-client').value;
-    if (!client || !planSql.value.trim()) { planSql.focus(); return; }
-    planRun.disabled = true;
-    try {
-      const r = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(client)}/query-plan`, { method: 'POST', body: JSON.stringify({ statement: planSql.value }) });
-      if (!r) return;
-      if (!r.ok) { await showApiError(r, 'Could not explain the statement'); return; }
-      const p = await r.json();
-      planOut.textContent = (p.plan || []).join('\n');
-      planOut.hidden = false;
-    } finally {
-      planRun.disabled = false;
-    }
-  });
-
-  // Stage 47.17.5: capability maturity, per configuration.
-  const mat = document.createElement('div');
-  mat.className = 'table-panel';
-  const caps = cp.capability_maturity || [];
-  mat.innerHTML = `
-    <h3 class="s-f9a835">Capability maturity</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead><tr><th>Capability</th><th>Module</th><th>Level</th><th>Limits</th><th>Verified</th></tr></thead>
-        <tbody>
-          ${caps.length === 0 ? '<tr><td colspan="5" class="s-5872de">No entries.</td></tr>' : ''}
-          ${caps.map(c => `<tr><td>${escapeHTMLText(c.title)}</td><td class="s-72126d">${escapeHTMLText(c.module)}</td><td>${escapeHTMLText(c.level)}${c.certified_until ? ' · until ' + escapeHTMLText(c.certified_until) : ''}</td><td class="s-8cadba">${escapeHTMLText(c.limits || '-')}</td><td>${escapeHTMLText(c.verified_on || '-')}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  container.appendChild(mat);
 
   panel.querySelectorAll('[data-cp-modules]').forEach(btn => btn.addEventListener('click', () => {
     const row = panel.querySelector(`[data-cp-modules-row="${btn.getAttribute('data-cp-modules')}"]`);
@@ -337,7 +238,7 @@ async function renderControlPanelView(container) {
     const r = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(c.tenant_id)}/${path}`, { method: 'POST', body: JSON.stringify(body) });
     if (!r) return;
     if (!r.ok) { await showApiError(r, failMsg); return; }
-    renderView('control-panel');
+    reload();
   };
   // Stage 125.2: Open signs the operator in to the client on its own address,
   // as the client's hidden support user - no password or authenticator there.
@@ -387,6 +288,148 @@ async function renderControlPanelView(container) {
     if (!await showCustomConfirm(`Mark ${name} as paid? The trial ends and the client keeps full access with no end date.`, 'Mark paid')) return;
     await change(c, 'trial', { days: 0 }, `Failed to end the trial for ${name}.`);
   }));
+}
+
+function drawReleases(container, cp) {
+  const b = cp.build || {};
+  const rel = document.createElement('div');
+  rel.className = 'table-panel';
+  const deps = cp.deployments || [];
+  rel.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>When</th><th>Environment</th><th>Version</th><th>Commit</th><th>By</th><th>Status</th><th>What changed</th></tr></thead>
+        <tbody>
+          ${deps.length === 0 ? `<tr><td colspan="7" class="s-5872de">No release recorded in the ledger yet. Running now: <b>${escapeHTMLText(b.version || '')}</b> (${escapeHTMLText(b.git_commit || '')}).</td></tr>` : ''}
+          ${deps.map(d => `<tr><td>${when(d.promoted_at)}</td><td>${escapeHTMLText(d.environment)}</td><td>${escapeHTMLText(d.app_version)}</td><td class="s-72126d">${escapeHTMLText(d.git_commit)}</td><td>${escapeHTMLText(d.promoted_by)}</td><td>${escapeHTMLText(d.status)}</td><td class="s-8cadba">${escapeHTMLText(d.notes || '')}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(rel);
+}
+
+// Stage 49.11.7: each public address's certificate, as the server last saw it.
+function drawCertificates(container, cp) {
+  const certs = cp.certificates || [];
+  const cert = document.createElement('div');
+  cert.className = 'table-panel';
+  cert.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Address</th><th>Expires</th><th class="num">Days left</th><th>Issuer</th><th>Checked</th></tr></thead>
+        <tbody>
+          ${certs.length === 0 ? `<tr><td colspan="5" class="s-5872de">${escapeHTMLText(cp.certificates_note || 'No address checked.')}</td></tr>` : ''}
+          ${certs.map(c => {
+            const bad = c.expiring || !c.not_after;
+            return `<tr><td>${escapeHTMLText(c.host)}${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
+              <td>${day(c.not_after)}</td>
+              <td class="num">${c.not_after ? `<span class="${bad ? 'u-bad u-fw6' : ''}">${c.days_left}</span>` : '<span class="text-muted">&mdash;</span>'}</td>
+              <td>${escapeHTMLText(c.issuer || '')}</td><td>${when(c.checked_at)}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(cert);
+}
+
+// Stage 47.9.3: the heaviest statement shapes (no values), buffers and the change since the saved baseline.
+function drawQueries(container, cp, reload) {
+  const sq = cp.slow_queries || {};
+  const sqRows = sq.by_total || [];
+  const sqBuf = sq.buffers;
+  const sqBase = sq.baseline;
+  const sqEl = document.createElement('div');
+  sqEl.className = 'table-panel';
+  sqEl.innerHTML = `
+    <div class="s-d9eeed">
+      <span class="s-8cadba s-97445a">${escapeHTMLText(sq.source || '')}${sqBuf ? ` · buffer hit ${sqBuf.hit_ratio.toFixed(1)}%` : ''}${sqBase ? ` · baseline ${escapeHTMLText(formatDateTime(sqBase.saved_at))}` : ''}</span>
+      <button class="btn btn-outline" id="cp-save-baseline" type="button">Save as baseline</button>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Statement</th><th class="num">Calls</th><th class="num">Mean ms</th><th class="num">Max ms</th><th class="num">Total ms</th><th class="num">Buffers</th><th class="num">Change</th></tr></thead>
+        <tbody>
+          ${sqRows.length === 0 ? '<tr><td colspan="7" class="s-5872de">None.</td></tr>' : ''}
+          ${sqRows.map(q => `<tr><td class="s-cf38ca" data-cp-plan-sql="${escapeHTMLText(q.query)}" title="Open in Query plan">${escapeHTMLText(q.query)}</td>
+            <td class="num">${q.calls}</td><td class="num">${Math.round(q.mean_ms)}</td><td class="num">${Math.round(q.max_ms)}</td><td class="num">${Math.round(q.total_ms)}</td>
+            <td class="num">${q.shared_blocks ? q.shared_blocks : '<span class="text-muted">&mdash;</span>'}</td>
+            <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span class="${q.change_pct > 20 ? 'u-bad u-fw6' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(sqEl);
+  sqEl.querySelector('#cp-save-baseline').addEventListener('click', async () => {
+    const r = await apiFetch('/api/v1/platform/query-baseline', { method: 'POST', body: '{}' });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'Could not save the baseline'); return; }
+    reload();
+  });
+  sqEl.querySelectorAll('[data-cp-plan-sql]').forEach(td => td.addEventListener('click', () => {
+    planDraft = td.dataset.cpPlanSql;
+    go('plan');
+  }));
+}
+
+// Stage 47.9.3d: EXPLAIN (ANALYZE, BUFFERS) for one read-only SELECT; a Slow queries row fills the box.
+function drawPlan(container, cp) {
+  const clients = cp.clients || [];
+  const el = document.createElement('div');
+  el.className = 'table-panel';
+  el.innerHTML = `
+    <div class="s-d9eeed">
+      <select class="form-input s-97445a" id="cp-plan-client" aria-label="Client">
+        ${clients.map(c => `<option value="${escapeHTMLText(c.tenant_id)}"${c.tenant_id === cp.operator_tenant ? ' selected' : ''}>${escapeHTMLText(c.name || c.tenant_id)}</option>`).join('')}
+      </select>
+      <button class="btn btn-outline" id="cp-plan-run" type="button">Explain</button>
+    </div>
+    <div class="s-644e5e">
+      <textarea class="form-input s-41f41e s-fc459a" id="cp-plan-sql" rows="4" maxlength="20000" placeholder="SELECT ..." aria-label="Statement"></textarea>
+      <pre id="cp-plan-out" hidden></pre>
+    </div>
+  `;
+  container.appendChild(el);
+  const planSql = el.querySelector('#cp-plan-sql');
+  const planOut = el.querySelector('#cp-plan-out');
+  planSql.value = planDraft;
+  planDraft = '';
+  const planRun = el.querySelector('#cp-plan-run');
+  planRun.addEventListener('click', async () => {
+    const client = el.querySelector('#cp-plan-client').value;
+    if (!client || !planSql.value.trim()) { planSql.focus(); return; }
+    planRun.disabled = true;
+    try {
+      const r = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(client)}/query-plan`, { method: 'POST', body: JSON.stringify({ statement: planSql.value }) });
+      if (!r) return;
+      if (!r.ok) { await showApiError(r, 'Could not explain the statement'); return; }
+      const p = await r.json();
+      planOut.textContent = (p.plan || []).join('\n');
+      planOut.hidden = false;
+    } finally {
+      planRun.disabled = false;
+    }
+  });
+}
+
+// Stage 47.17.5: capability maturity, per configuration.
+function drawMaturity(container, cp) {
+  const mat = document.createElement('div');
+  mat.className = 'table-panel';
+  const caps = cp.capability_maturity || [];
+  mat.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Capability</th><th>Module</th><th>Level</th><th>Limits</th><th>Verified</th></tr></thead>
+        <tbody>
+          ${caps.length === 0 ? '<tr><td colspan="5" class="s-5872de">No entries.</td></tr>' : ''}
+          ${caps.map(c => `<tr><td>${escapeHTMLText(c.title)}</td><td class="s-72126d">${escapeHTMLText(c.module)}</td><td>${escapeHTMLText(c.level)}${c.certified_until ? ' · until ' + escapeHTMLText(c.certified_until) : ''}</td><td class="s-8cadba">${escapeHTMLText(c.limits || '-')}</td><td>${escapeHTMLText(c.verified_on || '-')}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(mat);
 }
 
 export { renderControlPanelView };

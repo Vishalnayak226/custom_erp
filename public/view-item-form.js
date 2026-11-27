@@ -12,14 +12,14 @@
 
 // 49.4.3: a constructed sheet (adoptCss in app.js), which a strict style-src allows.
 adoptCss('view-item-form-css', `
-.item-name-hint { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
+.item-name-hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 .item-name-hint strong { color: var(--text-main); font-weight: 600; }
 .item-attr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 16px; }
 .item-attr-grid .form-group { margin: 0; }
-.item-attr-kept { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+.item-attr-kept { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
 .item-attr-add { display: flex; gap: 6px; }
 .item-attr-add .form-input { flex: 1; min-width: 0; }
-.item-locked-note { font-size: 12.5px; color: var(--warning-color, #b7791f); margin-top: 6px; }
+.item-locked-note { font-size: 12px; color: var(--warning-color, #b7791f); margin-top: 6px; }
 .item-fields-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
 .item-fields-table th, .item-fields-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: middle; }
 .item-fields-table th { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
@@ -31,11 +31,11 @@ adoptCss('view-item-form-css', `
 .attr-map-row { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
 .attr-map-row > label { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
 .attr-map-values { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 26px; }
-.attr-map-chip { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
+.attr-map-chip { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
 .attr-map-chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--on-primary); }
-.attr-map-note { font-size: 12.5px; color: var(--text-muted); margin: 6px 0 10px; }
+.attr-map-note { font-size: 12px; color: var(--text-muted); margin: 6px 0 10px; }
 .attr-map-used { font-size: 12px; color: var(--text-muted); margin-left: 26px; }
-@media (max-width: 640px) { .item-fields-table { font-size: 12.5px; } .item-fields-table th, .item-fields-table td { padding: 6px; } }
+@media (max-width: 640px) { .item-fields-table { font-size: 12px; } .item-fields-table th, .item-fields-table td { padding: 6px; } }
 `);
 
 function loadItemSetup(params) {

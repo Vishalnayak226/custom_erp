@@ -39,12 +39,12 @@ Companion to [user-guide.md](user-guide.md) (explains what each screen is *for*)
    |---|---|
    | **Home** | Opens directly - no flyout. The landing screen - see §2. |
    | **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
-   | **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
+   | **Financial Accounting** | Home · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
    | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
    | **Reports** | Opens directly - no flyout |
    | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
    | **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
-   | **HRM** | My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets · Expenses |
+   | **HRM** | Home · My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets · Expenses |
    | **Manufacturing** | Opens directly - no flyout |
    | **PIM** | Opens directly - no flyout |
    | **Setup** | A dynamic flyout of every Master record type in your tenant — 53 in a default install, grouped by module, with a filter box and an **Advanced** divider holding 15 system-internal lists |
@@ -116,7 +116,7 @@ Companion to [user-guide.md](user-guide.md) (explains what each screen is *for*)
 ## 4. Finance / GL
 
 - [ ] Loads a trial balance table (Account Code, Account Name, Type, Debit, Credit) with Total Debits/Credits and a balanced/unbalanced status indicator.
-- [ ] **Who posted what.** Post anything (a sale, a journal voucher) as yourself. **Work to review → Who posted what** for today lists your username with the lines you posted; **View Details** shows exactly those lines. **General journal** with Attribution = *Before attribution* lists only old lines with a blank poster.
+- [ ] **Who posted what.** Post anything (a sale, a journal voucher) as yourself. **Financial Accounting → Home → Who posted what** for today lists your username with the lines you posted; **View Details** shows exactly those lines. **General journal** with Attribution = *Before attribution* lists only old lines with a blank poster.
 - [ ] **Close tasks gate the close.** **Accounting Periods → + New Period**, then **Close tasks**: five tasks, each with a live check. **Close period** is disabled. As Accountant/Super Admin assign an owner to each; as each owner **Sign off** with evidence (under 10 characters is refused). Signing a task you do not own is refused. Once all five are signed, **Close period** works; a posting dated in the period is then refused.
 - [ ] **Reopen needs a second person.** On the closed period **Request reopen** with a reason → it waits in **Approvals**. Approving it as the same user is refused; approving as a different Accountant/Super Admin reopens it as **round 2** with all five tasks unsigned and the history showing the reset.
 - [ ] **Bank workbench.** Import statement lines; **Rule match** with a tolerance matches a line whose reference names a book document and records the difference; **Find match** only enables **Match selected** when the ticked entries add up to the line; **Raise exception** needs an owner and reason; **Explain** is refused for a non-Accountant; a card **Payout** with a fee moves 1101 to the bank and the fee to 5230. A line in a closed period cannot be changed.
@@ -157,7 +157,7 @@ Companion to [user-guide.md](user-guide.md) (explains what each screen is *for*)
 
 ## 7. Approvals
 
-- [ ] The **Approvals** menu opens **My work**: approvals for your role (not ones you submitted), order-desk queues (if you can read orders) and catalog tasks assigned to you, overdue first; the filters' counts match the rows; **Open** on an order-desk row lands on Order Management with that queue showing.
+- [ ] The **Approvals** menu opens **My work**: approvals for your role (not ones you submitted), order-desk queues (if you can read orders) and catalog tasks assigned to you, overdue first; the filters' counts match the rows; **Open** on an order-desk row lands on OMS → Home with that queue showing.
 
 - [ ] Loads a table of documents awaiting your sign-off (Doctype, Document ID, Amount, Location, Approve/Reject buttons). Empty is fine ("Nothing awaiting approval") if nothing is pending.
 - [ ] To generate something to approve: submit a Purchase Order for approval elsewhere in the app (as `admin`), then come back here and confirm it appears.
@@ -207,7 +207,7 @@ Four tabs across the top: **Current Stock**, **Sales Register**, **Vendor Ledger
 
 ### 10A. Service desk, contracts and projects (Stage 55.18)
 
-- [ ] **Setup → Service Ticket** shows the **Service desk** above the list: overdue first, contract coverage, a Next step button; Assign → the row moves to Start work; clicking the ticket number shows its status history.
+- [ ] **CRM → Service desk** (its own page; the list is **CRM → Service Tickets**): overdue first, contract coverage, a Next step button; Assign → the row moves to Start work; clicking the ticket number shows its status history.
 - [ ] **Setup → Service Contract**: Show a contract → covered or not, visits used, its tickets. **Setup → Project**: Show a project → revenue, expense, net and the documents behind them.
 
 ### 10B. Setup path and API access (Stages 55.3, 38.2d, ask 224)
@@ -266,6 +266,7 @@ Each HR page is its own **HRM** menu entry; there is no tab strip.
 
 - [ ] "Create Draft" form loads with Employee dropdown, **Location (typeahead, Stage 18)**, Category dropdown, Amount/GST/Advance fields, and a free-text Purpose field.
 - [ ] Creating a claim adds it to the table below with a status badge, starting at **Draft**.
+- [ ] **Tiles on HRM home (284.2).** **HRM → Home** shows four tiles (awaiting approval, approved - to verify, verified - to pay, rejected - to correct), each a count and an amount; a tile opens **Expenses**, which shows only the claims.
 - [ ] **Defaults and total.** **+ New Expense Claim** starts with your employee, your store and today. Amount 500, GST 90, advance 100 → "To reimburse … = 490.00". GST above the amount, or an advance above the bill, is refused.
 - [ ] **Correction.** Reject a submitted claim with a comment → **History** shows the steps and the comment; **Correct and resubmit** opens it filled in; saving returns it to Draft and it can be submitted again.
 - [ ] **Paid once, advance cleared.** Pay a claim with an advance → the GL shows the bank credited with claim + GST − advance and 1600 credited with the advance; paying again is refused.
@@ -295,7 +296,7 @@ Each HR page is its own **HRM** menu entry; there is no tab strip.
 
 The tab bar has 9 entries, but only the first 3 are "real" PIM tabs — the other 6 immediately take you to the same generic master table used elsewhere in the app (§16), just pre-filtered to that doctype. Don't expect PIM-specific styling on those 6; a plain table is correct.
 
-- [ ] **15.1 Dashboard tab**: loads 8 stat cards (Products, Incomplete, Pending approval, Ready to publish, Published, Missing main image, Publish queued, Publish failed) with no error. Clicking a card navigates you either to the Workbench tab or (for "Pending approval") to the ProductContent master table.
+- [ ] **15.1 PIM home**: loads 8 stat cards (Products, Incomplete, Pending approval, Ready to publish, Published, Missing main image, Publish queued, Publish failed) with no error. Clicking a card navigates you either to the Workbench tab or (for "Pending approval") to the ProductContent master table.
 - [ ] **15.2 Workbench tab — list**: selecting a Product Family filters the item list; selecting an item opens a detail panel below with a completeness score (e.g. "72%") and a list of missing fields (or "Nothing - fully complete").
 - [ ] **15.3 Workbench tab — attribute values**: in the item detail panel, the Attribute dropdown is populated from real Attribute Definitions; picking one, entering a value, and clicking Save updates the item (re-check the completeness score changes if the attribute was one of the missing ones).
 - [ ] **15.4 Workbench tab — content**: fill in Title/Short Description/Long Description/SEO Title/Tags and click "Save Draft" — it saves without leaving the page. Click "Submit for Approval" — the content should then show up in **Approvals** (§7) for an Super Admin to decide.
@@ -334,7 +335,7 @@ For **each** item in the submenu:
 
 ## 18. Purchase Order
 
-- [ ] Purchase Order opens on the **list** of saved orders (count beside the title) with **+ New Purchase Order** top right; that opens the order page (breadcrumb **Purchase Orders › New purchase order**; one fixed screen, only the item list scrolls) with PO Number, **Vendor**, **Billing address** and **Shipping address** (store pickers, each with the store's address and **Edit store** under it; Shipping fills with the billing store), GST treatment, the **Add item** row, and the totals and tax in the top bar. Browser **Back** returns to the list and **Forward** brings the half-typed order back; **Create Draft** lands on the list (Stage 65.8 / 68 / 69).
+- [ ] Purchase Order opens on the **list** of saved orders (count beside the title) with **+ New Purchase Order** top right; that opens the order page (breadcrumb **Purchase Orders › New purchase order**; one fixed screen, only the item list scrolls) with PO Number, **Vendor**, **Billing address** and **Shipping address** (store pickers, each with the store's address and **Edit store** under it; both start as the top-bar store, follow a store switch until changed, and an empty one is filled at **Create Draft**), GST treatment, the **Add item** row, and the totals and tax in the top bar. Browser **Back** returns to the list and **Forward** brings the half-typed order back; **Create Draft** lands on the list (Stage 65.8 / 68 / 69).
 - [ ] **List first, New as its own page, everywhere (Stage 69).** Goods Receipt, Purchase Return, Stock Transfer, Location Movement (history of moves), Journal Vouchers, ASN, RFQ (and an RFQ's quotes), Expenses, Fixed Assets, Payment Proposals, Yard Board, Sticker Printing → Print (print history), Order Management (**+ New Order**), Marketplace (settlements / bookings / manifests), Manufacturing → Orders and HR → Attendance / Leave / Payroll / Loans/Advances / My Requests each open on their list with **+ New …**; the form page has a breadcrumb back; saving lands on the list with the new record; Back from the form does not reload the screen. **Receive goods** on a PO opens the GRN's New page with the PO loaded; **Book shipment** from Fulfillment opens Marketplace's booking page filled.
 - [ ] "Calculate GST" with an amount and rate filled in shows a CGST/SGST or IGST breakdown.
 - [ ] "Create Draft" (as `admin` — other roles are expected to be denied here, see Role Access Notes) adds the PO to the table below with status "Draft".
@@ -488,7 +489,7 @@ Each of the following now has its own section in this checklist. Work through th
 - [ ] **Wave from a selection (Stage 55.8)**: choose the location; *Orders ready to wave* lists Pending/Picking orders in no wave; tick two → **Put 2 selected into the wave** → a Planned wave in *Open waves*; an order at another location / already in a wave / packed is reported by name (INVENT-0499 when none qualify); ticks survive leaving the location box. **Release** → **Pick list** and **Pick on a phone** appear.
 - [ ] **Phone picking (390 px)**: Location → the released wave is in the list; *N confirmed · M to go*; after the last line the summary names the short order (item, how many); **Mark N order(s) packed** packs only the complete ones (Pending → Picking → Packed), the short one keeps its status, no stock moves until Dispatch. A wave with nothing allocatable says the stock is missing or held, and lists the short orders.
 - [ ] **Loading (Stage 55.8)**: open loads listed with door/trailer/manifest/scanned; **Open** carries on; door, trailer and manifest are pickers; *Still to load* lists the manifest's invoiced packages not yet scanned; completing with fewer cartons than expected asks first.
-- [ ] **Labour & billing (Stage 55.8)**: Warehouse Cockpit → **Labour**: **Plan** shows hours, headcount and *No standard*; **+ New labour standard** (new operation 360/h, element 5 s + 2 s/unit, travel 30 s + 0.5 s/unit, allowance 10% + 4 s) then **Preview** 10 units = 25 + 35 + 10 = 70 s, cost 7.00, *matches the planning engine*. **Billing**: a manual charge 4 × 5.00 with 10% markup and 18% tax shows "4 × 5.00 = 20.00; +10% markup → net 22.00; tax 18% = 3.96; total 25.96"; a storage rate with a missing day, a minimum-charge charge and an old charge without rate evidence each appear under *Check before invoicing* (INVENT-0500 without an owner).
+- [ ] **Labour & billing (Stage 55.8)**: WMS → **Labour plan** shows hours, headcount and *No standard*; **Labour standards** (its own page) → **+ New labour standard** (new operation 360/h, element 5 s + 2 s/unit, travel 30 s + 0.5 s/unit, allowance 10% + 4 s) then **Preview** 10 units = 25 + 35 + 10 = 70 s, cost 7.00, *matches the planning engine*. **Billing**: a manual charge 4 × 5.00 with 10% markup and 18% tax shows "4 × 5.00 = 20.00; +10% markup → net 22.00; tax 18% = 3.96; total 25.96"; a storage rate with a missing day, a minimum-charge charge and an old charge without rate evidence each appear under *Check before invoicing* (INVENT-0500 without an owner).
 - [ ] **Stock → Wave / Batch Picking** generates a consolidated pick list in zone/aisle/rack walking order.
 - [ ] The per-order allocation table shows any shortfall as a badge rather than hiding it.
 - [ ] **Stock → Mobile Picking** shows one pick line at a time with **Previous** / **Confirm & Next**.

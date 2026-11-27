@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-09-01, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-05, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,57 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **61** earlier entries, 2026-07-27 to 2026-09-01.
+This page continues the [release notes](release-notes.md) with **72** earlier entries, 2026-07-27 to 2026-09-05.
+
+## 2026-09-05
+
+**Stage 47.1 — Deny-by-default authorization, privacy and segregation of duties** *(code + schema + tests)*
+
+All eight of Stage 47.1's sub-items built: **47.1.1/47.1.2** (route-capability registry over all 461 `apiMiddleware` routes, and the five sensitive capabilities the A-01 finding named) earlier the same day, then **47.1.3-47.1.8** — a sensitive-field policy that replaces "no field rows means every field" (`engines/sensitive_fields.go`, merged into `fieldPermissions()` so read, form-meta, write, CSV import and PIM bulk edit all inherit it with no call-site change); scope semantics separated from role capability (`engines/scope_policy.go` — location strict where the doctype declares it mandatory, permissive where optional, plus the self and 3PL-owner dimensions the old inline clause had no notion of, all fail-closed); twelve task-derived role templates (`engines/role_templates.go`, which the route-capability allowlist is now *derived from* rather than duplicating); a six-conflict SoD catalog with evidence-based detection and a one-page "why allowed / why denied" administrator preview (`engines/sod_catalog.go`); a reviewed, reversible per-tenant grant migration that changes nothing until an owner approves a before/after diff and never touches a custom role (`engines/role_template_migration.go`, `db/migrations_stage47_1_role_templates.sql`); and a generated authorization contract matrix of 7,837 route×role assertions plus HTTP-level unauthenticated/deactivated/demoted/cross-location/sensitive-field checks.
+
+## 2026-09-03
+
+**Stage 39 — Knowledge Center content: all remaining items closed except one** *(content + code + docs)*
+
+Closed **39.8** (drift guards over the Knowledge Center - stale `last_verified`, dangling screen/endpoint/error-code references, unmapped screens; `internal/kb/drift.go`), **39.9** (article feedback as a plain generic doctype + registered report, zero new Go handler), **39.10** (release notes generated from this ledger's own Stage headings, `cmd/gendocs/release_notes.go`), **39.14** (channel-connector + courier integration guides, 26.4.8's error dictionary inline), **39.15** (Admin & Operations section - Backup & Restore, Incident Response, adapted from `docs/operations/` rather than duplicated), and **all 9 of 39.13's remaining module handbooks** (POS, Inventory & WMS, Procurement, Security/Roles/Approvals, HR & Payroll, Manufacturing & MRP, PIM/PXM, Finance & Tax, CRM & Loyalty, OMS) - closing Stage 39.13 (module handbooks) entirely, 10 of 10 counting Traceability from 2026-08-31. Full per-item detail, verification steps and file paths are in `micro_checklist.md`'s own Stage 39 entries - this section is the index pointer, not a duplicate.
 
 ## 2026-09-01
+
+**Stage 37.11 — Role dashboards, savable layouts, digests, drill-through** *(code + schema)*
+
+Pre-build audit of the existing exec dashboard (`renderExecDashboard`, `public/app.js`) found it fully hardcoded - 4 literal cards + a literal `sales-register` trend chart, no persistence, no per-role variation. Generalized rather than replaced: the four cards became `DefaultDashboardTiles()`'s data, not literal code.
+
+**Stage 38.7 — Self-service sandbox tenant for integrators** *(code + schema)*
+
+Built last of the three remaining Stage 38 items (its webhook side-effect-off hook depends on 38.4). A sandbox is a normal tenant - provisioned through the exact same `ProvisionTenantSchema` every real tenant uses - flagged via two additive columns on `public.tenants` (`is_sandbox`, `sandbox_expires_at`), not a new table.
+
+**Stage 38.4 — Webhook subscriptions with HMAC signing, retry/backoff and DLQ** *(code + schema)*
+
+Built on top of 38.6 (same session, built first). Extends `outbox.go` exactly as the backlog item names it: `WebhookSubscription` is a plain generic-doc-API doctype (the `ScheduledReport` precedent), and `dispatchWebhooksForEvent` (`engines/webhook.go`) is called from `processOutbox` once an outbox event is already committed - fanning out to one `webhook_delivery` async job per matching Active subscription. The job runner's own retry/backoff/DeadLettered handling IS this item's DLQ - no second retry mechanism built.
+
+**Stage 38.6 — One general async job runner with retries, DLQ and a visibility screen** *(code + schema)*
+
+Built first of the three remaining Stage 38 items - 38.4 and 38.7 both depend on it. The foundation `micro_checklist.md`'s own §47.11.4 already named as the target every bespoke ticker in this codebase should migrate onto incrementally, later - this stage builds the runner and its visibility screen only, no existing ticker touched. A dedicated `async_jobs` table (the `integration_event_outbox` precedent, not a generic doctype).
+
+**Stage 37.10 — Planning depth: forecasting, reorder points, pegging, capacity** *(code + schema)*
+
+Pre-build audit found this ~60% already built under different names: `ForecastDemand`/`CalculateSalesVelocity` (real but naive), `GetReplenishmentSuggestions`/`GetMRPSuggestions` (reorder point from call-site parameters, not persisted config), `GetProductionSchedule` (already a genuine finite-capacity scheduler, never wired to a report). Pegging was the one genuinely new piece. Every new function is a sibling of an existing one - originals untouched.
+
+**Stage 37.9 — Quality & maintenance: inspection plans, CoA, NCR/CAPA, preventive maintenance** *(code + schema)*
+
+Pre-build audit found all four completely absent. GRN receiving's own QC (Stage 26.5.2) is a pure quantity split with no structured per-item test list, so `PostGRNReceiptWithQC` is deliberately left untouched. `ReasonCode` is reused as-is for NCR root-cause (a new "Quality" category value).
+
+**Stage 37.8 — Service management** *(code + schema)*
+
+Pre-build audit found no ServiceTicket/WorkOrder/AMC concept anywhere. WarehouseTask's dispatch spine (Stage 42.2) is WMS-specific and not directly reusable as an object, but its lifecycle PATTERN - typed status enum, terminal-state guard, reason-required transitions - is what ServiceTicket's own dedicated engine functions copy, the same shape IntercompanyTransaction/LandedCostVoucher/PrepaidExpenseSchedule already use this session.
+
+**Stage 37.7 — Projects & job costing** *(code + schema)*
+
+Pre-build audit found no Project concept anywhere, and confirmed the codebase's own conventions point to Project as a 4th whole-posting dimension (the CostCenter/Department/Entity precedent) rather than a WIP-style running-cost ledger, since every cost-incurring doctype here posts immediately - there is no accumulation stage to attach one to.
+
+**Stage 37.6 — Deferred revenue, prepaid amortisation, recurring billing, price-list versioning** *(code + schema)*
+
+Pre-build audit found all four completely absent, plus a structural finding: `SalesInvoice` is lump-sum only (no `lines` field) - deferred revenue is recognised at the whole-invoice level, not per line.
 
 **Stage 37.5 — Financial statement builder with dimensions and drill-down** *(code only)*
 

@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-09-01 to 2026-10-19, continued from the release notes.
+summary: Earlier releases, 2026-09-06 to 2026-10-19, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,11 +19,37 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **92** earlier entries, 2026-09-01 to 2026-10-19.
+This page continues the [release notes](release-notes.md) with **89** earlier entries, 2026-09-06 to 2026-10-19.
 
 Older still: [part 3](release-notes-3.md).
 
 ## 2026-10-19
+
+**Stage 109 — one click to release, one click to deploy, the server cleans itself; SSH bots blocked** *(tooling + server)*
+
+User: *"I want auto mechanism to do this ... a script or bot ... It should learn parallely with you doing in future ... Three action three click. 3rd one if can be done without me also fine."* Checklist Stage 109 (D1-D6).
+
+**Release 0.4.0 to app and minn** *(release)*
+
+**Stage 108 — The New Location form fills itself in; POS adds only an exact barcode** *(code + docs, NOT COMMITTED)*
+
+From the user's New Location and POS / Billing screenshots. New Location: Short Code suggested by one standard rule (JP Nagar → JPN), Facility Code the next number, Level and Sellable follow Type, Parent = the HO, Legal Entity and salesman Mandatory preselected; the server fills a blank Short / Facility Code on create; Level gains HO and Store (migration, shipped list only). POS: only an exact barcode / GTIN rings up directly, anything else lists the containing products to pick, on Enter or a pause in typing. Unit tests + Chromium checks; detail in micro_checklist 108.1-108.2. Open gap: receipt-date barcodes are not found by the POS search (pre-existing).
+
+**Release 0.3.0 to app and minn** *(release)*
+
+**Stage 101 — the CRM blueprint planned onto the ERP** *(docs, plan only, NOT COMMITTED)*
+
+User: *"Indepth CRM Module ... Understand it and plan it and put it in checklist and relevant places"*, with their 70-page *CRM Platform Business and Product Requirements* (38 modules, P0-P2, decision register D01-D12). It became the spec for Stage 101, opened that morning. Each module was checked against what the ERP already has: customers and merge, RFM / lifetime value, the loyalty ledger, offers / vouchers, campaigns with per-channel consent, notification delivery states, service tickets, privacy requests. What was missing became phases 101.1-101.12: customer page, consent ledger, segments, one send gate for every message, templates / senders / campaigns up to a pilot gate, journeys, feedback and a WhatsApp inbox, loyalty depth, clienteling, the business pipeline, reports. Not adopted: its stack, a separate commerce layer, shopper-app SDKs, ads / RCS / AI, and shared-phone profiles (85 D1 stands). Plan: `docs/product/crm-platform-plan-2026-10-19.md`. Nothing built; 101.0.2 waits on the user's decisions.
+
+**"Fix all": the report catalog built - 252 of the user's 290 reports (Stage 75.3.2, 75.3.5-75.3.7)** *(code + docs, NOT COMMITTED)*
+
+User: *"Fix all"* on the build run's leftovers. 75.2.8a (credit-note QR), 76.6 (re-code every master), the BLD020 skip and the manifest shipped in 0.2.0 (§257). The report catalog was unblocked - both spreadsheets were in `Downloads\MyBusiness\IT Solution\ERP\Reports` - and built after the release: `docs/specs/reports/catalog_reports.tsv` + `catalog_columns.tsv` (the spec, no sample data), `cmd/gencatalog` (spec → `engines/report_catalog_spec_generated.go`; `-coverage` → `docs/product/report-catalog-coverage.md`), one runner (`engines/report_catalog.go`, `_common.go`) and eight wiring files. **252 built** under the catalog's own modules with the catalog's exact columns (2,574 of 2,637 filled; the rest are fields the ERP does not record, blank); **38 wait** for modules that do not exist (Stage 74 challan / job work / MI-MR / wastage / damage / receipt note, 88.5.4 stock adjustment, bulk stock upload, e-way bill, leads, opportunities, feedback, recruitment). Control totals on eight of them (sales, stock valuation, four GST, AP / AR ageing tied to 2100 / 1300). Fixed on the way: masked gift card numbers, the Status select silently filtering (also the 75.3.4 builder), code columns renamed by the screen-wide name swap, the Reports menu order. Tests: `TestCatalogReportsRun`, three hand-worked figure tests (Wave A / B / C on throwaway tenants), control totals, wiring and the column-fidelity test. Browser on scratch :8161. Detail: checklist 75.3.2, 75.3.5, 75.3.6, 75.3.7.
+
+**Release 0.2.0 to app and minn** *(release)*
+
+**"Build all", steps 1-4 and the start of 5: Stage 94 goods receipt in steps, small fixes, clean-slate reset, media store, Stage 74 Wave 1** *(code + docs, NOT COMMITTED)*
+
+User: *"build all"* - everything open that is decided and not blocked on the user, leaving out work already in flight in other sessions; order recorded at the top of the checklist. **Stage 94** (D1-D10 approved 2026-10-18): a goods receipt is now saved in steps - Receive (vendor first, open-PO tick-list, received and invoice qty, invoice no / date / total required, duplicate invoice refused, scan-to-count) → Verify (GRN qty and price, rejected / damaged, Keep beyond the PO through a new `GRNExcessApproval` approval record or Return, invoice total must match its lines within ₹1) → Price check (previous purchase price → child GRNs /A New, /B Same, /C Changed) → MRP and post per child (stock at the GRN price, MRP on the batch, stickers per child) → Pay (part, mode, UTR, TDS) with Correct after posting (only the difference posts) and Post all when everything matches. The note is invoice total − what was received and verified: a debit note is applied to the auto-made vendor bill as a settlement line, a credit note posts its GST leg, so paying the bill clears 2100 / 1500 exactly (tested to the paisa). The till sells at the batch MRP on the shelf and asks when there are two (94.6, first-in-first-out from the store's receipts). PO design reuse is limited to the PO's vendor (94.13). New `grn_line` / `grn_line_change` tables and eight reports. Browser-walked on :8194 (price changed + debit note + part payment; correction; Keep held for approval; scan-to-count). **Step 2:** schedule workers claim a due run atomically (73.D.18); production's database time zone checked - UTC, so 73.D.19 needs no code; the 73.D.21 tests all pass, the schedule test no longer touches other rows, CI / promote get a test timeout; Inventory rows link to their stock ledger (73.B.7). **Step 3:** `tenantctl reset-data` (91.1-91.2) - a clean slate in one transaction: suspended client and a 24-hour backup required, every table classified (a test fails on an unclassified one), logins and evidence kept, numbering from 1; not run on app / minn (91.4 is the user's). **Step 4:** `MediaStore` (75.4.1) - product media, thumbnails, transform cache and attachments through one interface, local disk as before. Full `go test -p 1` of `./engines` (497 s) and `./internal/server` green. **Step 5 begun (Stage 74 Wave 1):** the number-series first-allocation race is one atomic upsert in `GenerateSequence` and the POS bill number (74.1.2); attachments turned on for GRN and Purchase Return with a shared panel (74.1.6); reason codes governed - nine new categories with dates, evidence and loss class, 30 starter codes, one check for every caller, a code beside every typed reason (GRN lines, purchase return, price override, reprint), a client setting to make codes mandatory, pickers and the R-TX-12 report; the master moved to Master Data (74.1.1). Paused there at the user's request, about 9% of the run's scope done; the next thread starts with 74.1.3. Details: checklist Stage 94, 73.B/73.D, 91, 75.4, 74.1.
 
 **Stage 104 — The Control Panel's "36 errors": read, explained, fixed** *(code + docs, NOT COMMITTED)*
 
@@ -402,54 +428,4 @@ The tenant lifecycle had exactly two states: it existed, or somebody ran `DROP S
 **Stage 49 Phase S0 — Security charter, attack-surface inventory and fail-closed production baseline** *(code + docs + tests)*
 
 The first phase of Stage 49's security program: establish what is being protected and from whom (49.0), then make the surface knowable and the production baseline fail closed (49.1). Built in parallel with the Stage 47 session and deliberately scoped to files that session was not holding — two narrow edits to `internal/server/routes.go`, everything else new.
-
-## 2026-09-05
-
-**Stage 47.1 — Deny-by-default authorization, privacy and segregation of duties** *(code + schema + tests)*
-
-All eight of Stage 47.1's sub-items built: **47.1.1/47.1.2** (route-capability registry over all 461 `apiMiddleware` routes, and the five sensitive capabilities the A-01 finding named) earlier the same day, then **47.1.3-47.1.8** — a sensitive-field policy that replaces "no field rows means every field" (`engines/sensitive_fields.go`, merged into `fieldPermissions()` so read, form-meta, write, CSV import and PIM bulk edit all inherit it with no call-site change); scope semantics separated from role capability (`engines/scope_policy.go` — location strict where the doctype declares it mandatory, permissive where optional, plus the self and 3PL-owner dimensions the old inline clause had no notion of, all fail-closed); twelve task-derived role templates (`engines/role_templates.go`, which the route-capability allowlist is now *derived from* rather than duplicating); a six-conflict SoD catalog with evidence-based detection and a one-page "why allowed / why denied" administrator preview (`engines/sod_catalog.go`); a reviewed, reversible per-tenant grant migration that changes nothing until an owner approves a before/after diff and never touches a custom role (`engines/role_template_migration.go`, `db/migrations_stage47_1_role_templates.sql`); and a generated authorization contract matrix of 7,837 route×role assertions plus HTTP-level unauthenticated/deactivated/demoted/cross-location/sensitive-field checks.
-
-## 2026-09-03
-
-**Stage 39 — Knowledge Center content: all remaining items closed except one** *(content + code + docs)*
-
-Closed **39.8** (drift guards over the Knowledge Center - stale `last_verified`, dangling screen/endpoint/error-code references, unmapped screens; `internal/kb/drift.go`), **39.9** (article feedback as a plain generic doctype + registered report, zero new Go handler), **39.10** (release notes generated from this ledger's own Stage headings, `cmd/gendocs/release_notes.go`), **39.14** (channel-connector + courier integration guides, 26.4.8's error dictionary inline), **39.15** (Admin & Operations section - Backup & Restore, Incident Response, adapted from `docs/operations/` rather than duplicated), and **all 9 of 39.13's remaining module handbooks** (POS, Inventory & WMS, Procurement, Security/Roles/Approvals, HR & Payroll, Manufacturing & MRP, PIM/PXM, Finance & Tax, CRM & Loyalty, OMS) - closing Stage 39.13 (module handbooks) entirely, 10 of 10 counting Traceability from 2026-08-31. Full per-item detail, verification steps and file paths are in `micro_checklist.md`'s own Stage 39 entries - this section is the index pointer, not a duplicate.
-
-## 2026-09-01
-
-**Stage 37.11 — Role dashboards, savable layouts, digests, drill-through** *(code + schema)*
-
-Pre-build audit of the existing exec dashboard (`renderExecDashboard`, `public/app.js`) found it fully hardcoded - 4 literal cards + a literal `sales-register` trend chart, no persistence, no per-role variation. Generalized rather than replaced: the four cards became `DefaultDashboardTiles()`'s data, not literal code.
-
-**Stage 38.7 — Self-service sandbox tenant for integrators** *(code + schema)*
-
-Built last of the three remaining Stage 38 items (its webhook side-effect-off hook depends on 38.4). A sandbox is a normal tenant - provisioned through the exact same `ProvisionTenantSchema` every real tenant uses - flagged via two additive columns on `public.tenants` (`is_sandbox`, `sandbox_expires_at`), not a new table.
-
-**Stage 38.4 — Webhook subscriptions with HMAC signing, retry/backoff and DLQ** *(code + schema)*
-
-Built on top of 38.6 (same session, built first). Extends `outbox.go` exactly as the backlog item names it: `WebhookSubscription` is a plain generic-doc-API doctype (the `ScheduledReport` precedent), and `dispatchWebhooksForEvent` (`engines/webhook.go`) is called from `processOutbox` once an outbox event is already committed - fanning out to one `webhook_delivery` async job per matching Active subscription. The job runner's own retry/backoff/DeadLettered handling IS this item's DLQ - no second retry mechanism built.
-
-**Stage 38.6 — One general async job runner with retries, DLQ and a visibility screen** *(code + schema)*
-
-Built first of the three remaining Stage 38 items - 38.4 and 38.7 both depend on it. The foundation `micro_checklist.md`'s own §47.11.4 already named as the target every bespoke ticker in this codebase should migrate onto incrementally, later - this stage builds the runner and its visibility screen only, no existing ticker touched. A dedicated `async_jobs` table (the `integration_event_outbox` precedent, not a generic doctype).
-
-**Stage 37.10 — Planning depth: forecasting, reorder points, pegging, capacity** *(code + schema)*
-
-Pre-build audit found this ~60% already built under different names: `ForecastDemand`/`CalculateSalesVelocity` (real but naive), `GetReplenishmentSuggestions`/`GetMRPSuggestions` (reorder point from call-site parameters, not persisted config), `GetProductionSchedule` (already a genuine finite-capacity scheduler, never wired to a report). Pegging was the one genuinely new piece. Every new function is a sibling of an existing one - originals untouched.
-
-**Stage 37.9 — Quality & maintenance: inspection plans, CoA, NCR/CAPA, preventive maintenance** *(code + schema)*
-
-Pre-build audit found all four completely absent. GRN receiving's own QC (Stage 26.5.2) is a pure quantity split with no structured per-item test list, so `PostGRNReceiptWithQC` is deliberately left untouched. `ReasonCode` is reused as-is for NCR root-cause (a new "Quality" category value).
-
-**Stage 37.8 — Service management** *(code + schema)*
-
-Pre-build audit found no ServiceTicket/WorkOrder/AMC concept anywhere. WarehouseTask's dispatch spine (Stage 42.2) is WMS-specific and not directly reusable as an object, but its lifecycle PATTERN - typed status enum, terminal-state guard, reason-required transitions - is what ServiceTicket's own dedicated engine functions copy, the same shape IntercompanyTransaction/LandedCostVoucher/PrepaidExpenseSchedule already use this session.
-
-**Stage 37.7 — Projects & job costing** *(code + schema)*
-
-Pre-build audit found no Project concept anywhere, and confirmed the codebase's own conventions point to Project as a 4th whole-posting dimension (the CostCenter/Department/Entity precedent) rather than a WIP-style running-cost ledger, since every cost-incurring doctype here posts immediately - there is no accumulation stage to attach one to.
-
-**Stage 37.6 — Deferred revenue, prepaid amortisation, recurring billing, price-list versioning** *(code + schema)*
-
-Pre-build audit found all four completely absent, plus a structural finding: `SalesInvoice` is lump-sum only (no `lines` field) - deferred revenue is recognised at the whole-invoice level, not per line.
 

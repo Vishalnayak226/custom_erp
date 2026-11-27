@@ -37,7 +37,7 @@ The **Store app** is a small app for the shop floor: decide approvals; scan any 
 - Setting up two-factor sign-in for the first time, or replacing a password your administrator set: do it once in the full ERP (the app says so), then sign in here.
 - Signing in here also signs you in to the ERP in the same browser, and the other way round. **Sign out** on the app's home screen signs you out of both.
 - The app signs you out after the same time without use as your **Auto Logout** setting (§11).
-- **On the store's shared phone** (one a manager registered to the store, §10A.14) the app opens on **Sign in with your PIN**: type your username (it is offered once you have signed in on that phone) and your PIN. You set your PIN yourself in **Settings** (§10A.14) after signing in once with your password. A PIN session works at that phone's store only, locks after a few minutes without use (5 unless your administrator changed it) so the next person signs in as themselves, and lasts at most one shift (12 hours). After 5 wrong PINs, PIN sign-in stops for you for 15 minutes; your password still works (**Sign in with password instead**). Administrators always sign in with the password and code.
+- **On the store's shared phone** (one a manager registered to the store, §10A.14) the app opens on **Sign in with your PIN**: type your username, or tap it under the box (the last names signed in on that phone are shown there; with only one, it is filled in for you), then your PIN. You set your PIN yourself in **Settings** (§10A.14) after signing in once with your password. A PIN session works at that phone's store only, locks after a few minutes without use (5 unless your administrator changed it) so the next person signs in as themselves, and lasts at most one shift (12 hours). After 5 wrong PINs, PIN sign-in stops for you for 15 minutes; your password still works (**Sign in with password instead**). Administrators always sign in with the password and code.
 
 ### 10A.3 Your store
 
@@ -180,6 +180,8 @@ For the full lesson, click **Open the full Knowledge Center** in the dialog. It 
 | **How to do it** | The steps, in order |
 
 Pictures of the screen load only as you scroll to them, so the page stays quick on a slow connection. Every transaction screen has its own lesson; the Settings screens have theirs in the *Settings and configuration* handbook. Help itself, the plain record lists and the Doctype Builder open their guide at the top.
+
+**How it works (item 290.4).** In the Knowledge Center, under **Getting Started**, **How buying works** and **How a sale works** play one purchase and one sale step by step. A diagram lights the box where each step happens; under it are the step, what it changes in stock and the books, and one tip. Click **Next →** or **← Back**, click a dot to jump to a step, or press the arrow keys (**Home** and **End** go to the first and last step). On the last step, **Start again** goes back to the first. On a phone the diagram runs top to bottom.
 
 ## 12. If You Get Logged Out or See an Error
 

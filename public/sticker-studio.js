@@ -792,7 +792,9 @@ function elementTabHTML() {
         ${allText ? `
           <div class="stk-row">${fontSelect(els[0].font_family || '')}</div>
           <div class="stk-row">${numInput('font_size_mm', els[0].font_size_mm, { label: 'Size', step: 0.1, min: 0.5 })}
-            ${seg('bold', els.every(e => e.bold) ? 'true' : 'false', [{ v: 'true', label: '<b>B</b>', title: 'Bold' }, { v: 'false', label: 'Regular' }])}</div>` : ''}
+            ${seg('bold', els.every(e => e.bold) ? 'true' : 'false', [{ v: 'true', label: '<b>B</b>', title: 'Bold' }, { v: 'false', label: 'Regular' }])}</div>
+          <div class="stk-row">${weightSelect(els.every(e => E.textWeight(e) === E.textWeight(els[0])) ? E.textWeight(els[0]) : 0)}</div>
+          <div class="stk-row">${styleButtons()}</div>` : ''}
         <div class="stk-row">${seg('rotation', els.every(e => e.rotation === els[0].rotation) ? els[0].rotation : '', [{ v: 0, label: '0°' }, { v: 90, label: '90°' }, { v: 180, label: '180°' }, { v: 270, label: '270°' }])}</div>
         <div class="stk-actions">
           <button class="btn btn-outline btn-sm" data-q="duplicate">Duplicate</button>
@@ -808,6 +810,7 @@ function elementTabHTML() {
         <h4>Content</h4>
         <label class="stk-field"><span>Prints</span><select data-el="field" data-type="text">${fieldOptions(el.field)}</select></label>
         ${el.field === 'custom' ? customTextHTML(el) : affixHTML(el)}
+        <label class="stk-check" title="Fields ticked here that share a left edge close up: a blank one leaves no gap"><input type="checkbox" data-el="close_up" data-type="bool" ${el.close_up ? 'checked' : ''}> Move up when a field above is blank</label>
       </section>
       ${typographyHTML(el)}`;
   } else if (el.kind === 'barcode') {
@@ -820,7 +823,8 @@ function elementTabHTML() {
         <div class="stk-row">${seg('symbology', el.symbology, [{ v: 'code128', label: 'Code 128', title: 'Any text; switches to compact numeric mode for digit runs' }, { v: 'ean13', label: 'EAN-13', title: 'Retail 13-digit (falls back to Code 128 if the value is not a valid EAN)' }])}</div>
         <label class="stk-check"><input type="checkbox" data-el="show_text" data-type="bool" ${el.show_text ? 'checked' : ''}> Print the value under the bars</label>
         <label class="stk-check"><input type="checkbox" data-el="quiet_zone" data-type="bool" ${el.quiet_zone ? 'checked' : ''}> Keep a quiet zone (recommended)</label>
-        ${el.show_text ? `<div class="stk-row">${numInput('font_size_mm', el.font_size_mm || 2.4, { label: 'Text size', step: 0.1, min: 0.5 })}</div>` : ''}
+        ${el.show_text ? `<div class="stk-row">${numInput('font_size_mm', el.font_size_mm || 2.4, { label: 'Text size', step: 0.1, min: 0.5 })}<div class="stk-seg" role="group" aria-label="Style">${toggle('bold', el.bold, '<b>B</b>', 'Bold digits')}</div></div>` : ''}
+        <div class="stk-row">${seg('align', el.align || 'center', [{ v: 'left', label: '⇤', title: 'Bars at the left' }, { v: 'center', label: '↔', title: 'Bars centred' }, { v: 'right', label: '⇥', title: 'Bars at the right' }])}</div>
         ${scanBadge(fit)}
       </section>`;
   } else if (el.kind === 'qr') {
@@ -920,8 +924,15 @@ function typographyHTML(el) {
         ${numInput('font_size_mm', el.font_size_mm, { label: 'Size', step: 0.1, min: 0.5 })}
         <span class="stk-muted">≈ ${pt} pt</span>
       </div>
+      <div class="stk-row">${weightSelect(E.textWeight(el))}</div>
       <div class="stk-row">
-        <div class="stk-seg" role="group" aria-label="Style">${toggle('bold', el.bold, '<b>B</b>', 'Bold')}${toggle('italic', el.italic, '<i>I</i>', 'Italic')}${toggle('transform', el.transform === 'upper', 'AA', 'UPPERCASE', 'upper')}</div>
+        <div class="stk-seg" role="group" aria-label="Style">${toggle('bold', el.bold, '<b>B</b>', 'Bold')}${toggle('italic', el.italic, '<i>I</i>', 'Italic')}${toggle('underline', el.underline, '<u>U</u>', 'Underline')}${toggle('strike', el.strike, '<s>S</s>', 'Strikethrough')}</div>
+        ${seg('transform', el.transform || '', [{ v: '', label: 'Aa', title: 'As typed' }, { v: 'upper', label: 'AA', title: 'UPPERCASE' }, { v: 'lower', label: 'aa', title: 'lowercase' }, { v: 'title', label: 'Ab', title: 'Title Case' }], { title: 'Case' })}
+      </div>
+      <div class="stk-grid2">
+        ${numInput('tracking', el.tracking ?? 0, { label: 'Spacing', step: 1, min: -20, max: 80, unit: '%' })}
+        ${numInput('stretch', el.stretch ?? 100, { label: 'Width', step: 5, min: 40, max: 250, unit: '%' })}
+        ${numInput('line_height', el.line_height ?? 1.15, { label: 'Line', step: 0.05, min: 0.7, max: 3, unit: '×' })}
       </div>
       <div class="stk-row">
         ${seg('align', el.align, [{ v: 'left', label: '⇤', title: 'Align left' }, { v: 'center', label: '↔', title: 'Centre' }, { v: 'right', label: '⇥', title: 'Align right' }])}
@@ -930,7 +941,46 @@ function typographyHTML(el) {
       <div class="stk-row"><span class="stk-row-label">Long values</span>
         ${seg('fit', el.fit, [{ v: 'shrink', label: 'Shrink to fit', title: 'One size smaller until it fits the box' }, { v: 'wrap', label: 'Wrap', title: 'Break onto more lines' }, { v: 'clip', label: 'Cut off', title: 'Keep size, cut at the box edge' }])}
       </div>
+      <div class="stk-row">${styleButtons()}</div>
     </section>`;
+}
+
+// 289.1: the weight scale (Light to Black). Fonts without a weight show the
+// nearest one they have.
+function weightSelect(current) {
+  const mixed = E.FONT_WEIGHTS.some(w => w.v === current) ? '' : '<option value="" selected>Mixed</option>';
+  return `<label class="stk-num"><span>Weight</span><select data-el="weight" data-type="num">${mixed}${E.FONT_WEIGHTS.map(w => `<option value="${w.v}" ${w.v === current ? 'selected' : ''}>${w.label}</option>`).join('')}</select></label>`;
+}
+
+// 289.1: copy one text element's look and paste it onto others (Ctrl+Alt+C,
+// Ctrl+Alt+V). Kept while the page is open, so it carries across templates.
+const STYLE_KEYS = ['font_family', 'font_size_mm', 'weight', 'bold', 'italic', 'underline', 'strike', 'transform', 'tracking', 'stretch', 'line_height', 'align', 'valign', 'fit'];
+let styleClip = null;
+function styleButtons() {
+  return `<button type="button" class="btn btn-outline btn-sm" data-sa-act="copy-style" title="Copy this look (Ctrl+Alt+C)">Copy style</button>
+    <button type="button" class="btn btn-outline btn-sm" data-sa-act="paste-style" title="Paste the copied look on the selected text (Ctrl+Alt+V)" ${styleClip ? '' : 'disabled'}>Paste style</button>`;
+}
+function copyStyle() {
+  const el = selected().find(e => e.kind === 'text');
+  if (!el) return false;
+  styleClip = Object.fromEntries(STYLE_KEYS.map(k => [k, el[k]]));
+  window.showToast?.('Style copied.', { variant: 'success' });
+  return true;
+}
+function pasteStyle() {
+  const els = selected().filter(e => e.kind === 'text');
+  if (!styleClip || !els.length) return false;
+  change(() => {
+    for (const el of els) for (const k of STYLE_KEYS) { if (styleClip[k] === undefined) delete el[k]; else el[k] = styleClip[k]; }
+  });
+  return true;
+}
+
+// 289.1: Weight and B are one setting: B clears a chosen weight, and a weight
+// of Semibold or more counts as bold.
+function tidyStyle(el, key) {
+  if (key === 'bold') delete el.weight;
+  else if (key === 'weight') { el.weight = Number(el.weight) || 400; el.bold = el.weight >= 600; }
 }
 
 function labelTabHTML() {
@@ -951,6 +1001,7 @@ function labelTabHTML() {
         ${numInput('h', t.h, { label: 'Height', min: 3, scope: 'tpl' })}
       </div>
       <div class="stk-row"><span class="stk-row-label">Printer DPI</span>${seg('s.dpi', s.dpi, [{ v: 203, label: '203' }, { v: 300, label: '300' }, { v: 600, label: '600' }])}</div>
+      ${t.id && E.newerDesignLayout(t) ? `<div class="stk-row"><button type="button" class="btn btn-outline btn-sm" data-sa-act="design-layout" title="Replaces this label's elements with the ${esc(E.newerDesignLayout(t).label)} layout as it ships now, keeping your own text. Undo puts yours back.">Use built-in layout</button></div>` : ''}
     </section>
     <section class="stk-sec">
       <h4>Roll</h4>
@@ -1051,10 +1102,11 @@ function bindInspector(body) {
         if (inp.dataset.type === 'num' && v === '' && key !== 'decimals') continue;
         el[key] = v;
         if (key === 'w_mm' || key === 'h_mm') el[key] = Math.max(0.2, Number(v) || 0.2);
+        tidyStyle(el, key);
       }
       if (inp.type === 'range') { const em = inp.parentElement.querySelector('em'); if (em) em.textContent = inp.value; }
       paint(); renderOverlay(); renderStatus(); drawRulers();
-      if (!live) { commitChange(); if (key === 'field' || key === 'show_text' || key === 'symbology' || key === 'ecc') renderInspector(); }
+      if (!live) { commitChange(); if (key === 'field' || key === 'show_text' || key === 'symbology' || key === 'ecc' || key === 'weight') renderInspector(); }
     };
     inp.addEventListener('focus', beginChange);
     inp.addEventListener('pointerdown', beginChange);
@@ -1093,6 +1145,7 @@ function bindInspector(body) {
           swapAndKeepInside(el);
         }
         el[key] = v;
+        tidyStyle(el, key);
       }
     });
   }));
@@ -1100,10 +1153,22 @@ function bindInspector(body) {
     const key = btn.dataset.toggle;
     const onValue = btn.dataset.on === 'true' ? true : btn.dataset.on;
     const turnOn = !btn.classList.contains('is-on');
-    change(() => { for (const el of selected()) el[key] = turnOn ? onValue : (onValue === true ? false : ''); });
+    change(() => { for (const el of selected()) { el[key] = turnOn ? onValue : (onValue === true ? false : ''); tidyStyle(el, key); } });
   }));
+  const copyBtn = body.querySelector('[data-sa-act="copy-style"]');
+  if (copyBtn) copyBtn.addEventListener('click', () => { if (copyStyle()) renderInspector(); });
+  const pasteBtn = body.querySelector('[data-sa-act="paste-style"]');
+  if (pasteBtn) pasteBtn.addEventListener('click', pasteStyle);
   const preset = body.querySelector('[data-sa-change="preset"]');
   if (preset) preset.addEventListener('change', () => applyPreset(preset.value));
+  // 286.3: a saved copy of a ready design takes the design's current layout.
+  const relayout = body.querySelector('[data-sa-act="design-layout"]');
+  if (relayout) relayout.addEventListener('click', () => {
+    const d = E.newerDesignLayout(S.t);
+    if (!d) return;
+    S.sel = new Set();
+    change(() => { S.t.elements = E.designLayoutFor(S.t, d); });
+  });
   const ins = body.querySelector('.stk-insert-field');
   if (ins) ins.addEventListener('change', () => {
     const ta = body.querySelector('textarea[data-el="text"]');
@@ -1731,6 +1796,8 @@ function onKey(e) {
   if (mod && k.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (mod && k.toLowerCase() === 'a') { e.preventDefault(); S.sel = new Set(S.t.elements.map(x => x.id)); S.tab = 'element'; refresh(); return; }
+  if (mod && e.altKey && k.toLowerCase() === 'c') { if (copyStyle()) { e.preventDefault(); renderInspector(); } return; }
+  if (mod && e.altKey && k.toLowerCase() === 'v') { if (pasteStyle()) e.preventDefault(); return; }
   if (mod && k.toLowerCase() === 'c') { if (S.sel.size) { S.clipboard = JSON.stringify(selected()); e.preventDefault(); } return; }
   if (mod && k.toLowerCase() === 'v') {
     if (!S.clipboard) return;
@@ -1769,7 +1836,7 @@ function showShortcuts() {
     ['Click / Shift-click', 'Select / add to selection'], ['Drag on empty space', 'Box-select'],
     ['Arrow keys', 'Nudge 0.1 mm (Shift: 1 mm)'], ['Alt while dragging', 'Move without snapping'],
     ['Shift while dragging', 'Lock to one axis / keep proportions'], ['R', 'Rotate 90°'],
-    ['Ctrl+D / Ctrl+C / Ctrl+V', 'Duplicate / copy / paste'], ['Del', 'Delete'],
+    ['Ctrl+D / Ctrl+C / Ctrl+V', 'Duplicate / copy / paste'], ['Ctrl+Alt+C / Ctrl+Alt+V', 'Copy / paste style'], ['Del', 'Delete'],
     ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'], ['+ / − / 0', 'Zoom in / out / fit (Ctrl+wheel too)'],
     ['G / P', 'Grid / Printer view'], ['Ctrl+S', 'Save'], ['Esc', 'Deselect, then leave']
   ];

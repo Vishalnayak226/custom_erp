@@ -39,6 +39,9 @@ end up disagreeing at the third decimal place. This handbook covers the full
 chain plus vendor onboarding and PO amendment, going deeper than the
 walkthrough in the earlier purchase-order walkthrough.
 
+New to buying? [How buying works](../getting-started/how-buying-works.md) walks one
+purchase from the order to the payment, step by step.
+
 Most of what makes a PO usable today came out of one rebuild, **Stage 40.1
 (2026-08-10)**. Before it, a PO recorded a vendor, a warehouse and one
 hand-typed "Total Amount" — `createDraftPurchaseOrder` literally posted

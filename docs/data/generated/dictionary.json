@@ -25228,6 +25228,83 @@
       "number": "R2042"
     },
     {
+      "id": "sold-below-cost",
+      "label": "Sold below cost",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "bill",
+          "label": "Bill",
+          "sensitive": false,
+          "type": "doclink"
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "cashier",
+          "label": "Cashier",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "sold_at",
+          "label": "Sold at (ex GST)",
+          "sensitive": false
+        },
+        {
+          "key": "unit_cost",
+          "label": "Cost",
+          "sensitive": true
+        },
+        {
+          "key": "loss",
+          "label": "Loss",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "cleared",
+          "label": "Cleared by",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R1035"
+    },
+    {
       "id": "pos-sale-reconciliation",
       "label": "POS Sale Reconciliation",
       "category": "Finance",
