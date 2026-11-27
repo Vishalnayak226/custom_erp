@@ -1962,6 +1962,11 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/import-batches/{id}/commit", apiMiddleware(handleImportBatchCommit))
 	http.HandleFunc("POST /api/v1/import-batches/{id}/reconcile", apiMiddleware(handleImportBatchReconcile))
 	http.HandleFunc("POST /api/v1/import-batches/{id}/discard", apiMiddleware(handleImportBatchDiscard))
+	http.HandleFunc("POST /api/v1/import-batches/{id}/resume", apiMiddleware(handleImportBatchResume))
+	// 297.2: a large import file goes up in pieces that survive a dropped line.
+	http.HandleFunc("POST /api/v1/uploads", apiMiddleware(handleUploadStart))
+	http.HandleFunc("GET /api/v1/uploads/{id}", apiMiddleware(handleUploadGet))
+	http.HandleFunc("PUT /api/v1/uploads/{id}", apiMiddleware(handleUploadPiece))
 	http.HandleFunc("/api/v1/logs/system", apiMiddleware(handleSystemLogs))
 	// 206.3: Resolve on the System Errors fix list (Super Admin).
 	http.HandleFunc("POST /api/v1/logs/system/resolve", apiMiddleware(handleResolveSystemFault))

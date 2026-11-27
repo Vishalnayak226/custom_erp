@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/gendocs",
   "generator_version": "stage48-v1",
-  "release": "0.30.0",
+  "release": "0.31.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -49,7 +49,7 @@
     },
     {
       "path": "docs/guides/error-codes.md",
-      "sha256": "563bb0218bb7a5a920472555375d5f6ef325cc95ee7d656086c940ae3d67ab8f",
+      "sha256": "ae24e221a3b54875412b5ae44e2c90d5e883bd306909fd0f9bcb1880bde8fc8d",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -218,7 +218,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "f69dbc3b0e15c71459371f01e890961ae04d083d3f26b78d46dddc75eb15c8a4",
+      "sha256": "fe0ee04bb0fb57ad00c0a799769adbf96721e78e0b43c69d19f296e677144a1c",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -257,7 +257,7 @@
     },
     {
       "path": "docs/qa/generated/page-inventory.md",
-      "sha256": "37042aa2eb45dc322b831a33845620afe9ca4d5b2afaec36d8b0130dc711a8ea",
+      "sha256": "1294002930488a74fc36828d9f27e827f468b4e95ebe1f802e10d4d727ef95dd",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -270,7 +270,7 @@
     },
     {
       "path": "docs/qa/generated/security-assurance-statement.md",
-      "sha256": "8bbf6cc1f5817c4212b98cd79de29fbfa18a846e1d8777aada7ed81c39cae09e",
+      "sha256": "1377a676f95260c72b642de272677b3c70305113ad4bc3e4720b498719ebc7ae",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -283,7 +283,7 @@
     },
     {
       "path": "docs/qa/generated/security-scorecard.md",
-      "sha256": "bbe6bfcc827089e14dd72cfe5495fcfc5dabd1d9b9c6288c1817a5660cd11ae8",
+      "sha256": "5c1bc0967d8be46f3d37d0889cec0a7c36ab562ae2dbfbf9b96ed657b4ba16bd",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -296,7 +296,7 @@
     },
     {
       "path": "docs/security/command-catalog.md",
-      "sha256": "6353ce5af31eda39c7ccef1ba3ba1bee504b745d9782e93b94f0281cfb13fb43",
+      "sha256": "53a57284969f2b70c0d42d6ad88daee59866d209da7bee500d40217e70538f2c",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

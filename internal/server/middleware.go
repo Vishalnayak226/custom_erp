@@ -512,7 +512,7 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// both are exactly the kind of low-frequency, high-sensitivity
 		// action that needs the tightest budget, not the 60/min default.
 		return "login", 5
-	case strings.HasPrefix(path, "/api/v1/import/") ||
+	case (strings.HasPrefix(path, "/api/v1/import/") && method != "GET") ||
 		(strings.HasPrefix(path, "/api/v1/pim/import-templates/") && (strings.HasSuffix(path, "/preview") || strings.HasSuffix(path, "/import"))) ||
 		strings.HasPrefix(path, "/api/v1/pim/product-sheet/"): // 146.5.4: same file work, same budget
 		// Bulk Upload API: file processing is the heaviest per-request cost
@@ -523,7 +523,9 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// "default" bucket - 6x looser for equivalent per-request cost, just
 		// because its route doesn't share the /api/v1/import/ prefix.
 		// preview-mapping (a lightweight template lookup, no file upload) is
-		// deliberately not included here.
+		// deliberately not included here; nor (297.2) are the import screens'
+		// own lookups, GET .../template and .../load-order: choosing a few
+		// record types in a minute spent the budget the file itself needs.
 		return "bulk-upload", 10
 	case strings.HasPrefix(path, "/api/v1/reports/") || strings.HasSuffix(path, "/finance/trial-balance"):
 		// Report API: SEC-V2 asks these be restricted/queued as "heavy".
@@ -561,6 +563,11 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		(strings.HasPrefix(path, "/api/v1/procurement/purchase-order/") && strings.HasSuffix(path, "/images"))):
 		// Stage 95: dropping a folder of photos on a PO is one upload per file.
 		return "image-upload", 120
+	case method == "PUT" && strings.HasPrefix(path, "/api/v1/uploads/"):
+		// 297.2: a large import file goes up in pieces of 64 KiB to 1 MiB, so
+		// a 100 MB file on a fast line is a hundred or more PUTs a minute.
+		// They get their own bucket and never spend what other calls share.
+		return "upload-piece", 600
 	case method == "GET" && (path == "/api/v1/version" || path == "/api/v1/branding" || path == "/api/v1/branding/logo"):
 		// Stage 141.4: what every page load and the sign-in screen ask first -
 		// small, read-only and the same for everyone - in their own bucket, so

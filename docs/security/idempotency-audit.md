@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **708**; keyed: **39**; findings (money / stock without a key): **148**.
+Routes audited: **711**; keyed: **39**; findings (money / stock without a key): **148**.
 
 ## Findings
 
@@ -493,6 +493,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/import-batches/{id}/discard` | `handleImportBatchDiscard` | no | - | document |
 | `POST /api/v1/import-batches/{id}/preview` | `handleImportBatchPreview` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/import-batches/{id}/reconcile` | `handleImportBatchReconcile` | no | - | document |
+| `POST /api/v1/import-batches/{id}/resume` | `handleImportBatchResume` | no | - | document |
 | `POST /api/v1/import-batches/{id}/validate` | `handleImportBatchValidate` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/import-jobs/{id}/resume` | `handleResumeImportJob` | no | - | document |
 | `POST /api/v1/import/{doctype}` | `handleBulkImport` | no | - | document |
@@ -841,6 +842,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/transfer/submit` | `handleSubmitTransferOrder` | no | - | stock |
 | `POST /api/v1/unicommerce/credentials` | `handleUnicommerceCredentials` | no | - | document |
 | `POST /api/v1/unicommerce/order` | `handleUnicommerceOrder` | no | - | document |
+| `POST /api/v1/uploads` | `handleUploadStart` | no | - | document |
 | `POST /api/v1/wms/batch/consume` | `handleBatchConsume` | no | - | stock |
 | `POST /api/v1/wms/batch/expiry-sweep` | `handleBatchExpirySweep` | no | - | document |
 | `POST /api/v1/wms/batch/putaway` | `handleBatchPutaway` | no | - | stock |
@@ -919,3 +921,4 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `PUT /api/v1/inventory/item-setup/fields` | `handleSaveItemFieldRules` | no | - | document |
 | `PUT /api/v1/me` | `handleUpdateProfile` | no | - | document |
 | `PUT /api/v1/meta/{doctype}/fields/{id}` | `handleUpdateFieldDefinition` | no | - | document |
+| `PUT /api/v1/uploads/{id}` | `handleUploadPiece` | no | - | document |

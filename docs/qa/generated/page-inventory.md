@@ -13,9 +13,9 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 |---|---|
 | Front-end files with screens or API calls | 142 |
 | Screens in the shell registry | 81 |
-| File-to-route actions | 1304 |
-| Registered `/api` routes | 1133 |
-| Routes no front-end file calls | 225 |
+| File-to-route actions | 1308 |
+| Registered `/api` routes | 1137 |
+| Routes no front-end file calls | 226 |
 | Calls matching no route | 4 |
 
 ## Screens and front-end files
@@ -79,6 +79,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
 | GET | `/api/v1/system/environment` | `handleGetEnvironment` |  | signed-in: system.default | every signed-in role |
+| POST | `/api/v1/uploads` | `handleUploadStart` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/version` | `handleVersion` |  | public: version.default | anyone |
 
 ### `public/attachments-panel.js`
@@ -1151,6 +1152,9 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
 | GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
+| GET | `/api/v1/uploads/{id}` | `handleUploadGet` |  | signed-in: import.default | every signed-in role |
+| PUT | `/api/v1/uploads/{id}` | `handleUploadPiece` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/uploads` | `handleUploadStart` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/version` | `handleVersion` |  | public: version.default | anyone |
 
 ### `public/view-inbox.js`
@@ -2448,7 +2452,7 @@ Settings → Configuration renders the settings registry by module, through the 
 | Orders | 11 |
 | PIM | 8 |
 | PIM / PIMS | 2 |
-| Platform | 30 |
+| Platform | 31 |
 | Platform billing | 1 |
 | Point of Sale | 15 |
 | Printing | 6 |
@@ -2575,6 +2579,7 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/import-batches/{id}/discard` | `handleImportBatchDiscard` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/import-batches/{id}/preview` | `handleImportBatchPreview` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/import-batches/{id}/reconcile` | `handleImportBatchReconcile` |  | signed-in: import.default | every signed-in role |
+| POST | `/api/v1/import-batches/{id}/resume` | `handleImportBatchResume` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/import-batches/{id}/rows` | `handleImportBatchRows` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/import-batches/{id}/validate` | `handleImportBatchValidate` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/import/{doctype}/load-order` | `handleImportLoadOrder` |  | signed-in: import.default | every signed-in role |

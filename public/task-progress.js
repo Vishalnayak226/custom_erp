@@ -15,6 +15,8 @@ const POLL_MS = 3000;
 const POLL_HIDDEN_MS = 15000;
 
 let tasks = [];            // the last answer, running first
+const local = new Map();   // 297.2: work this tab does itself (a file going up), shown first
+const shown = () => [...local.values(), ...tasks];
 let timer = null;
 let inflight = false;
 const watchers = new Set(); // fn(tasks) - a screen showing its own task's bar
@@ -65,7 +67,7 @@ function apply(list) {
   saveIds(still);
   tasks = list;
   render();
-  for (const fn of watchers) { try { fn(tasks); } catch (_) { /* a closed screen */ } }
+  for (const fn of watchers) { try { fn(shown()); } catch (_) { /* a closed screen */ } }
 }
 
 function announce(t) {
@@ -90,8 +92,21 @@ export function tasksStart(id, label) {
     tasks = [{ id, label: label || 'Task', state: 'queued', pct: -1, created_at: new Date().toISOString() }, ...tasks];
   }
   render();
-  for (const fn of watchers) { try { fn(tasks); } catch (_) { /* */ } }
+  for (const fn of watchers) { try { fn(shown()); } catch (_) { /* */ } }
   schedule(POLL_MS);
+}
+
+// tasksLocal shows work this tab does itself - a large file going up in
+// pieces (297.2) - with the server's tasks: {id, label, state, pct, done,
+// total, eta_sec, note, onCancel}. State "gone" takes it off; a finished one
+// is announced like a server task and taken off.
+export function tasksLocal(t) {
+  if (!t || !t.id) return;
+  if (t.state === 'gone') local.delete(t.id);
+  else if (active(t)) local.set(t.id, { ...t, local: true });
+  else { local.delete(t.id); announce(t); }
+  render();
+  for (const fn of watchers) { try { fn(shown()); } catch (_) { /* */ } }
 }
 
 // tasksResume picks running tasks up again after a reload or from another tab.
@@ -103,7 +118,7 @@ export function tasksResume() {
 // user comes back to it. fn gets every task; the screen picks its own.
 export function tasksWatch(fn) {
   watchers.add(fn);
-  fn(tasks);
+  fn(shown());
   return () => watchers.delete(fn);
 }
 
@@ -203,7 +218,8 @@ function row(t) {
   const foot = document.createElement('div');
   foot.className = 'task-foot';
   const r = t.result || {};
-  if (t.total) foot.append(`${fmt(t.done)} of ${fmt(t.total)}`); // rows, photos - whatever the task counts
+  if (t.note) foot.append(t.note); // a local task says what it counts itself (MB sent)
+  else if (t.total) foot.append(`${fmt(t.done)} of ${fmt(t.total)}`); // rows, photos - whatever the task counts
   else if (t.state === 'done' && (r.rows_in != null || r.rows_bad != null)) {
     foot.append(`${fmt(r.rows_in)} in${r.rows_bad ? ` · ${fmt(r.rows_bad)} not` : ''}`);
   }
@@ -226,8 +242,9 @@ function row(t) {
 function render() {
   const btn = ensureButton();
   if (!btn) return;
-  const running = tasks.filter(active).length;
-  btn.classList.toggle('hidden', tasks.length === 0);
+  const all = shown();
+  const running = all.filter(active).length;
+  btn.classList.toggle('hidden', all.length === 0);
   btn.classList.toggle('tasks-busy', running > 0);
   const count = btn.querySelector('.tasks-count');
   count.textContent = running ? String(running) : '';
@@ -241,21 +258,22 @@ function render() {
   title.textContent = 'Tasks';
   const list = document.createElement('div');
   list.className = 'tasks-list';
-  if (!tasks.length) {
+  if (!all.length) {
     const empty = document.createElement('div');
     empty.className = 'task-empty';
     empty.textContent = 'No tasks today';
     list.appendChild(empty);
   }
-  for (const t of tasks) list.appendChild(row(t));
+  for (const t of all) list.appendChild(row(t));
   panel.replaceChildren(title, list);
 }
 
 async function onPanelClick(e) {
   const b = e.target.closest('button[data-act]');
   if (!b) return;
-  const t = tasks.find(x => x.id === b.closest('.task-row')?.dataset.id);
+  const t = shown().find(x => x.id === b.closest('.task-row')?.dataset.id);
   if (!t) return;
+  if (t.local) { if (b.dataset.act === 'cancel') t.onCancel?.(); return; }
   b.disabled = true;
   try {
     if (b.dataset.act === 'cancel') {

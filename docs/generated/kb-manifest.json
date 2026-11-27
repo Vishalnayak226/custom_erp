@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.30.0",
+  "release": "0.31.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -127,7 +127,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "00ebe361167d307b830241155e02ac309ff921d68f0a62b34b0702ce7ee66c8b",
+      "sha256": "71ffdf3ccfa579e2dad994db285e769ce531108be45cca7d88b3bc70c4611cf3",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -847,7 +847,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "ca872fe9279558809dc7ca98567eb8086da32d9d3857d63ed3c902000d7e8d47",
+      "sha256": "1acebf86428baaa1d7bb95fa543b5015e946f7800e8b4da36589381e5b820d8b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

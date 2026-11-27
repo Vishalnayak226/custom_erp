@@ -843,6 +843,12 @@ func registerStage282Settings() {
 		Description: "Row count above which a bulk CSV/template import is rejected outright rather than partially processed (DATAIM-0189).",
 	})
 	RegisterSetting(SettingDefinition{
+		Key: "platform.max_staged_import_rows", Module: "Platform",
+		Label: "Maximum rows in a large staged import", Type: SettingTypeInt, Default: "10000000", Unit: "rows",
+		Min: settingBound(1000), Max: settingBound(50000000),
+		Description: "Row count above which a large file sent in pieces to Data › Staged import stops with DATAIM-0189 (297.2). The direct import keeps its own limit.",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: "platform.report_export_retention_days", Module: "Platform",
 		Label: "Report export job retention", Type: SettingTypeInt, Default: "7", Unit: "days",
 		Min: settingBound(1), Max: settingBound(365),

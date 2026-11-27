@@ -6,7 +6,7 @@
       "method": "ANY",
       "path": "/",
       "auth": "static",
-      "source": "internal/server/routes.go:2010",
+      "source": "internal/server/routes.go:2015",
       "note": "static file server; see static_roots"
     },
     {
@@ -1749,7 +1749,7 @@
       "method": "ANY",
       "path": "/api/v1/debug/panic",
       "auth": "session",
-      "source": "internal/server/routes.go:1974",
+      "source": "internal/server/routes.go:1979",
       "note": "registered only when ENV is not production (49.1.2)"
     },
     {
@@ -2647,6 +2647,12 @@
       "source": "internal/server/routes.go:1963"
     },
     {
+      "method": "POST",
+      "path": "/api/v1/import-batches/{id}/resume",
+      "auth": "session",
+      "source": "internal/server/routes.go:1965"
+    },
+    {
       "method": "GET",
       "path": "/api/v1/import-batches/{id}/rows",
       "auth": "session",
@@ -3022,19 +3028,19 @@
       "method": "POST",
       "path": "/api/v1/logs/browser-error",
       "auth": "session",
-      "source": "internal/server/routes.go:1969"
+      "source": "internal/server/routes.go:1974"
     },
     {
       "method": "ANY",
       "path": "/api/v1/logs/system",
       "auth": "session",
-      "source": "internal/server/routes.go:1965"
+      "source": "internal/server/routes.go:1970"
     },
     {
       "method": "POST",
       "path": "/api/v1/logs/system/resolve",
       "auth": "session",
-      "source": "internal/server/routes.go:1967"
+      "source": "internal/server/routes.go:1972"
     },
     {
       "method": "ANY",
@@ -6271,6 +6277,24 @@
       "source": "internal/server/routes.go:1685"
     },
     {
+      "method": "POST",
+      "path": "/api/v1/uploads",
+      "auth": "session",
+      "source": "internal/server/routes.go:1967"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/uploads/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:1968"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/uploads/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:1969"
+    },
+    {
       "method": "GET",
       "path": "/api/v1/version",
       "auth": "public",
@@ -6880,21 +6904,21 @@
       "method": "GET",
       "path": "/favicon.ico",
       "auth": "none",
-      "source": "internal/server/routes.go:2013",
+      "source": "internal/server/routes.go:2018",
       "note": "registered with no middleware - handler is solely responsible for its own access control"
     },
     {
       "method": "GET",
       "path": "/help",
       "auth": "static",
-      "source": "internal/server/routes.go:2000",
+      "source": "internal/server/routes.go:2005",
       "note": "serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "/help/{rest...}",
       "auth": "static",
-      "source": "internal/server/routes.go:2001",
+      "source": "internal/server/routes.go:2006",
       "note": "serves the SPA shell only"
     },
     {
@@ -6915,14 +6939,14 @@
       "method": "GET",
       "path": "{prefix}",
       "auth": "static",
-      "source": "internal/server/routes.go:1993",
+      "source": "internal/server/routes.go:1998",
       "note": "expanded per engines.ProductPackages at registration; serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "{prefix}+\"/{rest...}\"",
       "auth": "static",
-      "source": "internal/server/routes.go:1994",
+      "source": "internal/server/routes.go:1999",
       "note": "expanded per engines.ProductPackages at registration; serves the SPA shell only"
     }
   ],
@@ -7342,7 +7366,7 @@
   ],
   "migrations": {
     "base_schema_file": "db/migrations/migration.sql",
-    "incremental_files": 484,
+    "incremental_files": 485,
     "newest": [
       "migrations_stage98_3_store_email.sql",
       "migrations_stage98_4_printer_choice.sql",
@@ -7932,13 +7956,13 @@
     "direct_dependencies": 2,
     "environment_flags": 54,
     "environment_flags_security_critical": 14,
-    "incremental_migrations": 484,
+    "incremental_migrations": 485,
     "outbound_call_sites": 25,
-    "routes": 1150,
+    "routes": 1154,
     "routes_integration_credential": 5,
     "routes_none": 7,
     "routes_public": 32,
-    "routes_session": 1101,
+    "routes_session": 1105,
     "routes_static": 5
   }
 }

@@ -127,6 +127,13 @@ var envelopeRoutes = []envelopeRoute{
 	// The import hook takes a raw CSV body from a scheduled external sender,
 	// limited to 5 MiB by the handler itself.
 	{pattern: "/api/v1/pim/import/hook", maxBody: 5 << 20, extraTypes: []string{"text/csv", "text/plain", "application/octet-stream"}},
+	// 297.2: one piece of a resumable upload - at most 1 MiB of the file's
+	// bytes, sent as they are.
+	{pattern: "/api/v1/uploads/*", maxBody: 1<<20 + 4096, extraTypes: []string{"application/octet-stream"}},
+	// A staged import of a small file in one multipart request: the handler
+	// allows twice the 5 MB cap for its framing (47.13.1); larger files go
+	// as a resumable upload.
+	{pattern: "/api/v1/import-batches", maxBody: 11 << 20},
 	// Browsers send CSP violation reports with their own media types.
 	{pattern: "/api/v1/security/csp-report", extraTypes: []string{"application/csp-report", "application/reports+json"}},
 	// Sticker designs carry their logos inside one string field.

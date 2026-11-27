@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -146,6 +147,12 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 	src := newImportSourceReader(r) // 47.13.3: lineage of the bytes as parsed
 	records, err := readCSVRecordsContext(ctx, tenantID, src)
 	if err != nil {
+		// 297.2: a file too large for the direct import goes to the staged
+		// import, which reads it in the background in resumable slices.
+		var ve *ValidationError
+		if errors.As(err, &ve) && ve.Code == "DATAIM-0189" {
+			ve.Message += ", or stage it from Import Batch, which takes large files in the background"
+		}
 		return nil, err
 	}
 

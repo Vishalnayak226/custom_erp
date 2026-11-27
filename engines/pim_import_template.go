@@ -234,6 +234,12 @@ func PreviewPIMImportTemplateMapping(tenantID, templateID string) (*PIMImportTem
 // "does an earlier row in this same uncommitted file define this id" is not
 // something a query against already-committed data can answer.
 func pimVariantParentPreflight(tenantID string, docRows []map[string]interface{}) []string {
+	return pimVariantParentPreflightKnown(tenantID, docRows, nil)
+}
+
+// pimVariantParentPreflightKnown is pimVariantParentPreflight for one chunk of
+// a larger file (297.2): known holds the item ids of the file's earlier rows.
+func pimVariantParentPreflightKnown(tenantID string, docRows []map[string]interface{}, known map[string]bool) []string {
 	errs := make([]string, len(docRows))
 	var neededParents []string
 	seenParent := map[string]bool{}
@@ -262,6 +268,9 @@ func pimVariantParentPreflight(tenantID string, docRows []map[string]interface{}
 	}
 
 	knownInFile := map[string]bool{}
+	for id := range known {
+		knownInFile[id] = true
+	}
 	for i, row := range docRows {
 		if parent := strings.TrimSpace(pimString(row["parent_product_code"])); parent != "" {
 			if !existing[parent] && !knownInFile[parent] {

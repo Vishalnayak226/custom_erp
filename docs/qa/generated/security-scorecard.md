@@ -11,7 +11,7 @@ Evidence, not one number (Stage 49.17.4). Judged as of 2026-11-27, the newest da
 
 | Area | Measure | State | Evidence |
 |---|---|---|---|
-| Attack surface | 1150 routes: integration-credential 5, none 7, public 32, session 1101, static 5 | classified (every route has a capability; tests fail otherwise) | `docs/security/attack_surface.json` |
+| Attack surface | 1154 routes: integration-credential 5, none 7, public 32, session 1105, static 5 | classified (every route has a capability; tests fail otherwise) | `docs/security/attack_surface.json` |
 | Configuration | 54 environment flags, 14 security-critical | listed | `docs/security/attack_surface.json` |
 | Dependencies | 2 modules, 2 direct | pinned by go.sum | `docs/security/attack_surface.json` |
 | Dependency provenance | ledger updated 2026-11-19 | current | `docs/security/dependency-ledger.json` |

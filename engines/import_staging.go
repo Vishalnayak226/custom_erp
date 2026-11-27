@@ -28,7 +28,9 @@ import (
 // core BulkImportCSV feeds, so a staged row is accepted or refused exactly as
 // a directly imported one. The direct import is unchanged.
 //
+//	staging           a large file read in slices (297.2)  StageImportBatchFromUpload
 //	parsed            upload safety, parse, normalize     StageImportBatch
+//	validating        the same check, in slices (297.2)    RunImportBatchStep
 //	validated         versioned transform, validate, match ValidateImportBatch
 //	previewed         impact preview                       PreviewImportBatch
 //	pending_approval  maker-checker (approval engine)      ApproveImportBatch
@@ -40,6 +42,11 @@ import (
 //
 // The batch is an ImportBatch record in documents, because the approval
 // engine works on documents; its rows are the table.
+//
+// 297.2: every step works a chunk at a time and records how far it got, so a
+// large batch runs in the background (engines/import_staging_bulk.go) in
+// slices that carry on after a restart, and a small one runs the same code
+// inside the request.
 
 const (
 	ImportBatchDoctype    = "ImportBatch"
@@ -52,7 +59,9 @@ const (
 
 // Batch stages and staged-row statuses.
 const (
+	ImportStageStaging         = "staging" // 297.2: a large file being read in the background
 	ImportStageParsed          = "parsed"
+	ImportStageValidating      = "validating" // 297.2: a large batch being checked in the background
 	ImportStageValidated       = "validated"
 	ImportStagePreviewed       = "previewed"
 	ImportStagePendingApproval = "pending_approval"
@@ -156,10 +165,15 @@ type ImportBatchData struct {
 	ApprovedBy       string                `json:"approved_by"`
 	ApprovedAt       string                `json:"approved_at"`
 	CommitLeaseUntil string                `json:"commit_lease_until"`
+	CommitLeaseOwner string                `json:"commit_lease_owner"`
 	CommitCreated    int                   `json:"commit_created"`
 	CommitUpdated    int                   `json:"commit_updated"`
 	CommittedAt      string                `json:"committed_at"`
 	ExpiredAt        string                `json:"raw_rows_expired_at"`
+	// Work (297.2) is a step running in slices: what it is, which job runs it
+	// and how far it has got. Only the step itself writes it (saveImportBatchOn
+	// leaves it alone), and it is cleared when the step ends.
+	Work *ImportBatchWork `json:"work"`
 }
 
 // ImportBatchView is a batch as the API returns it.
@@ -168,6 +182,9 @@ type ImportBatchView struct {
 	RulesCurrent     bool `json:"rules_current"`
 	AlreadyStaged    bool `json:"already_staged,omitempty"`
 	AlreadyCommitted bool `json:"already_committed,omitempty"`
+	// WorkLive: the batch's step (Work) is still running; a step that is not
+	// has stopped and can be resumed (297.2).
+	WorkLive bool `json:"work_live,omitempty"`
 }
 
 func importBatchErr(code, format string, args ...interface{}) error {
@@ -287,7 +304,13 @@ func LoadImportBatch(tenantID, id string) (*ImportBatchView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return importBatchView(b), nil
+	v := importBatchView(b)
+	if b.Work != nil {
+		if schema, err := db.GetTenantSchema(tenantID); err == nil {
+			v.WorkLive = importWorkLive(schema, b.Work)
+		}
+	}
+	return v, nil
 }
 
 type importExec interface {
@@ -301,6 +324,7 @@ func saveImportBatchOn(q importExec, schema string, b *ImportBatchData, status s
 	raw, _ := json.Marshal(b)
 	_ = json.Unmarshal(raw, &m)
 	delete(m, "status")
+	delete(m, "work") // only the running step writes its own progress (297.2)
 	patch, _ := json.Marshal(m)
 	if status != "" {
 		_, err := q.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = $3 AND id = $4`, schema),
@@ -348,7 +372,11 @@ func ListImportBatches(tenantID string, limit int) ([]*ImportBatchView, error) {
 		}
 		deriveImportStage(b, status)
 		b.Preview = nil // the list stays small; the batch screen has it
-		out = append(out, importBatchView(b))
+		v := importBatchView(b)
+		if b.Work != nil {
+			v.WorkLive = importWorkLive(schema, b.Work)
+		}
+		out = append(out, v)
 	}
 	return out, rows.Err()
 }
@@ -404,14 +432,6 @@ func ListImportBatchRows(tenantID, batchID, status string, limit, offset int) ([
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT `+stagedRowCols+` FROM %s.import_staging_rows
 		WHERE batch_id = $1 AND ($2 = '' OR status = $2) ORDER BY row_no LIMIT $3 OFFSET $4`, schema), batchID, status, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	return scanStagedRows(rows)
-}
-
-func allStagedRows(schema, batchID string) ([]ImportStagedRow, error) {
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT `+stagedRowCols+` FROM %s.import_staging_rows WHERE batch_id = $1 ORDER BY row_no`, schema), batchID)
 	if err != nil {
 		return nil, err
 	}
@@ -517,6 +537,7 @@ func StageImportBatch(ctx context.Context, tenantID, doctype string, r io.Reader
 		}
 		v := importBatchView(b)
 		v.AlreadyStaged = true
+		v.WorkLive = importWorkLive(schema, b.Work) // 297.2: that batch may still be working
 		return v, nil
 	}
 	if err != sql.ErrNoRows {
@@ -593,188 +614,22 @@ func StageImportBatch(ctx context.Context, tenantID, doctype string, r io.Reader
 // importBatchEditable: a batch can be checked again until it goes for approval.
 func importBatchEditable(b *ImportBatchData) bool {
 	switch b.Stage {
-	case ImportStageParsed, ImportStageValidated, ImportStagePreviewed:
+	case ImportStageParsed, ImportStageValidating, ImportStageValidated, ImportStagePreviewed:
 		return b.Status == "Draft"
 	}
 	return false
 }
 
-// ValidateImportBatch re-runs the transform from the raw cells under today's
-// rules (stamping ImportRulesVersion on the batch - the explicit way a batch
-// staged under older rules is brought up to date), then validates every row
-// exactly as a direct import would (a dry run of the import core, nothing
-// written) and matches it: against earlier rows of the same file (a repeat of
-// a key is a Duplicate) and against the records already there (update or new).
+// ValidateImportBatch checks a batch to its end inside the call (the screen
+// sends a large one to the background through RunImportBatchStep). Each row is
+// transformed again from its raw cells when it was read under older rules (the
+// batch is stamped with ImportRulesVersion - the explicit way a batch staged
+// under older rules is brought up to date), validated exactly as a direct
+// import would (a dry run of the import core, nothing written) and matched:
+// against earlier rows of the same file (a repeat of a key is a Duplicate) and
+// against the records already there (update or new). See importStepRun.validate.
 func ValidateImportBatch(ctx context.Context, tenantID, batchID, userID, role string) (*ImportBatchView, error) {
-	b, _, err := loadImportBatch(tenantID, batchID)
-	if err != nil {
-		return nil, err
-	}
-	if !importBatchEditable(b) {
-		return nil, importBatchErr("DATAIM-0481", "batch %s is %s - it can only be checked before it goes for approval", b.ID, strings.ToLower(b.Stage))
-	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	lk, err := newImportLookups(tenantID, schema, b.DoctypeName, role)
-	if err != nil {
-		return nil, err
-	}
-	if lk.isMasterErr != nil {
-		return nil, lk.isMasterErr
-	}
-	fields, err := GetDocTypeMeta(tenantID, b.DoctypeName)
-	if err != nil {
-		return nil, err
-	}
-	if b.RulesVersion != ImportRulesVersion {
-		if err := retransformImportBatch(schema, b); err != nil {
-			return nil, err
-		}
-	}
-	rows, err := allStagedRows(schema, b.ID)
-	if err != nil {
-		return nil, err
-	}
-	docRows := make([]map[string]interface{}, len(rows))
-	for i := range rows {
-		docRows[i] = rows[i].Data
-	}
-
-	type verdict struct {
-		status, kind, matchID, key string
-		errs                       []string
-	}
-	verdicts := make([]verdict, len(rows))
-	firstOf := map[string]int{} // the first row with a key keeps it
-	var keys []string
-	for i := range rows {
-		key := importUpdateTarget(docRows[i], lk.isMaster)
-		verdicts[i].key = key
-		if key == "" {
-			continue
-		}
-		lower := strings.ToLower(key)
-		if first, ok := firstOf[lower]; ok {
-			verdicts[i].status = importRowDuplicate
-			verdicts[i].errs = []string{fmt.Sprintf("repeats row %d of this file (%s)", rows[first].RowNo, key)}
-			continue
-		}
-		firstOf[lower] = i
-		keys = append(keys, key)
-	}
-	existing := map[string]string{}
-	if len(keys) > 0 {
-		q, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL AND id = ANY($2)`, schema), b.DoctypeName, pq.Array(keys))
-		if err != nil {
-			return nil, err
-		}
-		for q.Next() {
-			var id string
-			if q.Scan(&id) == nil {
-				existing[strings.ToLower(id)] = id
-			}
-		}
-		q.Close()
-	}
-	var pre []string
-	if strings.EqualFold(b.DoctypeName, "Item") {
-		pre = pimVariantParentPreflight(tenantID, docRows)
-	}
-	var eligible []int
-	for i := range rows {
-		v := &verdicts[i]
-		if v.status == importRowDuplicate {
-			v.kind = "duplicate"
-			continue
-		}
-		v.kind = "new"
-		if id, ok := existing[strings.ToLower(v.key)]; ok && v.key != "" {
-			v.kind, v.matchID = "update", id
-		}
-		if pre != nil && pre[i] != "" {
-			v.status, v.errs = importRowInvalid, []string{pre[i]}
-			continue
-		}
-		eligible = append(eligible, i)
-	}
-	var warnings []string
-	loadWarnings, loadErr := CheckImportLoadOrder(tenantID, b.DoctypeName)
-	if loadErr != nil {
-		return nil, loadErr
-	}
-	warnings = append(warnings, loadWarnings...)
-	for start := 0; start < len(eligible); start += importStageChunk {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		end := start + importStageChunk
-		if end > len(eligible) {
-			end = len(eligible)
-		}
-		chunk := make([]map[string]interface{}, 0, end-start)
-		for _, i := range eligible[start:end] {
-			chunk = append(chunk, docRows[i])
-		}
-		res, err := runDocDataImportContext(ctx, tenantID, b.DoctypeName, userID, role, true, chunk, make([]string, len(chunk)))
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range res.Errors {
-			idx := e.RowNumber - 2
-			if idx < 0 || idx >= len(chunk) {
-				warnings = append(warnings, e.Message)
-				continue
-			}
-			v := &verdicts[eligible[start+idx]]
-			v.status = importRowInvalid
-			v.errs = append(v.errs, e.Message)
-		}
-	}
-	for i := range verdicts {
-		if verdicts[i].status == "" {
-			verdicts[i].status = importRowValid
-		}
-	}
-
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	up, err := tx.Prepare(fmt.Sprintf(`UPDATE %s.import_staging_rows SET status = $3, match_kind = $4, match_id = $5, natural_key = $6, errors = $7 WHERE batch_id = $1 AND row_no = $2`, schema))
-	if err != nil {
-		return nil, err
-	}
-	defer up.Close()
-	for i, v := range verdicts {
-		var errJSON interface{}
-		if len(v.errs) > 0 {
-			j, _ := json.Marshal(v.errs)
-			errJSON = string(j)
-		}
-		if _, err := up.Exec(b.ID, rows[i].RowNo, v.status, v.kind, v.matchID, importTruncate(v.key, 300), errJSON); err != nil {
-			return nil, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	counts, err := importRowCounts(schema, b.ID)
-	if err != nil {
-		return nil, err
-	}
-	b.Counts = counts
-	b.FileTotals = importFileTotals(fields, docRows, func(i int) bool { return verdicts[i].status == importRowValid })
-	b.Warnings = warnings
-	b.Preview = nil
-	b.Stage = ImportStageValidated
-	b.RulesVersion = ImportRulesVersion
-	if err := saveImportBatch(tenantID, b, ""); err != nil {
-		return nil, err
-	}
-	return importBatchView(b), nil
+	return runImportStepInline(ctx, tenantID, batchID, importStepValidate, userID, role)
 }
 
 func importTruncate(s string, n int) string {
@@ -784,50 +639,11 @@ func importTruncate(s string, n int) string {
 	return s
 }
 
-// retransformImportBatch rebuilds every row's normalized cells from its raw
-// cells under today's rules.
-func retransformImportBatch(schema string, b *ImportBatchData) error {
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT row_no, raw FROM %s.import_staging_rows WHERE batch_id = $1 ORDER BY row_no`, schema), b.ID)
-	if err != nil {
-		return err
-	}
-	type pair struct {
-		no   int
-		norm []byte
-	}
-	var out []pair
-	for rows.Next() {
-		var no int
-		var raw []byte
-		if err := rows.Scan(&no, &raw); err != nil {
-			rows.Close()
-			return err
-		}
-		cells := map[string]string{}
-		_ = json.Unmarshal(raw, &cells)
-		rec := make([]string, len(b.Headers))
-		for i, h := range b.Headers {
-			rec[i] = cells[h]
-		}
-		j, _ := json.Marshal(transformImportRow(b.Headers, rec))
-		out = append(out, pair{no, j})
-	}
-	rows.Close()
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, p := range out {
-		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.import_staging_rows SET normalized = $3, transform_version = $4 WHERE batch_id = $1 AND row_no = $2`, schema),
-			b.ID, p.no, p.norm, ImportRulesVersion); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
 // ---- 3. impact preview -------------------------------------------------------
+
+// importPreviewScan bounds how far into a batch's rows of one status the
+// preview looks for its samples, so a batch of any size previews at once.
+const importPreviewScan = 100000
 
 // PreviewImportBatch states what a commit would do before anything is written:
 // how many records would be added and changed, which rows are repeats or
@@ -838,7 +654,7 @@ func PreviewImportBatch(ctx context.Context, tenantID, batchID string) (*ImportB
 	if err != nil {
 		return nil, err
 	}
-	if !importBatchEditable(b) || b.Stage == ImportStageParsed {
+	if !importBatchEditable(b) || b.Stage == ImportStageParsed || b.Stage == ImportStageValidating {
 		return nil, importBatchErr("DATAIM-0481", "batch %s must be checked first (it is %s)", b.ID, strings.ToLower(b.Stage))
 	}
 	if b.RulesVersion != ImportRulesVersion {
@@ -848,20 +664,34 @@ func PreviewImportBatch(ctx context.Context, tenantID, batchID string) (*ImportB
 	if err != nil {
 		return nil, err
 	}
-	rows, err := allStagedRows(schema, b.ID)
+	sample := func(status, kind string, n int) ([]ImportStagedRow, error) {
+		q, err := db.DB.QueryContext(ctx, fmt.Sprintf(`SELECT `+stagedRowCols+` FROM (SELECT `+stagedRowCols+` FROM %s.import_staging_rows
+			WHERE batch_id = $1 AND status = $2 ORDER BY row_no LIMIT $5) s
+			WHERE ($3 = '' OR match_kind = $3) ORDER BY row_no LIMIT $4`, schema), b.ID, status, kind, n, importPreviewScan)
+		if err != nil {
+			return nil, err
+		}
+		return scanStagedRows(q)
+	}
+	p := &ImportBatchPreview{Counts: b.Counts, Totals: b.FileTotals, At: time.Now().UTC().Format(time.RFC3339)}
+	news, err := sample(importRowValid, "new", importPreviewSamples)
 	if err != nil {
 		return nil, err
 	}
-	p := &ImportBatchPreview{Counts: b.Counts, Totals: b.FileTotals, At: time.Now().UTC().Format(time.RFC3339)}
-	var updIDs []string
-	for _, r := range rows {
-		if r.Status == importRowValid && r.MatchKind == "update" && len(updIDs) < importPreviewSamples {
-			updIDs = append(updIDs, r.MatchID)
-		}
+	for _, r := range news {
+		p.NewRows = append(p.NewRows, ImportPreviewSample{Row: r.RowNo, ID: r.Key})
+	}
+	upds, err := sample(importRowValid, "update", importPreviewSamples)
+	if err != nil {
+		return nil, err
 	}
 	stored := map[string]map[string]interface{}{}
-	if len(updIDs) > 0 {
-		q, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = $1 AND id = ANY($2)`, schema), b.DoctypeName, pq.Array(updIDs))
+	if len(upds) > 0 {
+		ids := make([]string, len(upds))
+		for i, r := range upds {
+			ids[i] = r.MatchID
+		}
+		q, err := db.DB.QueryContext(ctx, fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = $1 AND id = ANY($2)`, schema), b.DoctypeName, pq.Array(ids))
 		if err != nil {
 			return nil, err
 		}
@@ -876,17 +706,22 @@ func PreviewImportBatch(ctx context.Context, tenantID, batchID string) (*ImportB
 		}
 		q.Close()
 	}
-	for _, r := range rows {
-		switch {
-		case r.Status == importRowValid && r.MatchKind == "new" && len(p.NewRows) < importPreviewSamples:
-			p.NewRows = append(p.NewRows, ImportPreviewSample{Row: r.RowNo, ID: r.Key})
-		case r.Status == importRowValid && r.MatchKind == "update" && len(p.Updates) < importPreviewSamples:
-			p.Updates = append(p.Updates, ImportPreviewSample{Row: r.RowNo, ID: r.MatchID, Changes: importPreviewChanges(stored[r.MatchID], r.Data)})
-		case r.Status == importRowDuplicate && len(p.Duplicates) < importPreviewSamples:
-			p.Duplicates = append(p.Duplicates, ImportPreviewSample{Row: r.RowNo, ID: r.Key, Message: strings.Join(r.Errors, "; ")})
-		case r.Status == importRowInvalid && len(p.Errors) < importPreviewSamples*2:
-			p.Errors = append(p.Errors, ImportPreviewSample{Row: r.RowNo, ID: r.Key, Message: strings.Join(r.Errors, "; ")})
-		}
+	for _, r := range upds {
+		p.Updates = append(p.Updates, ImportPreviewSample{Row: r.RowNo, ID: r.MatchID, Changes: importPreviewChanges(stored[r.MatchID], r.Data)})
+	}
+	dups, err := sample(importRowDuplicate, "", importPreviewSamples)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range dups {
+		p.Duplicates = append(p.Duplicates, ImportPreviewSample{Row: r.RowNo, ID: r.Key, Message: strings.Join(r.Errors, "; ")})
+	}
+	bad, err := sample(importRowInvalid, "", importPreviewSamples*2)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range bad {
+		p.Errors = append(p.Errors, ImportPreviewSample{Row: r.RowNo, ID: r.Key, Message: strings.Join(r.Errors, "; ")})
 	}
 	b.Preview = p
 	b.Stage = ImportStagePreviewed
@@ -990,95 +825,17 @@ func ApproveImportBatch(ctx context.Context, tenantID, batchID, actorID, actorRo
 // ---- 5. idempotent commit --------------------------------------------------------
 
 // CommitImportBatch writes an approved batch's valid rows through the import
-// core, a chunk per transaction. A row is marked Committed in the same
-// transaction that writes its record, so a repeat, a retry after an error and
-// a resume after a crash write nothing twice: each takes only the rows still
-// Valid. A committed batch asked again returns what it did. A chunk holding a
-// row the importer now refuses (the data moved since the check) is retried a
-// row at a time, so the rows that can go in do, and the others are marked
-// Failed with the reason.
+// core, a chunk per transaction, then reconciles it - all inside the call (the
+// screen sends a large batch to the background through RunImportBatchStep). A
+// row is marked Committed in the same transaction that writes its record, so a
+// repeat, a retry after an error and a resume after a crash write nothing
+// twice: each takes only the rows still Valid. A committed batch asked again
+// returns what it did. A chunk holding a row the importer now refuses (the data
+// moved since the check) is retried a row at a time, so the rows that can go
+// in do, and the others are marked Failed with the reason. See
+// importStepRun.commit.
 func CommitImportBatch(ctx context.Context, tenantID, batchID, actorID, actorRole string) (*ImportBatchView, error) {
-	b, status, err := loadImportBatch(tenantID, batchID)
-	if err != nil {
-		return nil, err
-	}
-	if b.Stage == ImportStageCommitted || b.Stage == ImportStageReconciled {
-		v := importBatchView(b)
-		v.AlreadyCommitted = true
-		return v, nil
-	}
-	if status != "Approved" {
-		return nil, importBatchErr("DATAIM-0483", "batch %s is not approved (it is %s) - approve it before committing", b.ID, strings.ToLower(b.Stage))
-	}
-	if b.RulesVersion != ImportRulesVersion {
-		return nil, importBatchErr("DATAIM-0482", "batch %s was checked under import rules %s; today's are %s - check it again", b.ID, b.RulesVersion, ImportRulesVersion)
-	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	// One commit at a time: take the lease, or say another holds it.
-	res, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('commit_lease_until', $3::text, 'stage', 'committing')
-		WHERE doctype = $1 AND id = $2 AND (COALESCE(data->>'commit_lease_until', '') = '' OR (data->>'commit_lease_until')::timestamptz < NOW())`, schema),
-		ImportBatchDoctype, b.ID, time.Now().Add(importCommitLease).UTC().Format(time.RFC3339))
-	if err != nil {
-		return nil, err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, importBatchErr("DATAIM-0484", "batch %s is being committed right now - wait for it to finish", b.ID)
-	}
-	releaseLease := func() {
-		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || '{"commit_lease_until":""}'::jsonb WHERE doctype = $1 AND id = $2`, schema), ImportBatchDoctype, b.ID)
-	}
-	for chunk := 0; ; chunk++ {
-		if err := ctx.Err(); err != nil {
-			releaseLease()
-			return nil, err
-		}
-		q, err := db.DB.Query(fmt.Sprintf(`SELECT `+stagedRowCols+` FROM %s.import_staging_rows WHERE batch_id = $1 AND status = 'Valid' ORDER BY row_no LIMIT $2`, schema), b.ID, importCommitChunk)
-		if err != nil {
-			releaseLease()
-			return nil, err
-		}
-		rows, err := scanStagedRows(q)
-		if err != nil {
-			releaseLease()
-			return nil, err
-		}
-		if len(rows) == 0 {
-			break
-		}
-		if err := commitImportChunk(ctx, tenantID, schema, b, rows, actorID, actorRole); err != nil {
-			releaseLease()
-			return nil, err
-		}
-		if importCommitAfterChunk != nil {
-			if err := importCommitAfterChunk(chunk); err != nil {
-				releaseLease()
-				return nil, err
-			}
-		}
-	}
-	b2, _, err := loadImportBatch(tenantID, b.ID)
-	if err != nil {
-		releaseLease()
-		return nil, err
-	}
-	counts, err := importRowCounts(schema, b.ID)
-	if err != nil {
-		releaseLease()
-		return nil, err
-	}
-	b2.Counts = counts
-	b2.Stage = ImportStageCommitted
-	b2.CommitLeaseUntil = ""
-	b2.CommittedAt = time.Now().UTC().Format(time.RFC3339)
-	if err := saveImportBatch(tenantID, b2, "Committed"); err != nil {
-		releaseLease()
-		return nil, err
-	}
-	LogAuditEvent(tenantID, actorID, "IMPORT_BATCH_COMMITTED", "Success", fmt.Sprintf("batch=%s doctype=%s committed=%d failed=%d", b.ID, b.DoctypeName, counts.Committed, counts.Failed))
-	return ReconcileImportBatch(ctx, tenantID, b.ID, actorID)
+	return runImportStepInline(ctx, tenantID, batchID, importStepCommit, actorID, actorRole)
 }
 
 // commitImportChunk writes one chunk atomically with its rows' Committed mark;
@@ -1168,107 +925,16 @@ func writeImportChunk(ctx context.Context, tenantID, schema string, b *ImportBat
 // created + updated = rows committed; each Number column's total, read again
 // from the staged rows, equals the total taken at upload; and every committed
 // row's key is a record that exists. A batch that ties out is Reconciled; one
-// that does not stays Committed with the differences listed. It can be asked again.
+// that does not stays Committed with the differences listed. It can be asked
+// again. See importStepRun.reconcile.
 func ReconcileImportBatch(ctx context.Context, tenantID, batchID, actorID string) (*ImportBatchView, error) {
-	b, status, err := loadImportBatch(tenantID, batchID)
-	if err != nil {
-		return nil, err
-	}
-	if b.Stage != ImportStageCommitted && b.Stage != ImportStageReconciled {
-		return nil, importBatchErr("DATAIM-0481", "batch %s has not been committed (it is %s)", b.ID, strings.ToLower(b.Stage))
-	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	fields, err := GetDocTypeMeta(tenantID, b.DoctypeName)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := allStagedRows(schema, b.ID)
-	if err != nil {
-		return nil, err
-	}
-	rc := &ImportBatchReconcile{At: time.Now().UTC().Format(time.RFC3339), Created: b.CommitCreated, Updated: b.CommitUpdated, RowsInFile: len(rows)}
-	docRows := make([]map[string]interface{}, len(rows))
-	var committedKeys []string
-	for i, r := range rows {
-		docRows[i] = r.Data
-		if r.Status == importRowCommitted {
-			rc.Committed++
-			committedKeys = append(committedKeys, importUpdateTarget(r.Data, false))
-		} else {
-			rc.Rejected++
-		}
-		if r.Status == importRowValid || r.Status == importRowStaged {
-			rc.Issues = append(rc.Issues, fmt.Sprintf("row %d was never committed", r.RowNo))
-		}
-	}
-	if rc.RowsInFile != b.Counts.Rows {
-		rc.Issues = append(rc.Issues, fmt.Sprintf("the file had %d rows and %d are staged now", b.Counts.Rows, rc.RowsInFile))
-	}
-	if rc.Created+rc.Updated != rc.Committed {
-		rc.Issues = append(rc.Issues, fmt.Sprintf("%d records written (%d new, %d changed) for %d rows committed", rc.Created+rc.Updated, rc.Created, rc.Updated, rc.Committed))
-	}
-	now := importFileTotals(fields, docRows, func(i int) bool { return rows[i].Status == importRowCommitted })
-	rc.Columns = now
-	for _, was := range b.FileTotals {
-		// The upload total counted every row; Accepted is what validated.
-		got := 0.0
-		for _, n := range now {
-			if n.Field == was.Field {
-				got = n.Read
-			}
-		}
-		if roundControl(got) != roundControl(was.Read) {
-			rc.Issues = append(rc.Issues, fmt.Sprintf("%s totalled %v at upload and %v now", was.Label, was.Read, got))
-		}
-	}
-	// Each committed row that names its record: that record is there.
-	var named []string
-	for _, k := range committedKeys {
-		if k != "" {
-			named = append(named, k)
-		}
-	}
-	if len(named) > 0 {
-		var n int
-		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(DISTINCT id) FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL AND id = ANY($2)`, schema),
-			b.DoctypeName, pq.Array(named)).Scan(&n); err != nil {
-			return nil, err
-		}
-		rc.KeysChecked = len(named)
-		rc.KeysMissing = len(named) - n
-		if rc.KeysMissing > 0 {
-			rc.Issues = append(rc.Issues, fmt.Sprintf("%d committed record(s) are not in %s", rc.KeysMissing, b.DoctypeName))
-		}
-	}
-	for _, d := range b.Declared {
-		for _, n := range now {
-			if n.Field == d.Field && roundControl(n.Accepted) != roundControl(d.Expected) {
-				rc.Issues = append(rc.Issues, fmt.Sprintf("%s: stated %v, committed %v", firstNonEmpty(d.Label, d.Field), d.Expected, n.Accepted))
-			}
-		}
-	}
-	rc.Balanced = len(rc.Issues) == 0
-	b.Reconcile = rc
-	if err := recordStagedImportJob(tenantID, b, rc, actorID); err != nil {
-		return nil, err
-	}
-	if rc.Balanced {
-		b.Stage, status = ImportStageReconciled, "Reconciled"
-	} else {
-		b.Stage, status = ImportStageCommitted, "Committed"
-	}
-	if err := saveImportBatch(tenantID, b, status); err != nil {
-		return nil, err
-	}
-	b.Status = status
-	return importBatchView(b), nil
+	return runImportStepInline(ctx, tenantID, batchID, importStepReconcile, actorID, "")
 }
 
 // DiscardImportBatch removes an uncommitted batch's staged rows and frees its
-// file to be staged again. A committed or approved batch is not discarded.
+// file to be staged again. A committed or approved batch is not discarded; a
+// batch still being read or checked is, and its background step stops at its
+// next chunk.
 func DiscardImportBatch(tenantID, batchID, actorID string) (*ImportBatchView, error) {
 	b, status, err := loadImportBatch(tenantID, batchID)
 	if err != nil {
@@ -1286,35 +952,61 @@ func DiscardImportBatch(tenantID, batchID, actorID string) (*ImportBatchView, er
 	return importBatchView(b), nil
 }
 
-// expireImportBatch removes a batch's staged rows (the file's contents) and
-// marks it Expired. Its counts, totals, reconciliation and lineage stay.
+// expireImportBatch marks a batch Expired and removes its staged rows (the
+// file's contents); its counts, totals, reconciliation and lineage stay. A
+// step still running on it is let go. The first importPurgeChunk rows go with
+// the mark; a larger batch's rest are removed by a background job (297.2).
 func expireImportBatch(tenantID string, b *ImportBatchData, fromStatus string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
+	}
+	upload := ""
+	if b.Work != nil {
+		upload = b.Work.UploadID
 	}
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.import_staging_rows WHERE batch_id = $1`, schema), b.ID); err != nil {
-		return err
-	}
 	b.Stage = ImportStageExpired
 	b.ExpiredAt = time.Now().UTC().Format(time.RFC3339)
 	b.Warnings = append(b.Warnings, "expired from "+strings.ToLower(fromStatus))
 	if err := saveImportBatchOn(tx, schema, b, "Expired"); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || '{"work":null}'::jsonb WHERE doctype = $1 AND id = $2`, schema), ImportBatchDoctype, b.ID); err != nil {
+		return err
+	}
+	res, err := tx.Exec(fmt.Sprintf(`DELETE FROM %[1]s.import_staging_rows WHERE batch_id = $1 AND row_no IN
+		(SELECT row_no FROM %[1]s.import_staging_rows WHERE batch_id = $1 ORDER BY row_no LIMIT $2)`, schema), b.ID, importPurgeChunk)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	b.Work = nil
+	if upload != "" {
+		markUploadUsed(schema, upload)
+	}
+	if n, _ := res.RowsAffected(); n >= importPurgeChunk {
+		// Failing to queue it leaves the rows to the daily sweep
+		// (SweepImportStaging), which queues it again.
+		if err := enqueueImportPurge(tenantID, schema, b.ID); err != nil {
+			LogBackgroundJobError("IMPORT-FILE-SWEEP", "purge", schema, err)
+		}
+	}
+	return nil
 }
 
 // ---- 7. raw-file expiry ------------------------------------------------------------------
 
 // sweepImportBatches expires batches created before cutoff that are not
 // waiting on a person: abandoned drafts, rejected, committed and reconciled
-// ones. A batch pending approval or approved is never swept.
+// ones. A batch pending approval or approved is never swept, nor one with a
+// step still running.
 func sweepImportBatches(tenantID, schema string, cutoff time.Time) (int64, error) {
 	var tbl sql.NullString
 	if err := db.DB.QueryRow(`SELECT to_regclass($1)::text`, schema+".import_staging_rows").Scan(&tbl); err != nil || !tbl.Valid {
@@ -1337,7 +1029,7 @@ func sweepImportBatches(tenantID, schema string, cutoff time.Time) (int64, error
 	var n int64
 	for _, p := range list {
 		b, _, err := loadImportBatch(tenantID, p.id)
-		if err != nil {
+		if err != nil || importWorkLive(schema, b.Work) {
 			continue
 		}
 		if err := expireImportBatch(tenantID, b, p.status); err != nil {

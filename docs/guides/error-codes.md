@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **1015** codes. Each row says what the user is shown, what to do about
+There are **1019** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -46,7 +46,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Channel Connectors](#channel-connectors) - 5 codes
 - [Customer / CRM](#customer--crm) - 15 codes
 - [Data Import](#data-import) - 1 codes
-- [Data Import / Excel Upload](#data-import--excel-upload) - 16 codes
+- [Data Import / Excel Upload](#data-import--excel-upload) - 20 codes
 - [Deployment / Release](#deployment--release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype--dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 15 codes
@@ -356,6 +356,10 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `DATAIM-0485` | Approve asked of a batch with no valid rows | There are no valid rows to import. | Fix the rows listed in the preview and stage the file again. | Low | 422 |
 | `DATAIM-0486` | File encoding cannot be read | The file could not be read as text. | In Excel use Save As, CSV UTF-8, and stage it again. | Low | 422 |
 | `DATAIM-0487` | Stated column total does not tie to the file | The file does not tie to the total you stated. | Check the file against the stated total, fix the rows and stage it again. | Medium | 422 |
+| `DATAIM-0488` | Upload piece does not start where the server got to, or is too large | That part of the file did not fit. | The screen carries on from where the server got to; if it stops, choose the file again. | Low | 409 |
+| `DATAIM-0489` | Upload not found, left too long, or not complete | That upload is not available. | Choose the file again and upload it. | Low | 422 |
+| `DATAIM-0490` | Upload refused: too large, too many open, or no disk room | This file cannot be uploaded now. | Split the file, finish an open upload, or ask your administrator to free disk space. | Medium | 422 |
+| `DATAIM-0491` | Import batch step asked while another step on it is running | This batch is busy. | Its progress is in your tasks; open the batch again when it finishes. | Low | 409 |
 
 ## Deployment / Release
 

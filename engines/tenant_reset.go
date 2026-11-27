@@ -95,6 +95,7 @@ var tenantResetClear = map[string]string{
 	"master_merges":                     "supplier / item merge history (Stage 47.13.5)",
 	"master_merge_rows":                 "supplier / item merge history (Stage 47.13.5)",
 	"import_staging_rows":               "staged import rows (Stage 47.13.1)",
+	"resumable_uploads":                 "files being uploaded for import (297.2)",
 	"period_close_tasks":                "period close tasks",
 	"inventory_availability":            "stock",
 	"inventory_reservation":             "stock reservations",

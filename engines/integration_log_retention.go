@@ -111,6 +111,11 @@ func StartIntegrationLogRetentionSweeper(ctx context.Context, interval time.Dura
 					if _, err := SweepImportFileRetention(tenantID); err != nil {
 						LogBackgroundJobError("IMPORT-FILE-SWEEP", "sweep", schema, err)
 					}
+					// 297.2: uploads left over a day lose their bytes; an
+					// expired batch's staged rows still there are purged.
+					if _, err := SweepImportStaging(tenantID); err != nil {
+						LogBackgroundJobError("IMPORT-FILE-SWEEP", "staging", schema, err)
+					}
 				}
 			}
 		}

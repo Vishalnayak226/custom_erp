@@ -54,7 +54,7 @@ var commandFamilies = []commandFamily{
 	{"Journal / period", regexp.MustCompile(`/finance/(journal-voucher|periods|period-reopen|gstr1-filed|set-off/)`)},
 	{"Payroll", regexp.MustCompile(`payroll`)},
 	{"Master merge", regexp.MustCompile(`/merge`)},
-	{"Staged import", regexp.MustCompile(`/import-batches`)},
+	{"Staged import", regexp.MustCompile(`/import-batches| /api/v1/uploads`)}, // 297.2: its resumable upload
 	{"Channel listing", regexp.MustCompile(`/marketplace/channels/\{channel\}/listings/`)},
 	{"Assistant order", regexp.MustCompile(`/submit-assistant-draft`)},
 }
@@ -378,6 +378,12 @@ var commandNotes = map[string]commandNote{
 		Inputs: "counts and column totals recomputed from the staged rows and the records", Preconditions: "the batch is committed", Invariants: "a batch is Reconciled only if rows, totals and records tie out; otherwise the differences are listed", Idempotency: "a repeat recomputes the same record"},
 	"POST /api/v1/import-batches/{id}/discard": {
 		Inputs: "the staged rows removed; the batch kept as Expired", Preconditions: "not approved and not committed", Invariants: "a committed or approved batch is never discarded"},
+	"POST /api/v1/import-batches/{id}/resume": {
+		Inputs: "the batch's stopped step (stage, validate, commit or reconcile) and where it got to", Preconditions: "write on the record type; the step's job or call is no longer running", Invariants: "a step carries on from its last saved slice - a row is staged, checked and written once", Idempotency: "asking while the step runs is refused as busy; asking again after it finished changes nothing"},
+	"POST /api/v1/uploads": {
+		Inputs: "file name, size and record type; the upload's id and owner made by the server", Preconditions: "create / update on the record type; under 4 GB; fewer than 5 open uploads; disk room for the file", Invariants: "an upload is its starter's own - another user's id is not found"},
+	"PUT /api/v1/uploads/{id}": {
+		Inputs: "at most 1 MiB of the file's bytes and where they start (Upload-Offset); the SHA-256 kept by the server as the bytes arrive", Preconditions: "the caller started the upload; the piece starts at or before the bytes the server has", Invariants: "the file is written in order with no gap; a piece past the stated size is refused", Idempotency: "a piece sent again is skipped up to the bytes already there; a 409 names where to carry on"},
 
 	// --- Credential / config change ------------------------------------------
 	"PUT /api/v1/admin/settings": {

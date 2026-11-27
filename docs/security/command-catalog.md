@@ -35,10 +35,10 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Journal / period | 14 |
 | Payroll | 1 |
 | Master merge | 3 |
-| Staged import | 7 |
+| Staged import | 10 |
 | Channel listing | 3 |
 | Assistant order | 1 |
-| **Total** | **165** |
+| **Total** | **168** |
 
 ## Export
 
@@ -269,7 +269,10 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | `POST /api/v1/import-batches/{id}/discard` | authenticated · import.default | the staged rows removed; the batch kept as Expired | not approved and not committed | a committed or approved batch is never discarded | none - a repeat is a second command | none beyond the document row |
 | `POST /api/v1/import-batches/{id}/preview` | authenticated · import.default | counts, totals and changed fields computed from the staged rows and the stored records | checked under today's rules | nothing is written to the record type | none - a repeat is a second command | none beyond the document row |
 | `POST /api/v1/import-batches/{id}/reconcile` | authenticated · import.default | counts and column totals recomputed from the staged rows and the records | the batch is committed | a batch is Reconciled only if rows, totals and records tie out; otherwise the differences are listed | a repeat recomputes the same record | none beyond the document row |
+| `POST /api/v1/import-batches/{id}/resume` | authenticated · import.default | the batch's stopped step (stage, validate, commit or reconcile) and where it got to | write on the record type; the step's job or call is no longer running | a step carries on from its last saved slice - a row is staged, checked and written once | asking while the step runs is refused as busy; asking again after it finished changes nothing | none beyond the document row |
 | `POST /api/v1/import-batches/{id}/validate` | authenticated · import.default | each row re-transformed from its raw cells under today's rules; the key, the match and the verdict computed by the server | the batch is not yet out for approval | validation is the import core's own dry run; nothing is written to the record type | a repeat recomputes the same verdicts | none beyond the document row |
+| `POST /api/v1/uploads` | authenticated · import.default | file name, size and record type; the upload's id and owner made by the server | create / update on the record type; under 4 GB; fewer than 5 open uploads; disk room for the file | an upload is its starter's own - another user's id is not found | none - a repeat is a second command | none beyond the document row |
+| `PUT /api/v1/uploads/{id}` | authenticated · import.default | at most 1 MiB of the file's bytes and where they start (Upload-Offset); the SHA-256 kept by the server as the bytes arrive | the caller started the upload; the piece starts at or before the bytes the server has | the file is written in order with no gap; a piece past the stated size is refused | a piece sent again is skipped up to the bytes already there; a 409 names where to carry on | refusal: <error code> / Error (AuditRequired entries) |
 
 ## Channel listing
 
