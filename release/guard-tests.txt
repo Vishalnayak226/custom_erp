@@ -30,3 +30,5 @@ internal/server TestEngineErrorCodesAreCatalogued - an error code with no catalo
 internal/securityscan TestNoUnreviewedBypassPattern - a security bypass pattern not in the reviewed list
 internal/securityscan TestEveryEgressPointIsReviewed - an outside call not in the egress review
 internal/securityscan TestOnlyTheGuardBuildsAnHTTPClient - an HTTP client built outside the egress guard
+internal/server TestStage4947IdempotencyAuditIsCurrent - a route or handler changed without regenerating docs/security/idempotency-audit.md (stopped 0.30.0's first GitHub run in shard 12, ask 289)
+internal/server TestPublicTypeScale - a font size off the type scale in a public/ stylesheet (stopped 0.30.0's first GitHub run in shard 8, ask 289)

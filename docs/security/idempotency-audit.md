@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **707**; keyed: **39**; findings (money / stock without a key): **148**.
+Routes audited: **708**; keyed: **39**; findings (money / stock without a key): **148**.
 
 ## Findings
 
@@ -580,6 +580,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/me/mfa/reenroll/confirm` | `handleMFAReenrollConfirm` | no | - | document |
 | `POST /api/v1/me/passkeys` | `handlePasskeyRegisterFinish` | no | - | document |
 | `POST /api/v1/me/passkeys/options` | `handlePasskeyRegisterOptions` | no | - | document |
+| `POST /api/v1/me/tasks/{id}/cancel` | `handleCancelMyTask` | no | - | document |
 | `POST /api/v1/me/working-store` | `handleSwitchWorkingStore` | no | - | document |
 | `POST /api/v1/meta/doctypes` | `handleSaveDocType` | no | - | document |
 | `POST /api/v1/meta/{doctype}/fields` | `handleSaveFieldDefinition` | no | - | document |
