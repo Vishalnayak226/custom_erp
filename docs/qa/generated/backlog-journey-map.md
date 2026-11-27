@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 174 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 170 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -36,9 +36,9 @@ BLD-002: the 174 open checklist items reconciled into the business journeys they
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 5 | 0 | 5 |
 | Cross-journey acceptance and audits | - | - | 38 | 1 | 28 |
 | Engineering housekeeping | - | - | 1 | 0 | 1 |
-| Unmapped - place these stages | - | - | 66 | 9 | 16 |
+| Unmapped - place these stages | - | - | 62 | 8 | 16 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (1), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 251 (1), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (3), Stage 265 (1), Stage 267 (4), Stage 269 (1), Stage 275 (2), Stage 276 (2), Stage 277 (1), Stage 285 (1), Stage 286 (3), Stage 288 (1), Stage 289 (3), Stage 290 (1), Stage 292 (4), Stage 295 (2), Stage 297 (9), Stage 308 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (1), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 251 (1), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (3), Stage 265 (1), Stage 267 (4), Stage 269 (1), Stage 275 (2), Stage 276 (2), Stage 277 (1), Stage 285 (1), Stage 286 (3), Stage 288 (1), Stage 289 (3), Stage 290 (1), Stage 292 (4), Stage 295 (2), Stage 297 (5), Stage 308 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -216,15 +216,11 @@ BLD-002: the 174 open checklist items reconciled into the business journeys they
 - **146.5.2** Marketplace templates from their own file, per category, with validation *(blocked)*
 - **185.3** Razorpay payment links *(blocked)*
 - **297.2** Imports of any size, in the background
-- **297.2.1** Resumable upload
-- **297.2.2** Streaming stage job
-- **297.2.3** Validate, preview, commit and reconcile at scale
-- **297.2.4** Browser upload with resume
 - **297.2.5** The 1-crore proof
 - **277.1** Data Healer: the Item column is not read as items
 - **162.17** MFA tiers: when to require? *(decision)*
 - **267.7** Keep speed while the 267 items land
-- **297.4** Every transaction stays fast at 1 crore rows *(decision)*
+- **297.4** Every transaction stays fast at 1 crore rows
 - **297.5** 1 lakh users *(decision)*
 - **288.3** Three screens whose split needs your call *(decision)*
 - **276.20** Look-and-feel direction ("aesthetic and futuristic") *(decision)*

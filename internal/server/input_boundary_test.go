@@ -88,7 +88,7 @@ func TestStage4946ParserDifferentialsAnswerConsistently(t *testing.T) {
 	}
 	// raw sends the request bytes exactly as written, so the server's own
 	// parser - not Go's client - decides what a header combination means.
-	raw := func(req string) answer {
+	raw := func(req string, halfClose bool) answer {
 		conn, err := net.Dial("tcp", srv.Listener.Addr().String())
 		if err != nil {
 			t.Fatal(err)
@@ -97,10 +97,14 @@ func TestStage4946ParserDifferentialsAnswerConsistently(t *testing.T) {
 		if _, err := io.WriteString(conn, req); err != nil {
 			t.Fatal(err)
 		}
-		// The request is complete as written: half-close so a server waiting
-		// for bytes a Content-Length promised sees EOF instead of a hang, and
+		// A body is complete as written: half-close so a server waiting for
+		// bytes a Content-Length promised sees EOF instead of a hang, and
 		// never wait on an answer for more than the envelope's own deadline.
-		if tcp, ok := conn.(*net.TCPConn); ok {
+		// A GET is not half-closed: Go reads that EOF as the client gone and
+		// cancels the request, and since 283.3 a cancelled request stops its
+		// list query, so the test would measure a disconnect, not a parser
+		// (ask 289, found by 0.30.0's GitHub run).
+		if tcp, ok := conn.(*net.TCPConn); ok && halfClose {
 			_ = tcp.CloseWrite()
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(70 * time.Second))
@@ -120,10 +124,10 @@ func TestStage4946ParserDifferentialsAnswerConsistently(t *testing.T) {
 		if len(extra) == 0 {
 			req += fmt.Sprintf("Content-Length: %d\r\n", len(body))
 		}
-		return raw(req + "\r\n" + body)
+		return raw(req+"\r\n"+body, true)
 	}
 	get := func(target string) answer {
-		return raw(fmt.Sprintf("GET %s HTTP/1.1\r\nHost: erp.test\r\nAuthorization: Bearer %s\r\nConnection: close\r\n\r\n", target, token))
+		return raw(fmt.Sprintf("GET %s HTTP/1.1\r\nHost: erp.test\r\nAuthorization: Bearer %s\r\nConnection: close\r\n\r\n", target, token), false)
 	}
 	customer := func(id string, fields string) string {
 		return fmt.Sprintf(`{"id":%q,"code":%q,"name":"Differential %s","status":"Active"%s}`, id, id, id, fields)

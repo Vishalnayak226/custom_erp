@@ -19,14 +19,16 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **338** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **339** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-09-06 to 2026-10-19
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-05
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-06
 
 ## 2026-11-27
+
+**"Is the erp is lightweight for browser? It should work in very kbps speed of internet... If User bulk upload 1Cr row also it should not fail..." / "All recommended approved, build all" - no hard refresh after a deploy, the 2G profile, the tab's footprint, a Tasks bar for long work, imports of any size** *(engines/ + internal/server/ + public/ + db/migrations/ + release/ + guides, ask 297; 297.1/297.3/297.6/297.7 in release 0.30.0, 297.2 not committed)*
 
 **"What is open, no one is working start building next 10 itesm" - the Stores screen, print logs on local days, empty-list text cut, CRM Ready to send as its own page** *(engines/ + public/ + guides + KB, ask 309; not committed)*
 
@@ -579,12 +581,4 @@ From the user's Prefix Configurations screenshot. Full detail in checklist Stage
 **Stage 118 (+114.8) — vendor fixed once picked; names, not codes, in pickers and PO / GRN lines** *(code)*
 
 From the user's Purchase Orders and New purchase order screenshots. Full detail in checklist Stage 118 and 114.8.
-
-**Stages 113 and 116 — sticker template per Product type, every design on the drop-downs, the Seznik tag; frozen headers stop leaking rows** *(code)*
-
-From the user's Template rules, Print and Prefix Configurations screenshots. Full detail in checklist Stages 113 and 116; Stages 114 (PO entry) and 115 (number series) were opened the same day and are not built yet.
-
-**Stages 110-112 — goods receipt follows the PO's GST; plain-words Verify; sticker load, print on scan, Square/Ring cards** *(code)*
-
-From the user's GRN/PO, Verify and Sticker Printing screenshots. Full detail in checklist Stages 110-112.
 

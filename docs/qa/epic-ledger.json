@@ -1821,8 +1821,8 @@
     {
       "id": "release-0.30.0",
       "label": "release 0.30.0",
-      "recorded_at": "2026-11-27T06:39:13Z",
-      "commit": "9f13307d34572bec43deda1da5a8bdd3633cba0a",
+      "recorded_at": "2026-11-27T07:55:13Z",
+      "commit": "58fe4b17afafbca79e65ef1ab21376ea73e5f153",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {
@@ -1873,7 +1873,7 @@
           "status": "measured"
         },
         "budget.embedded_kb_raw_bytes": {
-          "value": 1920734,
+          "value": 1921398,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"
@@ -1903,7 +1903,7 @@
           "status": "measured"
         },
         "budget.kb_search_index_raw_bytes": {
-          "value": 215180,
+          "value": 215165,
           "unit": "bytes",
           "source": "release budget report",
           "status": "measured"

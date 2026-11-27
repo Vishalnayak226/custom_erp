@@ -19,11 +19,19 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **89** earlier entries, 2026-09-06 to 2026-10-19.
+This page continues the [release notes](release-notes.md) with **90** earlier entries, 2026-09-06 to 2026-10-19.
 
 Older still: [part 3](release-notes-3.md).
 
 ## 2026-10-19
+
+**Stages 113 and 116 — sticker template per Product type, every design on the drop-downs, the Seznik tag; frozen headers stop leaking rows** *(code)*
+
+From the user's Template rules, Print and Prefix Configurations screenshots. Full detail in checklist Stages 113 and 116; Stages 114 (PO entry) and 115 (number series) were opened the same day and are not built yet.
+
+**Stages 110-112 — goods receipt follows the PO's GST; plain-words Verify; sticker load, print on scan, Square/Ring cards** *(code)*
+
+From the user's GRN/PO, Verify and Sticker Printing screenshots. Full detail in checklist Stages 110-112.
 
 **Stage 109 — one click to release, one click to deploy, the server cleans itself; SSH bots blocked** *(tooling + server)*
 
@@ -424,8 +432,4 @@ The tenant lifecycle had exactly two states: it existed, or somebody ran `DROP S
 **Stage 47.4 + 47.6 — Atomic replay-safe returns, and the RF task shell** *(code + schema + tests)*
 
 **47.4 (A-04).** Stage 35.9 had already built the right shape — one `ReturnRequest` aggregate with a real state machine, prices resolved from the original sale — and its own entry recorded that it had no management UI. What it lacked was the four properties that make a returns model safe, and what it sat beside was a legacy instant-return path that had none of them. That path took price and cost from the caller, incremented stock with an unlocked upsert, committed, and only then posted two GL reversals with no idempotency key; its "already returned" pool came from a single `SalesReturn` document whose repeat INSERT conflicted and whose error the HTTP handler discarded, so the recorded total never advanced past the first call while stock and GL for every later call still went through. Four replayed calls of 3 against a sale of 10 returned 12.
-
-**Stage 49 Phase S0 — Security charter, attack-surface inventory and fail-closed production baseline** *(code + docs + tests)*
-
-The first phase of Stage 49's security program: establish what is being protected and from whom (49.0), then make the surface knowable and the production baseline fail closed (49.1). Built in parallel with the Stage 47 session and deliberately scoped to files that session was not holding — two narrow edits to `internal/server/routes.go`, everything else new.
 

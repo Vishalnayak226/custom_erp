@@ -44,6 +44,23 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 467. "Is the erp is lightweight for browser? It should work in very kbps speed of internet... If User bulk upload 1Cr row also it should not fail..." / "All recommended approved, build all" - no hard refresh after a deploy, the 2G profile, the tab's footprint, a Tasks bar for long work, imports of any size (2026-11-27, engines/ + internal/server/ + public/ + db/migrations/ + release/ + guides, ask 297; 297.1/297.3/297.6/297.7 in release 0.30.0, 297.2 not committed)
+
+- **Taken as:** answer with measurements, record what makes each point true at that scale as an item with a recommended answer, then build in the order 297.1/297.6/297.7, 297.3/297.2, 297.4, 297.5. "It should be fail" read as "should not fail". 297.8 (the report catalog on a slow line) was found on the way and waits for the owner.
+- **297.1 (Done):** every API reply carries `X-ERP-Build`; a tab on an older build reloads itself at a safe moment and never while work is unsaved. `db.js` and the 16 static imports now carry `?v=`, and release gates G4 and G12b stamp them.
+- **297.6 (Done):** a `phone-2g` browser profile (256 kbps) with its own budget. A dropped call is resent with a "Connection lost · retrying" strip, and only reads and keyed writes are resent. Every 2G budget was met: cold LCP about 4.2 s, 211 KB on a first visit.
+- **297.7 (Done):** the browser gate measures the tab after a whole session and fails above 12 MB / 10,000 nodes (measured 5.8 MB, 6,436). No cache a feature needs was dropped.
+- **297.3 (Done):** a Tasks button with a bar, rows, time left, Cancel and Download for the user's own jobs (`/api/v1/me/tasks`, `public/task-progress.js`). It polls only while a task of the tab's own runs.
+- **297.2 (Built, not verified):** files of any size go through Import Batch.
+  - The browser sends 1 MiB pieces that resume after a drop or a reload (`/api/v1/uploads`).
+  - A background job reads, checks and commits in resumable 20 s slices.
+  - The plain import keeps its row limit and its message points to Import Batch.
+  - Found live and fixed: the Tasks bar was missing for the read, the list row did not follow the step, the screens' lookups spent the bulk-upload budget, and on Windows a used upload's file stayed on disk.
+  - Measured: 10 lakh rows read and checked in 6m24s and committed in 5m47s, at a 17.7 MB peak heap.
+  - Still to do: the 1-crore kill-and-restart run (297.2.5), which goes with 297.4.
+- **Verified:** for 297.2, `go vet` on `./engines/ ./internal/server/`, the `TestImportUpload*`, `TestImportBulk*`, `TestImportWorkLive`, `TestStage4713*` and `TestImportLookupsKeepTheFileBudget` tests, and a live Edge run (pause and resume, dropped piece, Tasks, list progress, 390 px, discard). Each earlier item's own evidence is in its checklist entry.
+- **Held:** 297.2's files stay in `release/hold.txt` until the release session cuts it. Next are 297.4 (a 1-crore scratch DB, timing every transaction) and 297.5 (the journeylab load mode).
+
 ## 466. "What is open, no one is working start building next 10 itesm" - the Stores screen, print logs on local days, empty-list text cut, CRM Ready to send as its own page (2026-11-27, engines/ + public/ + guides + KB, ask 309; not committed)
 
 - **Taken as:** the open items no other session held that needed nothing from the owner: 301.1-301.6, 295.3, 276.21, 288.3. The recommended answers stood for 276.21 and 288.3.

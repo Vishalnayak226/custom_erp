@@ -993,7 +993,7 @@
       "id": "data-io",
       "lobe": "business",
       "name": "Bulk Data I/O",
-      "role": "BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse — plus resuming a job from its kept failed rows (Stage 55.11), and the Setup Workbook (Stage 128): a whole organisation's setup from one Excel file, previewed, then applied row by row through each screen's own handler.",
+      "role": "BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse — plus resuming a job from its kept failed rows (Stage 55.11), staged imports of up to 1 crore rows sent as resumable uploads and read, checked and committed by a background job in resumable slices (297.2), and the Setup Workbook (Stage 128): a whole organisation's setup from one Excel file, previewed, then applied row by row through each screen's own handler.",
       "match": [
         "engines/csv_safe_export.go",
         "engines/import.go",
@@ -1003,6 +1003,8 @@
         "engines/import_controls.go",
         "engines/import_file_retention.go",
         "engines/import_staging.go",
+        "engines/import_staging_bulk.go",
+        "engines/import_upload_resumable.go",
         "engines/import_declared_totals.go",
         "internal/server/handlers_import_staging.go",
         "internal/server/handlers_import_resume.go",

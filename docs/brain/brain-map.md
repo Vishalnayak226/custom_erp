@@ -9,8 +9,8 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `2bc2d8fc` |
-| Brain redrawn | source graph 2bc2d8fc |
+| Graph built from commit | `9f13307d` |
+| Brain redrawn | source graph 9f13307d |
 | Regions / lobes | 38 / 8 |
 | Files in the working tree | 3264 (2497 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
@@ -3606,7 +3606,7 @@ Courier serviceability, logistics booking, provider adapters and encrypted crede
 
 #### Bulk Data I/O
 
-BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse — plus resuming a job from its kept failed rows (Stage 55.11), and the Setup Workbook (Stage 128): a whole organisation's setup from one Excel file, previewed, then applied row by row through each screen's own handler.
+BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse — plus resuming a job from its kept failed rows (Stage 55.11), staged imports of up to 1 crore rows sent as resumable uploads and read, checked and committed by a background job in resumable slices (297.2), and the Setup Workbook (Stage 128): a whole organisation's setup from one Excel file, previewed, then applied row by row through each screen's own handler.
 
 **Most connected symbols**
 

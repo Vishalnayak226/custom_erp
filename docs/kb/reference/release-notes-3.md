@@ -2,7 +2,7 @@
 title: Release notes (part 3)
 section: Reference
 order: 27
-summary: Earlier releases, 2026-07-27 to 2026-09-05, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-06, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,13 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 3)
 
-This page continues the [release notes](release-notes.md) with **72** earlier entries, 2026-07-27 to 2026-09-05.
+This page continues the [release notes](release-notes.md) with **73** earlier entries, 2026-07-27 to 2026-09-06.
+
+## 2026-09-06
+
+**Stage 49 Phase S0 — Security charter, attack-surface inventory and fail-closed production baseline** *(code + docs + tests)*
+
+The first phase of Stage 49's security program: establish what is being protected and from whom (49.0), then make the surface knowable and the production baseline fail closed (49.1). Built in parallel with the Stage 47 session and deliberately scoped to files that session was not holding — two narrow edits to `internal/server/routes.go`, everything else new.
 
 ## 2026-09-05
 
