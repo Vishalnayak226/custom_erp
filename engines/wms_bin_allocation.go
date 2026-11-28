@@ -69,6 +69,25 @@ func openBinReservationsSQL(schema string, byBatch bool) string {
 		 GROUP BY %s`, cols, schema, schema, liveTaskStatusesSQL, cols)
 }
 
+// binDocJoin (319.6) joins, as alias bin, the one Bin record of each stock or
+// reservation row (alias stock): same code, same store, not deleted, lowest id.
+// A join on the code alone counted a bin's stock once for every Bin record with
+// that code (two stores may share a code; an older store may hold a duplicate),
+// so a pick took more than the bin held. A Bin saved without a store (location is
+// required; old fixtures skip it) still matches by code. left makes it a LEFT
+// JOIN. The fragment holds one %s, the tenant schema, filled by the calling
+// query's Sprintf where its old "JOIN %s.documents" was.
+func binDocJoin(left bool, bin, stock string) string {
+	kind := "JOIN"
+	if left {
+		kind = "LEFT JOIN"
+	}
+	return kind + ` LATERAL (SELECT d.id, d.status, d.data FROM %s.documents d
+		      WHERE d.doctype = 'Bin' AND d.deleted_at IS NULL AND d.data->>'bin_code' = ` + stock + `.bin_code
+		        AND COALESCE(NULLIF(d.data->>'location', ''), ` + stock + `.location_code) = ` + stock + `.location_code
+		      ORDER BY d.id LIMIT 1) ` + bin + ` ON TRUE`
+}
+
 // BinReservedQty reports how many units of sku in binCode are reserved for
 // live tasks - what a shelf move (MoveBinStock), a condition change or a
 // count adjustment must leave in place. batchNo narrows it to one lot.
@@ -397,9 +416,7 @@ func openTaskAllocations(schema string, taskIDs []string) ([]taskAllocationLine,
 		       COALESCE(bt.data->>'expiry_date', ''),
 		       CASE WHEN COALESCE(b.data->>'pick_sequence', '') ~ '^[0-9]{1,6}$' THEN (b.data->>'pick_sequence')::int ELSE 999999 END
 		  FROM %s.bin_allocation ba
-		  LEFT JOIN LATERAL (SELECT data FROM %s.documents
-		                      WHERE doctype = 'Bin' AND data->>'bin_code' = ba.bin_code
-		                      ORDER BY id LIMIT 1) b ON TRUE
+		  `+binDocJoin(true, "b", "ba")+`
 		  LEFT JOIN LATERAL (SELECT data FROM %s.documents
 		                      WHERE doctype = 'Batch' AND data->>'item' = ba.sku AND data->>'batch_no' = ba.batch_no
 		                      ORDER BY id LIMIT 1) bt ON ba.batch_no <> ''

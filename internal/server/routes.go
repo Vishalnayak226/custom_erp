@@ -171,6 +171,8 @@ func Run() {
 	// overdue SalesInvoices, dispatching Reminder/Escalation notifications
 	// through the existing outbox.
 	engines.StartDunningWorker(workerCtx, 1*time.Hour)
+	// 324.4: locations switched on ask for what they are short, daily at the client's hour.
+	engines.StartStockRequestAutoWorker(workerCtx, 1*time.Hour)
 	// 140.12.12: card / UPI settlement rows find their bank credit.
 	engines.StartAcquirerSettlementMatcher(workerCtx, 1*time.Hour)
 	engines.StartBackorderReleaser(workerCtx, 15*time.Minute) // 73.4.2.2, orders.backorder_auto_release
@@ -1464,6 +1466,14 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/transfer/approve-direct", apiMiddleware(moduleGate("inventory", handleApproveTransferOrderDirect)))
 	http.HandleFunc("POST /api/v1/transfer/cancel", apiMiddleware(moduleGate("inventory", handleCancelTransferOrder)))
 	http.HandleFunc("POST /api/v1/transfer/return", apiMiddleware(moduleGate("inventory", handleReturnTransferToSource)))
+	// 324.1-324.4: stock requests - a location asks, the source accepts, packs and dispatches.
+	http.HandleFunc("GET /api/v1/stock-requests", apiMiddleware(moduleGate("inventory", handleListStockRequests)))
+	http.HandleFunc("GET /api/v1/stock-requests/reasons", apiMiddleware(moduleGate("inventory", handleStockRequestReasons)))
+	http.HandleFunc("POST /api/v1/stock-requests", apiMiddleware(moduleGate("inventory", handleCreateStockRequest)))
+	http.HandleFunc("POST /api/v1/stock-requests/sources", apiMiddleware(moduleGate("inventory", handleStockRequestSources)))
+	http.HandleFunc("POST /api/v1/stock-requests/accept", apiMiddleware(moduleGate("inventory", handleAcceptStockRequest)))
+	http.HandleFunc("POST /api/v1/stock-requests/reject", apiMiddleware(moduleGate("inventory", handleRejectStockRequest)))
+	http.HandleFunc("POST /api/v1/stock-requests/auto-run", apiMiddleware(moduleGate("inventory", handleAutoRunStockRequests)))
 	// Stage 146.3.12: one allocation upload makes one Draft transfer per store.
 	http.HandleFunc("POST /api/v1/transfer/allocation", apiMiddleware(moduleGate("inventory", handleTransferAllocationUpload)))
 	http.HandleFunc("GET /api/v1/transfer/allocation", apiMiddleware(moduleGate("inventory", handleTransferAllocationRun)))

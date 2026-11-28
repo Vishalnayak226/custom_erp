@@ -284,6 +284,13 @@ var reviewedEgress = map[string]egressEntry{
 		KillSwitch:  `Not the server: a QA tool run by hand.`,
 		Evidence:    []string{`"/api/v1/doc/Item?limit=1"`},
 	},
+	"cmd/journeylab/load.go": {
+		Uses:        map[string]int{"dial": 1, "http-client": 1, "http-request": 1, "http-transport": 1},
+		Destination: `The ERP server named with -base-url: the scratch instance the load test sizes (297.5).`,
+		Guard:       `load signs in through bootstrap, which refuses a non-local server and a non-scratch database unless told otherwise; no proxy is used.`,
+		KillSwitch:  `Not the server: a QA tool run by hand; it stops after -duration.`,
+		Evidence:    []string{`L.base+path`, `Proxy:               nil`},
+	},
 }
 
 // scanEgress counts every egress construct in the non-test Go files under root.

@@ -392,3 +392,56 @@ func TestGateEvidenceFromAJourneyRun(t *testing.T) {
 		t.Fatal("the fail-first run must not count")
 	}
 }
+
+// A till that a broken cycle left open (313.3.1) is closed at its expected
+// cash and a fresh one opened, and the refused open does not fail the step.
+func TestOpenTillClosesALeftOverTill(t *testing.T) {
+	var opens atomic.Int32
+	closed := make(chan map[string]interface{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/pos/session/open":
+			if opens.Add(1) == 1 {
+				w.WriteHeader(422)
+				fmt.Fprint(w, `{"error":"a session is already open for this cashier or location"}`)
+				return
+			}
+			fmt.Fprint(w, `{"session_id":"S2"}`)
+		case "/api/v1/pos/session/current":
+			fmt.Fprint(w, `{"session_id":"S1"}`)
+		case "/api/v1/pos/session/summary":
+			fmt.Fprint(w, `{"expected_cash":1234.5}`)
+		case "/api/v1/pos/session/close":
+			var body map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			closed <- body
+			fmt.Fprint(w, `{"variance":0}`)
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+	c.Sess["jl-cash"] = &Session{Name: "jl-cash", Token: "t"}
+	r := &Runner{Cl: c}
+	s := &StepCtx{J: r.NewJourney("T", "t")}
+	if sid := r.openTill(s, "jl-cash"); sid != "S2" {
+		t.Fatalf("want the fresh till S2, got %q", sid)
+	}
+	select {
+	case body := <-closed:
+		if body["session_id"] != "S1" || body["counted_cash"] != 1234.5 {
+			t.Fatalf("the left-over till must close at its expected cash: %v", body)
+		}
+	default:
+		t.Fatal("the left-over till was not closed")
+	}
+	for _, call := range c.Take() {
+		if call.IsError() {
+			t.Errorf("%s %s -> %d must not fail the step", call.Method, call.Path, call.Status)
+		}
+	}
+	if len(s.errs) != 0 {
+		t.Errorf("step errors: %v", s.errs)
+	}
+}

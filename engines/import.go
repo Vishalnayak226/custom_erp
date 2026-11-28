@@ -512,24 +512,21 @@ func storedImportTargets(tx *sql.Tx, doctype string, docRows []map[string]interf
 	if len(ids) == 0 {
 		return out, nil
 	}
-	rows, err := tx.Query(`SELECT id, data FROM documents WHERE doctype = $1 AND id = ANY($2::text[]) AND deleted_at IS NULL FOR UPDATE`, doctype, pq.Array(ids))
+	docs, err := importDocsByID(context.Background(), tx, "documents", ids, true, true) // 313.2
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		var raw []byte
-		if err := rows.Scan(&id, &raw); err != nil {
-			return nil, err
+	for id, d := range docs {
+		if !d.live(doctype) {
+			continue
 		}
 		data := map[string]interface{}{}
-		if err := json.Unmarshal(raw, &data); err != nil {
+		if err := json.Unmarshal(d.data, &data); err != nil {
 			return nil, fmt.Errorf("record %s could not be read: %v", id, err)
 		}
 		out[id] = data
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // mergeImportUpdate (Stage 47.13.2a / 49.3.4b) is an update row laid over the
@@ -596,21 +593,12 @@ func screenImportWrites(tx *sql.Tx, tenantID, doctype string, rules importWriteR
 	}
 	existing := map[string]string{} // id -> status, this doctype only
 	existingData := map[string][]byte{}
-	rows, err := tx.Query(`SELECT id, COALESCE(status, ''), data FROM documents WHERE doctype = $1 AND id = ANY($2::text[])`, doctype, pq.Array(ids))
-	if err == nil {
-		for rows.Next() {
-			var id, status string
-			var raw []byte
-			if err = rows.Scan(&id, &status, &raw); err != nil {
-				break
-			}
-			existing[id] = status
-			existingData[id] = raw
+	docs, err := importDocsByID(context.Background(), tx, "documents", ids, true, false) // 313.2
+	for id, d := range docs {
+		if d.doctype == doctype {
+			existing[id] = d.status
+			existingData[id] = d.data
 		}
-		if err == nil {
-			err = rows.Err()
-		}
-		rows.Close()
 	}
 	if err != nil {
 		for _, w := range writes {
@@ -620,6 +608,16 @@ func screenImportWrites(tx *sql.Tx, tenantID, doctype string, rules importWriteR
 	}
 	kept := writes[:0]
 	for _, w := range writes {
+		// 313.2: the key read sees what the doctype filter hid. Another record
+		// type's id is the same refusal the upsert gives; a deleted record's
+		// id would otherwise be written into a record nobody can see.
+		if d, held := docs[w.id]; held && d.doctype != doctype {
+			recordImportError(result, w.rowNumber, fmt.Sprintf("id %q already belongs to a different record type - use another code", w.id))
+			continue
+		} else if held && d.deleted {
+			recordImportError(result, w.rowNumber, fmt.Sprintf("%q belongs to a deleted %s - use another code", w.id, doctype))
+			continue
+		}
 		prior, isUpdate := existing[w.id]
 		switch {
 		case rules.checkRole && !isUpdate && !rules.mayCreate:
@@ -695,26 +693,15 @@ func (lk *importLookups) prefetchLinks(schema, doctype string, docRows []map[str
 		if len(ids) == 0 {
 			continue
 		}
-		rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents
-			WHERE doctype = $1 AND id = ANY($2::text[]) AND status != 'Cancelled'`, schema), f.Options, pq.Array(ids))
+		// 313.2: by key; the per-row check's rule (doctype.go) on what comes back.
+		docs, err := importDocsByID(context.Background(), db.DB, schema+".documents", ids, false, false)
 		if err != nil {
 			continue
 		}
-		ok := true
-		for rows.Next() {
-			var id string
-			if rows.Scan(&id) != nil {
-				ok = false
-				break
+		for id, d := range docs {
+			if d.doctype == f.Options && d.hasStatus && d.status != "Cancelled" {
+				pending[id] = true
 			}
-			pending[id] = true
-		}
-		if rows.Err() != nil {
-			ok = false
-		}
-		rows.Close()
-		if !ok {
-			continue
 		}
 		if known[f.Options] == nil {
 			known[f.Options] = map[string]bool{}
@@ -792,16 +779,13 @@ type importEdit struct {
 // write, so an update can be audited field by field (49.5.4 b).
 func importPriorData(tx *sql.Tx, doctype string, ids []string) map[string]map[string]interface{} {
 	out := map[string]map[string]interface{}{}
-	rows, err := tx.Query(`SELECT id, data FROM documents WHERE doctype = $1 AND id = ANY($2)`, doctype, pq.Array(ids))
+	docs, err := importDocsByID(context.Background(), tx, "documents", ids, true, false) // 313.2
 	if err != nil {
 		return out
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		var raw []byte
+	for id, d := range docs {
 		var data map[string]interface{}
-		if rows.Scan(&id, &raw) == nil && json.Unmarshal(raw, &data) == nil {
+		if d.doctype == doctype && json.Unmarshal(d.data, &data) == nil {
 			out[id] = data
 		}
 	}

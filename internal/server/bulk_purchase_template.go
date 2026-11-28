@@ -572,7 +572,7 @@ func handleBulkPurchaseRunErrors(w http.ResponseWriter, r *http.Request) {
 	if raw, err := json.Marshal(run["result"]); err == nil {
 		_ = json.Unmarshal(raw, &res)
 	}
-	if len(res.Fix) == 0 {
+	if res.Fix = bpRunFix(&res); len(res.Fix) == 0 {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Every row of this upload loaded - there are no rows to fix.")
 		return
 	}

@@ -24,6 +24,7 @@ const slh = { q: '', from: '', to: '', kind: '', source: '', scope: 'mine', offs
 let slhRows = [];
 let slhOpen = null;
 let slhLoad = 0;
+let slhTotals = { key: '', h: null };
 
 function statusBadge(s) {
   const ok = ['Paid', 'Posted', 'Completed', 'Refunded', 'Closed', 'Delivered'];
@@ -90,7 +91,9 @@ export async function renderSalesHistoryView(container) {
       </div>
       <div data-pane="bill" class="hidden"><div id="slh-bill"></div></div>
     </div>`;
-  const reload = () => { slh.offset = 0; loadSalesHistory(); };
+  // A new search adds up afresh; only a page change keeps the totals.
+  slhTotals = { key: '', h: null };
+  const reload = () => { slh.offset = 0; slhTotals = { key: '', h: null }; loadSalesHistory(); };
   const q = container.querySelector('#slh-q');
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); slh.q = q.value.trim(); reload(); } });
   container.querySelector('#slh-search').addEventListener('click', () => { slh.q = q.value.trim(); reload(); });
@@ -124,23 +127,22 @@ async function loadSalesHistory() {
   body.innerHTML = '<tr><td colspan="12" class="text-muted">Loading…</td></tr>';
   // A newer search (a date changed while this one ran) wins.
   const mine = ++slhLoad;
-  const res = await window.apiFetch(historyURL());
+  // 297.4: the rows first, then the totals apart, so adding up a big book
+  // never holds the list.
+  const res = await window.apiFetch(historyURL({ part: 'rows' }));
   if (mine !== slhLoad || !document.getElementById('slh-rows')) return;
   if (!res || !res.ok) {
     body.innerHTML = '<tr><td colspan="12" class="text-muted">The sales history could not be loaded.</td></tr>';
+    slhTotals = { key: '', h: null };
+    showSalesHistoryTotals({ failed: true });
     if (res) await window.showApiError(res, 'Could not load the sales history.');
     return;
   }
   const h = (await res.json()) || {};
   if (mine !== slhLoad) return;
   slhRows = h.rows || [];
-  const count = document.querySelector(`#${SCREEN} .txn-count`);
-  if (count) count.textContent = (h.sales || 0) + (h.returns || 0);
-  const summary = document.getElementById('slh-summary');
-  if (summary) {
-    summary.textContent = `Sales ${h.sales || 0} · ${money(h.sales_total)} · Returns ${h.returns || 0} · ${money(h.returns_total)} · Net ${money((h.sales_total || 0) - (h.returns_total || 0))}`
-      + ` · Discounts: item ${money(h.item_discount)} · offer ${money(h.offer_discount)} · bill ${money(h.bill_discount)}`;
-  }
+  loadSalesHistoryTotals();
+  const noMatch = h.search_scope === 'number' ? 'No match. Type the full bill number or mobile.' : 'Nothing matches this search in these dates.';
   body.innerHTML = slhRows.length ? slhRows.map((r, i) => `<tr data-i="${i}" class="s-74fa97">
       <td class="s-1cd2ee">${esc(shown(r.date))}</td><td>${typeCell(r)}</td>
       <td class="s-1cd2ee">${esc(r.number || r.id)}</td><td>${esc(r.store)}</td>
@@ -149,13 +151,42 @@ async function loadSalesHistory() {
       <td class="s-30489c">${disc(r.item_discount)}</td><td class="s-30489c">${disc(r.offer_discount)}</td><td class="s-30489c">${disc(r.bill_discount)}</td>
       <td class="s-30489c s-1cd2ee">${r.kind === 'Return' ? '−' : ''}${esc(money(r.total))}</td>
       <td>${statusBadge(r.status)}${r.returned ? ' <span class="badge badge-warning">Returned</span>' : ''}</td></tr>`).join('')
-    : `<tr><td colspan="12" class="text-muted">${slh.q ? 'Nothing matches this search in these dates.' : 'No sales or returns in these dates.'}</td></tr>`;
+    : `<tr><td colspan="12" class="text-muted">${slh.q ? noMatch : 'No sales or returns in these dates.'}</td></tr>`;
   const prev = document.getElementById('slh-prev');
   const next = document.getElementById('slh-next');
   const range = document.getElementById('slh-range');
   if (prev) prev.disabled = slh.offset === 0;
   if (next) next.disabled = !h.more;
   if (range) range.textContent = slhRows.length ? `${slh.offset + 1}-${slh.offset + slhRows.length}` : '';
+}
+
+// The totals of the search, asked for once per search: a page change keeps
+// them. Until they come the line says so; the list works meanwhile.
+async function loadSalesHistoryTotals() {
+  const key = [slh.from, slh.to, slh.q, slh.kind, slh.source, slh.scope].join('\u0001');
+  if (slhTotals.key === key) return showSalesHistoryTotals(slhTotals.h);
+  slhTotals = { key, h: null };
+  showSalesHistoryTotals(null);
+  const res = await window.apiFetch(historyURL({ part: 'totals', offset: '0' }));
+  if (slhTotals.key !== key) return;
+  const h = res && res.ok ? await res.json().catch(() => ({ failed: true })) : { failed: true };
+  if (slhTotals.key !== key) return;
+  // A failed add-up is asked for again on the next load.
+  slhTotals = { key: h && !h.failed ? key : '', h };
+  showSalesHistoryTotals(h);
+}
+
+function showSalesHistoryTotals(h) {
+  const count = document.querySelector(`#${SCREEN} .txn-count`);
+  const summary = document.getElementById('slh-summary');
+  // On a big book, too many bills to add up gives no totals.
+  const none = !h || h.failed || h.totals_skipped;
+  if (count) count.textContent = none ? '' : (h.sales || 0) + (h.returns || 0);
+  if (!summary) return;
+  summary.textContent = !h ? 'Adding up…' : h.failed ? 'Totals not loaded'
+    : h.totals_skipped ? 'Too many bills to total · pick fewer days'
+    : `Sales ${h.sales || 0} · ${money(h.sales_total)} · Returns ${h.returns || 0} · ${money(h.returns_total)} · Net ${money((h.sales_total || 0) - (h.returns_total || 0))}`
+      + ` · Discounts: item ${money(h.item_discount)} · offer ${money(h.offer_discount)} · bill ${money(h.bill_discount)}`;
 }
 
 async function openSalesHistoryRow(row, push = true) {

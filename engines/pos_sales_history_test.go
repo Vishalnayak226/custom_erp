@@ -1,11 +1,14 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 )
 
 // 215.12/215.13: Sales History lists store bills, online bills and returns,
@@ -51,7 +54,7 @@ func TestSearchSalesHistory(t *testing.T) {
 
 	search := func(f SalesHistoryFilter) *SalesHistory {
 		t.Helper()
-		h, err := SearchSalesHistory(tenantID, f)
+		h, err := SearchSalesHistory(context.Background(), tenantID, f)
 		if err != nil {
 			t.Fatalf("search %+v: %v", f, err)
 		}
@@ -116,9 +119,9 @@ func TestSearchSalesHistory(t *testing.T) {
 		}
 	})
 
-	t.Run("the till's search: GSTIN, bill number, mobile", func(t *testing.T) {
+	tillSearch := func(t *testing.T) {
 		for q, want := range map[string]string{"29aabct2150s1z5": "CART2", p + "B0001": "CART1", "98765 00215": "CART1", "+91-9876500215": "CART1"} {
-			bills, err := SearchStoreBills(tenantID, []string{store}, q, "")
+			bills, err := SearchStoreBills(context.Background(), tenantID, []string{store}, q, "")
 			if err != nil {
 				t.Fatalf("%q: %v", q, err)
 			}
@@ -130,9 +133,62 @@ func TestSearchSalesHistory(t *testing.T) {
 				t.Errorf("%q did not find %s: %+v", q, want, bills)
 			}
 		}
-		bills, _ := SearchStoreBills(tenantID, []string{store}, "T215SHAWB42", "")
+		bills, _ := SearchStoreBills(context.Background(), tenantID, []string{store}, "T215SHAWB42", "")
 		if len(bills) != 1 || bills[0].CartNumber != p+"SINV1" || bills[0].Kind != "Online" {
 			t.Errorf("AWB at the till: %+v", bills)
+		}
+	}
+	t.Run("the till's search: GSTIN, bill number, mobile", tillSearch)
+
+	// 297.4: a book of over a lakh bills finds a store bill only by what an
+	// index holds - bill number, cart id, GSTIN, the customer's full mobile.
+	t.Run("a big book: the same finds, by number only", func(t *testing.T) {
+		was := salesHistoryIsBig
+		salesHistoryIsBig = func(string) bool { return true }
+		defer func() { salesHistoryIsBig = was }()
+		tillSearch(t)
+		h := search(SalesHistoryFilter{Stores: []string{store}, Q: strings.ToLower(p + "CART1")})
+		if _, ok := ids(h)[p+"CART1"]; !ok || h.SearchScope != "number" {
+			t.Errorf("cart id in small letters: scope %q, %+v", h.SearchScope, h.Rows)
+		}
+		for _, q := range []string{"Asha", p + "B000", "9876500"} {
+			if _, ok := ids(search(SalesHistoryFilter{Stores: []string{store}, Q: q}))[p+"CART1"]; ok {
+				t.Errorf("%q found a store bill on a big book: a name or part of a number reads every bill", q)
+			}
+		}
+		if h := search(SalesHistoryFilter{Stores: []string{store}}); h.SearchScope != "" || h.Sales != 2 {
+			t.Errorf("nothing typed: scope %q, %d sales", h.SearchScope, h.Sales)
+		}
+	})
+
+	t.Run("a big book: totals skipped over the cap, rows still shown", func(t *testing.T) {
+		wasBig, wasCap := salesHistoryIsBig, salesHistoryTotalsCap
+		salesHistoryIsBig, salesHistoryTotalsCap = func(string) bool { return true }, 0
+		defer func() { salesHistoryIsBig, salesHistoryTotalsCap = wasBig, wasCap }()
+		h := search(SalesHistoryFilter{Stores: []string{store}})
+		if !h.TotalsSkipped || h.Sales != 0 || len(h.Rows) != 3 {
+			t.Errorf("skipped=%v sales=%d rows=%d", h.TotalsSkipped, h.Sales, len(h.Rows))
+		}
+		salesHistoryIsBig = wasBig
+		if h := search(SalesHistoryFilter{Stores: []string{store}}); h.TotalsSkipped || h.Sales != 2 {
+			t.Errorf("a small book always totals: skipped=%v sales=%d", h.TotalsSkipped, h.Sales)
+		}
+	})
+
+	t.Run("too slow: POSOFF-0884; the caller gone: no message", func(t *testing.T) {
+		was := salesHistoryDeadline
+		salesHistoryDeadline = time.Nanosecond
+		_, err := SearchSalesHistory(context.Background(), tenantID, SalesHistoryFilter{Stores: []string{store}})
+		salesHistoryDeadline = was
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Code != "POSOFF-0884" {
+			t.Errorf("past the deadline: %v", err)
+		}
+		gone, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err = SearchSalesHistory(gone, tenantID, SalesHistoryFilter{Stores: []string{store}})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("caller gone: %v", err)
 		}
 	})
 
@@ -155,7 +211,7 @@ func TestSearchSalesHistory(t *testing.T) {
 		if h := search(SalesHistoryFilter{Stores: []string{store}, From: "2001-01-01", To: "2001-01-02"}); len(h.Rows) != 0 {
 			t.Errorf("2001: %+v", h.Rows)
 		}
-		_, err := SearchSalesHistory(tenantID, SalesHistoryFilter{From: "16/11/2026"})
+		_, err := SearchSalesHistory(context.Background(), tenantID, SalesHistoryFilter{From: "16/11/2026"})
 		var ve *ValidationError
 		if !errors.As(err, &ve) || ve.Code != "POSOFF-0883" {
 			t.Errorf("bad date: %v", err)
@@ -170,6 +226,15 @@ func TestSearchSalesHistory(t *testing.T) {
 		h = search(SalesHistoryFilter{Stores: []string{store}, Limit: 2, Offset: 2})
 		if len(h.Rows) != 1 || h.More {
 			t.Errorf("page 2: %d rows more=%v", len(h.Rows), h.More)
+		}
+		// 297.4: the screen asks for its rows, then for the totals apart.
+		h = search(SalesHistoryFilter{Stores: []string{store}, Limit: 2, NoTotals: true})
+		if len(h.Rows) != 2 || !h.More || h.Sales != 0 || h.Returns != 0 {
+			t.Errorf("rows part: %d rows more=%v totals %d/%d", len(h.Rows), h.More, h.Sales, h.Returns)
+		}
+		h = search(SalesHistoryFilter{Stores: []string{store}, Limit: 2, Offset: 2, TotalsOnly: true})
+		if len(h.Rows) != 0 || h.More || h.Sales != 2 || h.Returns != 1 {
+			t.Errorf("totals part: %d rows more=%v totals %d/%d", len(h.Rows), h.More, h.Sales, h.Returns)
 		}
 	})
 }

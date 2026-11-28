@@ -120,9 +120,10 @@ type bpBillIn struct {
 	Invoice, Vendor, Date string
 	Total                 float64
 	err                   string
-	// fromRows: made from the PO + GRN template's rows (237.2); its total
-	// is its rows' total.
+	// fromRows: made from the PO + GRN template's rows (237.2), or a bill
+	// the Bills sheet does not have (316.1); its total is its rows' total.
 	fromRows bool
+	note     string // 316.1: how its rows were read, for the result
 }
 
 // ---------------------------------------------------------------- output
@@ -184,7 +185,14 @@ type bpBillOut struct {
 	Message string  `json:"message,omitempty"`
 	Result  string  `json:"result,omitempty"` // done | failed | waiting
 	// SKUs received, for Print stickers on the screen.
-	SKUs     []string `json:"skus,omitempty"`
+	SKUs []string `json:"skus,omitempty"`
+	// PostedNow: 320.2 - posted by this upload, so its stickers are offered.
+	PostedNow bool `json:"posted_now,omitempty"`
+	// 320.1: the transfer that took the bill's stock on to Send to.
+	TOID     string `json:"to_id,omitempty"`
+	TONumber string `json:"to_number,omitempty"`
+	TOStatus string `json:"to_status,omitempty"`
+	TOResult string `json:"to_result,omitempty"` // done | failed | waiting
 	vendorID string
 	lines    []*bpLine
 	fromRows bool // the PO + GRN template's bill: its problems are its rows'
@@ -204,6 +212,7 @@ type bpTotals struct {
 	Failed      int     `json:"failed"`
 	Waiting     int     `json:"waiting"`
 	RowsToFix   int     `json:"rows_to_fix"` // rows in the "rows to fix" file (237.6)
+	Sent        int     `json:"sent"`        // 320.1: bills received at Send to
 }
 
 type bpResult struct {
@@ -215,6 +224,8 @@ type bpResult struct {
 	// Fix: 237.6 - the rows that did not load, with why; the run's "rows to
 	// fix" workbook is the file's own rows for these plus a Reason column.
 	Fix []bpFixRow `json:"fix_rows,omitempty"`
+	// SendTo: 320.1 - the store Apply sent the received stock on to.
+	SendTo string `json:"send_to,omitempty"`
 }
 
 // bpFixRow is one sheet row that did not load. NewRef is the PO Ref the row
@@ -555,6 +566,7 @@ type bpRun struct {
 	poKeys   map[string]bool            // vendor + PO Ref in this file, and refs handed out
 	billOf   map[*bpLine]*bpBillOut
 	shapes   map[string]*engines.DesignDetail // design -> detail, for a PO already made
+	sendTo   string                           // 320.1: store the received stock goes on to
 }
 
 const bpNewDesignsSetting = "procurement.bulk_po_new_designs"
@@ -2311,35 +2323,25 @@ func (b *bpRun) doPOs(pos []*bpPO) {
 // --- bills -> goods receipts
 
 func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
-	byBill := map[string][]*bpLine{}
 	listed := map[string]bool{}
+	pair := bpPairBills(bills, lines, engines.BusinessToday())
+	bills = append(bills, pair.made...)
+	byBill := map[*bpBillIn][]*bpLine{}
 	for _, l := range lines {
-		if l.Invoice != "" {
-			k := bpAttrKey(l.Vendor) + "|" + swNorm(l.Invoice)
-			byBill[k] = append(byBill[k], l)
-		}
-	}
-	billed := map[string]bool{}
-	for _, bi := range bills {
-		billed[bpAttrKey(bi.Vendor)+"|"+swNorm(bi.Invoice)] = true
-	}
-	for k, rows := range byBill {
-		if billed[k] {
-			continue
-		}
-		for _, l := range rows {
-			if l.out != nil && l.out.Message == "" {
-				l.out.Message = fmt.Sprintf("bill %s is not on the Bills sheet - this row is ordered, not received", l.Invoice)
+		if bi := pair.bill[l]; bi != nil {
+			byBill[bi] = append(byBill[bi], l)
+			if n := pair.note[l]; n != "" && l.out != nil && l.out.Message == "" {
+				l.out.Message = n
 			}
 		}
 	}
 	for i, bi := range bills {
 		b.step(fmt.Sprintf("Goods receipts (%d of %d)", i+1, len(bills)), 4, 5)
 		k := bpAttrKey(bi.Vendor) + "|" + swNorm(bi.Invoice)
-		out := &bpBillOut{Row: bi.Row, Invoice: bi.Invoice, Vendor: bi.Vendor, Date: bi.Date, Total: bi.Total, Action: "new", fromRows: bi.fromRows}
+		out := &bpBillOut{Row: bi.Row, Invoice: bi.Invoice, Vendor: bi.Vendor, Date: bi.Date, Total: bi.Total, Action: "new", fromRows: bi.fromRows, Message: bi.note}
 		b.res.Bills = append(b.res.Bills, out)
 		fail := func(msg string) { out.Action, out.Message = "error", msg }
-		for _, l := range byBill[k] {
+		for _, l := range byBill[bi] {
 			if b.billOf[l] == nil {
 				b.billOf[l] = out
 			}
@@ -2353,7 +2355,7 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			continue
 		}
 		listed[k] = true
-		rows := byBill[k]
+		rows := byBill[bi]
 		if len(rows) == 0 {
 			fail("no Purchase row has this bill no for this vendor")
 			continue
@@ -2375,13 +2377,17 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			// The PO + GRN template has no bill total: the rows are the bill.
 			bi.Total, out.Total = out.RowsSum, out.RowsSum
 		}
-		if !bi.fromRows && math.Abs(out.RowsSum-bi.Total) > 1 {
-			fail(fmt.Sprintf("the bill total %s and its rows (%s) differ by %s - fix the total or the rows", swNumText(bi.Total), swNumText(out.RowsSum), swNumText(math.Round((bi.Total-out.RowsSum)*100)/100)))
-			continue
-		}
 		if out.Lines == 0 {
 			fail("every row of this bill has Received Qty 0 - nothing to receive")
 			continue
+		}
+		// 316.1: a bill total that differs from its rows is received at the
+		// rows, not refused (Verify takes a total only within Rs 1 of its
+		// lines). The message keeps the typed total and the difference to
+		// settle with the vendor.
+		if total, note := bpBillTotal(bi.Total, out.RowsSum); !bi.fromRows && note != "" {
+			bi.Total, out.Total = total, total
+			out.Message = bpJoin(out.Message, note)
 		}
 		// One goods receipt keeps its lines in one field (its own limit since
 		// Stage 130.1, else the org's "Default maximum field length"); a
@@ -2429,9 +2435,9 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 				}
 			}
 			if out.Action == "existing" && out.Step == engines.GRNStepPosted {
-				out.Message = "already received and posted"
+				out.Message = bpJoin(out.Message, "already received and posted")
 			} else {
-				out.Message = "received once its PO is approved"
+				out.Message = bpJoin(out.Message, "received once its PO is approved")
 			}
 			continue
 		}
@@ -2447,6 +2453,9 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			continue
 		}
 		b.receive(out, bi, store)
+		if b.sendTo != "" && b.sendTo != store && out.Result == "done" && out.GRNID != "" {
+			b.sendOn(out, store)
+		}
 	}
 }
 
@@ -2551,7 +2560,7 @@ func (b *bpRun) receive(out *bpBillOut, bi *bpBillIn, store string) {
 		out.GRNID = id
 		out.Step = engines.GRNStepReceived
 	} else if out.Step == engines.GRNStepPosted {
-		out.Result, out.Message = "done", "already received and posted"
+		out.Result, out.Message = "done", bpJoin(out.Message, "already received and posted")
 		return
 	}
 	v, err := engines.GetGRNStepView(b.sw.c.tenantID, out.GRNID)
@@ -2591,10 +2600,10 @@ func (b *bpRun) receive(out *bpBillOut, bi *bpBillIn, store string) {
 		}
 	}
 	if v.ExcessPending {
-		out.Result, out.Message = "waiting", "more than ordered was received: the extra waits for approval on the goods receipt"
+		out.Result, out.Message = "waiting", bpJoin(out.Message, "more than ordered was received: the extra waits for approval on the goods receipt")
 		return
 	}
-	out.Result = "done"
+	out.Result, out.PostedNow = "done", true
 }
 
 // --- totals
@@ -2664,6 +2673,14 @@ func (b *bpRun) totals() {
 		case "waiting":
 			t.Waiting++
 		}
+		switch bo.TOResult {
+		case "done":
+			t.Sent++
+		case "failed":
+			t.Failed++
+		case "waiting":
+			t.Waiting++
+		}
 	}
 }
 
@@ -2695,6 +2712,9 @@ func bpPrepare(w http.ResponseWriter, r *http.Request, apply bool) (*bpRun, []by
 	run, err := newBPRun(newSWCaller(r), apply)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return nil, nil, "", nil, false
+	}
+	if !bpSendTo(w, r, run) {
 		return nil, nil, "", nil, false
 	}
 	return run, file, name, func() *bpResult { return run.process(vendors, lines, bills, attrs) }, true
@@ -2792,6 +2812,18 @@ func handleBulkPurchaseRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
 		return
+	}
+	// 316.2: a run saved before 237.6 shows its Rows to fix too.
+	if stored, ok := run["result"].(map[string]interface{}); ok {
+		t, _ := stored["totals"].(map[string]interface{})
+		if n, _ := t["rows_to_fix"].(float64); t != nil && n == 0 {
+			var res bpResult
+			if raw, err := json.Marshal(stored); err == nil && json.Unmarshal(raw, &res) == nil {
+				if n := len(bpRunFix(&res)); n > 0 {
+					t["rows_to_fix"] = n
+				}
+			}
+		}
 	}
 	_ = json.NewEncoder(w).Encode(run)
 }

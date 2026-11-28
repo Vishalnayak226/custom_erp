@@ -510,6 +510,7 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 	firstPublish := in.ProductGID == ""
 	// Stage 146.5.1: the approved PIM content, only when the setting is on.
 	pimOn := GetSettingBool(tenantID, shopifyPIMContentSetting) && len(skus) > 0
+	var clearRelations []ShopifyMetafield // 321.1: lists now empty, deleted after the publish
 	if pimOn {
 		pc, err := loadShopifyPIMContent(tenantID, schema, channel, design, skus)
 		if err != nil {
@@ -521,7 +522,12 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 		in.ProductType = firstNonEmpty(pc.ProductType, in.ProductType)
 		in.Metafields = pc.ProductMF
 		// 146.5.12: the typed product relations, as Shopify's recommendation metafields.
-		relations := shopifyRelationMetafields(schema, channel, append([]string{design}, skus...), in.ProductGID)
+		relations, relErr := shopifyRelationMetafields(schema, channel, append([]string{design}, skus...), in.ProductGID)
+		if relErr != nil {
+			LogSystemError(tenantID, "", "WARN", "shopify.publish", fmt.Sprintf("design %s: relations not read, the shop keeps its recommendations: %v", design, relErr), "")
+		} else if !firstPublish {
+			clearRelations = shopifyEmptyRelationLists(relations)
+		}
 		productKeys, variantKeys := []string{}, []string{}
 		for _, m := range pc.ProductMF {
 			productKeys = append(productKeys, m.Key)
@@ -556,6 +562,11 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 			return 0, false, err
 		}
 		_ = UpsertChannelSKUMapping(tenantID, ChannelSKUMapping{SKU: l.SKU, Channel: channel, ChannelSKU: l.SKU, ExternalProductID: l.VariantGID})
+	}
+	if len(clearRelations) > 0 {
+		if err := conn.DeleteProductMetafields(ctx, cred, productGID, clearRelations); err != nil {
+			LogSystemError(tenantID, "", "WARN", "shopify.publish", fmt.Sprintf("product %s: removed recommendations not cleared: %v", productGID, err), "")
+		}
 	}
 	// Pictures go up with the first publish only, so they are never doubled.
 	// With the PIM content setting on they are also re-sent when the set has

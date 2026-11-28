@@ -55,7 +55,7 @@ Center** have no flyout and open straight away.
 | **Manufacturing** | Production Orders · Production Schedule · Subcontracting · MRP Suggestions · Supply Proposals · Quality Inspections · Certificates · Non-conformance · Maintenance Orders |
 | **PIM** | Home · Workbench · My Work · Workflow runs · Media Library · Supplier Submissions · Catalogs · Templates · Feeds · Design Values · Stewardship · Checklists · PIM Reports |
 | **Setup** | The module names; point at one and its reference lists (Items, Locations, Bins, Brands, Currencies and the rest) open beside it. |
-| **Settings** | Administrator screens: Configuration · Credentials, then four groups: Users & Access (Users · Roles · Approval Rules) · Customize (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks · Extension tokens) · Monitoring (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · System Status · Deployment history · Backup history) · Platform |
+| **Settings** | Administrator screens: Configuration · Credentials, then four groups: Users & Access (Users · Roles · Approval Rules) · Customize (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks · Extension tokens) · Monitoring (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · Access Review · Trace & Evidence · Breach Notifications · Emergency Controls · System Status · Deployment history · Backup history) · Platform |
 
 **You see only what your role can use.** A module missing from your menu is a
 permission, not a fault. A whole group disappears when you have access to

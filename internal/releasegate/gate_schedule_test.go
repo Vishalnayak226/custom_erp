@@ -2,6 +2,7 @@ package releasegate
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -144,6 +145,28 @@ func TestParseEvidenceFileFillsTheCommitAndKeepsAFailure(t *testing.T) {
 	got, _ := LoadEvidence(filepath.Join(root, "release", "evidence"))
 	if g := got["backup_restore"]; g.Result != "fail" || g.FirstPass != "2026-11-01" {
 		t.Fatalf("a failed drill after a pass must stay a fail with the first pass kept: %+v", g)
+	}
+}
+
+// TestFullCommitExpandsAShortHash (ask 327): the restore drill names the build
+// by a short ERP_COMMIT; the gate needs the full hash, so `releasegate record`
+// expands it with git and refuses one git cannot expand.
+func TestFullCommitExpandsAShortHash(t *testing.T) {
+	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Skip("not in a git checkout")
+	}
+	full := strings.TrimSpace(string(head))
+	for _, in := range []string{full, full[:7], " " + full[:10] + "\n"} {
+		got, err := FullCommit(in, t.TempDir(), ".")
+		if err != nil || got != full {
+			t.Errorf("FullCommit(%q) = %q, %v; want %s", in, got, err, full)
+		}
+	}
+	for _, bad := range []string{"", "zzzzzzz", "0000000"} {
+		if got, err := FullCommit(bad, "."); err == nil {
+			t.Errorf("FullCommit(%q) = %q, want an error", bad, got)
+		}
 	}
 }
 

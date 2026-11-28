@@ -665,6 +665,40 @@ func validateZoneMasterRules(tenantID, docID string, payload map[string]interfac
 	return nil
 }
 
+// validateBinCodeAtStore (319.7): one bin code per store. Stock is kept by store
+// and bin code, so two Bin records with one code at one store are two masters for
+// one shelf. Another store may use the same code. A duplicate saved before this
+// rule can still be edited: only a new code or a new store is checked.
+func validateBinCodeAtStore(tenantID, docID string, payload map[string]interface{}) error {
+	code, loc := strField(payload, "bin_code"), strField(payload, "location")
+	if code == "" || loc == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var wasCode, wasLoc string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'bin_code', ''), COALESCE(data->>'location', '')
+		  FROM %s.documents WHERE doctype = 'Bin' AND id = $1 AND deleted_at IS NULL`, schema), docID).Scan(&wasCode, &wasLoc)
+	if err == nil && wasCode == code && wasLoc == loc {
+		return nil
+	} else if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	var other string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents
+		 WHERE doctype = 'Bin' AND deleted_at IS NULL AND data->>'bin_code' = $1 AND data->>'location' = $2 AND id <> $3
+		 ORDER BY id LIMIT 1`, schema), code, loc, docID).Scan(&other)
+	if err == sql.ErrNoRows {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return &ValidationError{Code: "GLOBAL-0003", SubFor: "Bin Code",
+		Message: fmt.Sprintf("bin %s already exists at %s (%s)", code, loc, other)}
+}
+
 // validateBinMasterRules (Stage 42.2.5) is new with this item - Bin had no
 // dedicated rules function before. Its only job is the zone-code existence
 // check the migration's own note explains: `zone` stays a Data field
@@ -680,6 +714,9 @@ func validateBinMasterRules(tenantID, docID string, payload map[string]interface
 	// Stage 59.4: a bin's owner cannot change under its stock
 	// (engines/wms_owner_isolation.go).
 	if err := validateBinOwnerChange(tenantID, docID, payload); err != nil {
+		return err
+	}
+	if err := validateBinCodeAtStore(tenantID, docID, payload); err != nil {
 		return err
 	}
 	zone := strField(payload, "zone")

@@ -513,23 +513,28 @@ async function renderPIMMyWorkTab(container) {
 }
 
 // 284.2 (ask 300): Workflow runs, its own PIM page - start a run, see the runs.
+// 319.1: starting a run needs the workflow list and the server's two create
+// rights (handlePIMWorkflowStart); a role without them (Cashier) sees only the
+// runs, instead of a 403 and a "No active workflows" box it cannot use.
 async function renderPIMWorkflowRunsTab(container) {
+  const mayStart = canReadDoctype('PIMWorkflowDefinition') && canDo('create', 'PIMWorkflowRun') && canDo('create', 'PIMTask');
   const workflowPanel = document.createElement('div');
   workflowPanel.className = 'table-panel';
   workflowPanel.style.padding = '24px';
   workflowPanel.innerHTML = `
     <h2 class="s-8406f1">Workflow runs</h2>
     <div class="table-controls s-f10932">
-      <div class="form-group s-116966"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
+      ${mayStart ? `<div class="form-group s-116966"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
       <div class="form-group s-116966"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
       <div class="form-group s-116966"><label class="form-label" for="pim-workflow-ref">Product / group</label><input class="form-input" id="pim-workflow-ref" placeholder="Item code"></div>
-      <button class="btn btn-primary s-d6f2af" id="pim-workflow-start">Start run</button>
+      <button class="btn btn-primary s-d6f2af" id="pim-workflow-start">Start run</button>` : ''}
       <div class="form-group s-116966"><label class="form-label" for="pim-run-status">Show</label><select class="form-select" id="pim-run-status"><option value="Running">Running</option><option value="Paused">Paused</option><option value="">All</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div>
     </div>
     <div class="table-wrapper s-56f435" id="pim-run-table"></div>`;
   container.appendChild(workflowPanel);
-  workflowPanel.querySelector('#pim-workflow-start').addEventListener('click', startPIMWorkflowRun);
   workflowPanel.querySelector('#pim-run-status').addEventListener('change', loadPIMWorkflowRuns);
+  if (!mayStart) { await loadPIMWorkflowRuns(); return; }
+  workflowPanel.querySelector('#pim-workflow-start').addEventListener('click', startPIMWorkflowRun);
   workflowPanel.querySelector('#pim-workflow-target').addEventListener('change', e => {
     workflowPanel.querySelector('#pim-workflow-ref').placeholder =
       e.target.value === 'group' ? 'Product group id or code' : 'Item code';
@@ -900,6 +905,7 @@ async function loadPIMWorkflowRuns() {
     host.innerHTML = '<p class="text-muted s-cc781b">No workflow runs in this state.</p>';
     return;
   }
+  const mayChange = canDo('update', 'PIMWorkflowRun'); // 319.1: the server's right for Advance/Pause/Resume/Cancel
   host.innerHTML = `<table>
     <thead><tr><th>Product</th><th>Workflow</th><th>Stage</th><th>Status</th><th>Waiting on</th><th>Tasks</th><th>Actions</th></tr></thead>
     <tbody>${runs.map(run => `<tr>
@@ -910,10 +916,10 @@ async function loadPIMWorkflowRuns() {
       <td class="s-6cb285">${escapeHTMLText(run.blocked_reason || '—')}</td>
       <td>${run.open_tasks} open / ${run.total_tasks}</td>
       <td class="s-86abda">
-        ${run.status === 'Running' ? `<button class="action-btn" data-run-act="advance" data-run="${escapeHTMLText(run.id)}">Advance</button>
+        ${mayChange && run.status === 'Running' ? `<button class="action-btn" data-run-act="advance" data-run="${escapeHTMLText(run.id)}">Advance</button>
         <button class="action-btn" data-run-act="pause" data-run="${escapeHTMLText(run.id)}">Pause</button>` : ''}
-        ${run.status === 'Paused' ? `<button class="action-btn" data-run-act="resume" data-run="${escapeHTMLText(run.id)}">Resume</button>` : ''}
-        ${run.status === 'Running' || run.status === 'Paused' ? `<button class="action-btn" data-run-act="cancel" data-run="${escapeHTMLText(run.id)}">Cancel</button>` : ''}
+        ${mayChange && run.status === 'Paused' ? `<button class="action-btn" data-run-act="resume" data-run="${escapeHTMLText(run.id)}">Resume</button>` : ''}
+        ${mayChange && (run.status === 'Running' || run.status === 'Paused') ? `<button class="action-btn" data-run-act="cancel" data-run="${escapeHTMLText(run.id)}">Cancel</button>` : ''}
         <button class="action-btn" data-run-act="log" data-run="${escapeHTMLText(run.id)}">Activity</button>
       </td></tr>`).join('')}</tbody></table>`;
 

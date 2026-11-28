@@ -42,10 +42,16 @@ func (r *Runner) finish(j *Journey) JourneyRecord {
 // the warehouse. It is the first half of procure-to-pay and the precondition
 // for every journey that needs stock, so it is steps, not a hidden helper.
 func (j *Journey) receiveStock(qty int, label string) (poID, grnID string) {
+	return j.receiveStockAt(locWH, qty, label)
+}
+
+// receiveStockAt receives at any location; the load run stocks each
+// cashier's shop with it.
+func (j *Journey) receiveStockAt(loc string, qty int, label string) (poID, grnID string) {
 	j.Step(label+"raise purchase order", "jl-ap", func(s *StepCtx) error {
 		rate := 200
 		r := s.Call("jl-ap", "POST", "/api/v1/doc/PurchaseOrder", map[string]interface{}{
-			"vendor_id": vendorID, "vendor": vendorID, "location": locWH, "target_warehouse": locWH, "status": "Draft",
+			"vendor_id": vendorID, "vendor": vendorID, "location": loc, "target_warehouse": loc, "status": "Draft",
 			"items": []map[string]interface{}{{"sku": skuMain, "qty": qty, "rate": rate}}, "total_amount": qty * rate, "code": "x", "po_number": "x"})
 		poID = jstr(r.JSON, "id")
 		s.Check(r.Status < 300 && poID != "", "purchase order created: %d %s", r.Status, trunc(string(r.Body), 160))
@@ -57,14 +63,14 @@ func (j *Journey) receiveStock(qty int, label string) (poID, grnID string) {
 		return nil
 	})
 	j.Step(label+"receive goods (GRN)", "jl-ap", func(s *StepCtx) error {
-		before := j.R.onHand(skuMain, locWH)
+		before := j.R.onHand(skuMain, loc)
 		r := s.Call("jl-ap", "POST", "/api/v1/doc/GRN", map[string]interface{}{
-			"po_id": poID, "location": locWH, "status": "Pending",
+			"po_id": poID, "location": loc, "status": "Pending",
 			"received_items": j2s([]map[string]interface{}{{"sku": skuMain, "qty": qty, "accepted_qty": qty}})})
 		grnID = jstr(r.JSON, "id")
 		s.Check(r.Status < 300 && grnID != "", "GRN created: %d %s", r.Status, trunc(string(r.Body), 160))
-		now := j.R.onHand(skuMain, locWH) - before
-		s.Check(int(now) == qty, "stock at %s rose by %d (got %.0f)", locWH, qty, now)
+		now := j.R.onHand(skuMain, loc) - before
+		s.Check(int(now) == qty, "stock at %s rose by %d (got %.0f)", loc, qty, now)
 		return nil
 	})
 	return poID, grnID
@@ -169,8 +175,23 @@ func (r *Runner) JourneyFirstSale() JourneyRecord {
 	return r.finish(j)
 }
 
+// openTill opens a fresh till. A 422 means one is already open: a cycle broke
+// before its close (the soak's database restart can land mid-close, 313.3.1).
+// That till is closed at its expected cash, as a cashier would, so this
+// cycle's close balances; a fresh database never sees this.
 func (r *Runner) openTill(s *StepCtx, who string) string {
-	o := s.Call(who, "POST", "/api/v1/pos/session/open", map[string]interface{}{"location": locStore, "opening_cash": 0})
+	open := func() *Resp {
+		return s.Call(who, "POST", "/api/v1/pos/session/open", map[string]interface{}{"location": locStore, "opening_cash": 0}, 200, 201, 422)
+	}
+	o := open()
+	if o.Status == 422 {
+		cur := s.SetupCall(who, "GET", "/api/v1/pos/session/current?location="+locStore, nil)
+		if left := firstNonEmpty(jstr(cur.JSON, "session_id"), jstr(cur.JSON, "id")); left != "" {
+			sum := s.SetupCall(who, "GET", "/api/v1/pos/session/summary?session_id="+left, nil)
+			s.SetupCall(who, "POST", "/api/v1/pos/session/close", map[string]interface{}{"session_id": left, "counted_cash": jnum(sum.JSON, "expected_cash"), "declared_card": 0, "declared_upi": 0})
+			o = open()
+		}
+	}
 	sid := firstNonEmpty(jstr(o.JSON, "session_id"), jstr(o.JSON, "id"))
 	if sid == "" {
 		cur := s.SetupCall(who, "GET", "/api/v1/pos/session/current?location="+locStore, nil)

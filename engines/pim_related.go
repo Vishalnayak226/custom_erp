@@ -42,10 +42,15 @@ func FindRelatedProducts(tenantID, itemCode string, limit int) ([]RelatedProduct
 		return nil, err
 	}
 
-	var family string
+	// 319.9: PIM keys an Item by its record id (the Workbench, completeness and
+	// every ProductAttributeValue.item), and a numbered or UUID Item's id is not
+	// its code. Find it by id, else by code, and compare attribute rows by id.
+	var itemID, family string
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COALESCE(data->>'family', '') FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1`, schema),
-		itemCode).Scan(&family)
+		`SELECT id, COALESCE(data->>'family', '') FROM %s.documents
+		  WHERE doctype = 'Item' AND deleted_at IS NULL AND (id = $1 OR data->>'code' = $1)
+		  ORDER BY (id = $1) DESC, id LIMIT 1`, schema),
+		itemCode).Scan(&itemID, &family)
 	if err != nil {
 		return nil, fmt.Errorf("item %q not found", itemCode)
 	}
@@ -54,7 +59,7 @@ func FindRelatedProducts(tenantID, itemCode string, limit int) ([]RelatedProduct
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT other.data->>'code', COALESCE(other.data->>'name', ''), COUNT(*) AS shared
+		SELECT other.id, COALESCE(other.data->>'name', ''), COUNT(*) AS shared
 		FROM %s.documents self_attr
 		JOIN %s.documents other_attr
 			ON other_attr.doctype = 'ProductAttributeValue'
@@ -65,7 +70,7 @@ func FindRelatedProducts(tenantID, itemCode string, limit int) ([]RelatedProduct
 			AND other_attr.data->>'item' != $1
 		JOIN %s.documents other
 			ON other.doctype = 'Item'
-			AND other.data->>'code' = other_attr.data->>'item'
+			AND other.id = other_attr.data->>'item'
 			AND other.data->>'family' = $2
 			AND other.status = 'Active' AND other.deleted_at IS NULL
 		WHERE self_attr.doctype = 'ProductAttributeValue'
@@ -73,9 +78,9 @@ func FindRelatedProducts(tenantID, itemCode string, limit int) ([]RelatedProduct
 			AND COALESCE(self_attr.data->>'locale', '') = ''
 			AND COALESCE(self_attr.data->>'channel', '') = ''
 			AND COALESCE(self_attr.data->>'value', '') != ''
-		GROUP BY other_attr.data->>'item', other.data->>'code', other.data->>'name'
-		ORDER BY shared DESC, other.data->>'code' ASC
-		LIMIT $3`, schema, schema, schema), itemCode, family, limit)
+		GROUP BY other.id, other.data->>'name'
+		ORDER BY shared DESC, other.id ASC
+		LIMIT $3`, schema, schema, schema), itemID, family, limit)
 	if err != nil {
 		return nil, err
 	}

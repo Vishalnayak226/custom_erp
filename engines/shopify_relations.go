@@ -2,7 +2,9 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -19,7 +21,9 @@ import (
 // are already published to this shop (a shopify_links row gives their
 // product GID) can be referenced; the others are left out until they are
 // published and this product is published again. Order follows the Order
-// field. A product with no such relation gets no metafield.
+// field. A product with no such relation gets no metafield, and on a product
+// already on the shop that list is deleted (321.1), so recommendations the
+// item no longer has do not linger.
 
 const (
 	shopifyRecommendationNamespace = "shopify--discovery--product_recommendation"
@@ -33,8 +37,9 @@ var shopifyRelatedTypes = map[string]string{
 
 // shopifyRelationMetafields builds the two metafields for a product made of
 // owners (its design code and item codes). ownGID is the product itself when
-// it is already on Shopify, never listed as its own recommendation.
-func shopifyRelationMetafields(schema, channel string, owners []string, ownGID string) []ShopifyMetafield {
+// it is already on Shopify, never listed as its own recommendation. An error
+// means the relations could not be read: send none and clear none.
+func shopifyRelationMetafields(schema, channel string, owners []string, ownGID string) ([]ShopifyMetafield, error) {
 	type rel struct {
 		key, item string
 		pos       float64
@@ -43,7 +48,7 @@ func shopifyRelationMetafields(schema, channel string, owners []string, ownGID s
 		FROM %s.documents WHERE doctype = 'ProductRelation' AND deleted_at IS NULL AND COALESCE(data->>'status', 'Active') = 'Active'
 		  AND data->>'item' = ANY($1)`, schema), "{"+strings.Join(pgArrayEscape(owners), ",")+"}")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var rels []rel
 	for rows.Next() {
@@ -59,6 +64,9 @@ func shopifyRelationMetafields(schema, channel string, owners []string, ownGID s
 		rels = append(rels, rel{key, other, p})
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	sort.SliceStable(rels, func(i, j int) bool {
 		if rels[i].pos != rels[j].pos {
 			return rels[i].pos < rels[j].pos
@@ -72,8 +80,10 @@ func shopifyRelationMetafields(schema, channel string, owners []string, ownGID s
 			continue
 		}
 		var gid string
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT product_gid FROM %s.shopify_links WHERE channel = $1 AND (sku = $2 OR design = $2) AND product_gid <> '' LIMIT 1`, schema),
-			channel, r.item).Scan(&gid)
+		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT product_gid FROM %s.shopify_links WHERE channel = $1 AND (sku = $2 OR design = $2) AND product_gid <> '' LIMIT 1`, schema),
+			channel, r.item).Scan(&gid); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 		if gid == "" || gid == ownGID || seen[r.key+"|"+gid] {
 			continue
 		}
@@ -87,6 +97,22 @@ func shopifyRelationMetafields(schema, channel string, owners []string, ownGID s
 		}
 		b, _ := json.Marshal(lists[key])
 		out = append(out, ShopifyMetafield{Namespace: shopifyRecommendationNamespace, Key: key, Type: "list.product_reference", Value: string(b)})
+	}
+	return out, nil
+}
+
+// shopifyEmptyRelationLists names the recommendation lists a publish does not
+// send (321.1); on a product already on the shop they are deleted.
+func shopifyEmptyRelationLists(sent []ShopifyMetafield) []ShopifyMetafield {
+	has := map[string]bool{}
+	for _, m := range sent {
+		has[m.Key] = true
+	}
+	var out []ShopifyMetafield
+	for _, key := range []string{"related_products", "complementary_products"} {
+		if !has[key] {
+			out = append(out, ShopifyMetafield{Namespace: shopifyRecommendationNamespace, Key: key})
+		}
 	}
 	return out
 }

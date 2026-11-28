@@ -1,7 +1,8 @@
-// Stage 49.11.6 / 49.12.5: Settings -> Monitoring -> Security Events, below the controls.
-// The security event export destination, and the notification decisions:
-// a versioned matrix, the clocks, and a person's decision with a named
-// approver. Loaded by view-security.js; nothing here says who must be told.
+// Stage 49.11.6 / 49.12.5: two of the Settings -> Monitoring security pages (ask 311).
+// Event export, the security event export destination, sits on Trace & Evidence;
+// Breach Notifications holds the notification decisions: a versioned matrix, the
+// clocks, and a person's decision with a named approver. Loaded by
+// view-security.js; nothing here says who must be told.
 
 const esc = (v) => escapeHTMLText(v == null ? '' : String(v));
 const when = (v) => (v ? formatDateTime(v) : '-');
@@ -32,14 +33,7 @@ async function post(url, body, failText) {
   return res.json();
 }
 
-export async function renderSecurityExtras(target) {
-  const host = document.createElement('div');
-  host.dataset.secExtras = '1';
-  target.appendChild(host);
-  await Promise.all([renderExport(host), renderNotify(host)]);
-}
-
-async function renderExport(host) {
+export async function renderExport(host) {
   const s = await getJSON('/api/v1/admin/security/export');
   if (!s) return;
   const box = document.createElement('div');
@@ -97,9 +91,10 @@ async function renderExport(host) {
 
 const MATRIX_COLS = [['name', 'Name'], ['trigger', 'Trigger'], ['decider', 'Decider'], ['contact', 'Contact'], ['source', 'Source']];
 
-async function renderNotify(host) {
+// Returns false when the matrix or the decisions did not load, so the page offers Try Again.
+export async function renderNotify(host) {
   const [m, d] = await Promise.all([getJSON('/api/v1/admin/security/notify/matrix'), getJSON('/api/v1/admin/security/notify/decisions')]);
-  if (!m || !d) return;
+  if (!m || !d) return false;
   // 49.12.5: the server says who may be named - an Admin or a Privacy Approver, not you.
   const apRes = await apiFetch('/api/v1/admin/security/notify/approvers');
   const users = apRes && apRes.ok ? ((await apRes.json()).approvers || []).map(username => ({ username })) : [];

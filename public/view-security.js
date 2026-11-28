@@ -1,11 +1,21 @@
-// Stage 49.11.3 / 49.11.7 / 49.12.3 / 49.12.4: Settings -> Monitoring -> Security Events.
-// Loaded on first open of the tab (view-admin.js). One client's detections,
-// evidence health and risky grants; a request trace by correlation id; the
-// forensic evidence pack; and the emergency controls, each asking a reason
-// and the administrator's own password.
+// Stage 49.11.3 / 49.11.7 / 49.12.3 / 49.12.4: Settings -> Monitoring, the security pages.
+// Ask 311 (288.3(c)): five pages, one job each, picked by the log hub tab (view-admin.js):
+//   security            the evidence tiles, Detections and To review
+//   security-access     Privileged sessions and Access review
+//   security-trace      Trace a request, the forensic evidence pack and Event export
+//   security-notify     the breach notification decisions (view-security-notify.js)
+//   security-emergency  the emergency controls, each asking a reason and the
+//                       administrator's own password
+// Each page loads only what it shows.
 
 const esc = (v) => escapeHTMLText(v == null ? '' : String(v));
 const when = (v) => (v ? formatDateTime(v) : '-');
+const notifyModule = () => import('./view-security-notify.js' + new URL(import.meta.url).search);
+
+async function load(url) {
+  const res = await apiFetch(url);
+  return res && res.ok ? res.json() : null;
+}
 
 function sevBadge(sev) {
   return `<span class="badge ${sev === 'URGENT' ? 'badge-danger' : 'badge-warning'}">${sev === 'URGENT' ? 'Urgent' : 'Review'}</span>`;
@@ -52,20 +62,21 @@ async function runControl(url, body, title) {
   return true;
 }
 
-export async function renderSecurityPane(target) {
-  target.innerHTML = '<p class="s-de2e81">Loading…</p>';
-  const [pRes, uRes, sRes, aRes] = await Promise.all([apiFetch('/api/v1/admin/security/posture'), apiFetch('/api/v1/admin/users'), apiFetch('/api/v1/admin/security/sessions'), apiFetch('/api/v1/admin/security/access-reviews')]);
-  if (!pRes || !pRes.ok) {
-    target.innerHTML = '<p class="s-057137">Could not load security. <button class="btn btn-outline btn-sm" data-sec="retry">Try Again</button></p>';
-    target.querySelector('[data-sec="retry"]').addEventListener('click', () => renderSecurityPane(target));
-    return;
-  }
-  const p = await pRes.json();
-  const users = uRes && uRes.ok ? await uRes.json() : [];
-  const sessions = sRes && sRes.ok ? ((await sRes.json()).sessions || []) : [];
-  const review = aRes && aRes.ok ? await aRes.json() : { days: 0, overdue: 0, rows: [] };
-  const sweepAge = p.last_sweep ? Math.round((Date.now() - new Date(p.last_sweep)) / 60000) : null;
+const PAGES = { security: drawOverview, 'security-access': drawAccess, 'security-trace': drawTrace, 'security-notify': drawNotify, 'security-emergency': drawEmergency };
 
+export async function renderSecurityPane(target, page = 'security') {
+  const again = () => renderSecurityPane(target, page);
+  target.innerHTML = '<p class="s-de2e81">Loading…</p>';
+  if (await (PAGES[page] || drawOverview)(target, again) !== false) return;
+  target.innerHTML = '<p class="s-057137">Could not load security. <button class="btn btn-outline btn-sm" data-sec="retry">Try Again</button></p>';
+  target.querySelector('[data-sec="retry"]').addEventListener('click', again);
+}
+
+// Security Events: is the evidence healthy, what fired, what needs a look.
+async function drawOverview(target, again) {
+  const p = await load('/api/v1/admin/security/posture');
+  if (!p) return false;
+  const sweepAge = p.last_sweep ? Math.round((Date.now() - new Date(p.last_sweep)) / 60000) : null;
   target.innerHTML = `
     <div class="s-d9895d">
       ${stat('Checks last ran', sweepAge == null ? 'Not yet on this server' : `${sweepAge} min ago`, sweepAge != null && sweepAge > 15)}
@@ -98,14 +109,31 @@ export async function renderSecurityPane(target) {
       <p class="s-5e0faa"><strong>API keys:</strong> ${p.credentials.length ? p.credentials.map(c => `${esc(c.name)} (${esc(c.why)})`).join(', ') : 'none to review'}</p>
       <p class="s-5e0faa"><strong>Jobs given up (7 days):</strong> ${esc(p.dead_lettered_jobs_7d)}</p>
       <p class="s-5e0faa"><strong>Sign-in friction (14 days):</strong> ${((f) => `${esc(f.locked || 0)} locked · ${esc(f.password_resets || 0)} password resets · ${esc(f.lost_authenticator || 0)} lost authenticator · ${esc(f.help_not_helpful || 0)} "not helpful" on sign-in help`)(p.sign_in_friction_14d || {})}</p>
-    </div>
+    </div>`;
 
+  target.querySelector('[data-sec="run"]').addEventListener('click', async () => {
+    const res = await apiFetch('/api/v1/admin/security/detections/run', { method: 'POST' });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Checks did not run.'); return; }
+    const out = await res.json();
+    showToast(out.fired.length ? `${out.fired.length} new detection(s).` : 'Nothing new.');
+    again();
+  });
+}
+
+// Access Review: who holds a privileged session now, and whose access is due a review.
+async function drawAccess(target, again) {
+  const [s, review] = await Promise.all([load('/api/v1/admin/security/sessions'), load('/api/v1/admin/security/access-reviews')]);
+  if (!s || !review) return false;
+  const sessions = s.sessions || [];
+  const rows = review.rows || [];
+  target.innerHTML = `
     <div class="table-panel s-ef1f18">
       <h3 class="s-c477f7">Privileged sessions</h3>
       <div class="table-container"><table class="data-table s-046678">
         <thead><tr><th>User</th><th>Signed in</th><th>Last seen</th><th>From</th><th>Device</th><th>State</th><th></th></tr></thead>
         <tbody>${sessions.length === 0 ? '<tr><td colspan="7" class="s-5872de">None yet</td></tr>'
-          : sessions.map(s => `<tr><td>${esc(s.username)}</td><td class="s-7e9fe5">${esc(when(s.started_at))}</td><td class="s-7e9fe5">${esc(when(s.last_seen_at))}</td><td>${esc(s.address || '-')}</td><td class="s-6cb285">${esc(s.device || '-')}</td><td>${esc(s.state)}</td><td>${s.state === 'Active' ? `<button class="btn btn-outline btn-sm" data-sec-end="${esc(s.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody>
+          : sessions.map(x => `<tr><td>${esc(x.username)}</td><td class="s-7e9fe5">${esc(when(x.started_at))}</td><td class="s-7e9fe5">${esc(when(x.last_seen_at))}</td><td>${esc(x.address || '-')}</td><td class="s-6cb285">${esc(x.device || '-')}</td><td>${esc(x.state)}</td><td>${x.state === 'Active' ? `<button class="btn btn-outline btn-sm" data-sec-end="${esc(x.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody>
       </table></div>
     </div>
 
@@ -115,13 +143,37 @@ export async function renderSecurityPane(target) {
       </div>
       <div class="table-wrapper"><table>
         <thead><tr><th>User</th><th>Role</th><th>Stores</th><th>Last review</th><th></th></tr></thead>
-        <tbody>${review.rows.length === 0 ? '<tr><td colspan="5" class="s-306094">No active users.</td></tr>'
-          : review.rows.map(r => `<tr><td>${esc(r.username)}</td><td>${esc(r.role)}</td><td class="s-6cb285">${esc(r.location_code)}${r.store_access ? ' · ' + esc(r.store_access) : ''}</td>
+        <tbody>${rows.length === 0 ? '<tr><td colspan="5" class="s-306094">No active users.</td></tr>'
+          : rows.map(r => `<tr><td>${esc(r.username)}</td><td>${esc(r.role)}</td><td class="s-6cb285">${esc(r.location_code)}${r.store_access ? ' · ' + esc(r.store_access) : ''}</td>
             <td class="s-6cb285">${r.last_reviewed_at ? `${esc(r.last_decision)} by ${esc(r.last_reviewed_by)} · ${esc(when(r.last_reviewed_at))}` : 'Never'}${r.overdue ? ' <span class="badge badge-warning">Overdue</span>' : ''}</td>
             <td class="s-86abda"><button class="btn btn-outline btn-sm" data-rv-ok="${esc(r.id)}">Confirm</button> <button class="btn btn-outline btn-sm" data-rv-no="${esc(r.id)}">Revoke</button></td></tr>`).join('')}</tbody>
       </table></div>
-    </div>
+    </div>`;
 
+  const decideReview = async (userId, decision) => {
+    let note = '';
+    if (decision === 'Revoked') {
+      const n = await showCustomPrompt('Reason', '', 'Revoke access');
+      if (n == null) return;
+      if (!n.trim()) { showToast('A reason is required.'); return; }
+      note = n.trim();
+    }
+    const res = await apiFetch('/api/v1/admin/security/access-reviews', { method: 'POST', body: JSON.stringify({ user_id: userId, decision, note }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The review was not saved.'); return; }
+    showToast(decision === 'Revoked' ? 'Access revoked.' : 'Confirmed.');
+    again();
+  };
+  target.querySelectorAll('[data-rv-ok]').forEach(b => b.addEventListener('click', () => decideReview(b.dataset.rvOk, 'Confirmed')));
+  target.querySelectorAll('[data-rv-no]').forEach(b => b.addEventListener('click', () => decideReview(b.dataset.rvNo, 'Revoked')));
+  target.querySelectorAll('[data-sec-end]').forEach(btn => btn.addEventListener('click', async () => {
+    if (await runControl('/api/v1/admin/security/sessions/end', { id: btn.dataset.secEnd }, 'End session')) again();
+  }));
+}
+
+// Trace & Evidence: follow one request, take the sealed evidence out, stream events out.
+async function drawTrace(target) {
+  target.innerHTML = `
     <div class="table-panel s-ef1f18">
       <h3 class="s-c477f7">Trace a request</h3>
       <div class="s-b32917">
@@ -139,53 +191,12 @@ export async function renderSecurityPane(target) {
         <button class="btn btn-outline" data-sec="pack">Download</button>
         <button class="btn btn-outline" data-sec="seal">Seal old rows</button>
       </div>
-    </div>
-
-    <div class="table-panel s-bb3791">
-      <h3 class="s-c477f7">Emergency</h3>
-      <div class="s-9260d3">
-        <select class="form-input s-47b618" data-sec="user">
-          <option value="">Choose a user…</option>
-          ${users.map(u => `<option value="${esc(u.id)}">${esc(u.username)} · ${esc(u.role)}</option>`).join('')}
-        </select>
-        <button class="btn btn-outline" data-sec="signout">Sign out everywhere</button>
-        <button class="btn btn-outline" data-sec="signout-all">Sign out everyone</button>
-        <button class="btn ${p.exports_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze">${p.exports_frozen ? 'Unfreeze exports' : 'Freeze exports'}</button>
-        <button class="btn ${p.integrations_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze-int">${p.integrations_frozen ? 'Unfreeze integrations' : 'Freeze integrations'}</button>
-        <button class="btn ${p.read_only ? 'btn-primary' : 'btn-outline'}" data-sec="read-only">${p.read_only ? 'End read-only' : 'Read-only'}</button>
-      </div>
     </div>`;
 
   const $ = (k) => target.querySelector(`[data-sec="${k}"]`);
   const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   $('to').value = localDay(new Date());
   $('from').value = localDay(new Date(Date.now() - 7 * 86400000));
-
-  const decideReview = async (userId, decision) => {
-    let note = '';
-    if (decision === 'Revoked') {
-      const n = await showCustomPrompt('Reason', '', 'Revoke access');
-      if (n == null) return;
-      if (!n.trim()) { showToast('A reason is required.'); return; }
-      note = n.trim();
-    }
-    const res = await apiFetch('/api/v1/admin/security/access-reviews', { method: 'POST', body: JSON.stringify({ user_id: userId, decision, note }) });
-    if (!res) return;
-    if (!res.ok) { await showApiError(res, 'The review was not saved.'); return; }
-    showToast(decision === 'Revoked' ? 'Access revoked.' : 'Confirmed.');
-    renderSecurityPane(target);
-  };
-  target.querySelectorAll('[data-rv-ok]').forEach(b => b.addEventListener('click', () => decideReview(b.dataset.rvOk, 'Confirmed')));
-  target.querySelectorAll('[data-rv-no]').forEach(b => b.addEventListener('click', () => decideReview(b.dataset.rvNo, 'Revoked')));
-
-  $('run').addEventListener('click', async () => {
-    const res = await apiFetch('/api/v1/admin/security/detections/run', { method: 'POST' });
-    if (!res) return;
-    if (!res.ok) { await showApiError(res, 'Checks did not run.'); return; }
-    const out = await res.json();
-    showToast(out.fired.length ? `${out.fired.length} new detection(s).` : 'Nothing new.');
-    renderSecurityPane(target);
-  });
 
   $('trace').addEventListener('click', async () => {
     const id = $('corr').value.trim();
@@ -224,6 +235,7 @@ export async function renderSecurityPane(target) {
   });
 
   // 47.7.4: one boundary seal over audit rows written before signing existed.
+  // The Audit evidence tile on Security Events shows the result.
   $('seal').addEventListener('click', async () => {
     if (!await showCustomConfirm('Seal every audit row written so far? Older rows get no signature; a later change to them will show.', 'Seal old rows')) return;
     const res = await apiFetch('/api/v1/admin/audit-logs/seal-legacy', { method: 'POST' });
@@ -231,9 +243,42 @@ export async function renderSecurityPane(target) {
     if (!res.ok) { await showApiError(res, 'Could not seal the older rows.'); return; }
     const out = await res.json();
     showToast(out.sealed ? `Sealed ${out.checkpoint.row_count} rows.` : 'Nothing to seal.');
-    renderSecurityPane(target);
   });
 
+  const { renderExport } = await notifyModule();
+  await renderExport(target);
+}
+
+// Breach Notifications: the matrix, the clocks and each decision.
+async function drawNotify(target) {
+  const { renderNotify } = await notifyModule();
+  const host = document.createElement('div');
+  target.appendChild(host);
+  const ok = await renderNotify(host);
+  target.querySelector(':scope > .s-de2e81')?.remove();
+  return ok;
+}
+
+// Emergency Controls: stop sign-ins, exports, integrations or every change.
+async function drawEmergency(target, again) {
+  const [p, users] = await Promise.all([load('/api/v1/admin/security/posture'), load('/api/v1/admin/users')]);
+  if (!p || !users) return false;
+  target.innerHTML = `
+    <div class="table-panel s-bb3791">
+      <div class="s-9260d3">
+        <select class="form-input s-47b618" data-sec="user">
+          <option value="">Choose a user…</option>
+          ${users.map(u => `<option value="${esc(u.id)}">${esc(u.username)} · ${esc(u.role)}</option>`).join('')}
+        </select>
+        <button class="btn btn-outline" data-sec="signout">Sign out everywhere</button>
+        <button class="btn btn-outline" data-sec="signout-all">Sign out everyone</button>
+        <button class="btn ${p.exports_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze">${p.exports_frozen ? 'Unfreeze exports' : 'Freeze exports'}</button>
+        <button class="btn ${p.integrations_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze-int">${p.integrations_frozen ? 'Unfreeze integrations' : 'Freeze integrations'}</button>
+        <button class="btn ${p.read_only ? 'btn-primary' : 'btn-outline'}" data-sec="read-only">${p.read_only ? 'End read-only' : 'Read-only'}</button>
+      </div>
+    </div>`;
+
+  const $ = (k) => target.querySelector(`[data-sec="${k}"]`);
   $('signout').addEventListener('click', async () => {
     const id = $('user').value;
     if (!id) { showToast('Choose a user first.'); return; }
@@ -243,23 +288,19 @@ export async function renderSecurityPane(target) {
     if (!await showCustomConfirm('Sign out every user except you?', 'Sign out everyone', { typed: businessName() })) return;
     await runControl('/api/v1/admin/security/sign-out-all', {}, 'Sign out everyone');
   });
-  target.querySelectorAll('[data-sec-end]').forEach(btn => btn.addEventListener('click', async () => {
-    if (await runControl('/api/v1/admin/security/sessions/end', { id: btn.dataset.secEnd }, 'End session')) renderSecurityPane(target);
-  }));
   $('freeze-int').addEventListener('click', async () => {
     const on = !p.integrations_frozen;
     if (on && !await showCustomConfirm('Stop every integration?', 'Freeze integrations', { typed: businessName() })) return;
-    if (await runControl('/api/v1/admin/security/freeze-integrations', { on }, on ? 'Freeze integrations' : 'Unfreeze integrations')) renderSecurityPane(target);
+    if (await runControl('/api/v1/admin/security/freeze-integrations', { on }, on ? 'Freeze integrations' : 'Unfreeze integrations')) again();
   });
   $('read-only').addEventListener('click', async () => {
     const on = !p.read_only; // 49.12.3
     if (on && !await showCustomConfirm('Refuse every change until you end it?', 'Read-only', { typed: businessName() })) return;
-    if (await runControl('/api/v1/admin/security/read-only', { on }, on ? 'Read-only' : 'End read-only')) renderSecurityPane(target);
+    if (await runControl('/api/v1/admin/security/read-only', { on }, on ? 'Read-only' : 'End read-only')) again();
   });
   $('freeze').addEventListener('click', async () => {
     const on = !p.exports_frozen;
     if (on && !await showCustomConfirm('Stop every export?', 'Freeze exports', { typed: businessName() })) return;
-    if (await runControl('/api/v1/admin/security/freeze-exports', { on }, on ? 'Freeze exports' : 'Unfreeze exports')) renderSecurityPane(target);
+    if (await runControl('/api/v1/admin/security/freeze-exports', { on }, on ? 'Freeze exports' : 'Unfreeze exports')) again();
   });
-  import('./view-security-notify.js' + new URL(import.meta.url).search).then(m => m.renderSecurityExtras(target)).catch(e => console.error(e));
 }

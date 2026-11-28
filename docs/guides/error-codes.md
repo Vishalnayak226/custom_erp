@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **1019** codes. Each row says what the user is shown, what to do about
+There are **1021** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -76,7 +76,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Order Management](#order-management) - 12 codes
 - [PIM](#pim) - 57 codes
 - [PIM / Product Publishing](#pim--product-publishing) - 8 codes
-- [POS / Billing](#pos--billing) - 51 codes
+- [POS / Billing](#pos--billing) - 52 codes
 - [POS / Offline & Cash Drawer](#pos--offline--cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch--bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
@@ -98,7 +98,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 - [Security](#security) - 9 codes
 - [Security / AI assistant access](#security--ai-assistant-access) - 10 codes
 - [Security / Rate Limit](#security--rate-limit) - 6 codes
-- [Stock Transfer](#stock-transfer) - 17 codes
+- [Stock Transfer](#stock-transfer) - 18 codes
 - [Tax / GST / E-Invoice](#tax--gst--e-invoice) - 15 codes
 - [User Access & Security](#user-access--security) - 9 codes
 - [Vendor Invoice / AP](#vendor-invoice--ap) - 17 codes
@@ -1094,6 +1094,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `POSOFF-0881` | B2B bill marked Shipped without a full ship-to address | Shipped goods need the ship-to address. | Fill the ship-to address, city, PIN and state, or choose Collected if the buyer takes the goods at the counter. | Medium | 422 |
 | `POSOFF-0882` | Offer saved without what its type needs, or with days, times, slabs or limits that do not read | This offer is not complete. | Fill the field the message names. Slabs read 2000=200; 5000=10%, days Mon-Fri or Weekend, times 18:30. | Medium | 422 |
 | `POSOFF-0883` | Sales History or the till's bill search given a date, kind or source that does not read | This search could not be read. | Pick the dates from the calendar and search again. | Low | 422 |
+| `POSOFF-0884` | Sales History or the till's bill search ran past its time limit | This search is too wide to finish. | Pick fewer days or one store, or type the full bill number or mobile. | Low | 422 |
 | `POSOFF-1301` | Bill cannot be cancelled (not found, not today's, partly returned, nothing left, or no reason) | This bill can't be cancelled. | Only today's bill, with nothing returned yet, can be cancelled - give the reason. For an older bill, or one already partly returned, take a return instead. | Medium | 422 |
 | `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
 | `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |
@@ -1470,6 +1471,7 @@ fix. See the [user guide, §12](user-guide-store-app-and-help.md#12-if-you-get-l
 | `STOCKT-0491` | Transfer cannot join the wave | This transfer cannot be added to that wave. | Use an Approved or Packed transfer from the wave's location, into a wave that is not closed, with transfer waves turned on. | Medium | 422 |
 | `STOCKT-0492` | Allocation run not found or nothing to act on | That allocation run has nothing to do. | Check the run ID; submit applies to Drafts, approve to transfers waiting for approval. | Medium | 422 |
 | `STOCKT-0493` | Fill policy value not recognised | That fill policy is not valid. | Choose Exact, Ship what is there or Complete. | Medium | 422 |
+| `STOCKT-0494` | Stock request refused | This stock request cannot go ahead. | Read the reason shown, fix the request or pick another location, then try again. | Medium | 422 |
 | `TRN-0259` | Transfer receiving mismatch | Received quantity does not match dispatched quantity. Shortage/damage reason is required. | Enter shortage/damage reason and submit exception. | High | 200 |
 
 ## Tax / GST / E-Invoice

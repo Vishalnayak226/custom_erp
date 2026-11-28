@@ -116,17 +116,28 @@ Many purchase orders — and the goods receipts of the bills that came with them
    - **PO** templates: **Product Type**, **Category** and **HSN Code** (pick, or type a new one - it is made for you; **GST %** only for a new HSN code), then a column for each attribute (Colour, Size…), and **Qty**, **Purchase Rate** (per piece, **including GST**) and **MRP**. A new attribute value is added to its attribute; a new attribute is a new column with its name as the header. **Design No** is optional: the same label on several rows makes them one design (`1, 1, 1`, `EI001`… only within this file). Wholeops makes each design and combination from the row's attributes - **a design with the same item name, vendor and attributes is used again, not made twice**. When an administrator has turned off **Bulk PO upload makes new designs**, a row that would need a new design or combination does not load.
    - **Reorder** templates: **Combination ID** or **Design No**, **Store** and **Qty**. **Vendor**, **Purchase Rate** and **MRP** left blank come from the design. A code that does not exist does not load (*does not exist*); nothing new is made.
    - **Photo** (PO templates, optional) — the file name of the row's photo (several: `a.jpg, b.jpg`); the photos are sent with the file (step 5).
-4. **+ GRN** templates: **Vendor Invoice No** and **Invoice Date** on every row (the date as an Excel date or in your **Date order** - §3 "Dates in a file"), and **Received Qty** only when it differs from Qty. The rows of one vendor and invoice become **one goods receipt** at the PO's store. Then allocate it to stores from Transfers (§7.7, *From a goods receipt*). A file made from the older template, with its **Bills** sheet, still uploads.
+4. **+ GRN** templates: **Vendor Invoice No** and **Invoice Date** on every row (the date as an Excel date or in your **Date order** - §3 "Dates in a file"), and **Received Qty** only when it differs from Qty. The rows of one vendor and invoice become **one goods receipt** at the PO's store. To send it all to one store, choose **Send to** at step 6; to split it between stores, allocate it from Transfers (§7.7, *From a goods receipt*). A file made from the older template, with its **Bills** sheet, still uploads.
 5. Back on **Upload from Excel**: **Choose file**; if the file names photos, also **Choose photos** (or **Choose a photo folder**) — JPG, PNG, WebP or GIF, up to 10 MB each — then **Preview**. Nothing changes yet. A photo the file names but that was not chosen is marked ✗. The preview lists the vendors, the setup records it will make (categories, product types, item names, attribute values), each PO with its rows — *New design*, *New combination* or *Already there* — and each bill. Anything with a **Problem** is left out; fix it in the file and preview again.
-6. Click **Make … POs and receive … bills** and confirm. Each PO is saved (GST included), sent for approval and approved as you where your approval rules allow you to approve it; then each bill is received, verified, price-checked and posted with the MRPs in the file — stock goes up and the barcodes are issued.
-7. The result shows each PO's number and status and each bill's goods receipt. **Print stickers** on a received bill opens Sticker Printing with that receipt loaded.
+6. **Send to** (a file with bills, optional): the store the received goods go on to — for example the shop that sells what the warehouse received. **Keep at …** leaves them at the PO's store. Click **Make … POs and receive … bills** (*… and send to …* with a store chosen) and confirm. Each PO is saved (GST included), sent for approval and approved as you where your approval rules allow you to approve it; then each bill is received, verified, price-checked and posted with the MRPs in the file — stock goes up and the barcodes are issued. With **Send to**, each bill's stock then goes there on its own transfer: approved at once when it is worth less than your business's **transfer direct-approval limit** (§7), otherwise sent for approval — the bill shows *waits for approval*; approve the transfer, then upload the **same file** again and it is sent out and received. A bill never gets a second transfer, and only what is still at the store is sent.
+7. The result shows each PO's number and status, each bill's goods receipt and, with **Send to**, its transfer (**→ TO number** and status) and *N sent to …* at the top. **Print stickers** on a received bill opens Sticker Printing with that receipt loaded.
 8. Then the photos are added — keep the page open until **Photos** shows the count. Each photo goes to its row's **Combination ID**; the first photo of a design also goes to the **design** (the first one is the main photo). They are stored where the PO's **Images** page keeps them (your image drive, or the server — §6.11) — on the image drive each is renamed after its number (`D00010.jpg`, then `D00010-2.jpg`; Admin Guide, **Image drive**) — and show there, on the Design and Item forms and in PIM. Photos forgotten the first time: choose them and upload the **same file** again — the PO and bills are found, and only the photos are added (the same photo twice is kept once).
+9. Last, **Print stickers?** asks once, with the number of goods receipts and pieces this upload posted. **OK** opens Sticker Printing on the first receipt's preview; its **Print** prints, and the next receipt's preview opens, until all are printed. **Cancel** prints nothing — **Print stickers** on each bill still works later.
 
-**Rows to fix.** A row with a problem does not load; the rest do. After the upload, **Rows to fix** (also on the upload in **Past uploads**) downloads those rows on the same sheets, each with its **Reason** and the same drop-downs. Correct them and upload that file. A row left out of a PO that was made comes back with a new **PO Ref** (`<ref>-2`), so it makes a second PO; a row that was ordered but not received keeps its PO Ref, so it is received on its PO.
+**Rows to fix.** A row with a problem does not load; the rest do. After the upload, **Rows to fix** (also on the upload in **Past uploads**, older uploads included) downloads those rows on the same sheets, each with its **Reason** and the same drop-downs. Correct them and upload that file. A row left out of a PO that was made comes back with a new **PO Ref** (`<ref>-2`), so it makes a second PO; a row that was ordered but not received keeps its PO Ref, so it is received on its PO.
+
+**Bills typed differently (older template, with a Bills sheet).** A bill is not refused for how it was typed. Wholeops reads it as a person would, and the bill's message says what it did:
+- **The same letters and digits** are one bill: `SA4733 PO` and `sa4733po`.
+- **A bill no Excel counted up** when a cell was dragged down (`gagan01`, `gagan02`, `gagan03`…) stays on the bill of the row above.
+- **A bill under the wrong vendor** on the Bills sheet goes to the vendor whose rows carry it.
+- **A vendor's one bill that no row names** takes the vendor's rows that carry one other bill no.
+- **A bill no that is not on the Bills sheet** becomes a bill of its own, dated like the vendor's other bills.
+- **A bill total that differs from its rows** by more than ₹1 is received at its rows; the message gives the difference to settle with the vendor.
+
+A bill with no rows at all is still a Problem.
 
 **Uploading the same file again is safe.** A PO already made from it (same vendor and PO Ref) is found and not made again, and a bill already received is not received twice. So when goods arrive later, fill the bill into the same file and upload it again. New rows for a PO Ref that is already made are refused — give them a new PO Ref.
 
-**Waiting.** A PO you may not approve waits in **Approvals**, and its bills wait with it: approve it, then upload the same file again. A bill that stopped at a step (for example *the bill's total and the items on it do not add up*) stays at that step: fix it in the file and upload again, or finish it on the goods receipt.
+**Waiting.** A PO you may not approve waits in **Approvals**, and its bills wait with it: approve it, then upload the same file again. A bill that stopped at a step stays at that step: fix it in the file and upload again, or finish it on the goods receipt.
 
 **Bigger bills.** One goods receipt holds about 4,000 lines; the preview says when a bill does not fit, and such a bill goes in as two goods receipts.
 
@@ -333,3 +344,46 @@ Moving stock between bins never changes how much you have at the location; a Goo
 - **Allocation upload (Stock Movement → Allocation).** One file, one transfer per store. Give a **Run ID**, choose **From** (each store reads as its name with its code, for example *Head Office (HQ)*), pick a **Purpose**, and click **Choose file** to pick an Excel or CSV file in one of two shapes: rows of **store, sku, qty** (rows for the same store and SKU are added together), or one row per SKU with a column per store headed by the store's code, the quantity in each cell (a blank or 0 cell sends nothing). **Preview** checks every row - an unknown store or SKU, a quantity that is not a whole number above 0, or the source itself as a store is listed against its row number - and shows what the source cannot cover; it makes nothing. **Make Drafts** creates one Draft transfer per store from the good rows; the rows with a problem are left out, and **Rows to fix** downloads them with a **Reason** - correct them and upload that file under a new Run ID (a Run ID can be used once, `STOCKT-0487`; a file where no row is good makes nothing, `STOCKT-0488`). Then **Submit all** sends the Drafts for approval, and a second person uses **Approve all** - the same maker-checker rules as any transfer; a transfer that cannot be approved is listed with its reason, and the rest go through (`STOCKT-0492` when nothing is waiting).
 - **From a goods receipt.** Type a posted goods receipt's number in **From a goods receipt** and click **Download sheet**: an Excel sheet with each SKU received (accepted quantity, design and name) and a column for every other store. **From** is set to the receipt's store and the Run ID to its number. Fill the store columns and upload the sheet as above. A receipt that is not posted yet, or has nothing accepted, says so.
 - **Reason codes marked High (74.1.1).** Receive a transfer with damaged, lost or short units under a reason code whose severity is **High**, and the receipt is not posted: it waits as a **Transfer Loss Hold** in **Pending Approval**, and the whole receipt (good units too) waits with it. Stock moves only when an approver approves it; rejected, nothing is posted.
+
+### 7.8 Asking another location for stock (Stock Requests)
+
+A store or warehouse asks for stock on **Inventory → Stock Requests** (short code `SRQ`). The location asked to send it works the request on **Inventory → Requests to Fulfil** (`SRF`). Each request is an ordinary transfer underneath, so packing, dispatching and receiving work as in §7.
+
+**Ask for stock**
+
+1. On **Stock Requests**, click **New Request**. **For location** is your store; a user with no store, or an administrator, can pick any location.
+2. Pick a **Reason**: one from **Common** (Replenishment, Advance order, Customer order, Event / launch, Display, Stock-out), one of your business's own under **Your reasons**, or leave it on **Type a reason** and type your own in **Reason text** (for example *Advance order for the wedding season*). If your business requires reason codes (Admin Guide), a typed reason must match one of them (`MASTER-0975`); the **Common** reasons always work.
+3. Optionally set **Needed by** and a **Note**.
+4. Add items: type an **Item** and a **Qty**, then **Add line**. Leave **Qty** blank to ask for what your reorder rules suggest. **Upload lines** takes a CSV file with **Barcode** and **Qty** (**Download template** gives one).
+5. Click **Find sources**. Each line shows:
+   - **Suggested**: what your reorder rules say this location needs.
+   - **Here**: what this location already has.
+   - **From**: **Best** (the plan) or a location you choose. Only locations with stock to spare are listed.
+   - **Why**: the plan, and under *N sources* every location that could send, ranked. The table shows each one's **Spare**, what it **Has**, the **Distance**, its **Cover** (days its own stock lasts at its sales rate) and a **Score**.
+   The line above the table shows how many shipments the plan makes.
+6. Click **Send Request**. You see the request number and one line per sending location. A line no location can spare is listed under *No location can spare*; it is not sent.
+
+**How the sources are ranked.** A location only offers what it can spare. It keeps two lead times of its own sales plus its safety stock, and stock already promised on open transfers. The score (out of 100) weighs:
+- how much of the line it can fill;
+- how close it is: kilometres when both locations' PIN codes are in the PIN code master with a latitude and longitude, otherwise the same city or the same state;
+- how many days of cover it has;
+- whether it is a warehouse (preferred over a store) or head office.
+
+A location already sending another line on the same request is preferred, so the request ships in fewer boxes. When one location cannot fill a line, the plan takes the rest from the next one.
+
+**Your requests.** The list shows **Open** requests; switch to **Closed** or **All**. A request's status reads **Sent** (waiting for the source), **Accepted**, **Packed**, **On the way**, **Part received**, **Received**, **Rejected** (with the reason) or **Cancelled**. **less** next to it means the source is sending less than you asked, and *asked N* shows the original quantity on each line.
+- **Cancel** while it is **Sent** or a Draft (needs a *Cancellation* reason code, as for any transfer).
+- **Receive** once it is **On the way**: the same Receive form as §7 step 6.
+- **Details** shows the transfer.
+
+**Fulfil a request (the sending location)**
+
+On **Requests to Fulfil**, a store user sees requests addressed to their store. An administrator types a location in the box next to **Open**.
+- **Accept** sends the whole request.
+- **Accept less** lets you lower each line (0 leaves a line out). You cannot send more than was asked.
+- **Reject** asks for a reason, which the requesting store sees.
+- After accepting: **Pack** (a box ID per line) and **Dispatch**, as in §7. Dispatch moves the stock into transit.
+
+Only the location asked to send can accept or reject (`STOCKT-0494`). The store that asked cannot accept its own request.
+
+**Automatic requests.** When an administrator turns on **Auto Stock Requests** for a location (Admin Guide), the ERP asks for its stock once a day. It asks for whatever the location's reorder rules say it is short of, skipping items already on an open transfer to it. These requests carry the reason *Replenishment* and an **Auto** badge, and go to the source like any other. A user who may create transfers can also click **Auto request** on the Stock Requests list to run it now for one location.

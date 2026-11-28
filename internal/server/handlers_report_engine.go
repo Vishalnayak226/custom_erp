@@ -39,7 +39,8 @@ func handleReportCatalog(w http.ResponseWriter, r *http.Request) {
 			catalog = append(catalog, def)
 		}
 	}
-	_ = json.NewEncoder(w).Encode(catalog)
+	// 297.8: an unchanged catalog is a 304, not 462 KB again.
+	writeJSONRevalidated(w, r, catalog)
 }
 
 func handleRunReport(w http.ResponseWriter, r *http.Request) {

@@ -334,6 +334,10 @@ func record(args []string) int {
 			fmt.Fprintln(os.Stderr, err)
 			return 2
 		}
+		if ev.Commit, err = releasegate.FullCommit(ev.Commit, *root, "."); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 2
+		}
 		p, err := releasegate.WriteEvidence(*root, ev)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -349,6 +353,12 @@ func record(args []string) int {
 	if *commit == "" {
 		*commit = gitOut(*root, "rev-parse", "HEAD")
 	}
+	full, err := releasegate.FullCommit(*commit, *root, ".")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	*commit = full
 	ev := releasegate.Evidence{Kind: *kind, Date: *date, Commit: *commit, Result: *result, By: *by, Note: *note}
 	p, err := releasegate.WriteEvidence(*root, ev)
 	if err != nil {

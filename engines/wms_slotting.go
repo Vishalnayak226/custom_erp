@@ -264,7 +264,7 @@ func GetUnslottingSuggestions(tenantID, locationCode string) ([]SlottingSuggesti
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT bs.bin_code, bs.sku, bs.qty, COALESCE(b.data->>'bin_type', '')
 		FROM %s.bin_stock bs
-		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+		`+binDocJoin(true, "b", "bs")+`
 		JOIN %s.documents i ON i.doctype = 'Item' AND i.data->>'code' = bs.sku
 		WHERE bs.location_code = $1 AND bs.condition = 'Good' AND bs.qty > 0 AND i.status = 'Cancelled'`,
 		schema, schema, schema), locationCode)
@@ -436,7 +436,7 @@ func GetDimensionAwareSlottingSuggestions(tenantID, locationCode string) ([]Slot
 		}
 		stockRows, err := db.DB.Query(fmt.Sprintf(`
 			SELECT bs.bin_code, bs.qty, COALESCE(b.data->>'bin_type', '')
-			FROM %s.bin_stock bs LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+			FROM %s.bin_stock bs `+binDocJoin(true, "b", "bs")+`
 			WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty > 0`, schema, schema),
 			tier.Sku, locationCode)
 		if err != nil {
@@ -507,7 +507,7 @@ func GetConsolidationSuggestions(tenantID, locationCode string) ([]SlottingSugge
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT bs.sku, bs.bin_code, bs.qty, COALESCE(b.data->>'bin_type', '')
-		FROM %s.bin_stock bs LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+		FROM %s.bin_stock bs `+binDocJoin(true, "b", "bs")+`
 		WHERE bs.location_code = $1 AND bs.condition = 'Good' AND bs.qty > 0`, schema, schema), locationCode)
 	if err != nil {
 		return nil, err

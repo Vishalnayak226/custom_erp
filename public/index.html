@@ -365,6 +365,9 @@
             <li><a class="menu-item" id="menu-inventory-ledger" data-go="inventory:ledger" data-like="menu-inventory"><span>Inventory Ledger</span></a></li>
             <li><a class="menu-item" id="menu-transfers"><span>Stock Movement</span></a></li>
             <li><a class="menu-item" id="menu-transfer-allocation" data-go="transfers:allocation" data-like="menu-transfers"><span>Allocation</span></a></li>
+            <!-- 324.3: a store or warehouse asks another location for stock; the source accepts and sends. -->
+            <li><a class="menu-item" id="menu-stock-requests" data-go="stock-requests" data-like="menu-transfers"><span>Stock Requests</span></a></li>
+            <li><a class="menu-item" id="menu-stock-requests-incoming" data-go="stock-requests:incoming" data-like="menu-transfers"><span>Requests to Fulfil</span></a></li>
             <li><a class="menu-item" id="menu-inventory-adjustments" data-go="inventory:adjustments" data-doctype="InventoryAdjustment"><span>Stock Adjustment</span></a></li>
             <li><a class="menu-item" id="menu-inventory-mrp" data-go="inventory:mrp" data-doctype="MRPChange"><span>MRP Change</span></a></li>
             <li><a class="menu-item" id="menu-inventory-materials" data-go="inventory:materials" data-doctype="MaterialIssue"><span>Material Issue</span></a></li>
@@ -578,6 +581,10 @@
               <li><a class="menu-item" id="menu-log-integration" data-go="audit-logs:integration" data-like="menu-audit-logs"><span>Integration Payloads</span></a></li>
               <li><a class="menu-item" id="menu-log-jobs" data-go="audit-logs:jobs" data-like="menu-audit-logs"><span>Async Jobs</span></a></li>
               <li><a class="menu-item" id="menu-log-security" data-go="audit-logs:security" data-like="menu-audit-logs"><span>Security Events</span></a></li>
+              <li><a class="menu-item" id="menu-log-security-access" data-go="audit-logs:security-access" data-like="menu-audit-logs"><span>Access Review</span></a></li>
+              <li><a class="menu-item" id="menu-log-security-trace" data-go="audit-logs:security-trace" data-like="menu-audit-logs"><span>Trace &amp; Evidence</span></a></li>
+              <li><a class="menu-item" id="menu-log-security-notify" data-go="audit-logs:security-notify" data-like="menu-audit-logs"><span>Breach Notifications</span></a></li>
+              <li><a class="menu-item" id="menu-log-security-emergency" data-go="audit-logs:security-emergency" data-like="menu-audit-logs"><span>Emergency Controls</span></a></li>
               <li><a class="menu-item" id="menu-privacy-approvals"><span>Privacy approvals</span></a></li>
               <li><a class="menu-item" id="menu-system-status"><span>System Status</span></a></li>
               <li><a class="menu-item" id="menu-deploy-history" data-go="system-status:deployments" data-like="menu-system-status"><span>Deployment history</span></a></li>
@@ -925,11 +932,11 @@
   <div id="bol-print-area"></div>
 
   <!-- 297.1: db.js carries the view-module version, bumped with app.js?v= at release (G4). -->
-  <script src="/db.js?v=97"></script>
+  <script src="/db.js?v=98"></script>
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=2"></script>
-  <script src="/app.js?v=97"></script>
+  <script src="/app.js?v=98"></script>
   <!-- 234.5: print-agent.js loads from app.js -->
 </body>
 </html>

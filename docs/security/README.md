@@ -104,6 +104,7 @@ no code in the production binary. The scanner package
 | `TestEverySecurityCriticalEnvVarIsChecked` | A security-critical environment variable exists with no check in the startup baseline validator. |
 | `TestSeededCredentialHashesCoverMigrationSQL` | `db/migrations/migration.sql` seeds a password hash the startup validator does not know to refuse. |
 | `TestStaticFileServerNeverListsADirectory` | The static file server would generate a directory index again. |
+| `TestNoUnreviewedSQLSplice` | A query writes a value inside a quoted SQL literal (`'%s'` in a `fmt.Sprintf` format, or `'" + v + "'`) instead of passing it as `$n`, in a file not on the reviewed list in `sql_splice_test.go`, or one more time than that file's reviewed count (322.1). Number verbs (`%d`, `%f`) cannot write a quote and are not counted. An unquoted `%s` (schema, table, column) is left to review. |
 
 ## The startup validator
 

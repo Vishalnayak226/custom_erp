@@ -316,15 +316,7 @@ func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbac
 	// already gone. What matters is that the error catalog, the system-error log
 	// and the 5xx alerting path are all skipped, so a user navigating away does
 	// not register as a server error or page an on-call responder.
-	if isAbandonedRequest(r, err) {
-		w.WriteHeader(clientClosedRequestStatus)
-		return
-	}
-	// Stage 49.4.4: the request envelope's deadline expired while the caller
-	// is still waiting. That is not abandonment - they get a real answer
-	// telling them to send less, instead of an empty 499.
-	if requestDeadlineExceeded(r, err) {
-		writeAPIError(w, r, "GLOBAL-0308", "")
+	if writeLeftOrTimedOut(w, r, err) {
 		return
 	}
 	if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
@@ -344,6 +336,22 @@ func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		return
 	}
 	writeAPIErrorGeneric(w, r, fallbackStatus, err.Error())
+}
+
+// writeLeftOrTimedOut answers a request whose caller went away (an empty 499:
+// no catalog entry, no system-error log, no 5xx alert) or whose envelope
+// deadline ran out while they wait (Stage 49.4.4: GLOBAL-0308, telling them to
+// send less, instead of an empty 499), and reports whether it answered.
+func writeLeftOrTimedOut(w http.ResponseWriter, r *http.Request, err error) bool {
+	if isAbandonedRequest(r, err) {
+		w.WriteHeader(clientClosedRequestStatus)
+		return true
+	}
+	if requestDeadlineExceeded(r, err) {
+		writeAPIError(w, r, "GLOBAL-0308", "")
+		return true
+	}
+	return false
 }
 
 // isAbandonedRequest reports whether err means "the caller went away"
@@ -429,6 +437,13 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 	// never shown.
 	raw := message
 	status, driverText := classifyDriverMessage(status, message)
+	// 312.1: since 283.3 a list read the user leaves stops its query in
+	// Postgres, and the driver's "canceling statement" came back here as a 500
+	// logged at Critical - one per abandoned list. A 5xx is judged by
+	// writeEngineError's rule, so every caller passing a message gets it too.
+	if status >= 500 && writeLeftOrTimedOut(w, r, errors.New(message)) {
+		return
+	}
 	code, ok := genericCodeForStatus[status]
 	if !ok {
 		// GLOBAL-0302 ("Unexpected server error") only fits an unmapped 5xx -

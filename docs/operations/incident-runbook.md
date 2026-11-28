@@ -161,7 +161,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 ### 7.1 Stolen password or session
 
 - **Signs:** detections *Password spray*, *Many wrong passwords*, *Several accounts locked*; a user reports sign-ins they did not make.
-- **Contain:** Settings → Monitoring → Security Events → choose the user → **Sign out everywhere** (asks a reason and your password; their remembered devices are forgotten too). Then Users → **Reset password** (dual control for an administrator) and **Reset 2FA** if the phone may be gone.
+- **Contain:** Settings → Monitoring → Emergency Controls → choose the user → **Sign out everywhere** (asks a reason and your password; their remembered devices are forgotten too). Then Users → **Reset password** (dual control for an administrator) and **Reset 2FA** if the phone may be gone.
 - **Keep:** the evidence pack for the days involved; the sign-in rows named in the detection.
 - **Recover:** the user signs in with the new password and sets up 2FA again.
 - **Check:** no new detections for that user for 24 hours; their recent work in the audit log is their own.
@@ -196,7 +196,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 ### 7.6 Data leaving (export burst)
 
 - **Signs:** *Many exports by one user*; DATA_EXPORT rows you did not expect.
-- **Contain:** Settings → Monitoring → Security Events → **Freeze exports** (every export and report download for this client is refused and logged; audit evidence exports stay open), then sign the user out everywhere. Revoke any API key involved (§7.4).
+- **Contain:** Settings → Monitoring → Emergency Controls → **Freeze exports** (every export and report download for this client is refused and logged; audit evidence exports stay open), then sign the user out everywhere. Revoke any API key involved (§7.4).
 - **Keep:** evidence pack; the DATA_EXPORT rows say what was taken and when.
 - **Recover:** **Unfreeze exports** once the account is safe. Whether customers or regulators must be told is a legal decision (49.12.5) - record the facts, do not decide it alone.
 
@@ -227,7 +227,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 
 ### 7.11 Eradication and recovery (49.12.6)
 
-1. **Evidence first.** Settings → Monitoring → Security Events → **Evidence pack** for the incident window: a zip of the audit rows with their signatures, system errors, checkpoints, the releases live then and every migration's checksum, with a signed manifest, encrypted with a passphrase you type at download (admin guide, Evidence pack, gives the openssl command that opens it). Collecting it changes nothing and is itself logged. Keep a copy off the ERP host and the passphrase apart from it.
+1. **Evidence first.** Settings → Monitoring → Trace & Evidence → **Evidence pack** for the incident window: a zip of the audit rows with their signatures, system errors, checkpoints, the releases live then and every migration's checksum, with a signed manifest, encrypted with a passphrase you type at download (admin guide, Evidence pack, gives the openssl command that opens it). Collecting it changes nothing and is itself logged. Keep a copy off the ERP host and the passphrase apart from it.
 2. **Entry and blast radius.** From the pack and **Trace a request** (the reference in any error message): which account, key or route, which clients, which records, since when.
 3. **Remove persistence.** Revoke every credential the attacker could have held - sessions (sign out everyone), API keys, connector credentials, and server keys if the host was reached. A compromised worker or integration is not reconnected until its credential is new.
 4. **Rebuild from trusted state.** Code from a release commit on origin, deployed by the Deploy click. Data from a backup that passes `-verify-restore`, when a restore is needed.

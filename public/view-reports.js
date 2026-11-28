@@ -24,16 +24,19 @@ const REPORT_AREA_ORDER = ['Sales & POS', 'Sales', 'Procurement & GRN', 'Procure
   'E-commerce & Integration', 'OMS', 'WMS', 'CRM', 'Accounting', 'Finance', 'Expense Management', 'Manufacturing', 'PIM / PIMS', 'PIM',
   'HRMS', 'HR', 'MIS & Management', 'Master Data & Audit', 'Assets', 'Service'];
 
+// 297.8: the page's one shared catalog load (shortcuts.js); null when it failed.
+const reportCatalog = async () => (await loadViewModule('./shortcuts.js')).loadReportCatalog();
+
 async function fillReportsMenu(flyout) {
-  const res = await apiFetch('/api/v1/reports/catalog');
-  if (!res || !res.ok) throw new Error('report catalog unavailable');
+  const catalog = await reportCatalog();
+  if (!catalog) throw new Error('report catalog unavailable');
   const areas = {};
   const add = (area, id, label, number = '') => {
     const list = areas[area] = areas[area] || [];
     if (!list.some(r => r.label === label)) list.push({ id, label, number });
   };
   REPORT_TABS.filter(t => REPORT_TAB_AREAS[t.id]).forEach(t => add(REPORT_TAB_AREAS[t.id], t.id, t.label));
-  (await res.json()).forEach(d => add(d.category || 'Other', d.id, d.label, d.number));
+  catalog.forEach(d => add(d.category || 'Other', d.id, d.label, d.number));
   const rank = area => (REPORT_AREA_ORDER.indexOf(area) + 1) || 99;
   const rows = Object.keys(areas).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)).map(area =>
     `<li class="has-subflyout"><a class="menu-item submenu-parent">${escapeHTMLText(area)}</a><ul class="menu-subflyout">${areas[area].map(r =>
@@ -131,10 +134,7 @@ let dashboardReportCatalog = [];
 async function loadDashboardLayouts() {
   const res = await apiFetch('/api/v1/dashboards/layouts');
   dashboardLayouts = (res && res.ok) ? ((await res.json()).layouts || []) : [];
-  if (dashboardReportCatalog.length === 0) {
-    const catRes = await apiFetch('/api/v1/reports/catalog');
-    dashboardReportCatalog = (catRes && catRes.ok) ? (await catRes.json() || []) : [];
-  }
+  if (dashboardReportCatalog.length === 0) dashboardReportCatalog = (await reportCatalog()) || [];
 }
 
 async function renderExecDashboard(panel) {
@@ -408,9 +408,13 @@ function stockOnHandHTML(rows, cols, showTasks, searched) {
     }
     return `<td data-link-swept="1">${escapeHTMLText(r[c.key] || '')}</td>`;
   };
+  // 319.13: a task shows only when the role can open its screen (the sidebar's own rule),
+  // so a cashier is not sent to Transfers to read "Something went wrong".
+  const canOpen = view => isMenuRuleVisible(MENU_PERMISSION_MAP[STATIC_VIEW_MENU_IDS[view]]);
+  const taskLinks = [['transfers', 'transfer', 'Transfer'], ['cycle-count', 'count', 'Count'], ['place-hold', 'hold', 'Hold']].filter(([view]) => canOpen(view));
   const tasks = r => {
     const attrs = `data-stock-sku="${escapeHTMLText(r.sku || '')}" data-stock-location="${escapeHTMLText(r.location_code || '')}"`;
-    return `<td data-link-swept="1"><a href="#/view/transfers" data-stock-task="transfer" ${attrs}>Transfer</a> · <a href="#/view/cycle-count" data-stock-task="count" ${attrs}>Count</a> · <a href="#/view/place-hold" data-stock-task="hold" ${attrs}>Hold</a> · <a href="#/view/reports%3Astock-ledger" data-stock-task="movements" ${attrs} title="Every movement of this item here, with its source document">Movements</a></td>`;
+    return `<td data-link-swept="1">${taskLinks.map(([view, task, label]) => `<a href="#/view/${view}" data-stock-task="${task}" ${attrs}>${label}</a> · `).join('')}<a href="#/view/reports%3Astock-ledger" data-stock-task="movements" ${attrs} title="Every movement of this item here, with its source document">Movements</a></td>`;
   };
   return `<table>
     <thead><tr>${cols.map(c => `<th${c.num ? ' class="num"' : ''}${c.title ? ` title="${escapeHTMLText(c.title)}"` : ''}>${escapeHTMLText(c.label)}</th>`).join('')}${showTasks ? '<th>Next task</th>' : ''}</tr></thead>
@@ -695,13 +699,12 @@ let reportCatalogDefs = [];
 let reportCatalogSelectedId = '';
 
 async function renderReportCatalogPanel(panel) {
-  const res = await apiFetch('/api/v1/reports/catalog');
-  if (!res) return;
-  if (!res.ok) {
+  const catalog = await reportCatalog();
+  if (!catalog) {
     panel.innerHTML = `<p class="login-error s-287f77">Failed to load report catalog.</p>`;
     return;
   }
-  reportCatalogDefs = await res.json();
+  reportCatalogDefs = catalog;
   if (reportCatalogDefs.length > 0 && !reportCatalogDefs.some(d => d.id === reportCatalogSelectedId)) {
     reportCatalogSelectedId = reportCatalogDefs[0].id;
   }

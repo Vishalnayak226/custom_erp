@@ -1084,6 +1084,35 @@ func GetTransferDetail(tenantID, transferOrderID string) (TransferDetail, error)
 	return out, nil
 }
 
+// TransferOpenLines is what a dispatched transfer still has on the road - one
+// receipt line per item, per lot for a lot-tracked one - and its status. Ask
+// 320.1: the bulk PO upload receives exactly what was sent.
+func TransferOpenLines(tenantID, transferOrderID string) ([]TransferReceiptLine, string, error) {
+	data, status, err := fetchDocData(tenantID, "TransferOrder", transferOrderID)
+	if err != nil {
+		return nil, "", err
+	}
+	balances, err := loadTransferBalances(data)
+	if err != nil {
+		return nil, status, err
+	}
+	var out []TransferReceiptLine
+	for _, b := range balances {
+		if len(b.Lots) == 0 {
+			if n := b.Open(); n > 0 {
+				out = append(out, TransferReceiptLine{Sku: b.Sku, Qty: n})
+			}
+			continue
+		}
+		for _, l := range b.Lots {
+			if n := l.Dispatched - l.Received - l.Damaged - l.Lost - l.Returned; n > 0 {
+				out = append(out, TransferReceiptLine{Sku: b.Sku, BatchNo: l.BatchNo, Qty: n})
+			}
+		}
+	}
+	return out, status, nil
+}
+
 // GetTransferValue values a transfer for the approval screen.
 func GetTransferValue(tenantID, transferOrderID string) (TransferValue, error) {
 	data, _, err := fetchDocData(tenantID, "TransferOrder", transferOrderID)

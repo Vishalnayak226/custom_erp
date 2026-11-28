@@ -20,14 +20,14 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 3)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **281** codes, from
+lists every area and explains how to read a code. It holds **282** codes, from
 PIM to SaaS / Multi-Tenant.
 
 ## Contents
 
 - [PIM](#pim) - 57 codes
 - [PIM / Product Publishing](#pim-product-publishing) - 8 codes
-- [POS / Billing](#pos-billing) - 51 codes
+- [POS / Billing](#pos-billing) - 52 codes
 - [POS / Offline & Cash Drawer](#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch-bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
@@ -164,6 +164,7 @@ PIM to SaaS / Multi-Tenant.
 | `POSOFF-0881` | B2B bill marked Shipped without a full ship-to address | Shipped goods need the ship-to address. | Fill the ship-to address, city, PIN and state, or choose Collected if the buyer takes the goods at the counter. | Medium | 422 |
 | `POSOFF-0882` | Offer saved without what its type needs, or with days, times, slabs or limits that do not read | This offer is not complete. | Fill the field the message names. Slabs read 2000=200; 5000=10%, days Mon-Fri or Weekend, times 18:30. | Medium | 422 |
 | `POSOFF-0883` | Sales History or the till's bill search given a date, kind or source that does not read | This search could not be read. | Pick the dates from the calendar and search again. | Low | 422 |
+| `POSOFF-0884` | Sales History or the till's bill search ran past its time limit | This search is too wide to finish. | Pick fewer days or one store, or type the full bill number or mobile. | Low | 422 |
 | `POSOFF-1301` | Bill cannot be cancelled (not found, not today's, partly returned, nothing left, or no reason) | This bill can't be cancelled. | Only today's bill, with nothing returned yet, can be cancelled - give the reason. For an older bill, or one already partly returned, take a return instead. | Medium | 422 |
 | `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
 | `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |

@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"strings"
 	"testing"
@@ -66,7 +67,7 @@ func TestChannelReturnTakesTheRightBill(t *testing.T) {
 	}
 
 	// Sales History lists it as an online return against that bill.
-	h, err := SearchSalesHistory(tenantID, SalesHistoryFilter{Kind: "Return"})
+	h, err := SearchSalesHistory(context.Background(), tenantID, SalesHistoryFilter{Kind: "Return"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,18 +19,52 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **340** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **356** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-09-06 to 2026-10-19
-- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-06
+- [Part 2](release-notes-2.md) - 2026-09-09 to 2026-10-22
+- [Part 3](release-notes-3.md) - 2026-07-27 to 2026-09-08
+
+## 2026-11-28
+
+**"build next 20 untouched items to build" - 13 defects found with Guide on a local copy of HEAD; 11 fixed, 2 wait on the owner** *(engines/ + public/ + admin guide, ask 319; 319.1-319.13; not committed)*
+
+**"start building all of above" - import lookups read the key; an import survives a crash at every step and one real kill** *(engines/ + cmd/journeylab/ + guides, ask 317; 313.2, 313.3, 313.3.1; not committed)*
+
+**"All recommended approved, build 297.5 and 297.8" - the report catalog answers 304, and journeylab sizes the server for 1 lakh users** *(internal/server/ + public/ + cmd/journeylab/ + guides, ask 318; 297.5, 297.8; not committed)*
+
+**"Need a UI where store wh can request in in ui & accept order & proces & dispatch it. or auto trigger" / "Order means inventory request for any case, I need submenu of request reason or can be text like advance order..." - stock requests between locations and a sourcing engine** *(engines + server + public + guides, ask 324; 324.1-324.4; not committed)*
+
+**"Now we have plan throughly the inv planning. I have a recomendation & books to gather knowledge & build this." - the inventory planning plan** *(docs only, ask 323; 323.1-323.30)*
+
+**"How to avoid this kind of things? clash" / "Fix it" - a sidebar menu and a page's drop-down list are never open together** *(public/app.js + user guide, ask 326; 326.1; not committed)*
+
+**"see if anything helpful to build" / "Build it" - a reel's 19-point security list, checked against the ERP; the one gap, a guard on SQL built from text, is built** *(internal/securityscan/ + docs, ask 322; 322.1; not committed)*
+
+**"1 click/ meessage it will do all steps" / "It will do you waant print. yes will print" / "buld that" - the bulk PO upload sends the stock on to a store and offers the stickers** *(internal/server/ + engines/ + public/ + guides, ask 320; 320.1-320.2; not committed)*
+
+**"pim has 5 open itm cabe built" - PIM's open items are built; Shopify now drops a removed recommendation list** *(code + guides, ask 321; 321.1)*
+
+**"See the latest image why there is a gap in sequnce of comb id" / "Bulk upload is not working in Min properly ... It should accept and auto fix in erp" - the upload reads bills as a person would** *(internal/server/ + public/ + guides, asks 315 and 316; 315.1, 316.1-316.4; not committed)*
+
+**"Read all and plan below problem statement" - the scaling and recovery plan** *(docs only, ask 313; 313.1-313.4, refines 297.5 and 297.8)*
+
+**"Can you learn something for erp" - Zerodha's Blobasaur, checked against the ERP: nothing to copy** *(docs only, ask 314; 314.1)*
 
 ## 2026-11-27
 
+**"approved" - Security Events is five pages under Settings › Monitoring** *(public/ + guides, ask 311; 311.1-311.2, closes 288.3; not committed)*
+
+**"fix it  what is open from above" - a list the user leaves is not a server error; point-in-time recovery still waits for the owner** *(internal/server/ + admin guide, ask 312; not committed)*
+
+**"Analyse the telegram folder and see why min is faciling issue" / "Fix it from here" / "read the log of error for min and see how to fix from here" / "Set up everything from here" - minn's stickers go to the store PC's DP27** *(minn data + public/, ask 310; 310.1-310.2)*
+
 **"Once all activity done, push all release all. Wait for all developement to finish" - 0.30.0 and 0.31.0 live on app and minn** *(release/ + internal/server/ test, ask 308; 308.1)*
 
-**"Is the erp is lightweight for browser? It should work in very kbps speed of internet... If User bulk upload 1Cr row also it should not fail..." / "All recommended approved, build all" - no hard refresh after a deploy, the 2G profile, the tab's footprint, a Tasks bar for long work, imports of any size** *(engines/ + internal/server/ + public/ + db/migrations/ + release/ + guides, ask 297; 297.1/297.3/297.6/297.7 in release 0.30.0, 297.2 not committed)*
+**"Is the printer page is better/best for increasing and zoom in and config wise..." / "Printer will be handed over. All should be checked and closed." / "Text style, I need world class" - the LD0801 round shipped and closed, all but the real print** *(public/ + release/ + Guide, ask 289 with ask 286; 286.1-286.3, 289.1-289.3, 275.2)*
+
+**"Is the erp is lightweight for browser? It should work in very kbps speed of internet... If User bulk upload 1Cr row also it should not fail..." / "All recommended approved, build all" - no hard refresh after a deploy, the 2G profile, the tab's footprint, a Tasks bar for long work, imports of any size** *(engines/ + internal/server/ + public/ + db/migrations/ + release/ + guides, ask 297; 297.1/297.3/297.6/297.7 in release 0.30.0, 297.2 in release 0.31.0)*
 
 **"What is open, no one is working start building next 10 itesm" - the Stores screen, print logs on local days, empty-list text cut, CRM Ready to send as its own page** *(engines/ + public/ + guides + KB, ask 309; not committed)*
 
@@ -531,56 +565,4 @@ From the user's Releases screenshot: the note said only "Release.cmd 1356183 fro
 **Stage 136 — Transaction tables audit** *(audit + one-line fix)*
 
 The user asked whether every transaction's table is built and working, whether the pending checklist missed a table, and which upcoming items need one. Every migration in the working tree was applied to an empty scratch database, and the result was compared with every table and record type the Go code and screens use. Nothing is missing. The local client schemas match `tenant_default`, and both halves of the open checklist were swept by two subagents. The full suite on copies of that database turned up one real miss: Stage 134.3's `inbound_webhook_receipts` was never classified for the Stage 91 data reset (fixed, 136.2). The storage that the 73.4.x and other open items will need is listed in 136.1. A read-only production check was handed to the user, because the classifier keeps production reads with the user. Detail: **micro_checklist.md Stage 136**.
-
-## 2026-10-22
-
-**Stage 130 — Build all that needs no approval, plus the 2026-10-22 decisions** *(code + docs, NOT COMMITTED)*
-
-**Stage 133 — Sticker printing remembers its setup, reprints from the history, and every print can be previewed** *(code + docs, not released)*
-
-**Stage 101 — CRM made best-in-class: one customer page, consent ledger, segments, a send gate, templates and senders, campaigns, journeys, feedback, tickets, WhatsApp inbox, loyalty depth, clienteling, a business-buyer pipeline** *(code + docs, NOT COMMITTED)*
-
-**Stage 102 — Store app, the rest: push alerts, shared-phone PIN sign-in, Today, receive / count / labels by scanning, basket to the till, order from another store** *(code + docs, NOT COMMITTED)*
-
-**Stage 129 — Bulk Purchase Upload: one Excel file from the client becomes POs and the goods receipts of its bills** *(code + docs, NOT COMMITTED)*
-
-## 2026-10-21
-
-**Stage 128 — Setup Workbook: a whole organisation's setup from one Excel file** *(code + docs, NOT COMMITTED)*
-
-**94.15 money rounding; Stage 127 — every transaction prints, silent print with no browser dialog, print profiles, Reprint by module, number fields, picker search scope** *(code + docs, tab B, NOT COMMITTED)*
-
-**Stage 88 (88.2-88.6) — OMS one page per step, the Pending gate and the two bills, one Templates page, Inventory documents** *(code + docs, NOT COMMITTED)*
-
-**Stage 126 — New purchase order: Enter moves through the entry, a missing state asked and saved, Edit on an added design; Prefix Configurations bug sweep** *(code, NOT COMMITTED)*
-
-**Stage 125.8 — remember this device for the authenticator** *(code, NOT COMMITTED)*
-
-**Stage 125 — one login for every client; Super Admin is the platform operator's alone** *(code, NOT COMMITTED)*
-
-## 2026-10-19
-
-**Stage 124 — a step-by-step guide to set an organisation up for purchase orders** *(docs, NOT COMMITTED)*
-
-**Stage 122 — Configuration → Item fields keeps its column header in view** *(code, NOT COMMITTED)*
-
-**Stage 120 — the Wholeops logo in the app, to the user's logo placement spec** *(code)*
-
-From the user's two logo images (blue vs slate-grey wordmark) and then `ERP_Logo_Placement_Developer_Specification.md`. Full detail in checklist Stage 120.
-
-**Stage 119 — sticker print direction and count, a clean print, and a template kept per product type from the Print screen** *(code)*
-
-From the user's prod Print-dialog screenshot and a photo of the label it printed (the 1-up Seznik tag landed small and turned on the printer's 100 × 150 shipping label, barcode smeared), then *"Make diff template ... horizontal and vertical. 1 count, 3 count"*. Full detail in checklist Stage 119.
-
-**Stages 114 and 115 — a leaner PO entry with prices that flow and are required, PO MRP to the GRN, MRP rules per product type; number series year at the end and a deleted store no longer blocks a save** *(code)*
-
-From the user's New purchase order, sample PO, and Number Series screenshots; decisions asked and answered the same day. Full detail in checklist Stages 114 and 115.
-
-**Stage 117 — Combination IDs numbered in sequence; number series with plain names, grouped** *(code)*
-
-From the user's Prefix Configurations screenshot. Full detail in checklist Stage 117.
-
-**Stage 118 (+114.8) — vendor fixed once picked; names, not codes, in pickers and PO / GRN lines** *(code)*
-
-From the user's Purchase Orders and New purchase order screenshots. Full detail in checklist Stage 118 and 114.8.
 

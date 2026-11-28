@@ -101,7 +101,8 @@ go run ./cmd/releasegate record -kind backup_restore -result pass -by "name" -no
 ```
 
 It writes `release/evidence/<kind>.json` with today's date and the HEAD commit
-(`-commit` overrides). The release ships it with the next commit. A file counts
+(`-commit` overrides; a short hash is expanded to the full one with git, and
+one git cannot expand is refused). The release ships it with the next commit. A file counts
 when it passes, is not older than its limit (35 days; 14 for `browser_budget`,
 `journey`, `race`), names who ran it, and its commit is the release base or in its
 history. Missing, stale, failed or another-commit evidence is a **warning** by

@@ -82,9 +82,9 @@ Once you're in, you'll see a **sidebar** on the left. **It only shows what your 
 
 ## 3. Finding Your Way Around
 
-The sidebar has **fifteen top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Some groups inside a module (WMS's **Inbound**, each **Setup** module, each **Reports** area, each **Settings** group) open a second menu beside them the same way. Two entries — **Home** and **Knowledge Center** — have no flyout and open straight away. The entry for the screen you are on stays highlighted, also when a link in a report or document opened it; a list with no entry of its own highlights its module.
+The sidebar has **fifteen top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Some groups inside a module (WMS's **Inbound**, each **Setup** module, each **Reports** area, each **Settings** group) open a second menu beside them the same way. Two entries — **Home** and **Knowledge Center** — have no flyout and open straight away. The entry for the screen you are on stays highlighted, also when a link in a report or document opened it; a list with no entry of its own highlights its module. A menu never covers your work: pressing anywhere on the screen closes it, and while a drop-down list or date picker on the screen is open, pointing at the sidebar opens nothing.
 
-**Where you land, and the labels (Stage 47.14.5).** After you sign in the ERP opens on the screen your administrator chose for your role (a cashier on POS, say), and on Home if you cannot open it. A sidebar entry marked **Preview** or **Experimental** is not finished yet; your administrator may hide those. In every list, an empty list is a dashed box, a screen you may not open is amber, and a failure is red with **Retry**. A very long table shows the first rows and adds more as you scroll; **Ctrl+F**, printing or a column sort shows them all.
+**Where you land, and the labels (Stage 47.14.5).** After you sign in the ERP opens on the screen your administrator chose for your role (a cashier on POS, say), and on Home if you cannot open it. A sidebar entry marked **Preview** or **Experimental** is not finished yet; your administrator may hide those. In every list, an empty list is a dashed box, a screen you may not open is amber, and a failure is red with **Retry**. A very long table shows the first rows and adds more as you scroll; **Ctrl+F**, printing or a column sort shows them all. The button under it counts the rows shown of all (*200 / 500*), and a report's **Total** line stays under the table (items 319.4, 319.5).
 
 **Hide the menu for more room.** The **☰** button at the top left, beside the search box, hides the whole sidebar — like Gmail — so the screen you are working in gets the full width. Click it again to bring the menu back. Your browser remembers the choice, so the menu stays hidden (or shown) the next time you sign in. On a phone the same button opens the menu as a slide-out drawer instead. The Wholeops logo heads the sidebar; while the menu is hidden it moves beside **☰** (on a phone just the globe symbol shows there), so it is always on screen. The browser tab names the screen you are on, e.g. *Cost Center | Wholeops*. Your company's name, when your administrator has set it, shows beside the logo and in the tab (*Cost Center - Minn Jewels | Wholeops*). On a test or development copy of the system the sign-in card says so (*Development environment - not the live system*) and every tab title starts with **[Dev]**, so you never mistake it for the live one.
 
@@ -130,7 +130,7 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 | **Manufacturing** | Production: Production Orders · Production Schedule · Job Work — Planning: MRP Suggestions · Supply Proposals — Quality: Quality Inspections · Certificates · Non-conformance — Maintenance: Maintenance Orders |
 | **PIM** | Home · Workbench · My Work · Workflow runs · Media Library · Supplier Submissions · Catalogs · Templates · Feeds · Design Values · Stewardship · Checklists · PIM Reports. PIM's setup lists (families, attributes, workflows, channel maps, import and export templates) are under **Setup → PIM**. |
 | **Setup** | The module names; point at one and its reference lists open beside it (§8) |
-| **Settings** | Admin-only: Configuration · Credentials, then four groups that each open beside it: **Users & Access** (Users · Roles · Approval Rules) · **Customize** (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks · Extension tokens) · **Monitoring** (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · System Status · Deployment history · Backup history) · **Platform** (Control Panel · Clients · Releases · Certificates · Slow queries · Query plan · Capability maturity · Tenant Entitlements · Tenant Usage · Data Console — platform operator) |
+| **Settings** | Admin-only: Configuration · Credentials, then four groups that each open beside it: **Users & Access** (Users · Roles · Approval Rules) · **Customize** (Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks · Extension tokens) · **Monitoring** (Activity Log · System Errors · Integration Payloads · Async Jobs · Security Events · Access Review · Trace & Evidence · Breach Notifications · Emergency Controls · System Status · Deployment history · Backup history) · **Platform** (Control Panel · Clients · Releases · Certificates · Slow queries · Query plan · Capability maturity · Tenant Entitlements · Tenant Usage · Data Console — platform operator) |
 
 On a phone, a group such as **Inbound** opens under its own row instead of beside it.
 
@@ -163,7 +163,7 @@ Home is where you land right after signing in (and the "Home" link at the top of
 
 Home has no shortcut tiles and no list of recent records. To reach a screen, use the sidebar, or press **Ctrl+K** and pick from **Favourites** or type its name. To get back to a record you opened, press **Ctrl+K**: its **Recent** list holds the last screens, reports and documents you opened.
 
-From your second visit onward you land back on whichever screen you were last using instead of Home, so you can pick up where you left off — click **Home** in the sidebar any time you want to return to it on purpose. Refreshing the browser (F5) works the same way: you stay on the same screen, the menu stays scrolled where it was, and the page comes back at the same scroll position — also after you have read a Help article and moved on.
+From your second visit onward you land back on whichever screen you were last using instead of Home, so you can pick up where you left off — click **Home** in the sidebar any time you want to return to it on purpose. Refreshing the browser (F5) works the same way: you stay on the same screen, the menu stays scrolled where it was, and the page comes back at the same scroll position — also after you have read a Help article and moved on. A link to a list that you paste into an open ERP tab opens that list. If your role cannot open it, a short note says **No access to** *list* (or **No such list**) and the screen you were on stays (item 319.2).
 
 **A new version reaches you by itself.** You never need a hard refresh. After an update, the ERP reloads at your next sidebar click, or while the tab sits unused. It waits while you are typing, saving, have a dialog open, or have lines on the till, a purchase order, an RFQ or a return. Offline sales, your sign-in, saved filters and drafts stay.
 
@@ -184,7 +184,7 @@ At the top right of most list screens there are **New** and **Bulk Import** butt
 
 **Choosing a list's columns.** Most lists, including Purchase Orders, Users and the Chart of Accounts, have a **Columns** button above the table. Click it, tick the columns you want to see, and use the arrows to change their order. The list changes as you tick. Your choice is saved for you when you close the chooser (click **Done**, click elsewhere or press **Esc**). It does not change what anyone else sees. **Reset** puts the list back to the standard columns. Administrators and Store Managers also see **Save for everyone**: it sets the columns everyone sees until they choose their own.
 
-**Updating records with Bulk Import.** A row with an existing ID (or, for a master, its code) changes that record. Fill only the cells you want to change: a **blank cell keeps** what is saved. To empty a field, type `<clear>` in its cell.
+**Updating records with Bulk Import.** A row with an existing ID (or, for a master, its code) changes that record. Fill only the cells you want to change: a **blank cell keeps** what is saved. To empty a field, type `<clear>` in its cell. An ID that belongs to a deleted record, or to a record of another kind, is refused on its row: give that row another code.
 
 In the Bulk Import window, **Download Column Guide** gives a sheet with one row per column: what it means, its format, allowed values, an example and what an update does. Hover a field name on a form to see the same short help.
 
@@ -339,6 +339,8 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Stock | `SL` | Inventory Ledger |
 | Stock | `TO` | Stock Movement (Transfer Order) |
 | Stock | `ALC` | Transfer Allocation |
+| Stock | `SRQ` | Stock Requests |
+| Stock | `SRF` | Requests to Fulfil |
 | Stock | `SA` | Stock Adjustment |
 | Stock | `MRP` | MRP Change |
 | Stock | `MI` | Material Issue |
@@ -465,6 +467,10 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `IPL` | Integration Payloads |
 | Admin | `JOBS` | Async Jobs |
 | Admin | `SEC` | Security Events |
+| Admin | `ACCR` | Access Review |
+| Admin | `TRCE` | Trace & Evidence |
+| Admin | `BRCH` | Breach Notifications |
+| Admin | `EMRG` | Emergency Controls |
 | Admin | `PRIV` | Privacy approvals |
 | Admin | `SYS` | System Status |
 | Admin | `DPH` | Deployment history |
@@ -523,7 +529,7 @@ The bar closes by itself after 15 seconds, or with **×**.
 - **Your last choice comes back:** a drop-down for store, location, warehouse, counter, salesman, cost centre or payment mode starts on what you last picked on that screen, in this browser. It is highlighted so you can see it was filled for you; change it if needed.
 - **Unsaved work is kept:** if the tab closes (or the computer restarts) while a New form has details in it, the form offers **Restore** or **Discard** next time. Only the form's own boxes are kept, not the rows of a line table.
 - **The columns of a record list:** a list shows up to eight of the record's main columns - its code, name and status first, then the required fields - so it opens quickly. Line tables and long notes stay off the list. Open the record to see every field; the search box above the table still searches every field you may see (on a very long item, customer or vendor list, the identifying ones - next point).
-- **Very long lists:** a record whose code, ID or barcode is exactly what you typed comes first. Over 10,000 matches the count is an estimate (*1-50 of about 250,000*) and **Next** works until the last page. On an item, customer or vendor list of over 100,000 records the box searches the identifying fields - code, name, barcode, phone, e-mail, GSTIN and the like - so it stays fast.
+- **Very long lists:** a record whose code, ID or barcode is exactly what you typed comes first. Over 10,000 matches the count is an estimate (*1-50 of about 250,000*) and **Next** works until the last page. On an item, customer or vendor list of over 100,000 records the box searches the identifying fields - code, name, barcode, phone, e-mail, GSTIN and the like - so it stays fast. On any other list of over 100,000 records (bills, stock ledger, orders) the box finds a record by its full number, such as *PF-B1234565*; capitals and spaces around it do not matter. Nothing found reads *No bills numbered "…"*. To find a bill by customer, mobile or date, use **Sales History** (POS) or the list's filters.
 - **Saved views:** on a record list, type a search in the box above the table, then pick **Save this search as a view…** in the views drop-down beside it. Pick the view later to run the same search; **Delete this view** removes it. Views are yours and follow you to any computer.
 - **Ticked rows on a record list:** tick rows (or the box in the heading for the whole page; **Space** ticks the row you are on). A bar at the bottom right of the window shows how many are ticked (it floats there, so the list never moves), with **Export** (a CSV of the ticked rows), **Submit for approval** (where the list has that action) and **Delete**. Submit and Delete do up to 40 rows a run; anything that cannot be done is named in the message.
 - **Approvals:** on **My work → Approvals**, tick rows and click **Approve ticked** or **Reject ticked** (one reason for all). Each is decided exactly as if you had clicked its own button. A password reset is always decided on its own.

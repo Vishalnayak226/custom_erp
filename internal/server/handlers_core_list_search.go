@@ -1,14 +1,13 @@
 package server
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"strings"
-	"sync"
-	"time"
 	"unicode/utf8"
 
 	"custom_erp/db"
+	"custom_erp/engines"
 )
 
 // Stage 47.10 (ask 192, user 2026-11-15: "Build all recommended"): search on
@@ -48,7 +47,7 @@ var masterSearchIndexFields = []string{"id", "code", "name", "item_name", "barco
 var masterExactFields = []string{"id", "code", "barcode"}
 
 const (
-	masterSearchBigRows = 100_000 // rows above which (3) applies
+	masterSearchBigRows = engines.BigDoctypeRows // rows above which (3) applies
 	// searchFieldSep joins the fields. A user cannot type it, so a search
 	// term never spans two fields.
 	searchFieldSepSQL = `E'\x1f'`
@@ -167,47 +166,36 @@ func masterSearchPrefilter(doctype string, fields []string, term string, termArg
 	return fmt.Sprintf("doctype = '%s' AND %s ILIKE $%d", doctype, masterSearchIndexExpr, termArg)
 }
 
-type rowEstimate struct {
-	rows int64
-	at   time.Time
+// masterSearchIsBig says whether (3) applies: the doctype is a big master.
+var masterSearchIsBig = func(schema, doctype string) bool {
+	return masterSearchFields[doctype] != nil && doctypeIsBig(schema, doctype)
 }
 
-var doctypeRowEstimates sync.Map // schema/doctype -> rowEstimate
+// Ask 297.4 (user, 2026-11-26: "If User bulk upload 1Cr row also it should
+// not fail ... each and every transaction after that also erp should not
+// hang"): on 30 lakh bills a list search took 55 s and ended in a 500. The
+// any-field match reads every row, and no index covers a transaction's
+// fields. So a doctype over masterSearchBigRows that is not a master is
+// searched by its number when the caller names no fields (or @identity): the
+// record whose id is the term, as typed or in capitals, through the primary
+// key. The response says so (X-Search-Scope: number) and the list's empty
+// state says it too. Fields a caller names are still searched as before.
+const searchScopeNumber = "number"
 
-// masterSearchIsBig says whether (3) applies: the doctype is a big master
-// whose planner estimate is over masterSearchBigRows. The estimate is cached
-// ten minutes; a failed EXPLAIN counts as small (the old search).
-var masterSearchIsBig = func(schema, doctype string) bool {
-	if masterSearchFields[doctype] == nil {
-		return false
-	}
-	key := schema + "/" + doctype
-	if v, ok := doctypeRowEstimates.Load(key); ok && time.Since(v.(rowEstimate).at) < 10*time.Minute {
-		return v.(rowEstimate).rows > masterSearchBigRows
-	}
-	n, err := explainRows(fmt.Sprintf("SELECT 1 FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL", schema), doctype)
-	if err != nil {
-		return false
-	}
-	doctypeRowEstimates.Store(key, rowEstimate{rows: n, at: time.Now()})
-	return n > masterSearchBigRows
+var txnSearchByNumber = func(schema, doctype string) bool {
+	return masterSearchFields[doctype] == nil && doctypeIsBig(schema, doctype)
+}
+
+// doctypeIsBig says whether the doctype's planner estimate is over
+// masterSearchBigRows. The estimate (engines.DoctypeRows, shared with POS >
+// Sales History) is cached ten minutes; a failed EXPLAIN counts as small.
+func doctypeIsBig(schema, doctype string) bool {
+	return engines.DoctypeRows(schema, doctype) > masterSearchBigRows
 }
 
 // explainRows is the planner's row estimate for query.
 func explainRows(query string, args ...interface{}) (int64, error) {
-	var raw string
-	if err := db.DB.QueryRow("EXPLAIN (FORMAT JSON) "+query, args...).Scan(&raw); err != nil {
-		return 0, err
-	}
-	var plan []struct {
-		Plan struct {
-			Rows float64 `json:"Plan Rows"`
-		} `json:"Plan"`
-	}
-	if err := json.Unmarshal([]byte(raw), &plan); err != nil || len(plan) == 0 {
-		return 0, fmt.Errorf("unreadable plan: %v", err)
-	}
-	return int64(plan[0].Plan.Rows), nil
+	return engines.PlannerRows(context.Background(), query, args...)
 }
 
 // masterExactMatchIDs lists the records (at most 20) whose id, code or

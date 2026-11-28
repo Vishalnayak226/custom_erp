@@ -51,8 +51,8 @@ The clock starts when anyone first **notices** the incident - a detection in Set
 | Hour | Do | Where |
 |---|---|---|
 | 0 | Note the time noticed (UTC). Classify: is it one of CERT-In's reportable types (table below)? If unsure, treat it as reportable. | incident record (runbook §7.12) |
-| 0-1 | Contain - runbook §7.1-§7.10 for the class. Take the **evidence pack** for the window: Settings → Monitoring → Security Events → Evidence pack (signed manifest; collecting it changes nothing and is itself audited). | runbook §7.11 step 1 |
-| 1-5 | Gather what the report form asks: affected systems, time noticed, symptoms, indicators (addresses, accounts, keys), actions taken. **Trace a request** joins the audit, error and job rows by correlation id. | Settings → Monitoring → Security Events |
+| 0-1 | Contain - runbook §7.1-§7.10 for the class. Take the **evidence pack** for the window: Settings → Monitoring → Trace & Evidence → Evidence pack (signed manifest; collecting it changes nothing and is itself audited). | runbook §7.11 step 1 |
+| 1-5 | Gather what the report form asks: affected systems, time noticed, symptoms, indicators (addresses, accounts, keys), actions taken. **Trace a request** joins the audit, error and job rows by correlation id. | Settings → Monitoring → Trace & Evidence |
 | by 6 | File with CERT-In (incident@cert-in.org.in, or the form at cert-in.org.in) with what is known; say what is still being established. Record the filing time and reference in the incident record. | incident record |
 | after | Answer CERT-In's follow-up; the 180-day logs and the pack are the evidence. Keep a copy of the pack off the ERP host. | runbook §7.12 |
 

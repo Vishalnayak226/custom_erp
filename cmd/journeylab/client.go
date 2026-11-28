@@ -33,6 +33,9 @@ type Client struct {
 	Retries int // attempts after the first, for transport errors and 429/502/503
 	Sess    map[string]*Session
 	logins  []time.Time // recent login times, to stay under the server's 5 per minute
+	// Tenant is sent as X-Tenant-ID, so a role user's login reaches the
+	// client being driven, not the default one (297.4: the 1-crore run's client).
+	Tenant string
 }
 
 func NewClient(base string) *Client {
@@ -121,6 +124,9 @@ func (c *Client) Do(who, method, path string, body interface{}, opts CallOpts) (
 		}
 		for k, v := range opts.Headers {
 			req.Header.Set(k, v)
+		}
+		if c.Tenant != "" && c.Tenant != "default" {
+			req.Header.Set("X-Tenant-ID", c.Tenant)
 		}
 		if sess != nil && sess.Token != "" {
 			req.Header.Set("Authorization", "Bearer "+sess.Token)

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // WriteEvidence stores one run as <root>/release/evidence/<kind>.json, the
@@ -62,4 +64,25 @@ func ParseEvidenceFile(b []byte, defaultCommit string) (Evidence, error) {
 		return ev, fmt.Errorf("evidence file names no commit and none was given")
 	}
 	return ev, nil
+}
+
+// FullCommit returns c as the full 40-character hash the gate checks
+// (isHexCommit). A short hash, such as the ERP_COMMIT the restore drill
+// writes on the server, is expanded by git in the first of dirs that knows it.
+// A commit git cannot expand is refused, so `releasegate record` never writes
+// evidence the gate would turn down as "no commit recorded" (ask 327).
+func FullCommit(c string, dirs ...string) (string, error) {
+	c = strings.TrimSpace(c)
+	if isHexCommit(c) {
+		return c, nil
+	}
+	if c != "" {
+		for _, d := range dirs {
+			out, err := exec.Command("git", "-C", d, "rev-parse", "--verify", "--quiet", c+"^{commit}").Output()
+			if s := strings.TrimSpace(string(out)); err == nil && isHexCommit(s) {
+				return s, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("commit %q is not a full hash and git cannot expand it here; the release gate needs the full 40-character hash", c)
 }

@@ -98,14 +98,60 @@ func TestShopifyRelationMetafields(t *testing.T) {
 	if got["complementary_products"] != `["gid://shopify/Product/C"]` {
 		t.Errorf("complementary: %v", got)
 	}
+	if n := len(f.seen["mfDelete"]); n != 0 {
+		t.Errorf("both lists sent: nothing to clear, got %d delete calls", n)
+	}
+	// 321.1: the lists the publish does not send are deleted on the shop.
+	cleared := func() []string {
+		t.Helper()
+		if len(f.seen["mfDelete"]) == 0 {
+			t.Fatal("no metafieldsDelete call")
+		}
+		var keys []string
+		for _, raw := range f.seen["mfDelete"][len(f.seen["mfDelete"])-1]["metafields"].([]interface{}) {
+			m := raw.(map[string]interface{})
+			if m["ownerId"] != "gid://shopify/Product/300" || m["namespace"] != shopifyRecommendationNamespace {
+				t.Errorf("clears this product's recommendation list only: %v", m)
+			}
+			keys = append(keys, m["key"].(string))
+		}
+		return keys
+	}
 
-	// No relations: no metafield.
+	// The Cross-sell deleted: related still sent, complementary cleared.
+	db.DB.Exec("UPDATE " + schema + ".documents SET deleted_at = NOW() WHERE id = 'S168HR-REL-3'")
+	if _, err := PublishToShopify(ctx, tenantID, ch, []string{design}, "tester"); err != nil {
+		t.Fatal(err)
+	}
+	if got := relMF(); got["related_products"] == "" || got["complementary_products"] != "" {
+		t.Errorf("one list left: %v", got)
+	}
+	if keys := cleared(); strings.Join(keys, ",") != "complementary_products" {
+		t.Errorf("cleared %v, want complementary_products", keys)
+	}
+
+	// No relations: no metafield, both lists cleared.
 	db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ProductRelation' AND id LIKE 'S168HR-%'")
 	if _, err := PublishToShopify(ctx, tenantID, ch, []string{design}, "tester"); err != nil {
 		t.Fatal(err)
 	}
 	if got := relMF(); len(got) != 0 || strings.Contains(strings.Join(mapVals(got), ""), "gid") {
 		t.Errorf("no relations: no metafield, got %v", got)
+	}
+	if keys := cleared(); strings.Join(keys, ",") != "related_products,complementary_products" {
+		t.Errorf("cleared %v, want both lists", keys)
+	}
+
+	// Setting off: the ERP does not manage the lists, so none is cleared.
+	before := len(f.seen["mfDelete"])
+	if err := SetSetting(tenantID, shopifyPIMContentSetting, "false", "tester"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishToShopify(ctx, tenantID, ch, []string{design}, "tester"); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(f.seen["mfDelete"]); n != before {
+		t.Errorf("setting off: no delete call, got %d more", n-before)
 	}
 }
 

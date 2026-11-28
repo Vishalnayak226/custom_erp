@@ -563,6 +563,9 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				// than every row whose status reads "Active". Opt-in, like
 				// sort=recent - every other caller keeps the any-field search.
 				var fields []string // nil: every field
+				qFields := strings.TrimSpace(r.URL.Query().Get("q_fields"))
+				// Ask 297.4: a big transaction list is searched by number.
+				byNumber := (qFields == "" || qFields == "@identity") && txnSearchByNumber(schema, doctype)
 				if v := r.URL.Query().Get("q_fields"); v != "" {
 					// Stage 127.7: @identity is the doctype's own identifying
 					// fields - what every link picker now asks for.
@@ -579,7 +582,18 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				}
 				var searchClause, prefilter string
 				var visible []string
-				if fields == nil {
+				if byNumber {
+					args[termArg-1] = strings.TrimSpace(searchQuery)
+					searchClause = fmt.Sprintf("id IN ($%d::text, upper($%d::text))", termArg, termArg)
+					if doctype == "POSCart" {
+						// A bill is also found by its printed number
+						// (idx_documents_pos_bill_number). The ids are found
+						// first, so the list reads them by key: an OR here
+						// made the planner walk every bill (22 s at 1 crore).
+						searchClause = fmt.Sprintf("id = ANY(ARRAY(SELECT $%[1]d::text UNION SELECT upper($%[1]d::text) UNION SELECT b.id FROM %[2]s.documents b WHERE b.doctype = 'POSCart' AND b.data->>'bill_number' IN ($%[1]d::text, upper($%[1]d::text))))", termArg, schema)
+					}
+					w.Header().Set("X-Search-Scope", searchScopeNumber)
+				} else if fields == nil {
 					keyExclusion := ""
 					if len(hiddenFields) > 0 {
 						placeholders := make([]string, len(hiddenFields))
@@ -740,6 +754,13 @@ func handleGenericDocInner(w http.ResponseWriter, r *http.Request) {
 				// returns tied rows in an order that differs by page, so a
 				// record could show twice and another never.
 				query += fmt.Sprintf(" ORDER BY %supdated_at DESC, id DESC LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
+			} else if offset > 0 {
+				// Ask 297.4: a deep page picks its ids first, from the
+				// (doctype, id) index alone, then reads only those rows -
+				// page 10,000 of a million Items took 1.9 s reading and
+				// sorting every row before it, and 95 ms this way.
+				query = fmt.Sprintf("SELECT id, data, status, updated_at, version FROM %s.documents WHERE id IN (SELECT id FROM %s.documents%s ORDER BY %sid LIMIT $%d OFFSET $%d) ORDER BY %sid",
+					schema, schema, whereClause, orderLead, argIndex, argIndex+1, orderLead)
 			} else {
 				query += fmt.Sprintf(" ORDER BY %sid LIMIT $%d OFFSET $%d", orderLead, argIndex, argIndex+1)
 			}

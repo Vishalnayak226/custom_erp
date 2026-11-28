@@ -1,0 +1,385 @@
+{
+  "schema_version": 1,
+  "kind": "journeylab.soak",
+  "generated_at": "2026-11-28T04:37:54Z",
+  "duration_planned": "6m0s",
+  "duration_actual_seconds": 746.21,
+  "db_stats_source": "pg_stat_statements",
+  "cycles": 19,
+  "cycles_pass": 18,
+  "cycles_failed_outside_disturbances": 0,
+  "cycles_failed_during_disturbances": 1,
+  "api_p95_ms_first_quarter": 614.04,
+  "api_p95_ms_last_quarter": 371.18,
+  "server_rss_kb_start": 38868,
+  "server_rss_kb_end": 42948,
+  "server_rss_kb_peak": 70016,
+  "disturbances": [
+    {
+      "name": "server restart mid-load",
+      "status": "pass",
+      "detail": "server killed hard while the journey was running; the next cycle passed without help",
+      "measures": [
+        "healthy again after 0.5 s",
+        "back in service after 20.6 s"
+      ]
+    },
+    {
+      "name": "outbox drains after the server restart",
+      "status": "pass",
+      "detail": "no event stayed Pending after the restart",
+      "measures": [
+        "4 event(s) in the outbox, 0 Pending at the moment of the kill, 0 Pending for over a minute afterwards"
+      ]
+    },
+    {
+      "name": "token and rate-limiter key churn",
+      "status": "pass",
+      "detail": "memory plateaued: +26112 KB over the first two rounds, +4464 KB over the last two (cap 65536 KB)",
+      "measures": [
+        "4000 junk-token and 4000 signed-token requests per round, 4 rounds; 8100 answered, 7900 rate-limited",
+        "server RSS KB: before 39392, after round 1 57544, after round 2 65504, after rounds 3-4 69968"
+      ]
+    },
+    {
+      "name": "database restart",
+      "status": "pass",
+      "detail": "Postgres restarted (fast) under load, server kept running; service resumed without a server restart",
+      "measures": [
+        "service resumed after 53.1 s"
+      ]
+    },
+    {
+      "name": "month boundary and time zone (database level)",
+      "status": "pass",
+      "detail": "the business day starts at the same instant whichever zone the session uses, and the day before ends one second earlier; running the application at a faked date still needs a clock seam",
+      "measures": [
+        "19 boundary checks over 6 dates and 3 session zones, plus one daylight-saving business-zone check"
+      ]
+    },
+    {
+      "name": "import killed while it checks its rows",
+      "status": "pass",
+      "detail": "server killed hard while the import checked its rows; the restarted server carried it on by itself and it ended as a run with no crash",
+      "measures": [
+        "60001 rows sent; killed with 500 checked",
+        "healthy again after 0.5 s; the check carried on by itself and ended 394 s after the kill",
+        "committed and reconciled 50 s after approval",
+        "59381 records, quantity 237520, 1 ImportJob"
+      ]
+    }
+  ],
+  "disk_projection_24h": {
+    "measured_seconds": 746.21,
+    "measured_growth_bytes": 215801856,
+    "bytes_per_hour": 1041116566.47,
+    "horizon_hours": 24,
+    "projected_growth_bytes": 24986797595,
+    "basis": "linear extrapolation of the measured window at the same load; real growth bends with retention, vacuum and load"
+  },
+  "final_reconciliation": [
+    {
+      "kind": "gl",
+      "name": "ledger total debits = credits",
+      "pass": true,
+      "detail": "debits 10190644, credits 10190644"
+    },
+    {
+      "kind": "money",
+      "name": "every voucher balances (debits = credits per document)",
+      "pass": true,
+      "detail": "0 unbalanced voucher(s)"
+    },
+    {
+      "kind": "stock",
+      "name": "no negative on-hand",
+      "pass": true,
+      "detail": "0 row(s) below zero"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: advance-outstanding-ageing",
+      "pass": true
+    },
+    {
+      "kind": "stock",
+      "name": "engine: bin-stock",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-ap-aging",
+      "pass": true,
+      "detail": "A receipt is carried at its taxable cost; the GST on its bill goes to 1500 GST Input Credit when paid, so an item here is the goods value still owed, not the bi"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-ar-aging",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-gst-document-tax-detail",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-gstr-1-b2b-b2c-summary",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-gstr-1-hsn-summary",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-hsn-tax-summary",
+      "pass": true,
+      "detail": "Returns and credit notes are not in these reports (the ERP's credit notes carry no tax split); the ledger figure is sales postings only, so they do not distort "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: cat-sales-register",
+      "pass": true,
+      "detail": "Ledger is the revenue and output GST posted for these same bills and invoices. A difference is a sale whose posting failed or an invoice not yet posted - check "
+    },
+    {
+      "kind": "stock",
+      "name": "engine: cat-stock-valuation-summary",
+      "pass": true,
+      "detail": "Ledger is the inventory control account. A difference is stock valued at standard cost (never received, so never posted) or a movement whose posting failed - ch"
+    },
+    {
+      "kind": "stock",
+      "name": "engine: custody-with-party",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: gst-return-summary",
+      "pass": true,
+      "detail": "Detail is the tax lines View Details lists; summary is the Total Tax Liability column."
+    },
+    {
+      "kind": "stock",
+      "name": "engine: inventory-valuation",
+      "pass": true,
+      "detail": "A remaining difference is stock moved without a GL entry (e.g. cycle-count variances, which post no GL) or GL posted to 1200 without stock (a journal) - review "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: payables-ageing",
+      "pass": true,
+      "detail": "A receipt is carried at its taxable cost; the GST on its bill goes to 1500 GST Input Credit when paid, so an item here is the goods value still owed, not the bi"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: po-commitments",
+      "pass": true,
+      "detail": "No GL account carries purchase-order commitments, so there is no ledger tie for this report. Goods received but not yet paid sit in 2100 GRN Suspense: 76192.00 "
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: points-liability",
+      "pass": true,
+      "detail": "Points are expensed when redeemed (Loyalty -\u003e Account for loyalty points), so no GL account carries this liability and there is no ledger tie. Choose \"liability"
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: print-evidence",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: receivables-ageing",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: sales-register",
+      "pass": true,
+      "detail": "Ledger is the revenue and output GST posted for these same sales. A difference is bill-level discounts and offers (the register shows the line price before them"
+    },
+    {
+      "kind": "stock",
+      "name": "engine: stock-ledger",
+      "pass": true
+    },
+    {
+      "kind": "stock",
+      "name": "engine: stock-pools",
+      "pass": true
+    },
+    {
+      "kind": "subledger",
+      "name": "engine: store-credit-liability",
+      "pass": true
+    },
+    {
+      "kind": "audit",
+      "name": "audit checkpoint sealed",
+      "pass": true,
+      "detail": "rows 1-128761 sealed"
+    },
+    {
+      "kind": "audit",
+      "name": "audit evidence verifies (no tampered row, no bad checkpoint)",
+      "pass": true,
+      "detail": "8172 signed row(s) verified, 61208 unsigned legacy, 0 unverifiable, 1 checkpoint(s) verified"
+    },
+    {
+      "kind": "audit",
+      "name": "audit checkpoints present",
+      "pass": true,
+      "detail": "1 verified checkpoint(s)"
+    }
+  ],
+  "overall": "pass",
+  "command_for_24h_run": "journeylab soak -duration 24h -server-bin \u003cserver\u003e -pg-bin \u003cpg bin dir\u003e -out \u003cdir\u003e   (needs the same JWT_SECRET exported as the soak uses; see the guide)",
+  "limits": [
+    "the time-zone check is a database check: there is no application clock seam, so the app itself cannot be run at a faked date",
+    "the limiter check watches the server's memory; the limiter's own table size is not exposed",
+    "the soak runs on one machine, so server and database share its CPU and disk",
+    "disk projection is linear from this run's measured growth at this load"
+  ],
+  "cycle_sample": [
+    {
+      "at_seconds": 43.92,
+      "status": "pass",
+      "wall_ms": 43921.79,
+      "api_p95_ms": 614.04,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 74.45,
+      "status": "pass",
+      "wall_ms": 30025.02,
+      "api_p95_ms": 381.85,
+      "during_disturbance": true
+    },
+    {
+      "at_seconds": 120.63,
+      "status": "pass",
+      "wall_ms": 45678,
+      "api_p95_ms": 624.8,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 166.04,
+      "status": "pass",
+      "wall_ms": 44917.15,
+      "api_p95_ms": 337.18,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 182.14,
+      "status": "fail",
+      "wall_ms": 15598.23,
+      "api_p95_ms": 169.74,
+      "during_disturbance": true,
+      "first_error": "open the till: check failed: till session id"
+    },
+    {
+      "at_seconds": 231.88,
+      "status": "pass",
+      "wall_ms": 46740.59,
+      "api_p95_ms": 534.78,
+      "during_disturbance": true
+    },
+    {
+      "at_seconds": 260.81,
+      "status": "pass",
+      "wall_ms": 28423.17,
+      "api_p95_ms": 314.98,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 305.84,
+      "status": "pass",
+      "wall_ms": 44531.82,
+      "api_p95_ms": 367.92,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 336.61,
+      "status": "pass",
+      "wall_ms": 30266.29,
+      "api_p95_ms": 273.24,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 367.39,
+      "status": "pass",
+      "wall_ms": 30285.66,
+      "api_p95_ms": 339.54,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 413.38,
+      "status": "pass",
+      "wall_ms": 45484.02,
+      "api_p95_ms": 417.5,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 444.68,
+      "status": "pass",
+      "wall_ms": 30804.86,
+      "api_p95_ms": 301.77,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 491.2,
+      "status": "pass",
+      "wall_ms": 46019.14,
+      "api_p95_ms": 259.72,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 520.77,
+      "status": "pass",
+      "wall_ms": 29070.63,
+      "api_p95_ms": 187.23,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 550.99,
+      "status": "pass",
+      "wall_ms": 29717,
+      "api_p95_ms": 234.06,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 609.62,
+      "status": "pass",
+      "wall_ms": 58128.58,
+      "api_p95_ms": 376.61,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 653.46,
+      "status": "pass",
+      "wall_ms": 43334.55,
+      "api_p95_ms": 351.8,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 706.38,
+      "status": "pass",
+      "wall_ms": 52426.19,
+      "api_p95_ms": 371.18,
+      "during_disturbance": false
+    },
+    {
+      "at_seconds": 743.48,
+      "status": "pass",
+      "wall_ms": 36599.61,
+      "api_p95_ms": 327.81,
+      "during_disturbance": false
+    }
+  ]
+}

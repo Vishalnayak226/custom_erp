@@ -9,8 +9,8 @@ audience: [maintainers, security-owner]
 applies_to: source release 0.1.0; configuration-specific acceptance required
 authority: proposed-policy
 confidentiality: internal
-last_verified: 2026-09-13
-review_by: 2026-10-13
+last_verified: 2026-11-28
+review_by: 2026-12-28
 supersedes: none
 superseded_by: none
 ---
@@ -79,9 +79,9 @@ Mapped at chapter granularity, honestly, not at the ~350-requirement granularity
 |---|---|---|---|
 | 5, 7, 8, 11, 13, 14, 16 | 787, 416, 125, 120, 476, 121, 122 | Out-of-bounds write/read, use-after-free, classic/stack/heap buffer overflow, NULL pointer dereference | **Structurally low-risk by language choice.** This codebase is Go throughout — no manual memory management, no raw pointer arithmetic in application code. Not claimed as "impossible" (Go's runtime and any cgo/unsafe use would need their own review — this codebase uses neither in the production binary, confirmed by this project's own "no mandatory runtime dependency" discipline in [secure-development-lifecycle.md](secure-development-lifecycle.md)), but these 7 of the Top 25 are not a meaningful attack surface here the way they would be in C/C++. |
 | 1 | 79 | Cross-Site Scripting | **Partial** — see ASVS V1/V3 above. KB renderer closed; general app-wide closure is 47.8/49.4.3, open. |
-| 2 | 89 | SQL Injection | **Convention-level defense, not yet audited as a dedicated sweep.** This codebase's established convention is parameterized queries via Go's `database/sql`; a systematic grep-and-review confirming zero string-concatenated SQL exists nowhere is real follow-up work, not claimed as done here. |
+| 2 | 89 | SQL Injection | **Built, enforced by a test (322.1).** Values go in as `$n` parameters. `TestNoUnreviewedSQLSplice` (`internal/securityscan/sql_splice.go`) parses every Go file and fails on a value written inside a quoted SQL literal (`'%s'` in a `fmt.Sprintf`/`Fprintf` format, or `'" + v + "'`). The 81 existing places in 50 files were each reviewed once: all write a constant, a name from a closed list, or a value with its quotes stripped. The one request-derived name, a list filter key, must match `safeFilterKeyRe` and be a declared field. The list may only shrink. Not machine-checked: an unquoted `%s` (schema, table and column names), which stays with review. |
 | 3 | 352 | CSRF | **Needs the session-topology decision first.** If session auth is bearer-token (`Authorization` header, no ambient browser cookie), CSRF's classic exploit path largely does not apply — this needs confirming against 49.4.1's still-open session-topology ADR before this row can honestly be closed either way. |
-| 4, 17 | 862, 863 | Missing / Incorrect Authorization | **Built, strong existing coverage.** `TestNoUnauthenticatedRouteOutsideTheReviewedSet` and the route-capability classification (ASVS V4/V8 above) directly target this. Full object/field/action negative-matrix testing is 49.3.4, open. |
+| 4, 17 | 862, 863 | Missing / Incorrect Authorization | **Built, strong existing coverage.** `TestNoUnauthenticatedRouteOutsideTheReviewedSet` and the route-capability classification (ASVS V4/V8 above) directly target this. The object/field/action negative matrix (49.3.4) is built: `TestStage4934TwoClientNegativeMatrix`, `TestStage4934ImportRowsNeedTheRoleToAddOrChange`. |
 | 6 | 22 | Path Traversal | **Partial.** `TestStaticFileServerNeverListsADirectory` (cited in [README.md](README.md)) covers directory listing; upload-path traversal defense is 49.8.1, open. |
 | 9, 23 | 78, 77 | OS / Command Injection | **Not audited this session.** No `os/exec` call sites were identified in this session's review, but a dedicated grep-based sweep confirming that is a cheap, discrete follow-up, not claimed as done here. |
 | 10 | 94 | Code Injection | **Low risk by construction.** Go is compiled, with no `eval`-equivalent dynamic code execution path in this codebase's architecture. |
@@ -91,7 +91,7 @@ Mapped at chapter granularity, honestly, not at the ~350-requirement granularity
 | 20 | 200 | Exposure of Sensitive Information | **Built.** `engines/sensitive_fields.go`, `engines/data_classification.go`, `engines/telemetry_redaction.go` (all cited in [README.md](README.md)) are exactly this. |
 | 21 | 306 | Missing Authentication for Critical Function | **Built.** `TestNoUnauthenticatedRouteOutsideTheReviewedSet` (cited in [README.md](README.md)) is this CWE's direct regression test. |
 | 22 | 918 | SSRF | **Open** — 49.8.4 (outbound webhook DNS-rebinding/SSRF defense), not yet built. |
-| 24 | 639 | Authorization Bypass Through User-Controlled Key | **Open** — 49.3.4 (IDOR/BOLA negative-test matrix), not yet built. |
+| 24 | 639 | Authorization Bypass Through User-Controlled Key | **Built** — 49.3.4 (2026-10-27): another client's id answers exactly like a missing one on read, find, search, count, attachments, write and delete (`TestStage4934TwoClientNegativeMatrix`). |
 | 25 | 770 | Allocation of Resources Without Limits | **Open** — the whole 47.9–47.11/49.13 admission-control/performance-budget program, not yet built. |
 
 ## 4. What this document is not

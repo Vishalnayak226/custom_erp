@@ -197,7 +197,9 @@ func cmdSoak(args []string) int {
 	}
 	dbURL := cl.URL(dbname)
 	secret := os.Getenv("JWT_SECRET")
-	env := []string{"DATABASE_URL=" + dbURL, "JWT_SECRET=" + secret, "ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=1"}
+	// Uploaded files go in the scratch folder, not media_store under the
+	// working directory (313.3's import kill sends one).
+	env := []string{"DATABASE_URL=" + dbURL, "JWT_SECRET=" + secret, "ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=1", "MEDIA_STORE_DIR=" + filepath.Join(wd, "media")}
 	if out, err := runCmd(append(os.Environ(), env...), c.serverBin, "-migrate"); err != nil {
 		fmt.Fprintln(os.Stderr, "journeylab soak: migrate:", err, trunc(out, 400))
 		return 1
@@ -391,6 +393,19 @@ func runSoak(r *Runner, sp *serverProc, cl Cluster, base string, dur time.Durati
 	// 5. month boundary and time zone
 	at(0.65)
 	ds = append(ds, monthBoundary(r))
+
+	// 6. an import killed while it checks its rows (313.3). It judges the
+	// import only; disturbance 1 proves sales come back after a kill.
+	at(0.75)
+	ds = append(ds, importKill(r, func() (time.Duration, bool) {
+		disturbed.Store(true)
+		defer disturbed.Store(false)
+		sp.Kill()
+		if err := sp.Start(); err != nil {
+			return 0, false
+		}
+		return waitHealthy(base, 120*time.Second)
+	}))
 
 	at(1.0)
 	close(stop)

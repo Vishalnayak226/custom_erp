@@ -170,17 +170,29 @@ function Test-CandidateRecord {
 # it into release\evidence\backup_restore.json through `releasegate record -from`,
 # naming the commit just deployed. The next Release ships the file. Returns a one-line
 # note; a missing file or a failed ingest is a note, never a stop - the deploy is done.
+# Ask 289 (0.30.0 deploy): Controlled Folder Access stops the freshly built releasegate
+# from creating release\evidence under Documents ("The system cannot find the file
+# specified"). So it writes under a %TEMP% root that holds a copy of the current record
+# (the first-pass day carries over) and PowerShell copies the result in.
 function Import-RestoreDrillEvidence {
     param([string]$Repo, [string]$Go, [string[]]$RemoteLines, [string]$Commit, [string]$GoRoot = $Repo)
     $text = ($RemoteLines -join "`n").Trim()
     if (-not $text.StartsWith('{')) { return 'no restore-drill record on the server yet - run deploy/restore_drill.sh there (admin guide, Backups)' }
-    $tmp = Join-Path $env:TEMP "restore_drill_evidence_$([guid]::NewGuid().ToString('N')).json"
+    $id = [guid]::NewGuid().ToString('N')
+    $tmp = Join-Path $env:TEMP "restore_drill_evidence_$id.json"
+    $root = Join-Path $env:TEMP "erp_restore_evidence_$id"
+    $work = Join-Path $root 'release\evidence'
+    $dest = Join-Path $Repo 'release\evidence'
     try {
+        New-Item -ItemType Directory -Force -Path $work | Out-Null
+        if (Test-Path -LiteralPath $dest) { Get-ChildItem -LiteralPath $dest -Filter '*.json' | Copy-Item -Destination $work }
         Set-Content -LiteralPath $tmp -Value $text -Encoding utf8NoBOM
-        $out = Invoke-Native -Exe $Go -Arguments @('run', './cmd/releasegate', 'record', '-root', $Repo, '-from', $tmp, '-commit', $Commit) -WorkDir $GoRoot -AllowFail
-        if ($LASTEXITCODE -eq 0) { return "restore drill recorded for the release gate: $($out -join ' ')" }
-        return "restore-drill record NOT ingested: $($out -join ' ')"
-    } finally { Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue }
+        $out = Invoke-Native -Exe $Go -Arguments @('run', './cmd/releasegate', 'record', '-root', $root, '-from', $tmp, '-commit', $Commit) -WorkDir $GoRoot -AllowFail
+        if ($LASTEXITCODE -ne 0) { return "restore-drill record NOT ingested: $($out -join ' ')" }
+        New-Item -ItemType Directory -Force -Path $dest | Out-Null
+        Get-ChildItem -LiteralPath $work -Filter '*.json' | Copy-Item -Destination $dest -Force
+        return "restore drill recorded for the release gate: $(($out -join ' ').Replace($root, $Repo))"
+    } finally { Remove-Item -LiteralPath $tmp, $root -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 # The code map redraw that Release starts after its push (Invoke-BrainRedraw.ps1,

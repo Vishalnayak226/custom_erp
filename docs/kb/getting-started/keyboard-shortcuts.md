@@ -167,6 +167,8 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Stock | `SL` | Inventory Ledger |
 | Stock | `TO` | Stock Movement (Transfer Order) |
 | Stock | `ALC` | Transfer Allocation |
+| Stock | `SRQ` | Stock Requests |
+| Stock | `SRF` | Requests to Fulfil |
 | Stock | `SA` | Stock Adjustment |
 | Stock | `MRP` | MRP Change |
 | Stock | `MI` | Material Issue |
@@ -293,6 +295,10 @@ Your administrator can switch codes off for the company (**Configuration ▸ Nav
 | Admin | `IPL` | Integration Payloads |
 | Admin | `JOBS` | Async Jobs |
 | Admin | `SEC` | Security Events |
+| Admin | `ACCR` | Access Review |
+| Admin | `TRCE` | Trace & Evidence |
+| Admin | `BRCH` | Breach Notifications |
+| Admin | `EMRG` | Emergency Controls |
 | Admin | `PRIV` | Privacy approvals |
 | Admin | `SYS` | System Status |
 | Admin | `DPH` | Deployment history |

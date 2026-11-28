@@ -1,0 +1,9 @@
+{
+  "kind": "backup_restore",
+  "date": "2026-11-26",
+  "commit": "9db21d3fd8ac8a323d978dcae6733ba09efb655d",
+  "result": "pass",
+  "by": "restore_drill.sh@ubuntu-s-1vcpu-512mb-10gb-blr1",
+  "note": "custom_erp_20261126T020001Z.dump.enc restores cleanly, carries data and checks out",
+  "first_pass": "2026-11-26"
+}

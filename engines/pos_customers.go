@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -419,9 +420,9 @@ type StoreBill struct {
 // SearchStoreBills finds paid bills by anything on them (SearchSalesHistory's
 // match: bill, cart, order, channel order, AWB, name, mobile, GSTIN) and/or a
 // date - store bills at the given stores (all when nil), online bills at any
-// store once something is typed.
-func SearchStoreBills(tenantID string, stores []string, q, date string) ([]StoreBill, error) {
-	h, err := SearchSalesHistory(tenantID, SalesHistoryFilter{Stores: stores, From: strings.TrimSpace(date), To: strings.TrimSpace(date), Q: q, Kind: "Sale"})
+// store once something is typed. No totals: the till shows none (297.4).
+func SearchStoreBills(ctx context.Context, tenantID string, stores []string, q, date string) ([]StoreBill, error) {
+	h, err := SearchSalesHistory(ctx, tenantID, SalesHistoryFilter{Stores: stores, From: strings.TrimSpace(date), To: strings.TrimSpace(date), Q: q, Kind: "Sale", NoTotals: true})
 	if err != nil {
 		return nil, err
 	}

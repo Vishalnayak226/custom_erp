@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"fmt"
 	"os"
 	"reflect"
@@ -331,6 +332,52 @@ func TestImportWorkLive(t *testing.T) {
 // A server that dies mid-slice leaves its job claimed. Not heard from, the
 // batch offers Resume at once; left alone, the next worker carries the job on
 // when the claim runs out. Either way every row is read exactly once.
+// 297.2.5: the 1-crore commit slowed from 2,900 rows a second to 230 because
+// the table's figures still called the new doctype empty. A commit refreshes
+// them at 20,000 written rows and each doubling, about ten times for 1 crore.
+func TestImportCommitRefreshesTableFigures(t *testing.T) {
+	for _, c := range []struct {
+		n    int64
+		want int
+	}{{0, 0}, {19999, 0}, {20000, 1}, {39999, 1}, {40000, 2}, {10000000, 9}} {
+		if got := importAnalyzeMark(c.n); got != c.want {
+			t.Errorf("importAnalyzeMark(%d) = %d, want %d", c.n, got, c.want)
+		}
+	}
+	refreshes := 0
+	for done := int64(0); done < 10000000; done += importCommitChunk {
+		if importAnalyzeMark(done) != importAnalyzeMark(done+importCommitChunk) {
+			refreshes++
+		}
+	}
+	if refreshes != 9 {
+		t.Fatalf("a 1-crore commit refreshes the figures %d times, want 9", refreshes)
+	}
+
+	tenantID, schema := stagingTenant(t)
+	var before sql.NullTime
+	if err := db.DB.QueryRow(`SELECT pg_stat_get_last_analyze_time($1::regclass)`, schema+".documents").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	r := &importStepRun{ctx: context.Background(), tenantID: tenantID, schema: schema,
+		b: &ImportBatchData{ID: "IMPBAT-analyze-test"}, w: &ImportBatchWork{Done: importAnalyzeFrom}}
+	r.refreshDocStats()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var after sql.NullTime
+		if err := db.DB.QueryRow(`SELECT pg_stat_get_last_analyze_time($1::regclass)`, schema+".documents").Scan(&after); err != nil {
+			t.Fatal(err)
+		}
+		if after.Valid && (!before.Valid || after.Time.After(before.Time)) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("refreshDocStats did not analyze %s.documents (last analyze %v)", schema, after)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 func TestImportBulkServerDiesMidSlice(t *testing.T) {
 	tenantID, schema := stagingTenant(t)
 	uploadTestDir(t)

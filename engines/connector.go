@@ -150,7 +150,7 @@ func buildChannelPayload(tenantID, itemCode, channelCode string, withImages bool
 	}
 
 	var defaultLocale string
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'default_locale', 'en') FROM %s.documents WHERE doctype = 'Channel' AND id = $1`, schema), channelCode).Scan(&defaultLocale)
+	_ = db.DB.QueryRow(channelByRefSQL(schema, `COALESCE(data->>'default_locale', 'en')`), channelCode).Scan(&defaultLocale)
 	if defaultLocale == "" {
 		defaultLocale = "en"
 	}

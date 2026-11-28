@@ -197,6 +197,9 @@ async function bpPreview(screen, btn) {
     .reduce((m, l) => m + (l.photos || []).filter(x => bpPhotos.has(x.toLowerCase())).length, 0), 0) : 0;
   const work = newPOs + toReceive + photos + (t.new_vendors || 0) + (t.new_masters || 0) +
     pos.filter(p => p.action === 'existing' && (p.status === 'Draft' || p.status === 'Pending Approval')).length;
+  // 320.1: bills the upload receives can go on to the store that sells them.
+  const sendable = bills.filter(b => b.action !== 'error').length;
+  const from = [...new Set(pos.filter(p => p.action !== 'error').map(p => p.store).filter(Boolean))];
   out.innerHTML = `
     <section>
       <h4 class="s-00f1b9">3. Preview - nothing has changed yet</h4>
@@ -204,27 +207,54 @@ async function bpPreview(screen, btn) {
       ${bpPhotoSummary(result)}
       ${bpResultHtml(result, false)}
       <div class="s-a1de6b">
+        ${sendable ? `<label class="s-5e0faa">Send to <select class="form-input" data-bp="send-to">
+          <option value="">${bpEsc(from.length === 1 ? `Keep at ${from[0]}` : 'Keep there')}</option></select></label>` : ''}
         <button type="button" class="btn btn-primary" data-bp="apply"${work ? '' : ' disabled'}>${work ? bpApplyLabel(newPOs, toReceive, photos) : 'Nothing to do'}</button>
         ${t.errors ? `<span class="s-129b93">${t.errors} problem${t.errors === 1 ? '' : 's'}: what has a problem is left out - fix the file and upload it again.</span>` : ''}
       </div>
     </section>`;
   const apply = out.querySelector('[data-bp="apply"]');
-  if (apply) apply.addEventListener('click', () => bpApply(screen, newPOs, toReceive, t.errors || 0, photos));
+  const sendSel = out.querySelector('[data-bp="send-to"]');
+  const sendTo = () => (sendSel && sendSel.value ? { id: sendSel.value, name: sendSel.selectedOptions[0].textContent } : null);
+  if (sendSel) {
+    bpStores(from).then(list => list.forEach(l => sendSel.add(new Option(l.name, l.id))));
+    sendSel.addEventListener('change', () => {
+      const n = work + (sendTo() ? sendable : 0);
+      apply.disabled = !n;
+      apply.textContent = n ? bpApplyLabel(newPOs, toReceive, photos, sendTo()) : 'Nothing to do';
+    });
+  }
+  apply.addEventListener('click', () => bpApply(screen, newPOs, toReceive, t.errors || 0, photos, sendTo()));
 }
 
-function bpApplyLabel(pos, bills, photos) {
+// bpStores: the active stores and warehouses Send to offers, less the one
+// the file's POs are for.
+async function bpStores(from) {
+  const res = await apiFetch('/api/v1/doc/Location?limit=500');
+  if (!res || !res.ok) return [];
+  const skip = new Set(from.map(s => String(s).trim().toLowerCase()));
+  return ((await res.json()) || [])
+    .filter(l => l && l.id && (l.status || 'Active') === 'Active')
+    .map(l => ({ id: l.id, name: l.name || l.code || l.id }))
+    .filter(l => !skip.has(l.name.toLowerCase()) && !skip.has(String(l.id).toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function bpApplyLabel(pos, bills, photos, send) {
   const parts = [];
   if (pos) parts.push(`make ${pos} PO${pos === 1 ? '' : 's'}`);
   if (bills) parts.push(`receive ${bills} bill${bills === 1 ? '' : 's'}`);
+  if (send) parts.push(`send to ${send.name}`);
   if (photos) parts.push(`add ${photos} photo${photos === 1 ? '' : 's'}`);
   const s = parts.join(' and ') || 'apply';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-async function bpApply(screen, pos, bills, problems, photos) {
-  const msg = `${bpApplyLabel(pos, bills, photos)} from ${bpFile.name}?` +
+async function bpApply(screen, pos, bills, problems, photos, send) {
+  const msg = `${bpApplyLabel(pos, bills, photos, send)} from ${bpFile.name}?` +
     (pos ? ' New POs are sent for approval and approved as you where your approval rules allow.' : '') +
     (bills ? ' Bills are received, verified and posted with the MRP in the file.' : '') +
+    (send ? ` Then each bill's stock goes to ${send.name} on a transfer - approved where your rule allows, else it waits for approval - sent and received.` : '') +
     (problems ? ` What has a problem (${problems}) is left out.` : '') +
     (bpPhotos.size ? ' The chosen photos are added after that - keep this page open until they are.' : '');
   if (!await showCustomConfirm(msg, 'Upload from Excel')) return;
@@ -232,6 +262,7 @@ async function bpApply(screen, pos, bills, problems, photos) {
   out.innerHTML = '<p class="text-muted">Starting…</p>';
   const fd = new FormData();
   fd.append('file', bpFile, bpFile.name);
+  if (send) fd.append('send_to', send.id);
   const res = await apiUpload(`${BP_API}/apply`, fd);
   if (!res) { out.innerHTML = ''; return; }
   if (!res.ok) { out.innerHTML = `<p class="s-196e02">${bpEsc(await getErrorMessage(res, 'The file could not be applied.'))}</p>`; return; }
@@ -257,7 +288,7 @@ async function bpFollow(screen, runID, withPhotos) {
     <section>
       <h4 class="s-00f1b9">${run.status === 'Completed' ? 'Done' : bpEsc(run.status || 'Finished')}${run.file_name ? ` - ${bpEsc(run.file_name)}` : ''}</h4>
       ${run.message ? `<p class="s-5e0faa">${bpEsc(run.message)}</p>` : ''}
-      ${bpTotalsHtml(t, true)}
+      ${bpTotalsHtml(t, true, run.result && run.result.send_to)}
       ${t.rows_to_fix ? `<div class="s-8ed0b3"><button type="button" class="btn btn-primary" data-bp-fix="${bpEsc(runID)}">Rows to fix (${bpEsc(t.rows_to_fix)})</button></div>
         <p class="s-0006b9">Correct each row by its Reason and upload that file - the rest is already made.</p>`
         : (t.failed || t.errors || t.waiting) ? '<p class="s-0006b9">Fix Failed or Problem rows (or approve Waiting ones), then upload the same file again - nothing is made twice.</p>' : ''}
@@ -272,6 +303,19 @@ async function bpFollow(screen, runID, withPhotos) {
     out.appendChild(box);
     await bpUploadPhotos(box, run.result);
   }
+  if (withPhotos && run.result && out.isConnected) await bpOfferStickers(run.result);
+}
+
+// bpOfferStickers (320.2): after Apply, "Print stickers?" - Yes opens each
+// goods receipt this upload posted on the sticker page, one after another.
+async function bpOfferStickers(result) {
+  const jobs = (result.bills || []).filter(b => b.posted_now && b.grn_id && (b.skus || []).length)
+    .map(b => ({ id: b.grn_id, skus: b.skus }));
+  if (!jobs.length) return;
+  const pcs = (result.bills || []).filter(b => b.posted_now).reduce((n, b) => n + (b.qty || 0), 0);
+  if (!await showCustomConfirm(`${jobs.length} goods receipt${jobs.length === 1 ? '' : 's'}, ${pcs} pcs.`, 'Print stickers?')) return;
+  try { sessionStorage.setItem('grn-child-stickers', JSON.stringify({ ...jobs[0], next: jobs.slice(1) })); } catch (_) { /* storage can be disabled */ }
+  renderView('stickers');
 }
 
 function bpPhotoSummary(result) {
@@ -289,12 +333,13 @@ function bpWireFix(root) {
     bpDownload(`${BP_API}/runs/${encodeURIComponent(b.getAttribute('data-bp-fix'))}/errors`, 'bulk-po-rows-to-fix.xlsx', e.currentTarget)));
 }
 
-function bpTotalsHtml(t, applied) {
+function bpTotalsHtml(t, applied, sendTo) {
   const parts = [
     [t.new_pos, `${t.new_pos} new PO${t.new_pos === 1 ? '' : 's'}`],
     [t.existing_pos, `${t.existing_pos} PO${t.existing_pos === 1 ? '' : 's'} already made`],
     [t.lines, `${t.lines} row${t.lines === 1 ? '' : 's'}, ${t.qty || 0} pcs, ${bpMoney(t.amount)}`],
     [t.bills, `${t.bills} bill${t.bills === 1 ? '' : 's'}`],
+    [applied && sendTo && t.sent, `${t.sent} sent to ${sendTo}`],
     [t.new_vendors, `${t.new_vendors} new vendor${t.new_vendors === 1 ? '' : 's'}`]
   ].filter(([n]) => n).map(([, s]) => `<span>${bpEsc(s)}</span>`);
   const badges = (applied
@@ -365,9 +410,10 @@ function bpResultHtml(r, applied) {
   if (bills.length) {
     html += bpSection('Bills (goods receipts)', bpCount(bills, applied), `
       <table><thead><tr><th class="s-bd09c4">Row</th><th>Bill no</th><th>Vendor</th><th>Date</th><th class="s-54c2af">Total</th><th class="s-54c2af">Pcs</th><th class="s-c6fffd"></th><th>Goods receipt</th><th></th></tr></thead><tbody>
-      ${bills.map(b => `<tr><td>${bpEsc(b.row)}</td><td>${bpEsc(b.invoice)}</td><td>${bpEsc(b.vendor)}</td><td>${bpEsc(b.date)}</td>
+      ${bills.map(b => `<tr><td>${b.row ? bpEsc(b.row) : ''}</td><td>${bpEsc(b.invoice)}</td><td>${bpEsc(b.vendor)}</td><td>${bpEsc(b.date)}</td>
         <td class="s-54c2af">${bpMoney(b.total)}</td><td class="s-54c2af">${bpEsc(b.qty)}</td><td>${bpBadge(bpKind(b, applied))}</td>
         <td class="s-86abda">${bpEsc(b.grn_code || '')}${b.step && b.step !== 'Posted' ? ` <span class="text-muted s-6cb285">${bpEsc(b.step)}</span>` : ''}
+          ${b.to_number ? `<span class="s-6cb285"> → <b>${bpEsc(b.to_number)}</b> ${bpEsc(b.to_status || '')}</span>` : ''}
           ${applied && b.step === 'Posted' && (b.skus || []).length ? ` <button type="button" class="btn btn-outline btn-sm" data-bp-stickers="${bpEsc(b.grn_id)}" data-skus="${bpEsc((b.skus || []).join(','))}">Print stickers</button>` : ''}</td>
         <td>${bpMsg(b)}</td></tr>`).join('')}
       </tbody></table>`, applied || bills.some(b => b.action === 'error'));

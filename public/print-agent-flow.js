@@ -99,6 +99,9 @@ export async function agentTryPrint(jobType, opts = {}) {
     await showCustomAlert(why, 'Printer Not Mapped');
     return false;
   }
+  // 310.2: the server's pick (the store default) is not on this computer -
+  // choose this computer's own, once, instead of a print that can only fail.
+  if (!opts.printerCode && !await routing.installedHere(payload.printer)) return routing.chooseAndPrint(jobType, opts);
 
   try {
     await window.PrintAgent.printItems(printerName, payload.items, payload.copies);

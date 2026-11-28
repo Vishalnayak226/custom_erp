@@ -1043,6 +1043,30 @@ func (shopifySDKConnector) DeleteProductMedia(ctx context.Context, cred map[stri
 	return shopifyUserErrors(out.Del.Errors, "the old pictures")
 }
 
+const shopifyDeleteMetafieldsMutation = `mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+  metafieldsDelete(metafields: $metafields) { deletedMetafields { key } userErrors { field message } } }`
+
+// DeleteProductMetafields removes a product's metafields by namespace and key
+// (321.1). One the product does not have is not an error.
+func (shopifySDKConnector) DeleteProductMetafields(ctx context.Context, cred map[string]string, productGID string, mfs []ShopifyMetafield) error {
+	ids := []map[string]interface{}{}
+	for _, m := range mfs {
+		ids = append(ids, map[string]interface{}{"ownerId": productGID, "namespace": firstNonEmpty(m.Namespace, "custom"), "key": m.Key})
+	}
+	if productGID == "" || len(ids) == 0 {
+		return nil
+	}
+	var out struct {
+		Del struct {
+			Errors []shopifyUserError `json:"userErrors"`
+		} `json:"metafieldsDelete"`
+	}
+	if err := shopifyGQL(ctx, cred, shopifyDeleteMetafieldsMutation, map[string]interface{}{"metafields": ids}, &out); err != nil {
+		return err
+	}
+	return shopifyUserErrors(out.Del.Errors, "the old metafields")
+}
+
 // ShopifyVariantLink is a variant as Shopify keeps it.
 type ShopifyVariantLink struct {
 	SKU             string `json:"sku"`

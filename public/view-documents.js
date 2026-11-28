@@ -42,6 +42,7 @@ async function renderDocTableView(container) {
     state.docData = fresh.records;
     state.docTotal = fresh.total;
     state.docTotalEstimated = !!fresh.estimated;
+    state.docSearchByNumber = !!fresh.byNumber;
     renderDocTable();
   });
 
@@ -50,6 +51,7 @@ async function renderDocTableView(container) {
     state.docData = cached.records;
     state.docTotal = cached.total;
     state.docTotalEstimated = !!cached.estimated;
+    state.docSearchByNumber = !!cached.byNumber;
   } else {
     const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
     if (!metaRes) return;
@@ -73,6 +75,7 @@ async function renderDocTableView(container) {
     const offset = (pageAtRequestTime - 1) * itemsPerPage;
     state.docTotal = totalHeader !== null ? (parseInt(totalHeader, 10) || 0) : offset + state.docData.length;
     state.docTotalEstimated = dataRes.headers.get('X-Total-Count-Estimated') === 'true';
+    state.docSearchByNumber = dataRes.headers.get('X-Search-Scope') === 'number';
   }
   bulkSelectedDocIDs = new Set();
 
@@ -377,6 +380,7 @@ async function refreshDocTablePage() {
   const offset = (page - 1) * itemsPerPage;
   state.docTotal = totalHeader !== null ? (parseInt(totalHeader, 10) || 0) : offset + state.docData.length;
   state.docTotalEstimated = dataRes.headers.get('X-Total-Count-Estimated') === 'true';
+  state.docSearchByNumber = dataRes.headers.get('X-Search-Scope') === 'number';
   renderDocTable();
 
   // Keyboard focus (BLD-034/MC-083 "keyboard scroll/focus is usable"): a
@@ -493,8 +497,9 @@ function renderDocTable() {
     // nothing. Those are different problems with different next steps.
     // 276.9: a few words, no how-to (Article 7).
     const label = escapeHTMLText(listTitle());
+    // 297.4: over 1 lakh records a search finds the record by its number.
     const emptyMsg = currentSearchQuery
-      ? `No ${label} match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;`
+      ? `No ${label} ${state.docSearchByNumber ? 'numbered' : 'match'} &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;`
       : `No ${label} yet`;
     tableHTML += `<tr><td colspan="${cols.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {

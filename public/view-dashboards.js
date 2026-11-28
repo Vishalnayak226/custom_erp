@@ -55,8 +55,8 @@ async function loadMeta() {
 
 async function loadCatalog() {
   if (catalog) return catalog;
-  const res = await apiFetch('/api/v1/reports/catalog');
-  catalog = res && res.ok ? await res.json() : [];
+  // 297.8: the page's one shared catalog load (shortcuts.js).
+  catalog = (await (await loadViewModule('./shortcuts.js')).loadReportCatalog()) || [];
   return catalog;
 }
 

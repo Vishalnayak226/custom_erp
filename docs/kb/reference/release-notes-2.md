@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-09-06 to 2026-10-19, continued from the release notes.
+summary: Earlier releases, 2026-09-09 to 2026-10-22, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,11 +19,61 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **90** earlier entries, 2026-09-06 to 2026-10-19.
+This page continues the [release notes](release-notes.md) with **103** earlier entries, 2026-09-09 to 2026-10-22.
 
 Older still: [part 3](release-notes-3.md).
 
+## 2026-10-22
+
+**Stage 130 — Build all that needs no approval, plus the 2026-10-22 decisions** *(code + docs, NOT COMMITTED)*
+
+**Stage 133 — Sticker printing remembers its setup, reprints from the history, and every print can be previewed** *(code + docs, not released)*
+
+**Stage 101 — CRM made best-in-class: one customer page, consent ledger, segments, a send gate, templates and senders, campaigns, journeys, feedback, tickets, WhatsApp inbox, loyalty depth, clienteling, a business-buyer pipeline** *(code + docs, NOT COMMITTED)*
+
+**Stage 102 — Store app, the rest: push alerts, shared-phone PIN sign-in, Today, receive / count / labels by scanning, basket to the till, order from another store** *(code + docs, NOT COMMITTED)*
+
+**Stage 129 — Bulk Purchase Upload: one Excel file from the client becomes POs and the goods receipts of its bills** *(code + docs, NOT COMMITTED)*
+
+## 2026-10-21
+
+**Stage 128 — Setup Workbook: a whole organisation's setup from one Excel file** *(code + docs, NOT COMMITTED)*
+
+**94.15 money rounding; Stage 127 — every transaction prints, silent print with no browser dialog, print profiles, Reprint by module, number fields, picker search scope** *(code + docs, tab B, NOT COMMITTED)*
+
+**Stage 88 (88.2-88.6) — OMS one page per step, the Pending gate and the two bills, one Templates page, Inventory documents** *(code + docs, NOT COMMITTED)*
+
+**Stage 126 — New purchase order: Enter moves through the entry, a missing state asked and saved, Edit on an added design; Prefix Configurations bug sweep** *(code, NOT COMMITTED)*
+
+**Stage 125.8 — remember this device for the authenticator** *(code, NOT COMMITTED)*
+
+**Stage 125 — one login for every client; Super Admin is the platform operator's alone** *(code, NOT COMMITTED)*
+
 ## 2026-10-19
+
+**Stage 124 — a step-by-step guide to set an organisation up for purchase orders** *(docs, NOT COMMITTED)*
+
+**Stage 122 — Configuration → Item fields keeps its column header in view** *(code, NOT COMMITTED)*
+
+**Stage 120 — the Wholeops logo in the app, to the user's logo placement spec** *(code)*
+
+From the user's two logo images (blue vs slate-grey wordmark) and then `ERP_Logo_Placement_Developer_Specification.md`. Full detail in checklist Stage 120.
+
+**Stage 119 — sticker print direction and count, a clean print, and a template kept per product type from the Print screen** *(code)*
+
+From the user's prod Print-dialog screenshot and a photo of the label it printed (the 1-up Seznik tag landed small and turned on the printer's 100 × 150 shipping label, barcode smeared), then *"Make diff template ... horizontal and vertical. 1 count, 3 count"*. Full detail in checklist Stage 119.
+
+**Stages 114 and 115 — a leaner PO entry with prices that flow and are required, PO MRP to the GRN, MRP rules per product type; number series year at the end and a deleted store no longer blocks a save** *(code)*
+
+From the user's New purchase order, sample PO, and Number Series screenshots; decisions asked and answered the same day. Full detail in checklist Stages 114 and 115.
+
+**Stage 117 — Combination IDs numbered in sequence; number series with plain names, grouped** *(code)*
+
+From the user's Prefix Configurations screenshot. Full detail in checklist Stage 117.
+
+**Stage 118 (+114.8) — vendor fixed once picked; names, not codes, in pickers and PO / GRN lines** *(code)*
+
+From the user's Purchase Orders and New purchase order screenshots. Full detail in checklist Stage 118 and 114.8.
 
 **Stages 113 and 116 — sticker template per Product type, every design on the drop-downs, the Seznik tag; frozen headers stop leaking rows** *(code)*
 
@@ -404,32 +454,4 @@ Both items had sat open on a *decision* rather than on effort, and both decision
 **Stage 49.2.4 — Closed: recovery-destination reauthentication, and dual-control helpdesk password reset** *(code + schema + tests + docs)*
 
 49.2.4 (recovery cannot bypass authentication) is now fully closed — the two clauses 49.2.2's session left open. Full detail is in `docs/micro_checklist.md`'s own 49.2.4 entry; this is the index.
-
-## 2026-09-08
-
-**Stage 49.2.2 — Password baseline, and the session revocation it unlocks for 49.2.4** *(code + schema + tests + docs)*
-
-Stage 49 moved into Phase S1 (identity/authorization/data integrity) with 49.2 (identity, authentication, recovery, machine identity) — its first buildable sub-item, 49.2.2, is closed; the rest of 49.2 stays open. `engines/password_policy.go` + an embedded, curated `common_passwords.txt` (~300 entries, including the `Word@123`-shaped patterns this India-first ERP's own corporate password culture produces) is the one choke point `handleChangePassword`, `engines.CompletePasswordReset` and `handleCreateUser` all call now: minimum length (new `security.password_min_length` setting, default 12, following Stage 30.7's registry pattern), a denylist match, username-equality, and a cheap ascending/descending/repeated-character sequence check nothing else would catch.
-
-## 2026-09-10
-
-**Stage 48 — Documentation governance and canonical manuals** *(implementation and review package)*
-
-The documentation portal now leads to owned product, process, architecture, data/API, security/legal, engineering, operations, implementation and QA drafts. User and tenant-administrator manuals are generated from canonical Knowledge Center topics. All 56 registered screens have help mappings across 49 topics; current returns, RF, warehouse-depth, asset and expense instructions replace the previously missing or stale guidance.
-
-## 2026-09-08
-
-**Stage 49.1.7 — Outside-in verification, and a real static-server method gap it found** *(code + tool + tests + docs)*
-
-The last open sub-item of 49.1 needed something none of the rest of Stage 49 S0 could provide from inside this tree: a genuinely external vantage point. `cmd/edgecheck` is a new, reusable CLI — not a one-off script — that probes a deployed instance the way an anonymous internet client would: declared public routes answer as declared, `/internal/*` never reaches the edge, alternate HTTP methods and encoded/traversal paths fail safely, the app's own bind port and a handful of common service ports are unreachable directly, and (when `TENANT_BASE_DOMAIN` is live) an unknown tenant subdomain is refused rather than silently falling through. Run from the developer's own machine over the ordinary internet — not the SSH tunnel, not `127.0.0.1`, the exact distinction the 2026-08-14 TLS bring-up already learned the hard way when a firewall problem was invisible from inside the box.
-
-## 2026-09-06
-
-**Stage 49.1.5 — Secure tenant provisioning, offboarding and proof of removal** *(code + schema + tests + docs)*
-
-The tenant lifecycle had exactly two states: it existed, or somebody ran `DROP SCHEMA CASCADE` by hand. Everything in between — a credential that stops working, a tenant that stops being served without being destroyed, a deletion that has to wait for a backup and a retention period, a way to show afterwards that nothing of it remains — did not exist. Provisioning itself was better than its reputation (it already minted a cryptographically random one-time password and refused to clone `tenant_default`'s users), but nothing governed what happened to that password after it was handed over.
-
-**Stage 47.4 + 47.6 — Atomic replay-safe returns, and the RF task shell** *(code + schema + tests)*
-
-**47.4 (A-04).** Stage 35.9 had already built the right shape — one `ReturnRequest` aggregate with a real state machine, prices resolved from the original sale — and its own entry recorded that it had no management UI. What it lacked was the four properties that make a returns model safe, and what it sat beside was a legacy instant-return path that had none of them. That path took price and cost from the caller, incremented stock with an unlocked upsert, committed, and only then posted two GL reversals with no idempotency key; its "already returned" pool came from a single `SalesReturn` document whose repeat INSERT conflicted and whose error the HTTP handler discarded, so the recorded total never advanced past the first call while stock and GL for every later call still went through. Four replayed calls of 3 against a sale of 10 returned 12.
 

@@ -20,7 +20,7 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 4)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **140** codes, from
+lists every area and explains how to read a code. It holds **141** codes, from
 Sales / POS to WMS / Logistics.
 
 ## Contents
@@ -30,7 +30,7 @@ Sales / POS to WMS / Logistics.
 - [Security](#security) - 9 codes
 - [Security / AI assistant access](#security-ai-assistant-access) - 10 codes
 - [Security / Rate Limit](#security-rate-limit) - 6 codes
-- [Stock Transfer](#stock-transfer) - 17 codes
+- [Stock Transfer](#stock-transfer) - 18 codes
 - [Tax / GST / E-Invoice](#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](#user-access-security) - 9 codes
 - [Vendor Invoice / AP](#vendor-invoice-ap) - 17 codes
@@ -156,6 +156,7 @@ Sales / POS to WMS / Logistics.
 | `STOCKT-0491` | Transfer cannot join the wave | This transfer cannot be added to that wave. | Use an Approved or Packed transfer from the wave's location, into a wave that is not closed, with transfer waves turned on. | Medium | 422 |
 | `STOCKT-0492` | Allocation run not found or nothing to act on | That allocation run has nothing to do. | Check the run ID; submit applies to Drafts, approve to transfers waiting for approval. | Medium | 422 |
 | `STOCKT-0493` | Fill policy value not recognised | That fill policy is not valid. | Choose Exact, Ship what is there or Complete. | Medium | 422 |
+| `STOCKT-0494` | Stock request refused | This stock request cannot go ahead. | Read the reason shown, fix the request or pick another location, then try again. | Medium | 422 |
 | `TRN-0259` | Transfer receiving mismatch | Received quantity does not match dispatched quantity. Shortage/damage reason is required. | Enter shortage/damage reason and submit exception. | High | 200 |
 
 ## Tax / GST / E-Invoice

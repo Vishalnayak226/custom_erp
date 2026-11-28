@@ -15,7 +15,7 @@ const SECTIONS = [
   { title: 'Contact', fields: ['contact_phone', 'email', 'manager'] },
   { title: 'Selling', fields: ['sellable', 'salesman_mode', 'upi_id', 'items_not_sold_here', 'items_not_stocked_here'] },
   { title: 'Online orders', closed: true, fields: ['facility_code', 'ship_online', 'ship_channels', 'ship_daily_cap', 'ship_priority'] },
-  { title: 'Transfers', closed: true, fields: ['transfer_fill_policy', 'transfer_min_fill_pct'] }
+  { title: 'Transfers', closed: true, fields: ['transfer_fill_policy', 'transfer_min_fill_pct', 'auto_request_stock'] }
 ];
 
 let listState = null;     // the list's view, search and page (txn-screen)

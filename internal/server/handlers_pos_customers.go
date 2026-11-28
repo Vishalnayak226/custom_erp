@@ -202,7 +202,7 @@ func handlePOSBills(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	bills, err := engines.SearchStoreBills(tenantID, stores, q.Get("q"), q.Get("date"))
+	bills, err := engines.SearchStoreBills(r.Context(), tenantID, stores, q.Get("q"), q.Get("date"))
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError) // 49.10.4: a bad date or a NUL byte is the request's fault, not a 500
 		return
@@ -238,8 +238,11 @@ func handlePOSSalesHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
-	h, err := engines.SearchSalesHistory(r.Header.Get("Resolved-Tenant-ID"), engines.SalesHistoryFilter{Stores: stores,
-		From: q.Get("from"), To: q.Get("to"), Q: q.Get("q"), Kind: q.Get("kind"), Source: q.Get("source"), Limit: limit, Offset: offset})
+	// part=rows or part=totals: the screen asks for its rows first and the
+	// totals after, so adding up never holds the list (297.4). No part: both.
+	h, err := engines.SearchSalesHistory(r.Context(), r.Header.Get("Resolved-Tenant-ID"), engines.SalesHistoryFilter{Stores: stores,
+		From: q.Get("from"), To: q.Get("to"), Q: q.Get("q"), Kind: q.Get("kind"), Source: q.Get("source"), Limit: limit, Offset: offset,
+		NoTotals: q.Get("part") == "rows", TotalsOnly: q.Get("part") == "totals"})
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return

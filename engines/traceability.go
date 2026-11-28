@@ -857,7 +857,7 @@ func pickableAfterHolds(q stockQuerier, tenantID, sku, locationCode string) (int
 	_ = q.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(bs.qty - COALESCE(ra.reserved, 0)), 0)
 		FROM %s.bin_stock bs
-		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+		`+binDocJoin(true, "b", "bs")+`
 		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
 		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
@@ -901,7 +901,7 @@ func allocateByOrder(q stockQuerier, tenantID, sku, locationCode string, needed 
 		SELECT bs.bin_code, bs.qty - COALESCE(ra.reserved, 0), COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', ''),
 		       COALESCE(NULLIF(z.data->>'pick_sequence', '')::int, 999999) AS zone_pick_seq
 		FROM %s.bin_stock bs
-		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+		`+binDocJoin(true, "b", "bs")+`
 		LEFT JOIN %s.documents z ON z.doctype = 'Zone' AND z.status = 'Active' AND z.deleted_at IS NULL AND z.data->>'code' = b.data->>'zone'
 		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
@@ -972,7 +972,7 @@ func allocateFEFO(q stockQuerier, tenantID, sku, locationCode string, needed int
 		FROM %s.bin_stock_batch bsb
 		JOIN %s.documents b
 		     ON b.doctype = 'Batch' AND b.data->>'item' = bsb.sku AND b.data->>'batch_no' = bsb.batch_no
-		LEFT JOIN %s.documents bn ON bn.doctype = 'Bin' AND bn.data->>'bin_code' = bsb.bin_code
+		`+binDocJoin(true, "bn", "bsb")+`
 		LEFT JOIN (%s) ra ON ra.bin_code = bsb.bin_code AND ra.batch_no = bsb.batch_no
 		WHERE bsb.sku = $1 AND bsb.location_code = $2 AND bsb.condition = 'Good' AND bsb.qty - COALESCE(ra.reserved, 0) > 0
 		  AND COALESCE(b.status, '') = 'Active' AND b.deleted_at IS NULL

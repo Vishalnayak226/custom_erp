@@ -122,7 +122,7 @@
 /* 267.3: a paged list's row - view, search, range, pager - wraps on a narrow window. */
 .txn-list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .txn-list-bar .form-select { width: auto; max-width: 100%; }
-.txn-list-bar input[type="search"].form-input { flex: 1 1 200px; max-width: 320px; }
+.txn-list-bar input.form-input { flex: 1 1 200px; max-width: 320px; }
 .txn-list-range { color: var(--text-muted, #64748b); font-size: 13.5px; }
 .txn-list-pager { display: inline-flex; gap: 6px; margin-left: auto; }
 

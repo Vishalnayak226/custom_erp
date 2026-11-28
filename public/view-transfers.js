@@ -433,6 +433,11 @@ function transferRow(id) {
   return (state.docData || []).find(t => t.id === id);
 }
 
+// 324.3: the Stock Requests pages use these actions too; stay on that page.
+function transferHostView() {
+  return currentView === 'stock-requests' ? `stock-requests${currentViewTab ? ':' + currentViewTab : ''}` : 'transfers';
+}
+
 function transferBalance(row) {
   try {
     if (row.transfer_balance) return JSON.parse(row.transfer_balance);
@@ -468,7 +473,7 @@ async function approveTransferOrder(id) {
   if (!(await showCustomConfirm(`Approve this transfer now?\n\nValue ${value} is below the ₹${formatMoney(limit)} limit a Store Manager can approve alone.`, 'Approve Transfer'))) return;
   const msg = await postTransfer('/api/v1/transfer/approve-direct', { transfer_order_id: id });
   if (msg) { await showCustomAlert(msg, 'Approve Failed'); return; }
-  renderView('transfers');
+  renderView(transferHostView());
 }
 
 async function submitTransferOrder(id, confirmed) {
@@ -476,7 +481,7 @@ async function submitTransferOrder(id, confirmed) {
   const msg = await postTransfer('/api/v1/transfer/submit', { transfer_order_id: id });
   if (msg) { await showCustomAlert(msg, 'Send Failed'); return; }
   await showCustomAlert('Sent for approval.', 'Transfer');
-  renderView('transfers');
+  renderView(transferHostView());
 }
 
 async function decideTransferOrder(id, decision) {
@@ -487,7 +492,7 @@ async function decideTransferOrder(id, decision) {
   }
   const msg = await postTransfer('/api/v1/approval/decide', { doctype: 'TransferOrder', document_id: id, decision, comment });
   if (msg) { await showCustomAlert(msg, 'Decision Failed'); return; }
-  renderView('transfers');
+  renderView(transferHostView());
 }
 
 // ---------------------------------------------------------------------------
@@ -524,7 +529,7 @@ async function packTransferOrder(id) {
     await showApiError(res, 'Failed to pack transfer.', 'Pack Failed');
     return;
   }
-  renderView('transfers');
+  renderView(transferHostView());
 }
 
 // Stage 26.5.8: cartonization - suggests a box split via SuggestCartonization
@@ -565,7 +570,7 @@ async function packTransferOrderWithCartonization(id) {
     await showApiError(packRes, 'Failed to pack transfer.', 'Pack Failed');
     return;
   }
-  renderView('transfers');
+  renderView(transferHostView());
 }
 
 // ---------------------------------------------------------------------------
@@ -587,7 +592,7 @@ async function dispatchTransferOrder(id) {
         const code = form.querySelector('#tdisp-short-reason')?.value || '';
         if (!code) return 'Choose a reason.';
         const msg = await postTransfer('/api/v1/transfer/dispatch', { transfer_order_id: id, short_reason_code: code });
-        if (!msg) renderView('transfers');
+        if (!msg) renderView(transferHostView());
         return msg;
       }
     });
@@ -597,7 +602,7 @@ async function dispatchTransferOrder(id) {
     if (!(await showCustomConfirm('Dispatch this transfer? Stock will move from the source location into transit.', 'Dispatch Transfer'))) return;
     const msg = await postTransfer('/api/v1/transfer/dispatch', { transfer_order_id: id });
     if (msg) { await showCustomAlert(msg, 'Dispatch Failed'); return; }
-    renderView('transfers');
+    renderView(transferHostView());
     return;
   }
   const body = `${tracked.map((l, i) => /Serial/.test(l.tracking_mode) ? `
@@ -625,7 +630,7 @@ async function dispatchTransferOrder(id) {
         }
       }
       const msg = await postTransfer('/api/v1/transfer/dispatch', { transfer_order_id: id, lines });
-      if (!msg) renderView('transfers');
+      if (!msg) renderView(transferHostView());
       return msg;
     }
   });
@@ -721,7 +726,7 @@ async function receiveTransferOrder(id) {
       if (!keepOpen) for (const b of balance) if (!lines.some(l => l.sku === b.sku)) lines.push({ sku: b.sku, qty: 0, reason_code: reason });
       const msg = await postTransfer('/api/v1/transfer/receive', { transfer_order_id: id, received_items: lines, keep_open: keepOpen, receipt_key: key,
         ...readStockFromTo(form) });
-      if (!msg) renderView('transfers');
+      if (!msg) renderView(transferHostView());
       return msg;
     }
   });
@@ -767,7 +772,7 @@ async function returnTransferOrder(id) {
       if (!reason) return 'Choose a reason.';
       const msg = await postTransfer('/api/v1/transfer/return', { transfer_order_id: id, reason_code: reason,
         note: form.querySelector('#tret-note').value.trim(), return_key: key, lines });
-      if (!msg) renderView('transfers');
+      if (!msg) renderView(transferHostView());
       return msg;
     }
   });
@@ -788,7 +793,7 @@ async function cancelTransferOrder(id) {
       const reason = form.querySelector('#tcxl-reason')?.value || '';
       if (!reason) return 'Choose a reason.';
       const msg = await postTransfer('/api/v1/transfer/cancel', { transfer_order_id: id, reason_code: reason, note: form.querySelector('#tcxl-note').value.trim() });
-      if (!msg) renderView('transfers');
+      if (!msg) renderView(transferHostView());
       return msg;
     }
   });

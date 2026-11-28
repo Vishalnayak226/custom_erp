@@ -5,8 +5,8 @@ order: 20
 summary: Receive stock against a PO, put it away, pick and pack it back out, count it, adjust it, and move it between locations — the floor-ops backbone every other WMS feature sits on top of.
 audience: warehouse operator, warehouse manager, admin
 last_verified: 2026-11-15
-screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, inventory, stock-locations, stock-moves, module:inventory, reports]
-screen_sections: [grn=grn-workbench-desktop-full-detail,putaway=manual-putaway,cycle-count=cycle-counts,transfers=transfers-stock-movement]
+screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, stock-requests, warehouse-cockpit, inventory, stock-locations, stock-moves, module:inventory, reports]
+screen_sections: [grn=grn-workbench-desktop-full-detail,putaway=manual-putaway,cycle-count=cycle-counts,transfers=transfers-stock-movement,stock-requests=stock-requests]
 doc_id: DOC-79A300F5E0
 type: procedure
 status: draft
@@ -591,6 +591,33 @@ choose the reason, and either leave the rest in transit or close it as lost.
 | `STOCKT-0112` | Dispatch quantity exceeds what's actually available at the source. |
 | `STOCKT-0113` | Attempted to close a transfer before its receipt is complete. |
 | `TRN-0259` | Received quantity doesn't match dispatched quantity, and no shortage/damage reason was given — the Receive dialog prompts for one automatically on a short line. |
+
+## Stock Requests
+
+A store or warehouse asks another location for stock; the sender accepts it, packs it and
+dispatches it. Each request is an ordinary transfer, so it is received the usual way.
+
+**Ask** (**Inventory → Stock Requests**, short code `SRQ`):
+
+1. **New Request**. Pick a reason or type one, such as *Advance order*. Add **SKU + Qty**
+   lines, or **Upload lines** (a CSV with `Barcode,Qty`). A blank Qty asks for the suggested
+   amount.
+2. **Find sources**. Each line shows the suggested location, the others that can send, and why:
+   spare stock, distance, how long its stock lasts and warehouse first. You can change the
+   **From** on any line.
+3. **Send Request**. One transfer is made for each sending location, all under one request
+   number. Lines no location can spare are listed so you can ask again later.
+
+**Fulfil** (**Inventory → Requests to Fulfil**, `SRF`): **Accept**, **Accept less** (type what
+you can send), or **Reject** with a reason. Then **Pack** and **Dispatch**. The asking location
+sees *On the way* and uses **Receive**.
+
+**Automatic requests:** a location with **Auto Stock Requests** switched on (Settings → Stores)
+asks once a day for what its reorder levels say it needs. **Auto request** on the list runs it now.
+
+| Code | Meaning |
+|---|---|
+| `STOCKT-0494` | No approval rule for transfers and the direct-approval limit is 0, so a request cannot be accepted. An admin adds the rule or raises the limit. |
 
 ## WMS home
 

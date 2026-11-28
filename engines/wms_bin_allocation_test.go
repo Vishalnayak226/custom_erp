@@ -326,3 +326,61 @@ func TestStage59_1MoveRespectsReservation(t *testing.T) {
 		t.Fatalf("move of released stock: %v", err)
 	}
 }
+
+// TestBinCodeSharedAcrossBinRecords locks down 319.6 and 319.7: a bin row is one
+// bin, however many Bin records carry its code. Before 319.6 the allocation
+// joined Bin records by code alone, so a 2-unit task reserved 2 from a bin
+// holding 1 (one copy of the row per record), and another store's Bin record
+// decided whether this store's bin could be picked.
+func TestBinCodeSharedAcrossBinRecords(t *testing.T) {
+	tenantID, schema, insert := stage140Tenant(t)
+	const sku, s1, s2 = "BSC-SKU", "BSC-S1", "BSC-S2"
+	insert("ITEM-"+sku, "Item", "Active", "system", map[string]interface{}{"code": sku, "name": "Q"})
+	bin := func(id, code, loc, binStatus string) {
+		m := map[string]interface{}{"bin_code": code, "location": loc, "status": "Active"}
+		if binStatus != "" {
+			m["bin_status"] = binStatus
+		}
+		insert(id, "Bin", "Active", "system", m)
+	}
+	// BSC-B3: the same code at another store, and an older duplicate at this one.
+	bin("BIN-BSC-1", "BSC-B3", s1, "")
+	bin("BIN-BSC-2", "BSC-B3", s2, "")
+	bin("BIN-BSC-3", "BSC-B3", s2, "")
+	// BSC-B4: only another store has a record, and there it is Blocked.
+	bin("BIN-BSC-4", "BSC-B4", s1, "Blocked")
+	for code, qty := range map[string]int{"BSC-B3": 1, "BSC-B4": 2} {
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".bin_stock (bin_code, sku, location_code, condition, qty) VALUES ($1, $2, $3, 'Good', $4)", code, sku, s2, qty); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, short, err := allocateFromStockQ(db.DB, tenantID, sku, s2, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bins := map[string]int{}
+	for _, c := range got {
+		bins[c.BinCode] += c.Qty
+	}
+	if bins["BSC-B3"] != 1 || bins["BSC-B4"] != 2 || short != 2 {
+		t.Fatalf("allocation = %v short %d; want B3 1 (it holds 1), B4 2 (blocked only at the other store), short 2 of 5", bins, short)
+	}
+
+	// 319.7: one code per store. A new duplicate at the store is refused; the
+	// same code at another store, and an edit of an older duplicate, are not.
+	save := func(docID, code, loc string) error {
+		return ValidateMasterDataRules(tenantID, docID, "Bin", map[string]interface{}{"bin_code": code, "location": loc, "status": "Active"})
+	}
+	if ve, ok := save("", "BSC-B3", s2).(*ValidationError); !ok || ve.Code != "GLOBAL-0003" {
+		t.Fatalf("a second BSC-B3 at %s must be refused with GLOBAL-0003, got %v", s2, ve)
+	}
+	if err := save("BIN-BSC-1", "BSC-B3", s2); err == nil {
+		t.Fatalf("moving a bin to a store that already has its code must be refused")
+	}
+	if err := save("", "BSC-B3", "BSC-S3"); err != nil {
+		t.Fatalf("the same code at another store: %v", err)
+	}
+	if err := save("BIN-BSC-3", "BSC-B3", s2); err != nil {
+		t.Fatalf("an older duplicate must stay editable: %v", err)
+	}
+}

@@ -64,7 +64,7 @@ func ownersAtLocationQ(q stockQuerier, schema, locationCode string) ([]string, e
 			UNION
 			SELECT b.data->>'owner_id' AS owner
 			  FROM %s.bin_stock bs
-			  JOIN %s.documents b ON b.doctype = 'Bin' AND b.deleted_at IS NULL AND b.data->>'bin_code' = bs.bin_code
+			  `+binDocJoin(false, "b", "bs")+`
 			 WHERE bs.location_code = $1 AND bs.qty > 0 AND COALESCE(b.data->>'owner_id', '') <> ''
 			   AND NOT EXISTS (SELECT 1 FROM %s.bin_stock_owner bso
 			                    WHERE bso.bin_code = bs.bin_code AND bso.sku = bs.sku AND bso.condition = bs.condition AND bso.qty > 0)

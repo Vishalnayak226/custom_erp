@@ -471,7 +471,7 @@ func findReplenishmentReserves(schema, sku, locationCode, excludeBinCode string)
 	fetch := func(reserveOnly bool) ([]reserveBin, error) {
 		q := fmt.Sprintf(`
 			SELECT bs.bin_code, bs.qty FROM %s.bin_stock bs
-			LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+			`+binDocJoin(true, "b", "bs")+`
 			WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good'
 			  AND bs.bin_code != $3 AND bs.qty > 0`, schema, schema)
 		if reserveOnly {

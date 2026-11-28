@@ -36,6 +36,8 @@ func main() {
 		code = cmdSoak(os.Args[2:])
 	case "cluster":
 		code = cmdCluster(os.Args[2:])
+	case "load":
+		code = cmdLoad(os.Args[2:])
 	default:
 		usage()
 		code = 2
@@ -47,7 +49,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   journeylab journey [flags]   drive the journeys, write JSON and Markdown evidence
   journeylab soak    [flags]   repeat a light journey for a duration with disturbances
-  journeylab cluster up|down   start or stop a private Postgres cluster for the soak`)
+  journeylab cluster up|down   start or stop a private Postgres cluster for the soak
+  journeylab load    [flags]   N users on a fixed schedule: merged histograms, CPU per request, sizing`)
 }
 
 type commonFlags struct {
@@ -84,6 +87,7 @@ func bootstrap(c *commonFlags) (*Runner, error) {
 
 func newRunner(c *commonFlags, d *sql.DB, schema string) (*Runner, error) {
 	cl := NewClient(c.baseURL)
+	cl.Tenant = c.tenant
 	r := &Runner{Cl: cl, DB: d}
 	pid := c.serverPID
 	r.Cfg = Config{BaseURL: c.baseURL, DBURL: c.dbURL, Tenant: c.tenant, Schema: schema, Settle: 1100 * time.Millisecond, PGBin: c.pgBin, ServerBin: c.serverBin,

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -51,6 +52,7 @@ const (
 	importInlineStale  = 2 * time.Minute  // a running step not heard from in this long has died
 	importRowMaxBytes  = 8 << 20          // one row of a file; longer means an unclosed quote
 	importReadBlock    = 4 << 20          // bytes per encoding scan / conversion read
+	importAnalyzeFrom  = 20000            // rows a commit writes before it refreshes the table's figures, then each doubling
 )
 
 // Chunk sizes, and a test seam: importSliceChunks, when set, ends a
@@ -255,6 +257,23 @@ func (r *importStepRun) outOfTime() bool {
 	return time.Now().After(r.deadline)
 }
 
+// importCrashAt (313.3) is a test seam, nil in production. When set, a run
+// calls it at each point a server could die: as a step starts ("start"),
+// with a chunk read but not written ("chunk"), with a commit chunk's records
+// written but its place not saved ("written"), with the chunk and its place
+// saved ("saved"), and with the batch's ImportJob recorded but the reconcile
+// not yet finished ("recorded"). An error ends the run there with nothing more
+// written, as a crash would; import_crash_test.go lets the job's claim run
+// out and checks the import still ends with the one-pass result.
+var importCrashAt func(step, point string) error
+
+func (r *importStepRun) crashPoint(point string) error {
+	if importCrashAt == nil {
+		return nil
+	}
+	return importCrashAt(r.w.Step, point)
+}
+
 func (r *importStepRun) progress() {
 	if r.w.Total < r.w.Done {
 		r.w.Total = r.w.Done
@@ -322,6 +341,9 @@ func (r *importStepRun) finish(q importExec, status string, next *ImportBatchWor
 // committing to reconciling), until the work ends, the slice is up or it fails.
 func (r *importStepRun) run() error {
 	for r.w != nil {
+		if err := r.crashPoint("start"); err != nil {
+			return err
+		}
 		var err error
 		switch r.w.Step {
 		case importStepStage:
@@ -1073,7 +1095,13 @@ func (r *importStepRun) stageRows(path string, base int64) error {
 			return JobStopError{importBatchErr("DATAIM-0189", "the file has more than %d rows - split it into smaller files and import them separately", maxRows)}
 		}
 		w.Offset = pos()
+		if err := r.crashPoint("chunk"); err != nil {
+			return err
+		}
 		if err := r.copyStaged(batch); err != nil {
+			return err
+		}
+		if err := r.crashPoint("saved"); err != nil {
 			return err
 		}
 		// Rows not yet read are not counted, so the bar's total is the rows
@@ -1252,7 +1280,13 @@ func (r *importStepRun) validate() error {
 		if len(rows) == 0 {
 			break
 		}
+		if err := r.crashPoint("chunk"); err != nil {
+			return err
+		}
 		if err := r.validateChunk(lk.isMaster, rows); err != nil {
+			return err
+		}
+		if err := r.crashPoint("saved"); err != nil {
 			return err
 		}
 		r.progress()
@@ -1332,17 +1366,15 @@ func (r *importStepRun) validateChunk(isMaster bool, rows []*importCheckRow) err
 	}
 	existing := map[string]string{}
 	if len(keys) > 0 {
-		q, err := db.DB.QueryContext(r.ctx, fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL AND id = ANY($2)`, r.schema), b.DoctypeName, pq.Array(keys))
+		docs, err := importDocsByID(r.ctx, db.DB, r.schema+".documents", keys, false, false) // 313.2
 		if err != nil {
 			return err
 		}
-		for q.Next() {
-			var id string
-			if q.Scan(&id) == nil {
+		for id, d := range docs {
+			if d.live(b.DoctypeName) {
 				existing[strings.ToLower(id)] = id
 			}
 		}
-		q.Close()
 	}
 	// An item variant's parent: in the database, earlier in this chunk or
 	// earlier in the file.
@@ -1511,17 +1543,30 @@ func (r *importStepRun) commit() error {
 		if len(rows) == 0 {
 			break
 		}
+		if err := r.crashPoint("chunk"); err != nil {
+			return err
+		}
 		if err := commitImportChunk(r.ctx, r.tenantID, r.schema, r.b, rows, w.UserID, w.Role); err != nil {
+			return err
+		}
+		if err := r.crashPoint("written"); err != nil {
 			return err
 		}
 		chunk := r.chunks
 		r.chunks++
 		w.Cursor = rows[len(rows)-1].RowNo
+		before := w.Done
 		w.Done += int64(len(rows))
 		if err := r.saveWork(db.DB); err != nil {
 			return err
 		}
+		if err := r.crashPoint("saved"); err != nil {
+			return err
+		}
 		r.progress()
+		if importAnalyzeMark(before) != importAnalyzeMark(w.Done) {
+			r.refreshDocStats()
+		}
 		if importCommitAfterChunk != nil {
 			if err := importCommitAfterChunk(chunk); err != nil {
 				return err
@@ -1548,6 +1593,41 @@ func (r *importStepRun) commit() error {
 	}
 	LogAuditEvent(r.tenantID, w.UserID, "IMPORT_BATCH_COMMITTED", "Success", fmt.Sprintf("batch=%s doctype=%s committed=%d failed=%d", b.ID, b.DoctypeName, counts.Committed, counts.Failed))
 	return nil
+}
+
+// importAnalyzeMark counts the refresh marks n written rows have passed:
+// importAnalyzeFrom, then each doubling. A commit refreshes the figures when
+// a chunk moves it to the next mark - about ten times for 1 crore rows, and
+// a resumed commit carries on from the mark it had reached.
+func importAnalyzeMark(n int64) int {
+	m := 0
+	for t := int64(importAnalyzeFrom); n >= t; t *= 2 {
+		m++
+	}
+	return m
+}
+
+// refreshDocStats re-reads the documents table's figures (297.2.5). A commit
+// adds one doctype's rows far faster than autovacuum's 10% mark notices on a
+// big table. Until it does, the planner takes that doctype for nearly empty
+// and finds each chunk's existing rows by reading every row of the doctype
+// written so far: on the 1-crore run the commit fell from 2,900 rows a second
+// to 230, and one lookup took 49 s. ANALYZE samples the table in a few
+// seconds and blocks no reads or writes; it waits 5 s at most for its lock,
+// and a failure is logged, never the import's.
+func (r *importStepRun) refreshDocStats() {
+	tx, err := db.DB.BeginTx(r.ctx, nil)
+	if err == nil {
+		defer tx.Rollback()
+		if _, err = tx.Exec(`SET LOCAL lock_timeout = '5s'`); err == nil {
+			if _, err = tx.Exec(fmt.Sprintf(`ANALYZE %s.documents`, r.schema)); err == nil {
+				err = tx.Commit()
+			}
+		}
+	}
+	if err != nil && r.ctx.Err() == nil {
+		log.Printf("[IMPORT] batch %s: table figures not refreshed at %d rows: %v", r.b.ID, r.w.Done, err)
+	}
 }
 
 // ---- step: reconcile ---------------------------------------------------------------------
@@ -1587,6 +1667,9 @@ func (r *importStepRun) reconcile() error {
 		if len(rows) == 0 {
 			break
 		}
+		if err := r.crashPoint("chunk"); err != nil {
+			return err
+		}
 		var named []string
 		for _, row := range rows {
 			rc.RowsInFile++
@@ -1609,10 +1692,15 @@ func (r *importStepRun) reconcile() error {
 			w.Acc.add(row.Data, committed)
 		}
 		if len(named) > 0 {
-			var n int
-			if err := db.DB.QueryRowContext(r.ctx, fmt.Sprintf(`SELECT COUNT(DISTINCT id) FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL AND id = ANY($2)`, r.schema),
-				b.DoctypeName, pq.Array(named)).Scan(&n); err != nil {
+			docs, err := importDocsByID(r.ctx, db.DB, r.schema+".documents", named, false, false) // 313.2
+			if err != nil {
 				return err
+			}
+			n := 0
+			for _, d := range docs {
+				if d.live(b.DoctypeName) {
+					n++
+				}
 			}
 			rc.KeysChecked += len(named)
 			rc.KeysMissing += len(named) - n
@@ -1620,6 +1708,9 @@ func (r *importStepRun) reconcile() error {
 		w.Cursor = rows[len(rows)-1].RowNo
 		w.Done += int64(len(rows))
 		if err := r.saveWork(db.DB); err != nil {
+			return err
+		}
+		if err := r.crashPoint("saved"); err != nil {
 			return err
 		}
 		r.progress()
@@ -1666,6 +1757,9 @@ func (r *importStepRun) reconcile() error {
 		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'ImportJob' AND data->>'batch_id' = $1 LIMIT 1`, r.schema), b.ID).Scan(&b.ImportJobID)
 	}
 	if err := recordStagedImportJob(r.tenantID, b, rc, w.UserID); err != nil {
+		return err
+	}
+	if err := r.crashPoint("recorded"); err != nil {
 		return err
 	}
 	status := "Committed"

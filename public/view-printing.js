@@ -254,6 +254,7 @@ let stickerSourceDocId = '';
 let stickerSourceChosen = '';   // 143.6: the document whose preview choosing it opened
 let stickerSourceOpening = '';  // 246.2: the document being loaded or previewed now
 let stickerSourceAwaiting = null; // 143.6: lines whose preview waits for a printer
+let stickerSourceQueue = [];    // 320.2: the next goods receipts to print, {id, skus}
 let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
 let stickerSourceSelected = {}; // line index -> bool, defaults to all-selected on load
 let stickerSourceCopies = {};   // line index -> int, defaults to the line's own qty
@@ -581,6 +582,8 @@ function renderStickerSourcePanel(container, printers) {
     sessionStorage.removeItem('grn-child-stickers');
   } catch (_) { /* storage can be disabled */ }
   if (pending && pending.id) {
+    // 320.2: an upload's receipts print one after another.
+    stickerSourceQueue = Array.isArray(pending.next) ? pending.next.filter(n => n && n.id) : [];
     // Stage 129: open the print page itself, not the history behind it.
     window.txnShowPane('sticker-print:new');
     doctypeSelect.value = 'GRN';
@@ -612,6 +615,7 @@ async function chooseStickerSourceDoc(force = false) {
   // 246.2: typing a number then clicking Load fires the box's change and Load's
   // click together; one preview, not two stacked.
   if (value === stickerSourceOpening) return;
+  stickerSourceQueue = [];
   stickerSourceChosen = value;
   stickerSourceOpening = value;
   try {
@@ -1099,6 +1103,11 @@ async function printStickerSourceLines(indexes) {
   stickerPendingPrint = null;
   await printStickerRun(data, { printerCode, copies: 1, jobRef: stickerSourceDocId });
   (await loadTxnScreen()).txnDone('sticker-print');
+  if (stickerSourceQueue.length) {
+    const [next, ...rest] = stickerSourceQueue;
+    try { sessionStorage.setItem('grn-child-stickers', JSON.stringify({ ...next, next: rest })); } catch (_) { /* storage can be disabled */ }
+  }
+  stickerSourceQueue = [];
   renderView('stickers');
 }
 

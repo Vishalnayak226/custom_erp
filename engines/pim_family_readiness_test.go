@@ -53,3 +53,48 @@ func TestPIMPublishReadinessRequiresProductFamily(t *testing.T) {
 		t.Fatalf("family-less item must not publish even with approved content and mapped category: %+v", readiness)
 	}
 }
+
+// TestPIMPublishChannelByCode (319.10): the Workbench sends a Channel's code,
+// and an older Channel's id is a UUID. Readiness and the platform lookup must
+// find it by code as well as by id; a deleted Channel is not found by either.
+func TestPIMPublishChannelByCode(t *testing.T) {
+	db.InitDB(testConnStr())
+	schema, err := db.GetTenantSchema("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const item = "PIM-CHREF-ITEM"
+	ids := []string{item, "PIM-CHREF-UUID-0001", "PIM-CHREF-UUID-0002"}
+	cleanup := func() {
+		for _, id := range ids {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", id)
+		}
+	}
+	cleanup()
+	defer cleanup()
+	insert := func(id, doctype string, data map[string]interface{}) {
+		t.Helper()
+		encoded, _ := json.Marshal(data)
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1,$2,$3,'Active','system')", id, doctype, encoded); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert(item, "Item", map[string]interface{}{"code": item, "name": "Channel ref item"})
+	insert("PIM-CHREF-UUID-0001", "Channel", map[string]interface{}{"code": "PIM-CHREF-CODE", "name": "Legacy channel", "platform": "Myntra", "default_locale": "en"})
+	insert("PIM-CHREF-UUID-0002", "Channel", map[string]interface{}{"code": "PIM-CHREF-GONE", "name": "Deleted channel", "default_locale": "en"})
+	if _, err := db.DB.Exec("UPDATE " + schema + ".documents SET deleted_at = NOW() WHERE id = 'PIM-CHREF-UUID-0002'"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, ref := range []string{"PIM-CHREF-UUID-0001", "PIM-CHREF-CODE"} {
+		if _, err := CheckPublishReadiness("default", item, ref); err != nil {
+			t.Errorf("CheckPublishReadiness(%q): %v, want the channel found", ref, err)
+		}
+		if platform, err := fetchChannelPlatform("default", ref); err != nil || platform != "Myntra" {
+			t.Errorf("fetchChannelPlatform(%q) = %q, %v, want Myntra", ref, platform, err)
+		}
+	}
+	if _, err := CheckPublishReadiness("default", item, "PIM-CHREF-GONE"); err == nil || !strings.Contains(err.Error(), "channel not found") {
+		t.Errorf("a deleted channel must not be found, got %v", err)
+	}
+}

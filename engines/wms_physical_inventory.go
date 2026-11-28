@@ -130,7 +130,7 @@ func StartPhysicalInventory(tenantID, locationCode, zoneCode, userID string) (pi
 	} else {
 		skuRows, err := tx.Query(fmt.Sprintf(`
 			SELECT DISTINCT bs.sku FROM %s.bin_stock bs
-			JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+			`+binDocJoin(false, "b", "bs")+`
 			WHERE bs.location_code = $1 AND b.data->>'zone' = $2 AND bs.qty > 0`, schema, schema),
 			locationCode, zoneCode)
 		if err != nil {

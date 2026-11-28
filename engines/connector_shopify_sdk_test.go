@@ -107,6 +107,9 @@ func (f *fakeShopify) handler(t *testing.T) http.HandlerFunc {
 				edges = append(edges, fmt.Sprintf(`{"node":{"id":"gid://shopify/ProductVariant/%s","sku":%q,"barcode":%q,"price":%q,"compareAtPrice":null,"inventoryItem":{"id":"gid://shopify/InventoryItem/%s"}}}`, sku, sku, bc, price, sku))
 			}
 			data = fmt.Sprintf(`{"productSet":{"product":{"id":%q,"variants":{"edges":[%s]}},"userErrors":[]}}`, pid, strings.Join(edges, ","))
+		case strings.Contains(q, "metafieldsDelete("):
+			f.record("mfDelete", req.Variables)
+			data = `{"metafieldsDelete":{"deletedMetafields":[],"userErrors":[]}}`
 		case strings.Contains(q, "productVariantsBulkUpdate"):
 			f.record("prices", req.Variables)
 			data = `{"productVariantsBulkUpdate":{"userErrors":[]}}`

@@ -251,7 +251,7 @@ func ownerStockQty(schema, ownerID, locationCode, sku string) (int, error) {
 			UNION ALL
 			SELECT bs.qty AS q
 			FROM %s.bin_stock bs
-			JOIN %s.documents b ON b.doctype = 'Bin' AND b.deleted_at IS NULL AND b.data->>'bin_code' = bs.bin_code
+			`+binDocJoin(false, "b", "bs")+`
 			WHERE b.data->>'owner_id' = $1 AND bs.location_code = $2 AND bs.condition = 'Good'
 			  AND ($3 = '' OR bs.sku = $3)
 			  AND NOT EXISTS (
@@ -293,7 +293,7 @@ func ownerLocationSkuBalances(schema string) ([]ownerLocationSkuQty, error) {
 			UNION ALL
 			SELECT b.data->>'owner_id' AS owner, bs.location_code AS location, bs.sku, bs.qty AS q
 			FROM %s.bin_stock bs
-			JOIN %s.documents b ON b.doctype = 'Bin' AND b.deleted_at IS NULL AND b.data->>'bin_code' = bs.bin_code
+			`+binDocJoin(false, "b", "bs")+`
 			WHERE bs.condition = 'Good' AND COALESCE(b.data->>'owner_id','') <> ''
 			  AND NOT EXISTS (
 				SELECT 1 FROM %s.bin_stock_owner bso

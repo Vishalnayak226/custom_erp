@@ -66,12 +66,28 @@ export async function printComputer() {
 const storeCode = (location) => location || (window.erpWorkingStore || {}).code || '';
 
 // chosenPrinter is where a kind would print now on this computer (its own
-// choice, else the store's default), or null.
+// choice, else the store's default), or null. 310.2: null too when that
+// printer is not installed on this computer, so the caller chooses this
+// computer's own (minn's store default named the owner's "LD0801 Label
+// Printer"; the store PC has "DP27 Label Printer (Copy 1)").
 export async function chosenPrinter(kind, location) {
   const qs = new URLSearchParams({ computer: await printComputer(), kind, location: storeCode(location) });
   const res = await window.apiFetch(`/api/v1/print/agent/assignments?${qs}`);
   if (!res || !res.ok) return null;
-  return (await res.json()).printer || null;
+  const printer = (await res.json()).printer || null;
+  return printer && await installedHere(printer) ? printer : null;
+}
+
+// installedHere (310.2) is false only when PrintBridge lists this computer's
+// printers and the record's Windows printer is not one of them (Windows
+// matches names without case). No tray, no list or no name: true, and the
+// print itself says what is wrong.
+export async function installedHere(printer) {
+  const name = String((printer && printer.os_printer_name) || '').trim().toLowerCase();
+  if (!name || !window.PrintAgent?.isConnected?.()) return true;
+  let list = [];
+  try { list = (await window.PrintAgent.listOSPrinters()) || []; } catch (_) { return true; }
+  return !list.length || list.some(n => String(n).trim().toLowerCase() === name);
 }
 
 // computerPrinters (213.1) is every printer this computer has chosen for any

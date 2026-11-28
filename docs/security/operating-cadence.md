@@ -33,7 +33,7 @@ than in an audit.
 | Every release | Attack-surface and control evidence: routes, sign-in levels, jobs, flags, dependencies, outbound calls | engineering-owner | release gates G6 / G6b, `docs/security/attack_surface.json` |
 | Monthly (35 days) | Vulnerability and patch review | engineering-owner | `docs/security/dependency-ledger.json` `updated` |
 | Monthly | Restore drill on a throwaway copy | operations-owner | newest dated heading in `docs/operations/restore-drill-log.md` |
-| Monthly | Access review: admins without 2FA, API keys, emergency-control use | security-owner | Settings → Monitoring → Security Events (live) |
+| Monthly | Access review: admins without 2FA, API keys, emergency-control use | security-owner | Settings → Monitoring → Security Events and Access Review (live) |
 | Monthly | Detection and data-growth review: fired detections, lost audit writes, the state forecast | security-owner | Settings → Monitoring → Security Events (live); `cmd/stateforecast` |
 | Quarterly (100 days) | Threat model review | security-owner | `docs/security/threat-model.md` `last_verified` |
 | Quarterly | Risk register review | security-owner | `docs/security/risk-register.md` `last_verified` |

@@ -691,20 +691,17 @@ func PreviewImportBatch(ctx context.Context, tenantID, batchID string) (*ImportB
 		for i, r := range upds {
 			ids[i] = r.MatchID
 		}
-		q, err := db.DB.QueryContext(ctx, fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = $1 AND id = ANY($2)`, schema), b.DoctypeName, pq.Array(ids))
+		docs, err := importDocsByID(ctx, db.DB, schema+".documents", ids, true, false) // 313.2
 		if err != nil {
 			return nil, err
 		}
-		for q.Next() {
-			var id string
-			var raw []byte
-			if q.Scan(&id, &raw) == nil {
+		for id, d := range docs {
+			if d.doctype == b.DoctypeName {
 				m := map[string]interface{}{}
-				_ = json.Unmarshal(raw, &m)
+				_ = json.Unmarshal(d.data, &m)
 				stored[id] = m
 			}
 		}
-		q.Close()
 	}
 	for _, r := range upds {
 		p.Updates = append(p.Updates, ImportPreviewSample{Row: r.RowNo, ID: r.MatchID, Changes: importPreviewChanges(stored[r.MatchID], r.Data)})

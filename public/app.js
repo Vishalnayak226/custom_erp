@@ -406,7 +406,7 @@ const loadedViewModules = new Map();
 const viewModuleLoadAttempts = new Map();
 // 53.17: VIEW_MODULE_VERSION busts lazy view modules' cache after a deploy (the release bumps it
 // with index.html's app.js?v=); viewModuleCacheBust is set by Reset so it re-fetches them too.
-const VIEW_MODULE_VERSION = '97';
+const VIEW_MODULE_VERSION = '98';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -488,6 +488,7 @@ const LAZY_VIEW_MODULES = {
   hr: ['view-hr.js', 'renderHRView', 'HR'],
   assets: ['view-assets.js', 'renderAssetsView', 'Fixed Assets'],
   transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Movement', 'txn-screen.css'],
+  'stock-requests': ['view-stock-requests.js', 'renderStockRequestsView', 'Stock Requests', 'txn-screen.css'], // 324.3
   expenses: ['view-expenses.js', 'renderExpensesView', 'Expenses'],
   manufacturing: ['view-manufacturing.js', 'renderManufacturingView', 'Manufacturing'],
   pim: ['view-pim.js', 'renderPIMView', 'PIM'],
@@ -926,21 +927,26 @@ let editingDocVersion = null;
 // the same view/doctype/search/page instead of always bouncing to DEFAULT_VIEW.
 const NAV_STATE_KEY = 'erp_nav_state';
 
+// The link of the screen showing now.
+// BLD-034: carries page/search along on a doctype-table screen, so a
+// refresh restores where the user actually was, not just which doctype -
+// found live while verifying BLD-034's "persistent context" against a
+// 250k-row seeded table (a same-tab F5 always looked exactly like a
+// fresh deep link before this, since deepLinkForDoctype's own hint/
+// "open in new tab" callers never pass page/search and so are
+// unaffected - see deepLinkForDoctype's own comment).
+function currentScreenLink() {
+  return currentView === 'doctype-table' && currentDoctype
+    ? deepLinkForDoctype(currentDoctype, { page: currentTablePage, search: currentSearchQuery })
+    : deepLinkForView(currentViewTab ? `${currentView}:${currentViewTab}` : currentView);
+}
+
 function saveNavState() {
   // Stage 41 / 64.6: mirror the current screen into the address bar (pushState/replaceState, so
   // hashchange does not re-render). A new screen pushes one entry, so browser Back walks screens;
   // paging/search, the first screen after sign-in and a setup detour replace.
   try {
-    // BLD-034: carries page/search along on a doctype-table screen, so a
-    // refresh restores where the user actually was, not just which doctype -
-    // found live while verifying BLD-034's "persistent context" against a
-    // 250k-row seeded table (a same-tab F5 always looked exactly like a
-    // fresh deep link before this, since deepLinkForDoctype's own hint/
-    // "open in new tab" callers never pass page/search and so are
-    // unaffected - see deepLinkForDoctype's own comment).
-    let target = currentView === 'doctype-table' && currentDoctype
-      ? deepLinkForDoctype(currentDoctype, { page: currentTablePage, search: currentSearchQuery })
-      : deepLinkForView(currentViewTab ? `${currentView}:${currentViewTab}` : currentView);
+    let target = currentScreenLink();
     // An article's /help/<slug> path outlives the article: leaving Help
     // changed only the hash, so a refresh reopened Help (user, 2026-10-18).
     const leavingHelpPath = currentView !== 'help' && /^\/help(\/|$)/.test(location.pathname);
@@ -3111,7 +3117,16 @@ window.addEventListener('hashchange', () => {
     return;
   }
   const link = parseDeepLink();
-  if (link) navigateToDeepLink(link);
+  if (!link) return;
+  navigateToDeepLink(link).then(ok => {
+    if (ok || link.kind !== 'setup') return;
+    // 319.2: a pasted link to a list this role cannot read (or that is not
+    // here) did nothing, and the address bar kept it over the screen still
+    // showing. Say why, and put the address back on that screen.
+    const known = state.activeDoctypes.some(d => d.name === link.doctype);
+    showToast(known ? `No access to ${getDoctypeLabel(link.doctype)}` : 'No such list', { variant: 'warning' });
+    history.replaceState(history.state, '', currentScreenLink());
+  });
 });
 
 // --- setup status ---------------------------------------------------------
@@ -4303,6 +4318,10 @@ const MENU_PERMISSION_MAP = {
   'menu-log-system': { capability: 'system.logs', strict: true },
   'menu-log-jobs': { capability: 'jobs.view' },
   'menu-log-security': { adminOnly: true },
+  'menu-log-security-access': { adminOnly: true }, // 311.1
+  'menu-log-security-trace': { adminOnly: true },
+  'menu-log-security-notify': { adminOnly: true },
+  'menu-log-security-emergency': { adminOnly: true },
   'menu-privacy-approvals': { adminOnly: true, capability: 'admin.privacy-approval' }, // 49.12.5
   // System Status dashboard (Stage 26.1.2) - reuses the same HR/Admin-only
   // gate as the ops-visibility endpoints it reads (requireHRAdmin on
@@ -4728,6 +4747,12 @@ const MENU_MODULE_MAP = {
     "module": "inventory",
     "views": [
       "stock-moves"
+    ]
+  },
+  "menu-stock-requests": {
+    "module": "inventory",
+    "views": [
+      "stock-requests"
     ]
   },
   "transfer-create-btn": {
@@ -5898,6 +5923,16 @@ function cancelFlyoutHide() {
   if (flyoutHideTimer) { clearTimeout(flyoutHideTimer); flyoutHideTimer = null; }
 }
 
+// 326.1: one popup at a time. A page's own drop-down list or date picker is
+// drawn above every layer, so a menu opened by hover while one shows sat on
+// the page beside it. :open matches a select or input while its picker shows;
+// a browser without :open never blocks the menu.
+function pagePickerOpen() {
+  const el = document.activeElement;
+  if (!el || (el.tagName !== 'SELECT' && el.tagName !== 'INPUT') || el.closest('.has-flyout')) return false;
+  try { return el.matches(':open'); } catch { return false; }
+}
+
 // Pass a container to cancel only an open that container itself scheduled.
 function cancelFlyoutOpen(onlyFor) {
   if (onlyFor && flyoutOpenTarget && flyoutOpenTarget !== onlyFor) return;
@@ -6083,6 +6118,7 @@ function setupModuleFlyouts() {
     // takes over, so a pointer merely travelling across it on the way to that
     // other menu doesn't yank it away mid-reach.
     const showOnHover = () => {
+      if (pagePickerOpen()) return; // 326.1
       cancelFlyoutHide();
       if (container.classList.contains('flyout-open')) return;
       if (!document.querySelector('.has-flyout.flyout-open')) { cancelFlyoutOpen(); show(); return; }
@@ -6155,6 +6191,12 @@ function setupModuleFlyouts() {
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.has-flyout')) closeSubmenus();
   });
+  // 326.1: close on the press too. A drop-down list opens on pointerdown and
+  // takes the click, so a menu the pointer had just crossed stayed open beside
+  // it. Capture, so a screen that stops the event still closes the menu.
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest?.('.has-flyout')) closeSubmenus();
+  }, true);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSubmenus();
   });
@@ -7075,7 +7117,7 @@ function formatNumber(v) {
 }
 // 47.14.2: a Date or timestamp as "03 Feb 2026 14:05" (dateOnly drops the time), in the client's date order.
 function formatDateTime(v, dateOnly) {
-  if (typeof v === 'string' && /^d{4}-d{2}-d{2}$/.test(v)) return formatDay(v);
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return formatDay(v); // 319.12: was /^d{4}-.../
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d)) return v == null ? '' : String(v);
   const p = n => String(n).padStart(2, '0');
@@ -7200,7 +7242,8 @@ async function fetchDocTablePage(doctype, page, search) {
   const totalHeader = dataRes.headers.get('X-Total-Count');
   const offset = (page - 1) * itemsPerPage;
   const total = totalHeader !== null ? (parseInt(totalHeader, 10) || 0) : offset + records.length;
-  return { records, total, estimated: dataRes.headers.get('X-Total-Count-Estimated') === 'true' };
+  return { records, total, estimated: dataRes.headers.get('X-Total-Count-Estimated') === 'true',
+    byNumber: dataRes.headers.get('X-Search-Scope') === 'number' }; // 297.4: a big list searched by number
 }
 
 async function fetchDocTableData(doctype, page, search) {
@@ -7208,7 +7251,7 @@ async function fetchDocTableData(doctype, page, search) {
   if (!metaRes || !metaRes.ok) return undefined;
   const pageData = await fetchDocTablePage(doctype, page, search);
   if (!pageData) return undefined;
-  return { fields: await metaRes.json(), records: pageData.records, total: pageData.total, estimated: pageData.estimated };
+  return { fields: await metaRes.json(), records: pageData.records, total: pageData.total, estimated: pageData.estimated, byNumber: pageData.byNumber };
 }
 
 // cfgEsc is a historical alias for escapeHTMLText. It used to be a second,

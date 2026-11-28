@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **1019** of them,
+Every refusal in this application carries a code. There are **1021** of them,
 across **84** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -94,7 +94,7 @@ open the right page.
 - [Order Management](error-code-reference-2.md#order-management) - 12 codes
 - [PIM](error-code-reference-3.md#pim) - 57 codes
 - [PIM / Product Publishing](error-code-reference-3.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-3.md#pos-billing) - 51 codes
+- [POS / Billing](error-code-reference-3.md#pos-billing) - 52 codes
 - [POS / Offline & Cash Drawer](error-code-reference-3.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-3.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-3.md#payments) - 7 codes
@@ -116,7 +116,7 @@ open the right page.
 - [Security](error-code-reference-4.md#security) - 9 codes
 - [Security / AI assistant access](error-code-reference-4.md#security-ai-assistant-access) - 10 codes
 - [Security / Rate Limit](error-code-reference-4.md#security-rate-limit) - 6 codes
-- [Stock Transfer](error-code-reference-4.md#stock-transfer) - 17 codes
+- [Stock Transfer](error-code-reference-4.md#stock-transfer) - 18 codes
 - [Tax / GST / E-Invoice](error-code-reference-4.md#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](error-code-reference-4.md#user-access-security) - 9 codes
 - [Vendor Invoice / AP](error-code-reference-4.md#vendor-invoice-ap) - 17 codes

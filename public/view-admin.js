@@ -1261,18 +1261,36 @@ function showOneTimeSecretDialog(title, message, secretValue) {
 // 193: an edit is logged as "<Doctype> Fields changed: {json} for Document ID: <id>".
 // Show it as "Task <id>: packed weight kg - to 1" rather than the raw JSON.
 function auditDetailText(details) {
+  // 319.11: a create or delete row is the trigger's "Created Document ID: <id> with
+  // data: {json}" ("Deleted ... having data:"); show the id and its first fields.
+  const c = /^(Created|Deleted) Document ID: (\S+) (?:with|having) data: (\{.*\})\s*$/s.exec(details || '');
+  if (c) {
+    let data;
+    try { data = JSON.parse(c[3]); } catch { return `${c[1]} ${c[2]}`; }
+    const parts = Object.entries(data || {})
+      .filter(([k, v]) => k !== 'id' && v !== null && v !== '' && typeof v !== 'object' && !(k === 'code' && v === c[2]))
+      .map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`);
+    const more = parts.length > 4 ? `; +${parts.length - 4} more` : '';
+    return `${c[1]} ${c[2]}${parts.length ? ': ' + parts.slice(0, 4).join('; ') + more : ''}`;
+  }
   const m = /^(.*?)\s*Fields changed: (\{.*\}) for Document ID: (\S+)(.*)$/s.exec(details || '');
   if (!m) return details;
   let diff;
   try { diff = JSON.parse(m[2]); } catch { return details; }
-  const val = v => (v === null || v === undefined || v === '' ? '-' : typeof v === 'object' ? JSON.stringify(v) : String(v));
-  const parts = Object.entries(diff).map(([k, d]) => `${k.replace(/_/g, ' ')} ${val(d && d.old)} to ${val(d && d.new)}`);
+  const val = v => (v === null || v === undefined || v === '' ? '-' : String(v));
+  // 319.11: a changed list or group (match details, lines) reads "changed", not raw JSON.
+  const isObj = v => v !== null && typeof v === 'object';
+  const parts = Object.entries(diff).map(([k, d]) => (isObj(d && d.old) || isObj(d && d.new)
+    ? `${k.replace(/_/g, ' ')} changed`
+    : `${k.replace(/_/g, ' ')} ${val(d && d.old)} to ${val(d && d.new)}`));
   return `${m[1] ? m[1] + ' ' : ''}${m[3]}: ${parts.join('; ')}${m[4] || ''}`;
 }
 
 // Render Activity Log (internal name still Log Hub) & panic dashboard logs
 // Stage 155.3: each log is its own sidebar entry ("audit-logs:<log>").
-const LOG_PAGES = { audit: 'Activity Log', system: 'System Errors', integration: 'Integration Payloads', jobs: 'Async Jobs', security: 'Security Events' };
+// Ask 311 (288.3(c)): Security Events is five pages, one job each; view-security.js draws them.
+const LOG_PAGES = { audit: 'Activity Log', system: 'System Errors', integration: 'Integration Payloads', jobs: 'Async Jobs', security: 'Security Events',
+  'security-access': 'Access Review', 'security-trace': 'Trace & Evidence', 'security-notify': 'Breach Notifications', 'security-emergency': 'Emergency Controls' };
 // Ask 191: the logs a role may lack even when it opens this screen (Admin holds no system.logs,
 // Stage 125). Neither is fetched without its capability, so no 403 lands in the console.
 const LOG_CAPABILITY = { system: 'system.logs', jobs: 'jobs.view' };
@@ -1357,8 +1375,8 @@ async function renderLogHubView(container) {
                 <tr>
                   <td>${escapeHTMLText(l.user_id)}</td>
                   <td>${escapeHTMLText(l.action)}</td>
-                  <td class="s-6cb285">${escapeHTMLText(auditDetailText(l.details))}</td>
-                  <td class="s-73e1c9">${escapeHTMLText(l.created_at)}</td>
+                  <td class="s-6cb285" title="${escapeHTMLText(String(l.details || '').slice(0, 2000))}">${escapeHTMLText(auditDetailText(l.details))}</td>
+                  <td class="s-73e1c9">${escapeHTMLText(l.created_at ? formatDateTime(l.created_at) : '')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1580,7 +1598,7 @@ async function renderLogHubView(container) {
     reloadJobs();
   };
 
-  if (logTab === 'security') import('./view-security.js' + new URL(import.meta.url).search).then(m => m.renderSecurityPane(tabContent));
+  if (logTab.startsWith('security')) import('./view-security.js' + new URL(import.meta.url).search).then(m => m.renderSecurityPane(tabContent, logTab));
   else ({ audit: renderAuditPane, system: renderSystemPane, integration: renderIntegrationPane, jobs: renderJobsPane })[logTab]();
 
   window.viewStackTrace = async function(logId) {

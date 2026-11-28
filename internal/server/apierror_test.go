@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -114,4 +116,67 @@ func TestErrorEnvelopeCarriesDetailAndUserAction(t *testing.T) {
 			t.Fatalf("even a withheld-detail 5xx should tell the user what to do next")
 		}
 	})
+}
+
+// TestListReadTheUserLeftIsNotAServerFault covers 312.1. Since 283.3 a list
+// read stops its query in Postgres when the user leaves, and the list handler
+// answered that with a 500 logged at Critical (GLOBAL-0302) - one Critical
+// row for every list someone navigated away from. The shared 5xx writer now
+// applies writeEngineError's rule: the user left is an empty 499 and nothing
+// logged; a deadline that ran out while they wait is GLOBAL-0308; a real 500
+// is still a logged 500.
+func TestListReadTheUserLeftIsNotAServerFault(t *testing.T) {
+	db.InitDB(testConnStr())
+	mux := contractMux()
+	userID, cleanup := seedContractUser(t, engines.RoleAdmin, "HO")
+	defer cleanup()
+	token := engines.SignToken(userID, userID, engines.RoleAdmin, "default", "HO", 1)
+
+	// The real list route, with a user who has already gone. Whether the
+	// cancel reaches Postgres before a query this small finishes is a race,
+	// so each try may answer 200 or 499 - never a 5xx, never a logged row.
+	gone, leave := context.WithCancel(context.Background())
+	leave()
+	ip := mfaTestIP()
+	for try := 0; try < 5; try++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Customer?q=%E0%A4%95&limit=1", nil).WithContext(gone)
+		req.RemoteAddr = ip + ":54321"
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		correlationID := rec.Header().Get("X-Correlation-ID")
+		if rec.Code != http.StatusOK && rec.Code != clientClosedRequestStatus {
+			t.Errorf("try %d: a list read the user left answered %d %s", try, rec.Code, rec.Body.String())
+		}
+		if correlationID != "" {
+			if msgs := loggedMessages(t, correlationID); len(msgs) != 0 {
+				t.Errorf("try %d: a list read the user left must log nothing, got %q", try, msgs)
+			}
+			db.DB.Exec(`DELETE FROM tenant_default.system_error_logs WHERE correlation_id = $1::uuid`, correlationID)
+		}
+	}
+
+	// The writer itself, with the driver's own words for a cancelled query.
+	const cancelled = "pq: canceling statement due to user request"
+	call := func(ctx context.Context) (*httptest.ResponseRecorder, []string) {
+		id := newTestCorrelationID(t)
+		defer db.DB.Exec(`DELETE FROM tenant_default.system_error_logs WHERE correlation_id = $1::uuid`, id)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Customer", nil).WithContext(ctx)
+		req.Header.Set("Resolved-Tenant-ID", "default")
+		req.Header.Set("Resolved-Correlation-ID", id)
+		rec := httptest.NewRecorder()
+		writeAPIErrorGeneric(rec, req, http.StatusInternalServerError, cancelled)
+		return rec, loggedMessages(t, id)
+	}
+	if rec, msgs := call(gone); rec.Code != clientClosedRequestStatus || rec.Body.Len() != 0 || len(msgs) != 0 {
+		t.Errorf("the user left: want an empty 499 and nothing logged, got %d %q, logged %q", rec.Code, rec.Body.String(), msgs)
+	}
+	expired, stop := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer stop()
+	if rec, _ := call(expired); !strings.Contains(rec.Body.String(), `"code":"GLOBAL-0308"`) {
+		t.Errorf("the deadline ran out while the user waits: want GLOBAL-0308, got %d %s", rec.Code, rec.Body.String())
+	}
+	if rec, msgs := call(context.Background()); rec.Code != http.StatusInternalServerError || len(msgs) != 1 {
+		t.Errorf("the user still waiting: a real 500 must stay a logged 500, got %d, logged %q", rec.Code, msgs)
+	}
 }

@@ -11,10 +11,10 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 142 |
-| Screens in the shell registry | 81 |
-| File-to-route actions | 1308 |
-| Registered `/api` routes | 1137 |
+| Front-end files with screens or API calls | 143 |
+| Screens in the shell registry | 82 |
+| File-to-route actions | 1320 |
+| Registered `/api` routes | 1144 |
 | Routes no front-end file calls | 226 |
 | Calls matching no route | 4 |
 
@@ -78,6 +78,8 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | POST | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
 | GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
+| GET | `/api/v1/stock-requests` | `handleListStockRequests` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-requests` | `handleCreateStockRequest` | inventory | signed-in: inventory.default | every signed-in role |
 | GET | `/api/v1/system/environment` | `handleGetEnvironment` |  | signed-in: system.default | every signed-in role |
 | POST | `/api/v1/uploads` | `handleUploadStart` |  | signed-in: import.default | every signed-in role |
 | GET | `/api/v1/version` | `handleVersion` |  | public: version.default | anyone |
@@ -649,6 +651,7 @@ Owners: M03, M04. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/procurement/bulk-upload/apply` | `handleBulkPurchaseApply` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/bulk-upload/preview` | `handleBulkPurchasePreview` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/procurement/bulk-upload/runs/{id}/errors` | `handleBulkPurchaseRunErrors` | procurement | signed-in: procurement.default | every signed-in role |
@@ -775,7 +778,6 @@ Owners: M25, M26. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/grn-steps` | `handleGRNStepsInbox` | procurement | signed-in: procurement.default | every signed-in role |
 | GET | `/api/v1/me/stores` | `handleMyStores` |  | signed-in: me.default | every signed-in role |
-| GET | `/api/v1/reports/catalog` | `handleReportCatalog` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/reports/run/{id}` | `handleRunReport` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/store-app/low-stock` | `handleStoreAppLowStock` | inventory | signed-in: availability.default | every signed-in role |
 | GET | `/api/v1/store-app/today` | `handleStoreAppToday` | sales | signed-in: store_app.default | every signed-in role |
@@ -1152,6 +1154,8 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | POST | `/api/v1/stock-age-inspections` | `handleStockAgeInspections` | quality | signed-in: quality.default | every signed-in role |
 | GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
+| GET | `/api/v1/stock-requests` | `handleListStockRequests` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-requests` | `handleCreateStockRequest` | inventory | signed-in: inventory.default | every signed-in role |
 | GET | `/api/v1/uploads/{id}` | `handleUploadGet` |  | signed-in: import.default | every signed-in role |
 | PUT | `/api/v1/uploads/{id}` | `handleUploadPiece` |  | signed-in: import.default | every signed-in role |
 | POST | `/api/v1/uploads` | `handleUploadStart` |  | signed-in: import.default | every signed-in role |
@@ -1903,7 +1907,6 @@ Owners: M25, M26. Live inspection: not recorded.
 | POST | `/api/v1/finance/reconciliation/exceptions` | `handleReconciliationException` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/inventory/stock` | `handleInventoryStock` | inventory | signed-in: inventory.default | every signed-in role |
 | GET | `/api/v1/pim/media/{id}/thumbnail` | `handlePIMMediaThumbnail` | pim | signed-in: pim.default | every signed-in role |
-| GET | `/api/v1/reports/catalog` | `handleReportCatalog` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/reports/drilldown/{id}` | `handleReportDrillDown` | reports | signed-in: reports.default | every signed-in role |
 | POST | `/api/v1/reports/export/{id}/cancel` | `handleCancelReportExport` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/reports/export/{id}` | `handleGetReportExport` | reports | signed-in: reports.default | every signed-in role |
@@ -2151,6 +2154,23 @@ Owners: M07, M10, M20. Live inspection: not recorded.
 | GET | `/api/v1/stock-locations` | `handleStockLocations` |  | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/stock-locations` | `handleStockLocations` |  | admin: admin.stock_locations | Super Admin, Admin |
 
+### `public/view-stock-requests.js`
+
+Screens: Stock Requests (`#/view/stock-requests`; help: Inventory & Warehouse Operations, verified 2026-11-15).  
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| POST | `/api/v1/stock-requests/accept` | `handleAcceptStockRequest` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-requests/auto-run` | `handleAutoRunStockRequests` | inventory | signed-in: inventory.default | every signed-in role |
+| GET | `/api/v1/stock-requests/reasons` | `handleStockRequestReasons` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-requests/reject` | `handleRejectStockRequest` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-requests/sources` | `handleStockRequestSources` | inventory | signed-in: inventory.default | every signed-in role |
+| GET | `/api/v1/stock-requests` | `handleListStockRequests` | inventory | signed-in: inventory.default | every signed-in role |
+| POST | `/api/v1/stock-requests` | `handleCreateStockRequest` | inventory | signed-in: inventory.default | every signed-in role |
+
 ### `public/view-store.js`
 
 Owners: M07, M10, M20. Live inspection: not recorded.
@@ -2371,7 +2391,7 @@ No screen and no API call: `api-claim.js`, `api-docs-viewer.js`, `api-docs.js`, 
 
 ## Screens missing an owner or a help article
 
-14 of 81 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
+15 of 82 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
 
 | Screen | View | File | Owner | Help article |
 |---|---|---|---|---|
@@ -2386,6 +2406,7 @@ No screen and no API call: `api-claim.js`, `api-docs-viewer.js`, `api-docs.js`, 
 | Sales History | `sales-history` | `public/view-sales-history.js` | missing | yes |
 | Privacy approvals | `privacy-approvals` | `public/view-security-notify.js` | missing | yes |
 | Service entries | `service-entry` | `public/view-service-entry.js` | missing | yes |
+| Stock Requests | `stock-requests` | `public/view-stock-requests.js` | missing | yes |
 | Stores | `stores` | `public/view-stores.js` | missing | yes |
 | Subscription | `subscription` | `public/view-subscription.js` | missing | yes |
 | Supplier portal | `supplier-portal` | `public/view-supplier-portal.js` | missing | yes |
@@ -2466,7 +2487,7 @@ Settings → Configuration renders the settings registry by module, through the 
 | Service | 4 |
 | Stock Transfer | 1 |
 | Store app | 1 |
-| Warehouse | 16 |
+| Warehouse | 17 |
 
 ## Routes no front-end file calls
 

@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 169 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 205 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -36,9 +36,9 @@ BLD-002: the 169 open checklist items reconciled into the business journeys they
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 5 | 0 | 5 |
 | Cross-journey acceptance and audits | - | - | 38 | 1 | 28 |
 | Engineering housekeeping | - | - | 1 | 0 | 1 |
-| Unmapped - place these stages | - | - | 61 | 8 | 16 |
+| Unmapped - place these stages | - | - | 97 | 13 | 20 |
 
-**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (1), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 251 (1), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (3), Stage 265 (1), Stage 267 (4), Stage 269 (1), Stage 275 (2), Stage 276 (2), Stage 277 (1), Stage 285 (1), Stage 286 (3), Stage 288 (1), Stage 289 (3), Stage 290 (1), Stage 292 (4), Stage 295 (2), Stage 297 (5) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (5), Stage 154 (2), Stage 162 (1), Stage 176 (1), Stage 177 (2), Stage 184 (1), Stage 185 (1), Stage 194 (1), Stage 203 (2), Stage 212 (1), Stage 213 (2), Stage 214 (1), Stage 234 (1), Stage 251 (1), Stage 254 (1), Stage 255 (1), Stage 258 (1), Stage 264 (3), Stage 265 (1), Stage 267 (4), Stage 269 (1), Stage 275 (2), Stage 276 (2), Stage 277 (1), Stage 285 (1), Stage 286 (1), Stage 289 (1), Stage 290 (1), Stage 292 (4), Stage 295 (2), Stage 297 (2), Stage 310 (2), Stage 313 (1), Stage 315 (1), Stage 316 (4), Stage 319 (2), Stage 320 (2), Stage 323 (29), Stage 325 (2), Stage 327 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -183,16 +183,52 @@ BLD-002: the 169 open checklist items reconciled into the business journeys they
 
 ## Unmapped
 
+- **315.1** minn: why Combination IDs jump from I00284 to I00895
 - **146.5.12** Typed product relationships *(blocked)*
 - **276.11** Vendors: renumber card pushes the list below the fold
+- **323.5** Vendor lead time, measured
+- **316.1** Bulk purchase upload accepts the client's bills and fixes them itself
+- **316.2** Rows to fix download says nothing to fix while bills failed
+- **320.1** Bulk PO upload: one click takes the stock to the store that bills it
+- **320.2** After the upload, "Print stickers?" prints every received bill's stickers at once
+- **323.27** Open-to-buy gate
+- **316.3** minn: receive every loaded PO, through every step *(blocked)*
+- **323.3** Planning readiness check
+- **323.4** Daily stock position
+- **316.4** minn: move the received stock from BLR Warehouse to BLR HSR, ready to bill *(blocked)*
+- **323.6** Transfer lanes
+- **323.7** Cross-entity transfer guard
+- **323.9** Piece barcode is the serial
+- **323.24** Stock health grades
+- **323.2** Owner decisions for the planning plan *(decision)*
+- **323.10** Planning policies by level
+- **323.11** Network planning run
+- **323.12** Proposal trace and review states
+- **323.13** Planning pages under Inventory
+- **323.15** Planning acceptance tests
+- **323.16** Demand history, cleaned
+- **323.18** Forecast methods in Go
+- **323.19** Back-test and model choice
+- **323.20** Planning events and offers
+- **323.21** New items and launches
+- **323.22** Forecast overrides
+- **323.23** Computed safety stock
+- **323.25** Network redistribution
+- **323.28** Service level from cost, season buys
+- **323.29** Policy simulator
+- **323.30** Optimal allocator, only if measured
+- **323.14** Planning KPIs
+- **323.26** Redistribution outcome
+- **319.8** Is a bin code unique per store or per business? *(decision)*
 - **146.3.9** Weighing scale at pack *(blocked)*
+- **325.1** Reject hops to a store that has the stock *(decision)*
+- **325.2** The rejecting store's stock count *(decision)*
+- **323.17** Lost sales and substitutions at the till
+- **297.4.1** The tier check at the till grows with the customer's bills *(decision)*
+- **323.8** Intercompany stock flow *(decision)*
 - **176.7** Finite capacity scheduling *(blocked)*
-- **297.8** The report catalog on a slow line *(decision)*
 - **143.6** Barcode print sorted: select the GRN and print *(blocked)*
-- **286.1** Premium print on the LD0801: darker, crisper strokes
-- **286.2** Seznik vertical × 3: one clean grid
-- **286.3** The saved Seznik templates take the new layout
-- **289.1** World-class text style in Sticker Studio
+- **286.1** Premium print on the LD0801: darker, crisper strokes *(blocked)*
 - **267.5** Device and provider acceptance round *(blocked)*
 - **154.2** Fix: roll held straight, then Printer preset on Jewellery *(blocked)*
 - **154.5** Printer preset: Turn (°) - straighten a print that comes out tilted on the tag *(blocked)*
@@ -207,22 +243,21 @@ BLD-002: the 169 open checklist items reconciled into the business journeys they
 - **275.3** 😀 says where it kept the answer
 - **255.1** Fix from photo: the photo stays in its box and the result is never off screen
 - **258.5** PrintBridge and QZ Tray on one computer
-- **289.2** Printer handover check: the studio and the LD0801 ready for the client
-- **289.3** Release, then close the LD0801 round
+- **289.3** Release, then close the LD0801 round *(decision)*
+- **310.1** minn: stickers print on the store PC's DP27
+- **310.2** A store-default printer this computer does not have asks for this computer's own
 - **213.1** Change the print for this one document before it prints
 - **213.5** One switch maps the rest *(decision)*
 - **146.5.1** Shopify gets the approved PIM content *(blocked)*
 - **146.4.1** A real Unicommerce integration *(blocked)*
 - **146.5.2** Marketplace templates from their own file, per category, with validation *(blocked)*
 - **185.3** Razorpay payment links *(blocked)*
-- **297.2** Imports of any size, in the background
-- **297.2.5** The 1-crore proof
 - **277.1** Data Healer: the Item column is not read as items
 - **162.17** MFA tiers: when to require? *(decision)*
+- **319.3** OMS and WMS actions do not check the user's stores *(decision)*
 - **267.7** Keep speed while the 267 items land
-- **297.4** Every transaction stays fast at 1 crore rows
-- **297.5** 1 lakh users *(decision)*
-- **288.3** Three screens whose split needs your call *(decision)*
+- **297.5** 1 lakh users
+- **313.4** Grow the server only where the load test points *(blocked)*
 - **276.20** Look-and-feel direction ("aesthetic and futuristic") *(decision)*
 - **177.3** Deploy waits for the GitHub run *(blocked)*
 - **177.5** The click's own gates must take about a minute *(blocked)*
@@ -230,6 +265,7 @@ BLD-002: the 169 open checklist items reconciled into the business journeys they
 - **264.3** G7 stops on what ci.yml's `doclint -strict` stops on
 - **285.2** G8 runs `node --check` on every script in `public/`
 - **265.8** G13 tries a refused push three times
+- **327.1** Release, push and deploy once every session is done; fix what the gates find
 - **267.6** One evidence pack for what runs where *(blocked)*
 - **290.2** Point-in-time recovery: archive the write-ahead log *(blocked)*
 - **292.2** Last task: tidy every folder and the root *(decision)*

@@ -42,7 +42,7 @@ func CheckPublishReadiness(tenantID, itemCode, channelCode string) (*PublishRead
 	}
 
 	var defaultLocale string
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'default_locale', 'en') FROM %s.documents WHERE doctype = 'Channel' AND id = $1`, schema), channelCode).Scan(&defaultLocale); err != nil {
+	if err := db.DB.QueryRow(channelByRefSQL(schema, `COALESCE(data->>'default_locale', 'en')`), channelCode).Scan(&defaultLocale); err != nil {
 		return nil, fmt.Errorf("channel not found: %v", err)
 	}
 	if defaultLocale == "" {
@@ -254,7 +254,7 @@ func computePublishPayloadHash(tenantID, itemCode, channelCode string) string {
 		return ""
 	}
 	var defaultLocale string
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'default_locale', 'en') FROM %s.documents WHERE doctype = 'Channel' AND id = $1`, schema), channelCode).Scan(&defaultLocale)
+	_ = db.DB.QueryRow(channelByRefSQL(schema, `COALESCE(data->>'default_locale', 'en')`), channelCode).Scan(&defaultLocale)
 	if defaultLocale == "" {
 		defaultLocale = "en"
 	}
@@ -542,11 +542,19 @@ func fetchChannelPlatform(tenantID, channelCode string) (string, error) {
 		return "", err
 	}
 	var platform string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'platform', '') FROM %s.documents WHERE doctype = 'Channel' AND id = $1`, schema), channelCode).Scan(&platform)
+	err = db.DB.QueryRow(channelByRefSQL(schema, `COALESCE(data->>'platform', '')`), channelCode).Scan(&platform)
 	if err != nil {
 		return "", err
 	}
 	return platform, nil
+}
+
+// channelByRefSQL (319.10) selects cols from the one Channel ($1) names: by
+// record id, else by code. The screens send a Channel's code (the link
+// convention), and an older Channel's id is a UUID, not its code.
+func channelByRefSQL(schema, cols string) string {
+	return fmt.Sprintf(`SELECT %s FROM %s.documents WHERE doctype = 'Channel' AND deleted_at IS NULL
+		  AND (id = $1 OR data->>'code' = $1) ORDER BY (id = $1) DESC, id LIMIT 1`, cols, schema)
 }
 
 // publishOneJob builds the outbound payload, loads the channel's credential

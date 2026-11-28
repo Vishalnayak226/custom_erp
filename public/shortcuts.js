@@ -91,21 +91,32 @@ window.markMenuCodes = markMenuCodes;
 codesReady.then(markMenuCodes);
 
 let reports = null, reportsTried = 0, reportsLoading = null;
+// 297.8: one report catalog per page. Ctrl+K, the Reports menu, the Report
+// Catalog and Dashboards all share this load (views reach it through
+// loadViewModule('./shortcuts.js')); the server answers an unchanged catalog
+// with a 304. Resolves to the list, or null when it could not be loaded.
+export function loadReportCatalog() {
+  if (reports) return Promise.resolve(reports);
+  if (!reportsLoading) {
+    reportsLoading = (async () => {
+      const res = await window.apiFetch('/api/v1/reports/catalog');
+      const list = res && res.ok ? await res.json() : null;
+      reports = Array.isArray(list) ? list : null;
+      return reports;
+    })().catch(() => null).finally(() => { reportsLoading = null; });
+  }
+  return reportsLoading;
+}
 async function loadReports() {
   if (reports) return reports;
   // 297.6: a load still on its way is waited for, not skipped. On a slow line
   // the second key typed searched without the reports, and built the whole
   // search index inside that key press.
-  if (reportsLoading) return reportsLoading;
-  if (Date.now() - reportsTried < 60000) return []; // no Reports module, or offline: not on every keystroke
-  reportsTried = Date.now();
-  reportsLoading = (async () => {
-    const res = await window.apiFetch('/api/v1/reports/catalog').catch(() => null);
-    if (!res || !res.ok) return [];
-    reports = await res.json();
-    return reports;
-  })().catch(() => []).finally(() => { reportsLoading = null; });
-  return reportsLoading;
+  if (!reportsLoading) {
+    if (Date.now() - reportsTried < 60000) return []; // no Reports module, or offline: not on every keystroke
+    reportsTried = Date.now();
+  }
+  return (await loadReportCatalog()) || [];
 }
 const REPORT_AREAS = { 1: 'Sales & POS', 2: 'Procurement', 3: 'Inventory', 4: 'WMS', 5: 'Finance', 6: 'CRM & Commerce', 7: 'PIM & Manufacturing', 8: 'HR', 9: 'MIS, Master Data & Audit' };
 const reportByRoute = route => (reports || []).find(r => `reports:${r.id}` === route);
