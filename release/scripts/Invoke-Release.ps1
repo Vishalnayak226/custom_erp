@@ -553,6 +553,16 @@ if ($baseLines.Count -gt 0 -and $baseLines[0] -eq '{') {
 Copy-Item $surfTmp (Join-Path $wt 'docs/security/attack_surface.json') -Force
 Remove-Item $surfTmp -ErrorAction SilentlyContinue
 Note 'attack_surface.json regenerated from the release set'   # the full suite's surface test re-checks it
+# G6c (ask 327): docs/security/idempotency-audit.md is generated from routes.go
+# and the handlers. A route added without regenerating it stopped the first
+# GitHub run of 0.30.0 (ask 289) and of 0.32.0 in the guard tests, so the
+# release regenerates it here, like the surface. Reads source only, no database.
+$env:ERP_WRITE_IDEMPOTENCY_AUDIT = '1'
+try {
+    $idemOut = Invoke-Native -Exe $go -Arguments @('test', '-count=1', '-run', '^TestStage4947IdempotencyAuditIsCurrent$', './internal/server/') -WorkDir $wt -AllowFail
+    if ($LASTEXITCODE -ne 0) { Stop-Release "idempotency audit: could not regenerate docs/security/idempotency-audit.md:`n$(($idemOut | Select-Object -Last 10) -join "`n")" }
+} finally { Remove-Item Env:ERP_WRITE_IDEMPOTENCY_AUDIT -ErrorAction SilentlyContinue }
+Note 'idempotency-audit.md regenerated from the release set'
 
 # ---------------------------------------------------------------- G7 docs
 Write-Gate 'G7 Guides, KB, brain, register'

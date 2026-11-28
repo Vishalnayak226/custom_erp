@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **711**; keyed: **39**; findings (money / stock without a key): **148**.
+Routes audited: **716**; keyed: **39**; findings (money / stock without a key): **153**.
 
 ## Findings
 
@@ -163,6 +163,11 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/stock-locations/defaults` | `handleStockLocationDefault` | stock |
 | `POST /api/v1/stock-locations/move` | `handleMoveStock` | stock |
 | `POST /api/v1/stock-locations/stores` | `handleStoreStockLocations` | stock |
+| `POST /api/v1/stock-requests` | `handleCreateStockRequest` | stock |
+| `POST /api/v1/stock-requests/accept` | `handleAcceptStockRequest` | stock |
+| `POST /api/v1/stock-requests/auto-run` | `handleAutoRunStockRequests` | stock |
+| `POST /api/v1/stock-requests/reject` | `handleRejectStockRequest` | stock |
+| `POST /api/v1/stock-requests/sources` | `handleStockRequestSources` | stock |
 | `POST /api/v1/supplier-portal/asn` | `handleSupplierPortalSendASN` | stock |
 | `POST /api/v1/transfer/allocation` | `handleTransferAllocationUpload` | stock |
 | `POST /api/v1/transfer/allocation/decide` | `handleTransferAllocationDecide` | stock |
@@ -815,6 +820,11 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/stock-locations/defaults` | `handleStockLocationDefault` | no | - | stock |
 | `POST /api/v1/stock-locations/move` | `handleMoveStock` | no | - | stock |
 | `POST /api/v1/stock-locations/stores` | `handleStoreStockLocations` | no | - | stock |
+| `POST /api/v1/stock-requests` | `handleCreateStockRequest` | no | - | stock |
+| `POST /api/v1/stock-requests/accept` | `handleAcceptStockRequest` | no | - | stock |
+| `POST /api/v1/stock-requests/auto-run` | `handleAutoRunStockRequests` | no | - | stock |
+| `POST /api/v1/stock-requests/reject` | `handleRejectStockRequest` | no | - | stock |
+| `POST /api/v1/stock-requests/sources` | `handleStockRequestSources` | no | - | stock |
 | `POST /api/v1/store-app/counts` | `handleStoreAppCounts` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/store-app/device/check` | `handleStoreAppDeviceCheck` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/store-app/devices` | `handleStoreAppDevices` | no | - | document |

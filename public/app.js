@@ -406,7 +406,7 @@ const loadedViewModules = new Map();
 const viewModuleLoadAttempts = new Map();
 // 53.17: VIEW_MODULE_VERSION busts lazy view modules' cache after a deploy (the release bumps it
 // with index.html's app.js?v=); viewModuleCacheBust is set by Reset so it re-fetches them too.
-const VIEW_MODULE_VERSION = '98';
+const VIEW_MODULE_VERSION = '99';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);

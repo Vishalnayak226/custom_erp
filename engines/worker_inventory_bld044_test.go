@@ -77,7 +77,8 @@ var workerOwner = map[string]string{
 	"StartProjectRevenueWorker":           "", // 170.33
 	"StartServiceSLAWorker":               "", // 170.34
 	"StartScheduledItemChangeWorker":      "pim",
-	"StartAPIKeyWatchWorker":              "", // 205.20, reminders and failure alerts for every client with keys
+	"StartAPIKeyWatchWorker":              "",          // 205.20, reminders and failure alerts for every client with keys
+	"StartStockRequestAutoWorker":         "inventory", // 324, daily auto stock requests; off until a store turns it on
 }
 
 // claimSafeWorkers may run on every server: they claim each unit of work

@@ -2227,8 +2227,8 @@
     {
       "id": "release-0.32.0",
       "label": "release 0.32.0",
-      "recorded_at": "2026-11-28T06:45:02Z",
-      "commit": "7966bbfec3388c98a8d06bc9d27b9d532e5468f0",
+      "recorded_at": "2026-11-28T06:56:41Z",
+      "commit": "88637ef0afe20f2982b3350662983418b2924403",
       "root": ".",
       "metrics": {
         "backup.seconds_to_verified_restore": {
@@ -2382,7 +2382,7 @@
           "status": "measured"
         },
         "static.public_gzip_bytes": {
-          "value": 4452136,
+          "value": 4452137,
           "unit": "bytes",
           "source": "each file gzipped on its own, summed (what a browser downloads)",
           "status": "measured"
